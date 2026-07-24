@@ -11,8 +11,35 @@ let package = Package(
         .executable(name: "PanoWizard", targets: ["PanoWizard"])
     ],
     targets: [
+        .target(
+            name: "OpenCVBridge",
+            path: "Sources/OpenCVBridge",
+            publicHeadersPath: "include",
+            cxxSettings: [
+                .unsafeFlags([
+                    "-std=c++17",
+                    "-IVendor/OpenCV/include/opencv5"
+                ])
+            ],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-LVendor/OpenCV/lib",
+                    "-lopencv_features",
+                    "-lopencv_imgcodecs",
+                    "-lopencv_imgproc",
+                    "-lopencv_geometry",
+                    "-lopencv_flann",
+                    "-lopencv_core",
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "@loader_path/../Frameworks",
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "Vendor/OpenCV/lib"
+                ])
+            ]
+        ),
         .executableTarget(
             name: "PanoWizard",
+            dependencies: ["OpenCVBridge"],
             path: "Sources/PanoWizard"
         ),
         .testTarget(
@@ -20,5 +47,6 @@ let package = Package(
             dependencies: ["PanoWizard"],
             path: "Tests/PanoWizardTests"
         )
-    ]
+    ],
+    cxxLanguageStandard: .cxx17
 )

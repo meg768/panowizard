@@ -81,7 +81,7 @@ final class AppModel {
             project: project,
             importer: ImageImportService(metadataReader: ImageMetadataReader()),
             grouper: PanoramaGroupingService(),
-            panoramaEngine: StitchingUnavailableEngine(),
+            panoramaEngine: HuginOpenCVPanoramaEngine(),
             exporter: FilePanoramaExporter(),
             masks: masks,
             panoramaData: panoramaData

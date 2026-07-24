@@ -9,6 +9,20 @@ enum MaskedSourceImageWriter {
         maskData: Data,
         destinationURL: URL
     ) throws {
+        try write(
+            sourceURL: sourceURL,
+            maskData: maskData,
+            clipsToFisheyeCircle: false,
+            destinationURL: destinationURL
+        )
+    }
+
+    static func write(
+        sourceURL: URL,
+        maskData: Data?,
+        clipsToFisheyeCircle: Bool,
+        destinationURL: URL
+    ) throws {
         guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
                 as? [CFString: Any] else {
@@ -29,11 +43,9 @@ enum MaskedSourceImageWriter {
             source,
             0,
             options as CFDictionary
-        ),
-        let maskSource = CGImageSourceCreateWithData(maskData as CFData, nil),
-        let mask = CGImageSourceCreateImageAtIndex(maskSource, 0, nil) else {
+        ) else {
             throw PanoramaEngineError.stitchingFailed(
-                "Masken för \(sourceURL.lastPathComponent) kunde inte läsas."
+                "\(sourceURL.lastPathComponent) kunde inte läsas."
             )
         }
 
@@ -52,8 +64,35 @@ enum MaskedSourceImageWriter {
 
         let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
         context.draw(image, in: bounds)
-        context.setBlendMode(.destinationOut)
-        context.draw(mask, in: bounds)
+        if clipsToFisheyeCircle {
+            let radius = CGFloat(image.height) * 0.504
+            let circle = CGRect(
+                x: bounds.midX - radius,
+                y: bounds.midY - radius,
+                width: radius * 2,
+                height: radius * 2
+            )
+            let outside = CGMutablePath()
+            outside.addRect(bounds)
+            outside.addEllipse(in: circle)
+            context.setBlendMode(.clear)
+            context.addPath(outside)
+            context.drawPath(using: .eoFill)
+        }
+
+        if let maskData {
+            guard let maskSource = CGImageSourceCreateWithData(
+                maskData as CFData,
+                nil
+            ),
+            let mask = CGImageSourceCreateImageAtIndex(maskSource, 0, nil) else {
+                throw PanoramaEngineError.stitchingFailed(
+                    "Masken för \(sourceURL.lastPathComponent) kunde inte läsas."
+                )
+            }
+            context.setBlendMode(.destinationOut)
+            context.draw(mask, in: bounds)
+        }
 
         guard let result = context.makeImage(),
               let destination = CGImageDestinationCreateWithURL(

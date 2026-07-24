@@ -20,13 +20,21 @@ cd "$project_directory"
 swift build --configuration release --arch arm64
 
 resources_directory="$contents_directory/Resources"
-mkdir -p "$macos_directory" "$resources_directory"
+mkdir -p "$macos_directory" "$frameworks_directory" "$resources_directory"
 install -m 755 \
     "$project_directory/.build/arm64-apple-macosx/release/PanoWizard" \
     "$macos_directory/PanoWizard"
 install -m 644 \
     "$project_directory/Resources/Info.plist" \
     "$contents_directory/Info.plist"
+
+for library in "$project_directory"/Vendor/OpenCV/lib/*.500.dylib; do
+    install -m 755 "$library" "$frameworks_directory/${library:t}"
+done
+
+ditto \
+    "$project_directory/Vendor/Hugin" \
+    "$resources_directory/Hugin"
 
 xattr -cr "$staging_app_bundle"
 codesign --force --deep --sign - --timestamp=none "$staging_app_bundle"
@@ -38,5 +46,6 @@ fi
 mkdir -p "${app_bundle:h}"
 ditto --norsrc --noextattr "$staging_app_bundle" "$app_bundle"
 xattr -cr "$app_bundle"
+codesign --verify --deep "$app_bundle"
 
 echo "$app_bundle"

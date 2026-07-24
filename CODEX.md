@@ -1,140 +1,40 @@
-# PanoWizard – projektkontext
+# PanoWizard – aktuell projektkontext
 
-## Viktig omstartspunkt
+## Produkt
 
-Omstarten är nu genomförd. Prototypen är arkiverad i Git på `main` i commit
-`f6a6445` (`Archive PanoWizard prototype before clean restart`). Den rena
-arbetsgrenen heter `codex/restart`. All projektimplementation, alla tester,
-byggskript, paketdefinitionen och det byggda app-paketet har tagits bort från
-arbetsgrenen. En extra återställningsbar kopia ligger i macOS Papperskorg under
-`panowizard-prototype-20260724-2338`.
+PanoWizard är en återupplivning av en macOS-applikation från omkring år 2000.
+Målet är en liten, elegant och native panoramaapp: mer Pixelmator än Photoshop.
 
-De ignorerade mapparna `Vendor/` och `.vendor-cache/` har behållits. De
-innehåller externa Hugin/OpenCV-beroenden och är inte en del av den gamla
-PanoWizard-implementationen. Börja inte skriva ny appkod direkt. Första nya
-artefakten ska vara den minsta möjliga, reproducerbara Hugin-körningen för
-Lundalogiks bilder 1–4 enligt ordningen nedan.
-
-På uttrycklig begäran har dokumentredigeraren därefter återinförts från det
-tidigare arbetssättet, men utan den gamla stitchimplementationen. Appen är åter
-en native, dokumentbaserad SwiftUI-app med vänster sidopanel och arbetsyta,
-kan skapa/öppna/spara `.pw`-paket samt importera, visa och maskera källbilder.
-`StitchingUnavailableEngine` är en avsiktlig och tydlig protokollgräns: den
-arkiverade Hugin/OpenCV/cache/nadir-koden är inte länkad till appen. Nästa
-stitchmotor ska utvecklas och verifieras separat innan den kopplas in där.
-
-Den nuvarande implementationen har blivit för komplex. Arbetet har blandat
-grundstitchning, riggcache, bildriktningar, masker, utfyllnadsbilder, lokal
-nadirregistrering, blending och UI-förändringar innan den enklaste
-stitchkedjan varit reproducerbart stabil. Det har lett till loopar där ett fel
-har dolts eller ersatts av ett annat. Flera resultat har dessutom bedömts som
-korrekta utan tillräcklig visuell verifiering.
-
-Nästa arbetspass ska därför börja enklare. Rädda samma repo och dess historik,
-men betrakta den nuvarande implementationen som ett arkiverat experiment.
-Återanvänd ingen stitch-, cache-, mask- eller nadirkod utan ett uttryckligt och
-visuellt verifierat skäl.
-
-Obligatorisk ordning för omstarten:
-
-1. Arkivera nuvarande tillstånd återställningsbart i Git.
-2. Skapa en ren arbetsgren i samma repo.
-3. Börja utan app-UI: endast en minimal Hugin-kedja och Lundalogiks bilder 1–4.
-4. Använd fast Sigma 8 mm DX-profil och fasta startvinklar 0/90/180/270.
-5. Spara varje PTO-mellansteg och den renderade bilden för inspektion.
-6. Gå inte vidare förrän samma fyra bilder ger samma visuellt godkända
-   360-gradersband vid upprepade körningar.
-7. Lägg därefter till bild 5 som zenit och verifiera igen.
-8. Lägg först sedan tillbaka ett minimalt SwiftUI-skal.
-9. Projektformat och vanliga bildmasker kommer efter stabil stitchning.
-10. Nadir/utfyllnad är ett separat, sista framtida steg.
-
-Ingen riggcache, ingen automatisk specialbehandling och ingen
-reparationspipeline får införas under grundtestet. Ett passerande enhetstest
-eller en lyckad processretur räcker inte: bildresultatet måste alltid granskas
-visuellt innan steget får kallas korrekt.
-
-## Produktmål
-
-PanoWizard återupplivar en macOS-applikation från omkring år 2000. Den var ett
-grafiskt gränssnitt för Panorama Tools med målet att göra
-panoramasammanfogning enkel.
-
-Målet är inte att konkurrera med PTGui. Målet är att skapa den mest eleganta
-native panoramaappen för macOS: enkel, vacker och snabb, mer Pixelmator än
-Photoshop och med känslan av en förstapartsapp från Apple.
-
-## Plattform och teknik
-
-- Native macOS, endast Apple Silicon
+- Native Swift 6 och SwiftUI
+- Apple Silicon
 - macOS 26 eller senare
-- Swift 6 och SwiftUI
-- Modern Swift-concurrency med `async`/`await`
-- AppKit bara när det är absolut nödvändigt
-- Följ Apple Human Interface Guidelines
-- MVVM med små, modulära och testbara komponenter
-- Dependency injection; undvik singletons och överarkitektur
+- Ett panorama per dokument
+- Dokumentformatet är ett `.pw`-paket
+- Vänster sidopanel med resultat och källbilder
+- Central bild-/panoramavy
+- Import, Stitch och Export utan guider eller dialogtungt arbetsflöde
 
-Projektmappen heter `panowizard` med gemener. Produkt- och appnamnet är
-`PanoWizard`.
+Projektmappen heter `panowizard`; appen och produkten heter `PanoWizard`.
 
-## Version 1
+## Git och omstart
 
-Användaren drar in en mapp eller en uppsättning bilder. Appen ska automatiskt:
+Den misslyckade första prototypen är återställningsbart arkiverad på `main` i
+commit `f6a6445` (`Archive PanoWizard prototype before clean restart`).
+Den rena arbetsgrenen är `codex/restart`.
 
-1. läsa EXIF,
-2. sortera bilderna,
-3. gruppera dem i panoramaset,
-4. identifiera objektivtyp när det går,
-5. sammanfoga panoramat,
-6. visa en interaktiv förhandsvisning.
+Omstartens dokumentredigerare finns i commit `6697f1b`. Den återställde
+dokumentfönster, `.pw`-paket, import, metadata, sidopanel, bildvisning och
+manuell källbildsmaskning, men ingen stitchkod.
 
-Användaren trycker sedan på Export. Inga guider eller komplicerade inställningar
-behövs. Ett panorama motsvarar ett dokumentfönster och sparas som ett
-`.pw`-filpaket. Formatet är medvetet inte bakåtkompatibelt med den tidigare
-prototypens enkla JSON-fil. Paketet innehåller `project.json`, PNG-masker och
-det senast sammanfogade panoramat; originalbilderna refereras externt.
-Exportformaten i version 1 är JPEG och TIFF.
+Den gamla stitch-, riggcache- och nadirreparationsimplementationen ska inte
+återinföras. Externa, ignorerade beroenden finns kvar i:
 
-Gränssnittet består av en sidopanel med projektets källbilder och det
-sammanfogade panoramat, en central interaktiv förhandsvisning, status och
-förlopp längst ned samt en sparsam verktygsrad för Import, Stitch och Export.
+- `Vendor/Hugin`
+- `Vendor/OpenCV`
 
-## Nuvarande implementation
+## Dokumentformat
 
-- OpenCV 5 används för vanliga, rectilineära panoraman.
-- OpenCV gav otillräckligt stöd för kompletta 360×180-graders panoraman.
-- Fisheye- och sannolikt fullsfäriska set går därför genom en paketerad
-  Hugin-pipeline:
-  `pto_gen → cpfind → cpclean → autooptimiser → pano_modify → nona → enblend`.
-- Hugins fotometriska `autooptimiser -m` används inte för redan framkallade
-  TIFF/JPEG-källor. Den kan annars skapa extrema vitbalans- och
-  responskurvevärden. Enblend sköter övergångarna mellan oförändrade färger.
-- Den fullsfäriska utmatningen är 4000×2000 JPEG med 360×180 graders
-  equirektangulär projektion.
-- Den interaktiva sfäriska förhandsvisningen använder Metal.
-- Hugin- och OpenCV-beroenden bäddas in i det byggda app-paketet.
-
-## Manuell källbildsmaskning
-
-Det finns ingen automatisk nadirbehandling eller automatisk objektborttagning.
-Användaren väljer en källbild i sidopanelen och målar en röd pixelmask över
-sådant som inte ska användas, exempelvis stativ, fotograf eller dubbletter av
-en person i rörelse. Verktygsraden innehåller maskera, återställ,
-penselstorlek, ångra samt zoom. `⌘+` och `⌘−` zoomar källbilden mellan
-anpassad storlek och 800 procent; en inzoomad bild kan rullas i båda
-riktningarna. En röd penselindikator i sidopanelen visar vilka bilder som har
-mask.
-
-Originalbilderna används oförändrade för kontrollpunkter och geometrisk/
-fotometrisk optimering. Inför Nona-renderingen skapar PanoWizard temporära
-TIFF-källor där PNG-masken har överförts till alfakanalen och byter endast
-filsökvägarna i den färdigoptimerade PTO-filen. Nona transformerar bild och
-alfa tillsammans; Enblend väljer omaskerade pixlar från andra
-överlappande bilder. Om ingen annan bild täcker ett maskerat område kan ett
-hål uppstå — PanoWizard skapar inte artificiella pixlar.
-
-`.pw`-paketet har denna struktur:
+Formatversionen är 5 och är medvetet inte bakåtkompatibel.
 
 ```text
 Projekt.pw/
@@ -145,83 +45,149 @@ Projekt.pw/
     result.jpg
 ```
 
-Projektformatets aktuella versionsnummer är 5. Äldre enkla JSON-baserade
-`.pw`-filer läses inte.
+Originalbilderna refereras externt. Maskerna är röda PNG-raster i
+källbildens pixelstorlek. Resultatet lagras som JPEG i dokumentpaketet när
+dokumentet sparas.
 
-`project.json` kan innehålla `cachedRigImageLines`, en PTO-bildrad per
-positioneringsbild. Efter en lyckad stitch sparas riggens geometri där. Vid
-senare maskändringar återläggs dessa rader före kontrollpunktssökningen.
-Cacheposterna har även en `cachedRigSignature` som omfattar bildordning,
-riktningar, roller och stitchinställningar. Ändrad riktning, roll, bildlista,
-objektivprofil, projektion eller FOV tömmer cachen. Poster utan matchande
-signatur ignoreras; en felaktig rigg får aldrig återanvändas efter en sådan
-ändring.
+Varje bild har två explicita egenskaper:
 
-## Testmaterial och känt nuläge
+- riktning: `horizontal`, `zenith` eller `nadir`
+- roll: `alignment` eller `fillOnly`
 
-Exempelbilderna finns i `/Users/magnus/Desktop/Panorama`. De elva bilderna är
-ett fullsfäriskt fisheye-set från Lissabon.
+Bildantal eller filnamn får inte användas för att gissa nadir/utfyllnad.
 
-Den nuvarande Hugin-lösningen ger ett komplett och i huvudsak väljusterat
-360×180-panorama med jämn exponering. Den manuella maskkedjan har körts hela
-vägen på de elva Lissabonbilderna:
-PNG-mask → alfamaskerad TIFF → Nona → Enblend → 4000×2000 JPEG.
+## Ny, verifierad stitcharkitektur
 
-Ett andra testset finns i `/Users/magnus/Desktop/Lundalogik`. Det består av
-sex stående TIFF-bilder tagna med Sigma 8 mm cirkulär fisheye på DX-sensor:
-fyra bilder runt horisonten, zenit och en handhållen nadirbild. PanoWizard känner igen en
-fisheye-bild från mörka optiska hörn när objektivmetadata saknas. PanoWizard
-antar aldrig en layout från bildantal eller listindex. Varje bild har en
-projektsparad riktning: `horizontal`, `zenith` eller `nadir`. Riktningen sätter
-pitch-startvärdet. Horisontella positioneringsbilder fördelas jämnt runt 360°
-i projektordning och `cpfind --prealigned` söker kontrollpunkter från dessa
-stabila startlägen. Kontrollpunktssökningen använder en tråd och
-`--ransacmode=rpy`; automatisk homografimodell gav ibland en helt annan,
-felaktig lösning för samma sparade projekt. Hugin finjusterar därefter
-geometrin. Alla bilder har
-dessutom en oberoende, explicit roll:
-`alignment` (Ingår i positionering, standard) eller
-`fillOnly` (Endast utfyllnad). Användaren väljer rollen från verktygsraden
-eller bildradens kontextmeny. En `fillOnly`-bild ingår aldrig i Hugins
-`pto_gen`, kontrollpunktssökning, optimering, Nona-warpning eller
-Enblend-körning. Hugin skapar först ett fryst panorama enbart från
-`alignment`-bilderna. Därefter rektifieras en handhållen nadirbild och en lokal
-nadirvy ur det färdiga panoramat. OpenCV registrerar hela reparationsbilden mot
-den lokala vyn med en robust transform begränsad till rotation, skala och
-förskjutning. Först vid kompositeringen används användarens mask. För
-Lundalogik markerar användaren själv bild 6 som Endast utfyllnad. Ingen mapp,
-något filnamn eller listindex specialbehandlas.
+Grundstitchningen byggdes först som fristående experiment och kopplades sedan
+till appen. Den använder:
 
-Hugins PTO-tal måste skrivas med lokalsäkra ASCII-tecken. Swift
-`FloatingPointFormatStyle` skrev tidigare negativa startvinklar med Unicode-
-minustecknet `−`; Hugin 2019 tolkade då `−90` som `0`. Det gjorde
-kontrollpunktssökningen instabil och fick en ny stitch efter maskändring att se
-ut som om masken hade påverkat geometrin. Startvinklar skrivs nu med
-`String(Double)`, och ett regressionstest kräver ASCII `-`. Lundalogiks sparade
-projekt har verifierats hela vägen med sina verkliga fem PNG-masker: all
-positionering använder originalbilderna, medan maskerna tillämpas först på
-Nona-lagren.
+- OpenCV 5 SIFT för deterministiska kontrollpunkter
+- Hugin för optimering, projektion och warping
+- Enblend för sömmar och blending
 
-Hugins arbetskatalog använder projektets UUID men töms nu alltid före varje
-stitch. Tidigare kunde ett Nona-lager från en borttagen bild ligga kvar och
-felaktigt följa med i nästa Enblend-körning.
-Lundalogiks sparade fem-bildsprojekt producerar exakt fem färska lager. Eftersom
-de fyra riggbildernas stativområden är maskerade och nadirbilden har tagits bort
-finns det avsiktligt ingen täckning längst ned; resultatet får därför ett äkta
-transparent/svart nadirhål tills en utfyllnadsbild åter läggs till.
+Hugins gamla `cpfind 2019.2` används inte. Upprepade identiska körningar gav
+olika kontrollpunkter och ibland helt olika geometri. OpenCV-matcharen kör med
+en tråd och fast RNG-seed.
 
-Ett tidigare Swift-byggfel orsakades av en gammal modulcache som innehöll både
-den gamla sökvägen `PanoWizard` och den nya `panowizard`. `swift package clean`
-löste problemet. Källkoden byggde därefter och alla tre befintliga tester
-passerade.
+### Fas 1: fryst horisontell ring
 
-## Arbetsrutin
+1. Horisontella `alignment`-bilder fördelas jämnt över 360° i projektordning.
+2. Varje fisheye-källa normaliseras till en grov equirektangulär arbetsbild.
+3. SIFT jämför endast verkliga grannpar, inklusive sista→första.
+4. Korsmatchning, deskriptorkvot, geometriskt avstånd och dubblettfilter
+   reducerar träffarna till högst 60 punkter per skarv.
+5. Källpunkterna räknas tillbaka till originalbildens pixelkoordinater.
+6. Hugin kör `cpclean` och `autooptimiser -a -l -s`.
 
-- Gör små, kompletta inkrement som alltid ska kompilera.
+### Fas 2: zenit mot fryst ring
+
+1. Ringens färdiga kamerageometri läses ur PTO-filen.
+2. Zenitbilden provas i åtta fysiskt rimliga startlägen.
+3. Läget med flest geometriskt samstämmiga träffar väljs.
+4. Zenitbilden kopplas mot minst två ringbilder.
+5. PTO-filen innehåller optimeringsvariabler endast för zenitbildens
+   yaw/pitch/roll.
+6. Efter `autooptimiser -n` jämförs ringens bildrader exakt. Stitchningen
+   avbryts om zenitsteget ändrat någon ringbild.
+
+### Fas 3: masker och rendering
+
+Originalbilderna används alltid för feature-matchning och geometri.
+Användarmasker får aldrig påverka dessa steg.
+
+Efter att geometrin är färdig skapas temporära TIFF-kopior med alfa:
+
+- användarens röda mask blir transparent,
+- för Sigma 8 mm DX klipps de svarta optiska hörnen bort med objektivets
+  cirkulära bildgräns.
+
+Endast filsökvägarna byts i den färdigoptimerade PTO-filen. Sedan körs:
+
+```text
+pano_modify → nona → enblend
+```
+
+Resultatet är 4000×2000 JPEG, equirektangulärt 360×180°.
+
+## Verifierat testmaterial
+
+Det aktiva testprojektet är:
+
+`/Users/magnus/Desktop/Lundalogik/Panorama.pw`
+
+Källorna är:
+
+- `1.tiff`–`4.tiff`: horisontell ring
+- `5.tiff`: zenit
+
+Objektivet är Sigma 8 mm på DX. Rätt startmodell är full-frame fisheye med
+cirka 120° horisontell bildvinkel över bildens korta sida. Hugin optimerar den
+till cirka 113° för detta exemplar.
+
+Det fristående experimentet finns under `Experiments/`. Två fullständiga
+körningar gav:
+
+- identisk slutlig kamerageometri,
+- samma kontrollpunktsantal i alla skarvar,
+- samma valda zenitorientering,
+- endast 0,68 % pixel-RMSE från Enblends renderingsvariation.
+
+Swift-integrationen kördes därefter mot själva `.pw`-paketet via
+`PanoramaEngineIntegrationTests` och gav ett visuellt granskat, sammanhängande
+360×180-panorama. Byggnad, mark, wrap-skarv och zenit är stabila. Bord och
+stativ finns avsiktligt kvar i nadir eftersom ingen reparationsbild används.
+
+Projektets `project.json` korrigerades så att bild 5 är `zenith` och
+Sigma-preseten är 120°.
+
+## Avsiktliga begränsningar just nu
+
+Den nya motorn stöder:
+
+- två eller fler horisontella `alignment`-bilder,
+- högst en zenitbild,
+- manuella exkluderingsmasker efter geometri.
+
+Den avvisar tydligt:
+
+- `nadir` i grundlösaren,
+- `fillOnly`,
+- flera zenitbilder.
+
+Nadir och handhållna utfyllnadsbilder ska senare bli en separat
+panoramareparationspipeline. De får aldrig delta i ringens feature matching,
+bundle adjustment, wave correction, warping eller Enblend-körning.
+
+## Bygg och kör
+
+`Package.swift` har ett litet C++-target, `OpenCVBridge`.
+`Scripts/build-app.sh`:
+
+1. bygger release för arm64,
+2. bäddar in OpenCVs `.500.dylib`,
+3. bäddar in `Vendor/Hugin` i appens resurser,
+4. ad hoc-signera och verifierar apppaketet.
+
+Normal kontroll efter kodändringar:
+
+```sh
+swift test
+./Scripts/build-app.sh
+open build/PanoWizard.app /sökväg/till/Projekt.pw
+```
+
+Integrationstestet körs uttryckligen med:
+
+```sh
+PANOWIZARD_INTEGRATION_PROJECT=/sökväg/till/Projekt.pw \
+  swift test --filter PanoramaEngineIntegrationTests
+```
+
+## Arbetsprinciper
+
+- Gör små, kompletta inkrement som kompilerar.
 - Skriv kompletta filer, inga platshållare.
-- Förklara arkitekturbeslut kort.
-- När det är relevant efter en ändring: kör testerna, bygg app-paketet med
-  `./Scripts/build-app.sh` och starta `build/PanoWizard.app` automatiskt.
-- Bevara användarens ändringar och gör inga destruktiva Git-operationer.
-- Projektet saknade fortfarande sin första Git-commit när denna fil skapades;
-  hela källträdet var då oversionshanterat.
+- Granska alltid verkliga panoramapixlar visuellt.
+- Ett grönt test eller processretur räcker inte för att kalla stitchningen bra.
+- Lägg inte till cache, nadir eller utfyllnad innan basmotorn är fortsatt stabil.
+- Bevara användarens filer och orelaterade ändringar.

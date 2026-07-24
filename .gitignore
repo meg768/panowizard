@@ -7,3 +7,5 @@ Vendor/Hugin/
 /.swiftpm
 xcuserdata/
 DerivedData/
+Experiments/output/
+Experiments/__pycache__/

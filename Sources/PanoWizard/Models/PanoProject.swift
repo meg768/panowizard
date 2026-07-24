@@ -130,7 +130,7 @@ struct StitchingConfiguration: Codable, Equatable, Sendable {
             switch self {
             case .automatic, .custom: nil
             case .nikon105DX: 100
-            case .sigma8DX: 100
+            case .sigma8DX: 120
             }
         }
     }
