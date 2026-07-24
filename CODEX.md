@@ -15,6 +15,14 @@ PanoWizard-implementationen. Börja inte skriva ny appkod direkt. Första nya
 artefakten ska vara den minsta möjliga, reproducerbara Hugin-körningen för
 Lundalogiks bilder 1–4 enligt ordningen nedan.
 
+På uttrycklig begäran har dokumentredigeraren därefter återinförts från det
+tidigare arbetssättet, men utan den gamla stitchimplementationen. Appen är åter
+en native, dokumentbaserad SwiftUI-app med vänster sidopanel och arbetsyta,
+kan skapa/öppna/spara `.pw`-paket samt importera, visa och maskera källbilder.
+`StitchingUnavailableEngine` är en avsiktlig och tydlig protokollgräns: den
+arkiverade Hugin/OpenCV/cache/nadir-koden är inte länkad till appen. Nästa
+stitchmotor ska utvecklas och verifieras separat innan den kopplas in där.
+
 Den nuvarande implementationen har blivit för komplex. Arbetet har blandat
 grundstitchning, riggcache, bildriktningar, masker, utfyllnadsbilder, lokal
 nadirregistrering, blending och UI-förändringar innan den enklaste

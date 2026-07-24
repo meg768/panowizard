@@ -1,5 +1,6 @@
 .DS_Store
 /.build
+/build
 /.vendor-cache
 Vendor/OpenCV/
 Vendor/Hugin/
