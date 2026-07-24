@@ -1,0 +1,8 @@
+.DS_Store
+/.build
+/.vendor-cache
+Vendor/OpenCV/
+Vendor/Hugin/
+/.swiftpm
+xcuserdata/
+DerivedData/
