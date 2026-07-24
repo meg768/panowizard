@@ -2,6 +2,19 @@
 
 ## Viktig omstartspunkt
 
+Omstarten är nu genomförd. Prototypen är arkiverad i Git på `main` i commit
+`f6a6445` (`Archive PanoWizard prototype before clean restart`). Den rena
+arbetsgrenen heter `codex/restart`. All projektimplementation, alla tester,
+byggskript, paketdefinitionen och det byggda app-paketet har tagits bort från
+arbetsgrenen. En extra återställningsbar kopia ligger i macOS Papperskorg under
+`panowizard-prototype-20260724-2338`.
+
+De ignorerade mapparna `Vendor/` och `.vendor-cache/` har behållits. De
+innehåller externa Hugin/OpenCV-beroenden och är inte en del av den gamla
+PanoWizard-implementationen. Börja inte skriva ny appkod direkt. Första nya
+artefakten ska vara den minsta möjliga, reproducerbara Hugin-körningen för
+Lundalogiks bilder 1–4 enligt ordningen nedan.
+
 Den nuvarande implementationen har blivit för komplex. Arbetet har blandat
 grundstitchning, riggcache, bildriktningar, masker, utfyllnadsbilder, lokal
 nadirregistrering, blending och UI-förändringar innan den enklaste
