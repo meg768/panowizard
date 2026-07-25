@@ -45,7 +45,20 @@ if [[ -d "$app_bundle" ]]; then
 fi
 mkdir -p "${app_bundle:h}"
 ditto --norsrc --noextattr "$staging_app_bundle" "$app_bundle"
-xattr -cr "$app_bundle"
-codesign --verify --deep "$app_bundle"
+
+verified=false
+for attempt in {1..5}; do
+    xattr -cr "$app_bundle"
+    xattr -d com.apple.FinderInfo "$app_bundle" 2>/dev/null || true
+    if codesign --verify --deep --strict "$app_bundle"; then
+        verified=true
+        break
+    fi
+    sleep 0.1
+done
+if [[ "$verified" != true ]]; then
+    echo "Apppaketets signatur kunde inte verifieras." >&2
+    exit 1
+fi
 
 echo "$app_bundle"

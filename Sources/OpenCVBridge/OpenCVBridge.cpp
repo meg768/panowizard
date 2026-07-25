@@ -1,5 +1,6 @@
 #include "OpenCVBridge.h"
 
+#include <opencv2/calib3d.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
@@ -19,6 +20,8 @@ namespace {
 
 constexpr int panoramaWidth = 2400;
 constexpr int panoramaHeight = panoramaWidth / 2;
+constexpr int repairLocalViewSize = 1600;
+constexpr double repairLocalViewFieldOfView = 120.0;
 constexpr double maximumPositionError = 120.0;
 constexpr double pi = 3.14159265358979323846;
 
@@ -351,6 +354,548 @@ void appendControlPoints(
     }
 }
 
+void makeNadirLocalPanoramaMap(
+    const cv::Size &panoramaSize,
+    cv::Mat &mapX,
+    cv::Mat &mapY
+) {
+    mapX.create(repairLocalViewSize, repairLocalViewSize, CV_32F);
+    mapY.create(repairLocalViewSize, repairLocalViewSize, CV_32F);
+
+    const PWOrientation orientation = {0.0, -90.0, 0.0};
+    const cv::Matx33d rotation = rotationMatrix(orientation);
+    const double center = repairLocalViewSize / 2.0;
+    const double focalLength =
+        center / std::tan(radians(repairLocalViewFieldOfView / 2.0));
+
+    for (int y = 0; y < repairLocalViewSize; ++y) {
+        float *mapXRow = mapX.ptr<float>(y);
+        float *mapYRow = mapY.ptr<float>(y);
+        for (int x = 0; x < repairLocalViewSize; ++x) {
+            const cv::Vec3d cameraRay = cv::normalize(cv::Vec3d(
+                (x - center) / focalLength,
+                (y - center) / focalLength,
+                1.0
+            ));
+            const cv::Vec3d worldRay = rotation * cameraRay;
+            const double longitude = std::atan2(worldRay[0], worldRay[2]);
+            const double latitude = std::asin(
+                std::clamp(-worldRay[1], -1.0, 1.0)
+            );
+            double panoramaX =
+                (longitude + pi) / (2.0 * pi) * panoramaSize.width;
+            if (panoramaX < 0.0) {
+                panoramaX += panoramaSize.width;
+            } else if (panoramaX >= panoramaSize.width) {
+                panoramaX -= panoramaSize.width;
+            }
+            const double panoramaY = std::clamp(
+                (pi / 2.0 - latitude) / pi * panoramaSize.height,
+                0.0,
+                panoramaSize.height - 1.0
+            );
+            mapXRow[x] = float(panoramaX);
+            mapYRow[x] = float(panoramaY);
+        }
+    }
+}
+
+void makeRepairLocalMap(
+    const cv::Size &sourceSize,
+    double horizontalFieldOfView,
+    cv::Mat &mapX,
+    cv::Mat &mapY,
+    cv::Mat &validMask
+) {
+    mapX.create(repairLocalViewSize, repairLocalViewSize, CV_32F);
+    mapY.create(repairLocalViewSize, repairLocalViewSize, CV_32F);
+    validMask.create(
+        repairLocalViewSize,
+        repairLocalViewSize,
+        CV_8U
+    );
+
+    const double center = repairLocalViewSize / 2.0;
+    const double rectilinearFocalLength =
+        center / std::tan(radians(repairLocalViewFieldOfView / 2.0));
+    const double fisheyeFocalLength =
+        (sourceSize.width / 2.0)
+        / radians(horizontalFieldOfView / 2.0);
+
+    for (int y = 0; y < repairLocalViewSize; ++y) {
+        float *mapXRow = mapX.ptr<float>(y);
+        float *mapYRow = mapY.ptr<float>(y);
+        unsigned char *maskRow = validMask.ptr<unsigned char>(y);
+        for (int x = 0; x < repairLocalViewSize; ++x) {
+            const cv::Vec3d cameraRay = cv::normalize(cv::Vec3d(
+                (x - center) / rectilinearFocalLength,
+                (y - center) / rectilinearFocalLength,
+                1.0
+            ));
+            const double angle = std::acos(
+                std::clamp(cameraRay[2], -1.0, 1.0)
+            );
+            const double sine = std::sin(angle);
+            double sourceX = sourceSize.width / 2.0;
+            double sourceY = sourceSize.height / 2.0;
+            if (std::abs(sine) >= 1e-7) {
+                const double scale =
+                    fisheyeFocalLength * angle / sine;
+                sourceX += cameraRay[0] * scale;
+                sourceY += cameraRay[1] * scale;
+            }
+            mapXRow[x] = float(sourceX);
+            mapYRow[x] = float(sourceY);
+            maskRow[x] =
+                sourceX >= 0.0
+                && sourceX < sourceSize.width - 1.0
+                && sourceY >= 0.0
+                && sourceY < sourceSize.height - 1.0
+                && angle < pi / 2.0
+                ? 255
+                : 0;
+        }
+    }
+}
+
+cv::Mat grayscaleWithVisibleMask(
+    const cv::Mat &image,
+    const cv::Mat &projectionMask,
+    cv::Mat &featureMask
+) {
+    cv::Mat grayscale;
+    cv::cvtColor(image, grayscale, cv::COLOR_BGR2GRAY);
+    cv::Mat visible;
+    cv::compare(grayscale, 5, visible, cv::CMP_GT);
+    cv::bitwise_and(projectionMask, visible, featureMask);
+    return grayscale;
+}
+
+cv::Mat registerRepairHomography(
+    const cv::Mat &baseLocal,
+    const cv::Mat &baseMask,
+    const cv::Mat &repairLocal,
+    const cv::Mat &repairMask,
+    int &inlierCount
+) {
+    cv::Mat baseFeatureMask;
+    cv::Mat repairFeatureMask;
+    const cv::Mat baseGray = grayscaleWithVisibleMask(
+        baseLocal,
+        baseMask,
+        baseFeatureMask
+    );
+    const cv::Mat repairGray = grayscaleWithVisibleMask(
+        repairLocal,
+        repairMask,
+        repairFeatureMask
+    );
+
+    const cv::Ptr<cv::SIFT> detector = cv::SIFT::create(
+        18000,
+        3,
+        0.010,
+        12
+    );
+    std::vector<cv::KeyPoint> baseKeypoints;
+    std::vector<cv::KeyPoint> repairKeypoints;
+    cv::Mat baseDescriptors;
+    cv::Mat repairDescriptors;
+    detector->detectAndCompute(
+        baseGray,
+        baseFeatureMask,
+        baseKeypoints,
+        baseDescriptors
+    );
+    detector->detectAndCompute(
+        repairGray,
+        repairFeatureMask,
+        repairKeypoints,
+        repairDescriptors
+    );
+    if (baseDescriptors.empty() || repairDescriptors.empty()) {
+        throw std::runtime_error(
+            "För få bilddetaljer hittades runt nadir."
+        );
+    }
+
+    const std::vector<cv::DMatch> matches = mutualRatioMatches(
+        repairDescriptors,
+        baseDescriptors
+    );
+    if (matches.size() < 12) {
+        throw std::runtime_error(
+            "Nadirbilden gav för få säkra lokala träffar."
+        );
+    }
+
+    std::vector<cv::Point2f> repairPoints;
+    std::vector<cv::Point2f> basePoints;
+    repairPoints.reserve(matches.size());
+    basePoints.reserve(matches.size());
+    for (const cv::DMatch &match : matches) {
+        repairPoints.push_back(repairKeypoints[match.queryIdx].pt);
+        basePoints.push_back(baseKeypoints[match.trainIdx].pt);
+    }
+
+    cv::Mat inliers;
+    cv::Mat homography = cv::findHomography(
+        repairPoints,
+        basePoints,
+        cv::RANSAC,
+        5.0,
+        inliers,
+        3000,
+        0.995
+    );
+    if (homography.empty()) {
+        throw std::runtime_error(
+            "Ingen stabil lokal transform kunde beräknas för nadirbilden."
+        );
+    }
+    inlierCount = cv::countNonZero(inliers);
+    if (inlierCount < 12) {
+        throw std::runtime_error(
+            "Nadirbildens lokala position är inte tillräckligt säker."
+        );
+    }
+    homography.convertTo(homography, CV_64F);
+    return homography;
+}
+
+cv::Mat repairOutputMask(
+    const cv::Mat &projectionMask,
+    const cv::Mat &mapX,
+    const cv::Mat &mapY,
+    const cv::Size &sourceSize,
+    const char *exclusionMaskPath
+) {
+    if (
+        exclusionMaskPath == nullptr
+        || std::strlen(exclusionMaskPath) == 0
+    ) {
+        return projectionMask.clone();
+    }
+
+    const cv::Mat sourceMask = cv::imread(
+        exclusionMaskPath,
+        cv::IMREAD_UNCHANGED
+    );
+    if (sourceMask.empty()) {
+        throw std::runtime_error(
+            "Nadirbildens exkluderingsmask kunde inte läsas."
+        );
+    }
+
+    cv::Mat exclusionAlpha;
+    if (sourceMask.channels() == 4) {
+        cv::extractChannel(sourceMask, exclusionAlpha, 3);
+    } else if (sourceMask.channels() == 1) {
+        exclusionAlpha = sourceMask;
+    } else {
+        cv::cvtColor(
+            sourceMask,
+            exclusionAlpha,
+            cv::COLOR_BGR2GRAY
+        );
+    }
+    if (exclusionAlpha.size() != sourceSize) {
+        cv::resize(
+            exclusionAlpha,
+            exclusionAlpha,
+            sourceSize,
+            0.0,
+            0.0,
+            cv::INTER_LINEAR
+        );
+    }
+
+    cv::Mat localExclusion;
+    cv::remap(
+        exclusionAlpha,
+        localExclusion,
+        mapX,
+        mapY,
+        cv::INTER_LINEAR,
+        cv::BORDER_CONSTANT,
+        cv::Scalar(0)
+    );
+    cv::Mat localVisibility;
+    cv::subtract(
+        cv::Scalar::all(255),
+        localExclusion,
+        localVisibility
+    );
+    cv::Mat outputMask;
+    cv::multiply(
+        projectionMask,
+        localVisibility,
+        outputMask,
+        1.0 / 255.0,
+        CV_8U
+    );
+    return outputMask;
+}
+
+void writeNadirOverlay(
+    const cv::Mat &repairLocal,
+    const cv::Mat &repairMask,
+    const cv::Mat &homography,
+    const std::string &outputPath
+) {
+    cv::Mat alignedRepair;
+    cv::Mat alignedAlpha;
+    cv::warpPerspective(
+        repairLocal,
+        alignedRepair,
+        homography,
+        cv::Size(repairLocalViewSize, repairLocalViewSize),
+        cv::INTER_LINEAR,
+        cv::BORDER_CONSTANT,
+        cv::Scalar(0, 0, 0)
+    );
+    cv::warpPerspective(
+        repairMask,
+        alignedAlpha,
+        homography,
+        cv::Size(repairLocalViewSize, repairLocalViewSize),
+        cv::INTER_LINEAR,
+        cv::BORDER_CONSTANT,
+        cv::Scalar(0)
+    );
+
+    std::vector<cv::Mat> colorChannels;
+    cv::split(alignedRepair, colorChannels);
+    colorChannels.push_back(alignedAlpha);
+    cv::Mat overlay;
+    cv::merge(colorChannels, overlay);
+    if (!cv::imwrite(outputPath, overlay)) {
+        throw std::runtime_error(
+            "Det positionerade nadirlagret kunde inte sparas."
+        );
+    }
+}
+
+cv::Mat registrationHomography(
+    const PWNadirRegistration &registration
+) {
+    const double values[] = {
+        registration.h00,
+        registration.h01,
+        registration.h02,
+        registration.h10,
+        registration.h11,
+        registration.h12,
+        registration.h20,
+        registration.h21,
+        registration.h22
+    };
+    cv::Mat homography(3, 3, CV_64F);
+    std::memcpy(
+        homography.ptr<double>(),
+        values,
+        sizeof(values)
+    );
+    return homography;
+}
+
+cv::Mat manualRepairHomography(
+    double translationX,
+    double translationY,
+    double rotationDegrees,
+    double scale
+) {
+    const double angle = radians(rotationDegrees);
+    const double cosine = std::cos(angle) * scale;
+    const double sine = std::sin(angle) * scale;
+    const double center = repairLocalViewSize / 2.0;
+    const double values[] = {
+        cosine,
+        -sine,
+        center + translationX - cosine * center + sine * center,
+        sine,
+        cosine,
+        center + translationY - sine * center - cosine * center,
+        0.0,
+        0.0,
+        1.0
+    };
+    cv::Mat homography(3, 3, CV_64F);
+    std::memcpy(
+        homography.ptr<double>(),
+        values,
+        sizeof(values)
+    );
+    return homography;
+}
+
+cv::Mat imageWithAlpha(
+    const cv::Mat &color,
+    const cv::Mat &alpha
+) {
+    std::vector<cv::Mat> channels;
+    cv::split(color, channels);
+    channels.push_back(alpha);
+    cv::Mat result;
+    cv::merge(channels, result);
+    return result;
+}
+
+void writeNadirBlendInputs(
+    const cv::Mat &baseLocal,
+    const cv::Mat &repairLocal,
+    const cv::Mat &repairMask,
+    const cv::Mat &homography,
+    double translationX,
+    double translationY,
+    double rotationDegrees,
+    double scale,
+    const std::string &baseOutputPath,
+    const std::string &repairOutputPath
+) {
+    const cv::Mat adjustedHomography =
+        manualRepairHomography(
+            translationX,
+            translationY,
+            rotationDegrees,
+            scale
+        ) * homography;
+
+    cv::Mat alignedRepair;
+    cv::Mat alignedAlpha;
+    cv::warpPerspective(
+        repairLocal,
+        alignedRepair,
+        adjustedHomography,
+        cv::Size(repairLocalViewSize, repairLocalViewSize),
+        cv::INTER_LINEAR,
+        cv::BORDER_CONSTANT,
+        cv::Scalar(0, 0, 0)
+    );
+    cv::warpPerspective(
+        repairMask,
+        alignedAlpha,
+        adjustedHomography,
+        cv::Size(repairLocalViewSize, repairLocalViewSize),
+        cv::INTER_LINEAR,
+        cv::BORDER_CONSTANT,
+        cv::Scalar(0)
+    );
+
+    cv::Mat repairVisibility;
+    cv::compare(
+        alignedAlpha,
+        8,
+        repairVisibility,
+        cv::CMP_GT
+    );
+    cv::Mat distanceInsideRepair;
+    cv::distanceTransform(
+        repairVisibility,
+        distanceInsideRepair,
+        cv::DIST_L2,
+        cv::DIST_MASK_PRECISE
+    );
+    double maximumDistance = 0.0;
+    cv::minMaxLoc(
+        distanceInsideRepair,
+        nullptr,
+        &maximumDistance
+    );
+    const double overlapWidth = std::min(
+        72.0,
+        maximumDistance * 0.45
+    );
+    cv::Mat forcedRepairCore;
+    cv::compare(
+        distanceInsideRepair,
+        overlapWidth,
+        forcedRepairCore,
+        cv::CMP_GT
+    );
+    cv::Mat baseAlpha(
+        baseLocal.size(),
+        CV_8U,
+        cv::Scalar(255)
+    );
+    baseAlpha.setTo(cv::Scalar(0), forcedRepairCore);
+    if (!cv::imwrite(
+        baseOutputPath,
+        imageWithAlpha(baseLocal, baseAlpha)
+    )) {
+        throw std::runtime_error(
+            "Panoramats lokala nadirvy kunde inte förberedas för Enblend."
+        );
+    }
+    if (!cv::imwrite(
+        repairOutputPath,
+        imageWithAlpha(alignedRepair, alignedAlpha)
+    )) {
+        throw std::runtime_error(
+            "Nadirreparationen kunde inte förberedas för Enblend."
+        );
+    }
+}
+
+void writeBlendedNadirOverlay(
+    const cv::Mat &blendedLocal,
+    const std::string &outputPath
+) {
+    cv::Mat color;
+    if (blendedLocal.channels() == 4) {
+        cv::cvtColor(blendedLocal, color, cv::COLOR_BGRA2BGR);
+    } else if (blendedLocal.channels() == 3) {
+        color = blendedLocal;
+    } else if (blendedLocal.channels() == 1) {
+        cv::cvtColor(blendedLocal, color, cv::COLOR_GRAY2BGR);
+    } else {
+        throw std::runtime_error(
+            "Enblend skapade ett lokalt resultat med okänt pixelformat."
+        );
+    }
+    if (
+        color.cols != repairLocalViewSize
+        || color.rows != repairLocalViewSize
+    ) {
+        throw std::runtime_error(
+            "Enblend skapade en lokal nadirvy med fel pixelstorlek."
+        );
+    }
+
+    constexpr double featherWidth = 96.0;
+    cv::Mat alpha(
+        repairLocalViewSize,
+        repairLocalViewSize,
+        CV_8U
+    );
+    for (int y = 0; y < repairLocalViewSize; ++y) {
+        unsigned char *row = alpha.ptr<unsigned char>(y);
+        for (int x = 0; x < repairLocalViewSize; ++x) {
+            const double edgeDistance = std::min({
+                double(x),
+                double(y),
+                double(repairLocalViewSize - 1 - x),
+                double(repairLocalViewSize - 1 - y)
+            });
+            const double position = std::clamp(
+                edgeDistance / featherWidth,
+                0.0,
+                1.0
+            );
+            const double smooth = position * position * (3.0 - 2.0 * position);
+            row[x] = static_cast<unsigned char>(
+                std::round(smooth * 255.0)
+            );
+        }
+    }
+
+    if (!cv::imwrite(outputPath, imageWithAlpha(color, alpha))) {
+        throw std::runtime_error(
+            "Den blandade nadirförhandsvisningen kunde inte sparas."
+        );
+    }
+}
+
 char *copiedString(const std::string &value) {
     char *result = static_cast<char *>(std::malloc(value.size() + 1));
     if (result != nullptr) {
@@ -619,6 +1164,384 @@ int PWGenerateZenithControlPoints(
         }
         if (controlPointCount != nullptr) {
             *controlPointCount = 0;
+        }
+        return 0;
+    }
+}
+
+int PWRegisterNadirRepair(
+    const char *panoramaPath,
+    const char *repairImagePath,
+    const char *repairExclusionMaskPath,
+    double horizontalFieldOfView,
+    const char *overlayOutputPath,
+    PWNadirRegistration *registration,
+    char **errorMessage
+) {
+    try {
+        if (
+            panoramaPath == nullptr
+            || repairImagePath == nullptr
+            || overlayOutputPath == nullptr
+            || registration == nullptr
+            || errorMessage == nullptr
+        ) {
+            throw std::runtime_error(
+                "Underlaget för nadirregistreringen är ofullständigt."
+            );
+        }
+        cv::setNumThreads(1);
+        cv::setRNGSeed(0);
+
+        const cv::Mat panorama = cv::imread(
+            panoramaPath,
+            cv::IMREAD_COLOR
+        );
+        const cv::Mat repairSource = cv::imread(
+            repairImagePath,
+            cv::IMREAD_COLOR
+        );
+        if (panorama.empty()) {
+            throw std::runtime_error(
+                "Det färdiga panoramat kunde inte läsas."
+            );
+        }
+        if (repairSource.empty()) {
+            throw std::runtime_error(
+                "Nadirbilden kunde inte läsas."
+            );
+        }
+
+        cv::Mat panoramaMapX;
+        cv::Mat panoramaMapY;
+        makeNadirLocalPanoramaMap(
+            panorama.size(),
+            panoramaMapX,
+            panoramaMapY
+        );
+        cv::Mat baseLocal;
+        cv::remap(
+            panorama,
+            baseLocal,
+            panoramaMapX,
+            panoramaMapY,
+            cv::INTER_LINEAR,
+            cv::BORDER_WRAP
+        );
+        cv::Mat baseMask(
+            repairLocalViewSize,
+            repairLocalViewSize,
+            CV_8U,
+            cv::Scalar(255)
+        );
+
+        cv::Mat repairMapX;
+        cv::Mat repairMapY;
+        cv::Mat repairMask;
+        makeRepairLocalMap(
+            repairSource.size(),
+            horizontalFieldOfView,
+            repairMapX,
+            repairMapY,
+            repairMask
+        );
+        cv::Mat repairLocal;
+        cv::remap(
+            repairSource,
+            repairLocal,
+            repairMapX,
+            repairMapY,
+            cv::INTER_LINEAR,
+            cv::BORDER_CONSTANT,
+            cv::Scalar(0, 0, 0)
+        );
+
+        int inlierCount = 0;
+        const cv::Mat homography = registerRepairHomography(
+            baseLocal,
+            baseMask,
+            repairLocal,
+            repairMask,
+            inlierCount
+        );
+        const cv::Mat outputMask = repairOutputMask(
+            repairMask,
+            repairMapX,
+            repairMapY,
+            repairSource.size(),
+            repairExclusionMaskPath
+        );
+        writeNadirOverlay(
+            repairLocal,
+            outputMask,
+            homography,
+            overlayOutputPath
+        );
+
+        registration->h00 = homography.at<double>(0, 0);
+        registration->h01 = homography.at<double>(0, 1);
+        registration->h02 = homography.at<double>(0, 2);
+        registration->h10 = homography.at<double>(1, 0);
+        registration->h11 = homography.at<double>(1, 1);
+        registration->h12 = homography.at<double>(1, 2);
+        registration->h20 = homography.at<double>(2, 0);
+        registration->h21 = homography.at<double>(2, 1);
+        registration->h22 = homography.at<double>(2, 2);
+        registration->matchedFeatureCount = inlierCount;
+        registration->localViewFieldOfView =
+            repairLocalViewFieldOfView;
+        *errorMessage = nullptr;
+        return 1;
+    } catch (const std::exception &error) {
+        if (errorMessage != nullptr) {
+            *errorMessage = copiedString(error.what());
+        }
+        return 0;
+    }
+}
+
+int PWRenderNadirRepairOverlay(
+    const char *repairImagePath,
+    const char *repairExclusionMaskPath,
+    double horizontalFieldOfView,
+    const PWNadirRegistration *registration,
+    const char *overlayOutputPath,
+    char **errorMessage
+) {
+    try {
+        if (
+            repairImagePath == nullptr
+            || registration == nullptr
+            || overlayOutputPath == nullptr
+            || errorMessage == nullptr
+        ) {
+            throw std::runtime_error(
+                "Underlaget för nadirlagret är ofullständigt."
+            );
+        }
+
+        const cv::Mat repairSource = cv::imread(
+            repairImagePath,
+            cv::IMREAD_COLOR
+        );
+        if (repairSource.empty()) {
+            throw std::runtime_error(
+                "Nadirbilden kunde inte läsas."
+            );
+        }
+
+        cv::Mat repairMapX;
+        cv::Mat repairMapY;
+        cv::Mat repairMask;
+        makeRepairLocalMap(
+            repairSource.size(),
+            horizontalFieldOfView,
+            repairMapX,
+            repairMapY,
+            repairMask
+        );
+        cv::Mat repairLocal;
+        cv::remap(
+            repairSource,
+            repairLocal,
+            repairMapX,
+            repairMapY,
+            cv::INTER_LINEAR,
+            cv::BORDER_CONSTANT,
+            cv::Scalar(0, 0, 0)
+        );
+        const cv::Mat outputMask = repairOutputMask(
+            repairMask,
+            repairMapX,
+            repairMapY,
+            repairSource.size(),
+            repairExclusionMaskPath
+        );
+        const double homographyValues[] = {
+            registration->h00,
+            registration->h01,
+            registration->h02,
+            registration->h10,
+            registration->h11,
+            registration->h12,
+            registration->h20,
+            registration->h21,
+            registration->h22
+        };
+        cv::Mat homography(3, 3, CV_64F);
+        std::memcpy(
+            homography.ptr<double>(),
+            homographyValues,
+            sizeof(homographyValues)
+        );
+        writeNadirOverlay(
+            repairLocal,
+            outputMask,
+            homography,
+            overlayOutputPath
+        );
+        *errorMessage = nullptr;
+        return 1;
+    } catch (const std::exception &error) {
+        if (errorMessage != nullptr) {
+            *errorMessage = copiedString(error.what());
+        }
+        return 0;
+    }
+}
+
+int PWPrepareNadirRepairBlend(
+    const char *panoramaPath,
+    const char *repairImagePath,
+    const char *repairExclusionMaskPath,
+    double horizontalFieldOfView,
+    const PWNadirRegistration *registration,
+    double translationX,
+    double translationY,
+    double rotationDegrees,
+    double scale,
+    const char *baseOutputPath,
+    const char *repairOutputPath,
+    char **errorMessage
+) {
+    try {
+        if (
+            panoramaPath == nullptr
+            || repairImagePath == nullptr
+            || registration == nullptr
+            || baseOutputPath == nullptr
+            || repairOutputPath == nullptr
+            || errorMessage == nullptr
+        ) {
+            throw std::runtime_error(
+                "Underlaget för lokal Enblend-blandning är ofullständigt."
+            );
+        }
+        if (scale <= 0.0) {
+            throw std::runtime_error(
+                "Nadirreparationens skala måste vara större än noll."
+            );
+        }
+
+        const cv::Mat panorama = cv::imread(
+            panoramaPath,
+            cv::IMREAD_COLOR
+        );
+        const cv::Mat repairSource = cv::imread(
+            repairImagePath,
+            cv::IMREAD_COLOR
+        );
+        if (panorama.empty()) {
+            throw std::runtime_error(
+                "Det färdiga panoramat kunde inte läsas."
+            );
+        }
+        if (repairSource.empty()) {
+            throw std::runtime_error(
+                "Nadirbilden kunde inte läsas."
+            );
+        }
+
+        cv::Mat panoramaMapX;
+        cv::Mat panoramaMapY;
+        makeNadirLocalPanoramaMap(
+            panorama.size(),
+            panoramaMapX,
+            panoramaMapY
+        );
+        cv::Mat baseLocal;
+        cv::remap(
+            panorama,
+            baseLocal,
+            panoramaMapX,
+            panoramaMapY,
+            cv::INTER_LINEAR,
+            cv::BORDER_WRAP
+        );
+
+        cv::Mat repairMapX;
+        cv::Mat repairMapY;
+        cv::Mat repairMask;
+        makeRepairLocalMap(
+            repairSource.size(),
+            horizontalFieldOfView,
+            repairMapX,
+            repairMapY,
+            repairMask
+        );
+        cv::Mat repairLocal;
+        cv::remap(
+            repairSource,
+            repairLocal,
+            repairMapX,
+            repairMapY,
+            cv::INTER_LINEAR,
+            cv::BORDER_CONSTANT,
+            cv::Scalar(0, 0, 0)
+        );
+        const cv::Mat outputMask = repairOutputMask(
+            repairMask,
+            repairMapX,
+            repairMapY,
+            repairSource.size(),
+            repairExclusionMaskPath
+        );
+        writeNadirBlendInputs(
+            baseLocal,
+            repairLocal,
+            outputMask,
+            registrationHomography(*registration),
+            translationX,
+            translationY,
+            rotationDegrees,
+            scale,
+            baseOutputPath,
+            repairOutputPath
+        );
+
+        *errorMessage = nullptr;
+        return 1;
+    } catch (const std::exception &error) {
+        if (errorMessage != nullptr) {
+            *errorMessage = copiedString(error.what());
+        }
+        return 0;
+    }
+}
+
+int PWFinishNadirRepairBlend(
+    const char *blendedLocalPath,
+    const char *overlayOutputPath,
+    char **errorMessage
+) {
+    try {
+        if (
+            blendedLocalPath == nullptr
+            || overlayOutputPath == nullptr
+            || errorMessage == nullptr
+        ) {
+            throw std::runtime_error(
+                "Enblends lokala nadirresultat är ofullständigt."
+            );
+        }
+        const cv::Mat blendedLocal = cv::imread(
+            blendedLocalPath,
+            cv::IMREAD_UNCHANGED
+        );
+        if (blendedLocal.empty()) {
+            throw std::runtime_error(
+                "Enblends lokala nadirresultat kunde inte läsas."
+            );
+        }
+        writeBlendedNadirOverlay(
+            blendedLocal,
+            overlayOutputPath
+        );
+        *errorMessage = nullptr;
+        return 1;
+    } catch (const std::exception &error) {
+        if (errorMessage != nullptr) {
+            *errorMessage = copiedString(error.what());
         }
         return 0;
     }

@@ -13,6 +13,8 @@ final class AppModel {
         case ready
         case importing
         case stitching
+        case updatingRepair
+        case blendingRepair
         case failed(String)
 
         var message: String {
@@ -23,6 +25,10 @@ final class AppModel {
                 "Läser bilder och metadata…"
             case .stitching:
                 "Sammanfogar panorama…"
+            case .updatingRepair:
+                "Uppdaterar nadirreparation…"
+            case .blendingRepair:
+                "Blandar nadirreparation med Enblend…"
             case .failed(let message):
                 message
             }
@@ -40,13 +46,17 @@ final class AppModel {
     var isImporterPresented = false
     var skippedFileCount = 0
     var stitchedResultURL: URL?
+    var nadirOverlayURL: URL?
     var maskDataByImageID: [UUID: Data]
     var maskRevision = 0
     var panoramaRevision = 0
     var brushDiameter: Double = 48
     var isErasingMask = false
     var sourceImageZoom = 1.0
+    var isAdjustingNadir = false
+    var nadirAdjustment = NadirRepairAdjustment.identity
     private var maskUndoStack: [(UUID, Data?)] = []
+    private var repairRenderRevision = 0
 
     init(
         project: PanoProject,
@@ -55,7 +65,8 @@ final class AppModel {
         panoramaEngine: any PanoramaEngine,
         exporter: any PanoramaExporting,
         masks: [UUID: Data] = [:],
-        panoramaData: Data? = nil
+        panoramaData: Data? = nil,
+        nadirOverlayData: Data? = nil
     ) {
         self.project = project
         self.importer = importer
@@ -63,11 +74,19 @@ final class AppModel {
         self.panoramaEngine = panoramaEngine
         self.exporter = exporter
         maskDataByImageID = masks
+        nadirAdjustment = project.nadirRepairPlacement?.manualAdjustment
+            ?? .identity
         selection = project.images.first.map { .source($0.id) }
         if let panoramaData {
-            stitchedResultURL = Self.restorePanorama(
+            stitchedResultURL = Self.restoreData(
                 panoramaData,
-                projectID: project.id
+                filename: "\(project.id.uuidString)-panorama.jpg"
+            )
+        }
+        if let nadirOverlayData {
+            nadirOverlayURL = Self.restoreData(
+                nadirOverlayData,
+                filename: "\(project.id.uuidString)-nadir-overlay.png"
             )
         }
     }
@@ -75,7 +94,8 @@ final class AppModel {
     static func live(
         project: PanoProject = PanoProject(),
         masks: [UUID: Data] = [:],
-        panoramaData: Data? = nil
+        panoramaData: Data? = nil,
+        nadirOverlayData: Data? = nil
     ) -> AppModel {
         AppModel(
             project: project,
@@ -84,7 +104,8 @@ final class AppModel {
             panoramaEngine: HuginOpenCVPanoramaEngine(),
             exporter: FilePanoramaExporter(),
             masks: masks,
-            panoramaData: panoramaData
+            panoramaData: panoramaData,
+            nadirOverlayData: nadirOverlayData
         )
     }
 
@@ -113,10 +134,40 @@ final class AppModel {
         selection == .panorama && stitchedResultURL != nil
     }
 
+    var isShowingNadirRepair: Bool {
+        isShowingStitchedPanorama && nadirOverlayURL != nil
+    }
+
+    var isNadirPreviewBlended: Bool {
+        project.nadirRepairPlacement?.isBlendedPreview == true
+    }
+
+    var displayedNadirAdjustment: NadirRepairAdjustment {
+        isNadirPreviewBlended ? .identity : nadirAdjustment
+    }
+
+    var nadirRepairImage: SourceImage? {
+        guard let imageID = project.nadirRepairPlacement?.imageID else {
+            return nil
+        }
+        return project.images.first { $0.id == imageID }
+    }
+
+    var hasNadirRepairMask: Bool {
+        guard let imageID = project.nadirRepairPlacement?.imageID else {
+            return false
+        }
+        return maskDataByImageID[imageID] != nil
+    }
+
     var canStitch: Bool {
-        project.images.count >= 2
+        project.images.filter {
+            $0.role == .alignment && $0.direction == .horizontal
+        }.count >= 2
             && phase != .importing
             && phase != .stitching
+            && phase != .updatingRepair
+            && phase != .blendingRepair
     }
 
     func importURLs(_ urls: [URL]) {
@@ -152,6 +203,10 @@ final class AppModel {
             maskRevision += 1
             skippedFileCount += result.skippedFiles
             stitchedResultURL = nil
+            nadirOverlayURL = nil
+            project.nadirRepairPlacement = nil
+            nadirAdjustment = .identity
+            isAdjustingNadir = false
             selection = sortedImages.first.map { .source($0.id) }
             phase = .ready
         }
@@ -177,7 +232,9 @@ final class AppModel {
 
     func stitch() {
         guard let panorama, canStitch else { return }
+        repairRenderRevision += 1
         phase = .stitching
+        let previousPlacement = project.nadirRepairPlacement
 
         Task {
             do {
@@ -195,6 +252,15 @@ final class AppModel {
                     )
                 )
                 stitchedResultURL = result.url
+                nadirOverlayURL = result.nadirRepair?.overlayURL
+                var newPlacement = result.nadirRepair?.placement
+                if newPlacement?.imageID == previousPlacement?.imageID {
+                    newPlacement?.manualAdjustment =
+                        previousPlacement?.manualAdjustment
+                }
+                project.nadirRepairPlacement = newPlacement
+                nadirAdjustment = newPlacement?.manualAdjustment ?? .identity
+                isAdjustingNadir = result.nadirRepair != nil
                 if !result.rigImageLines.isEmpty {
                     project.cachedRigImageLines = Dictionary(uniqueKeysWithValues:
                         result.rigImageLines.map { ($0.key.uuidString, $0.value) }
@@ -221,7 +287,12 @@ final class AppModel {
         project.replaceImages(images)
         maskDataByImageID[id] = nil
         maskRevision += 1
+        repairRenderRevision += 1
         stitchedResultURL = nil
+        nadirOverlayURL = nil
+        project.nadirRepairPlacement = nil
+        nadirAdjustment = .identity
+        isAdjustingNadir = false
 
         if images.isEmpty {
             selection = nil
@@ -231,26 +302,39 @@ final class AppModel {
     }
 
     func setRole(_ role: SourceImage.Role, for imageID: UUID) {
+        repairRenderRevision += 1
         project.setRole(role, for: imageID)
         stitchedResultURL = nil
+        nadirOverlayURL = nil
+        nadirAdjustment = .identity
+        isAdjustingNadir = false
         panoramaRevision += 1
     }
 
     func setDirection(_ direction: SourceImage.Direction, for imageID: UUID) {
+        repairRenderRevision += 1
         project.setDirection(direction, for: imageID)
         stitchedResultURL = nil
+        nadirOverlayURL = nil
+        nadirAdjustment = .identity
+        isAdjustingNadir = false
         panoramaRevision += 1
     }
 
     func updateStitchingConfiguration(
         _ update: (inout StitchingConfiguration) -> Void
     ) {
+        repairRenderRevision += 1
         let previous = project.stitching
         update(&project.stitching)
         if project.stitching != previous {
             project.invalidateRigCache()
         }
         stitchedResultURL = nil
+        nadirOverlayURL = nil
+        project.nadirRepairPlacement = nil
+        nadirAdjustment = .identity
+        isAdjustingNadir = false
         panoramaRevision += 1
     }
 
@@ -262,7 +346,15 @@ final class AppModel {
         maskUndoStack.append((id, maskDataByImageID[id]))
         maskDataByImageID[id] = data
         maskRevision += 1
+        if refreshNadirOverlayIfPossible(for: id) {
+            return
+        }
+        repairRenderRevision += 1
         stitchedResultURL = nil
+        nadirOverlayURL = nil
+        project.nadirRepairPlacement = nil
+        nadirAdjustment = .identity
+        isAdjustingNadir = false
         panoramaRevision += 1
     }
 
@@ -274,7 +366,15 @@ final class AppModel {
         guard let (id, data) = maskUndoStack.popLast() else { return }
         maskDataByImageID[id] = data
         maskRevision += 1
+        if refreshNadirOverlayIfPossible(for: id) {
+            return
+        }
+        repairRenderRevision += 1
         stitchedResultURL = nil
+        nadirOverlayURL = nil
+        project.nadirRepairPlacement = nil
+        nadirAdjustment = .identity
+        isAdjustingNadir = false
         panoramaRevision += 1
     }
 
@@ -286,15 +386,59 @@ final class AppModel {
         sourceImageZoom = max(sourceImageZoom / 1.25, 1)
     }
 
+    func setNadirAdjustment(_ adjustment: NadirRepairAdjustment) {
+        nadirAdjustment = adjustment
+        project.setNadirRepairAdjustment(adjustment)
+    }
+
+    func resetNadirAdjustment() {
+        setNadirAdjustment(.identity)
+    }
+
+    func toggleNadirAdjustment() {
+        guard phase == .ready,
+              let placement = project.nadirRepairPlacement else {
+            return
+        }
+        if isAdjustingNadir {
+            renderBlendedNadirPreview()
+        } else if placement.isBlendedPreview {
+            _ = refreshNadirOverlayIfPossible(
+                for: placement.imageID,
+                enterAdjustment: true
+            )
+        } else {
+            isAdjustingNadir = true
+        }
+    }
+
+    func showNadirRepairPreview() {
+        guard phase == .ready else { return }
+        renderBlendedNadirPreview()
+    }
+
+    func selectNadirRepairForMasking() {
+        guard let imageID = project.nadirRepairPlacement?.imageID else {
+            return
+        }
+        isAdjustingNadir = false
+        selection = .source(imageID)
+    }
+
     var panoramaData: Data? {
         guard let stitchedResultURL else { return nil }
         return try? Data(contentsOf: stitchedResultURL)
     }
 
-    private static func restorePanorama(_ data: Data, projectID: UUID) -> URL? {
+    var nadirOverlayData: Data? {
+        guard let nadirOverlayURL else { return nil }
+        return try? Data(contentsOf: nadirOverlayURL)
+    }
+
+    private static func restoreData(_ data: Data, filename: String) -> URL? {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "PanoWizard/Projects", directoryHint: .isDirectory)
-        let url = directory.appending(path: "\(projectID.uuidString).jpg")
+        let url = directory.appending(path: filename)
         do {
             try FileManager.default.createDirectory(
                 at: directory,
@@ -304,6 +448,138 @@ final class AppModel {
             return url
         } catch {
             return nil
+        }
+    }
+
+    private func refreshNadirOverlayIfPossible(
+        for imageID: UUID,
+        enterAdjustment: Bool = false
+    ) -> Bool {
+        guard
+            let repairImage = project.images.first(where: {
+                $0.id == imageID
+                    && $0.role == .fillOnly
+                    && $0.direction == .nadir
+            }),
+            let placement = project.nadirRepairPlacement,
+            placement.imageID == imageID,
+            stitchedResultURL != nil
+        else {
+            return false
+        }
+
+        repairRenderRevision += 1
+        let revision = repairRenderRevision
+        let exclusionMaskData = maskDataByImageID[imageID]
+        let horizontalFieldOfView =
+            project.stitching.inputHorizontalFieldOfView
+        let outputDirectory = FileManager.default.temporaryDirectory
+            .appending(
+                path: "PanoWizard/Repairs/\(project.id.uuidString)",
+                directoryHint: .isDirectory
+            )
+        let outputURL = outputDirectory.appending(
+            path: "\(UUID().uuidString)-nadir-overlay.png"
+        )
+        do {
+            try FileManager.default.createDirectory(
+                at: outputDirectory,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            phase = .failed(error.localizedDescription)
+            return true
+        }
+
+        phase = .updatingRepair
+        Task {
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try OpenCVNadirRepairRegistrar.renderOverlay(
+                        repairImage: repairImage,
+                        exclusionMaskData: exclusionMaskData,
+                        horizontalFieldOfView: horizontalFieldOfView,
+                        placement: placement,
+                        outputURL: outputURL
+                    )
+                }.value
+                guard revision == repairRenderRevision else { return }
+                nadirOverlayURL = outputURL
+                project.setNadirRepairPreviewBlended(false)
+                if enterAdjustment {
+                    selection = .panorama
+                    isAdjustingNadir = true
+                }
+                panoramaRevision += 1
+                phase = .ready
+            } catch {
+                guard revision == repairRenderRevision else { return }
+                phase = .failed(error.localizedDescription)
+            }
+        }
+        return true
+    }
+
+    private func renderBlendedNadirPreview() {
+        guard
+            let panoramaURL = stitchedResultURL,
+            let placement = project.nadirRepairPlacement,
+            let repairImage = project.images.first(where: {
+                $0.id == placement.imageID
+                    && $0.role == .fillOnly
+                    && $0.direction == .nadir
+            })
+        else {
+            return
+        }
+
+        repairRenderRevision += 1
+        let revision = repairRenderRevision
+        let exclusionMaskData = maskDataByImageID[repairImage.id]
+        let horizontalFieldOfView =
+            project.stitching.inputHorizontalFieldOfView
+        let outputDirectory = FileManager.default.temporaryDirectory
+            .appending(
+                path: "PanoWizard/Repairs/\(project.id.uuidString)",
+                directoryHint: .isDirectory
+            )
+        let outputURL = outputDirectory.appending(
+            path: "\(UUID().uuidString)-nadir-blended.png"
+        )
+        do {
+            try FileManager.default.createDirectory(
+                at: outputDirectory,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            phase = .failed(error.localizedDescription)
+            return
+        }
+
+        isAdjustingNadir = false
+        phase = .blendingRepair
+        Task {
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try OpenCVNadirRepairRegistrar.renderBlendedOverlay(
+                        panoramaURL: panoramaURL,
+                        repairImage: repairImage,
+                        exclusionMaskData: exclusionMaskData,
+                        horizontalFieldOfView: horizontalFieldOfView,
+                        placement: placement,
+                        outputURL: outputURL
+                    )
+                }.value
+                guard revision == repairRenderRevision else { return }
+                nadirOverlayURL = outputURL
+                project.setNadirRepairPreviewBlended(true)
+                selection = .panorama
+                panoramaRevision += 1
+                phase = .ready
+            } catch {
+                guard revision == repairRenderRevision else { return }
+                phase = .failed(error.localizedDescription)
+            }
         }
     }
 }

@@ -20,6 +20,20 @@ typedef struct {
     double secondY;
 } PWControlPoint;
 
+typedef struct {
+    double h00;
+    double h01;
+    double h02;
+    double h10;
+    double h11;
+    double h12;
+    double h20;
+    double h21;
+    double h22;
+    int matchedFeatureCount;
+    double localViewFieldOfView;
+} PWNadirRegistration;
+
 int PWGenerateRingControlPoints(
     const char *const *imagePaths,
     int imageCount,
@@ -38,6 +52,46 @@ int PWGenerateZenithControlPoints(
     PWOrientation *zenithOrientation,
     PWControlPoint **controlPoints,
     int *controlPointCount,
+    char **errorMessage
+);
+
+int PWRegisterNadirRepair(
+    const char *panoramaPath,
+    const char *repairImagePath,
+    const char *repairExclusionMaskPath,
+    double horizontalFieldOfView,
+    const char *overlayOutputPath,
+    PWNadirRegistration *registration,
+    char **errorMessage
+);
+
+int PWRenderNadirRepairOverlay(
+    const char *repairImagePath,
+    const char *repairExclusionMaskPath,
+    double horizontalFieldOfView,
+    const PWNadirRegistration *registration,
+    const char *overlayOutputPath,
+    char **errorMessage
+);
+
+int PWPrepareNadirRepairBlend(
+    const char *panoramaPath,
+    const char *repairImagePath,
+    const char *repairExclusionMaskPath,
+    double horizontalFieldOfView,
+    const PWNadirRegistration *registration,
+    double translationX,
+    double translationY,
+    double rotationDegrees,
+    double scale,
+    const char *baseOutputPath,
+    const char *repairOutputPath,
+    char **errorMessage
+);
+
+int PWFinishNadirRepairBlend(
+    const char *blendedLocalPath,
+    const char *overlayOutputPath,
     char **errorMessage
 );
 

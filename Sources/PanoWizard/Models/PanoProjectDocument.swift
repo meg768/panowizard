@@ -16,15 +16,18 @@ struct PanoProjectDocument: FileDocument {
     var project: PanoProject
     var masks: [UUID: Data]
     var panoramaData: Data?
+    var nadirOverlayData: Data?
 
     init(
         project: PanoProject = PanoProject(),
         masks: [UUID: Data] = [:],
-        panoramaData: Data? = nil
+        panoramaData: Data? = nil,
+        nadirOverlayData: Data? = nil
     ) {
         self.project = project
         self.masks = masks
         self.panoramaData = panoramaData
+        self.nadirOverlayData = nadirOverlayData
     }
 
     init(configuration: ReadConfiguration) throws {
@@ -62,6 +65,9 @@ struct PanoProjectDocument: FileDocument {
         panoramaData = wrappers["panorama"]?
             .fileWrappers?["result.jpg"]?
             .regularFileContents
+        nadirOverlayData = wrappers["panorama"]?
+            .fileWrappers?["nadir-overlay.png"]?
+            .regularFileContents
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
@@ -80,10 +86,21 @@ struct PanoProjectDocument: FileDocument {
         })
         children["masks"] = FileWrapper(directoryWithFileWrappers: maskChildren)
 
+        var panoramaChildren: [String: FileWrapper] = [:]
         if let panoramaData {
-            children["panorama"] = FileWrapper(directoryWithFileWrappers: [
-                "result.jpg": FileWrapper(regularFileWithContents: panoramaData)
-            ])
+            panoramaChildren["result.jpg"] = FileWrapper(
+                regularFileWithContents: panoramaData
+            )
+        }
+        if let nadirOverlayData {
+            panoramaChildren["nadir-overlay.png"] = FileWrapper(
+                regularFileWithContents: nadirOverlayData
+            )
+        }
+        if !panoramaChildren.isEmpty {
+            children["panorama"] = FileWrapper(
+                directoryWithFileWrappers: panoramaChildren
+            )
         }
 
         return FileWrapper(directoryWithFileWrappers: children)

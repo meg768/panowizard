@@ -25,6 +25,7 @@ let package = Package(
                 .unsafeFlags([
                     "-LVendor/OpenCV/lib",
                     "-lopencv_features",
+                    "-lopencv_calib",
                     "-lopencv_imgcodecs",
                     "-lopencv_imgproc",
                     "-lopencv_geometry",

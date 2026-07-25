@@ -16,6 +16,9 @@ struct ContentView: View {
                     panorama: model.panorama,
                     imageURL: model.selectedPreviewURL,
                     isStitched: model.isShowingStitchedPanorama,
+                    nadirOverlayURL: model.isShowingNadirRepair
+                        ? model.nadirOverlayURL
+                        : nil,
                     selectedSource: model.selectedSourceImage,
                     maskData: model.selectedSourceImage.flatMap {
                         model.maskData(for: $0.id)
@@ -23,6 +26,9 @@ struct ContentView: View {
                     brushDiameter: model.brushDiameter,
                     zoom: model.sourceImageZoom,
                     isErasing: model.isErasingMask,
+                    isAdjustingNadir: model.isAdjustingNadir,
+                    nadirAdjustment: model.displayedNadirAdjustment,
+                    onNadirAdjustmentChange: model.setNadirAdjustment,
                     onMaskChange: { data in
                         guard let image = model.selectedSourceImage else { return }
                         model.setMaskData(data, for: image.id)
@@ -90,8 +96,8 @@ struct ContentView: View {
                                 )
                                 .tag(SourceImage.Role.alignment)
                                 Label(
-                                    "Endast utfyllnad",
-                                    systemImage: "paintbrush.pointed"
+                                    "Reparation · påverkar inte geometrin",
+                                    systemImage: "square.2.layers.3d.bottom.filled"
                                 )
                                 .tag(SourceImage.Role.fillOnly)
                             }
@@ -143,6 +149,70 @@ struct ContentView: View {
                     }
                     .disabled(!model.canUndoMask)
                     .keyboardShortcut("z", modifiers: .command)
+
+                    if model.selectedSourceImage?.role == .fillOnly,
+                       model.stitchedResultURL != nil {
+                        Button {
+                            model.showNadirRepairPreview()
+                        } label: {
+                            Label(
+                                "Visa resultat",
+                                systemImage: "checkmark.circle"
+                            )
+                        }
+                        .disabled(model.phase != .ready)
+                        .help(
+                            "Blanda den maskerade nadirreparationen lokalt "
+                                + "med Enblend och visa resultatet"
+                        )
+                    }
+                }
+
+                if model.isShowingNadirRepair {
+                    Button {
+                        model.toggleNadirAdjustment()
+                    } label: {
+                        Label(
+                            model.isAdjustingNadir ? "Klar" : "Justera nadir",
+                            systemImage: model.isAdjustingNadir
+                                ? "checkmark.circle.fill"
+                                : "scope"
+                        )
+                    }
+                    .help(
+                        model.isAdjustingNadir
+                            ? "Avsluta finjusteringen"
+                            : "Finjustera nadirlagrets position"
+                    )
+                    .disabled(model.phase != .ready)
+
+                    if model.isAdjustingNadir {
+                        Button {
+                            model.resetNadirAdjustment()
+                        } label: {
+                            Label(
+                                "Återställ automatisk position",
+                                systemImage: "arrow.counterclockwise"
+                            )
+                        }
+                        .disabled(model.nadirAdjustment.isIdentity)
+                    } else {
+                        Button {
+                            model.selectNadirRepairForMasking()
+                        } label: {
+                            Label(
+                                model.hasNadirRepairMask
+                                    ? "Redigera reparationsmask"
+                                    : "Maskera reparation",
+                                systemImage: "paintbrush.pointed"
+                            )
+                        }
+                        .help(
+                            "Välj vilka delar av nadirbilden som ska läggas "
+                                + "över panoramat"
+                        )
+                        .disabled(model.phase != .ready)
+                    }
                 }
 
                 Button {

@@ -6,18 +6,28 @@ struct PanoramaPreview: View {
     let panorama: PanoramaSet?
     let imageURL: URL?
     let isStitched: Bool
+    let nadirOverlayURL: URL?
     let selectedSource: SourceImage?
     let maskData: Data?
     let brushDiameter: Double
     let zoom: Double
     let isErasing: Bool
+    let isAdjustingNadir: Bool
+    let nadirAdjustment: NadirRepairAdjustment
+    let onNadirAdjustmentChange: (NadirRepairAdjustment) -> Void
     let onMaskChange: (Data?) -> Void
 
     var body: some View {
         Group {
             if let panorama, let imageURL {
                 if isStitched {
-                    SphericalPanoramaView(url: imageURL)
+                    SphericalPanoramaView(
+                        url: imageURL,
+                        overlayURL: nadirOverlayURL,
+                        isAdjustingNadir: isAdjustingNadir,
+                        nadirAdjustment: nadirAdjustment,
+                        onNadirAdjustmentChange: onNadirAdjustmentChange
+                    )
                 } else if let selectedSource {
                     SourceMaskEditor(
                         image: selectedSource,
@@ -25,6 +35,7 @@ struct PanoramaPreview: View {
                         brushDiameter: brushDiameter,
                         zoom: zoom,
                         isErasing: isErasing,
+                        isRepair: selectedSource.role == .fillOnly,
                         onMaskChange: onMaskChange
                     )
                 } else {
@@ -58,6 +69,7 @@ private struct SourceMaskEditor: View {
     let brushDiameter: Double
     let zoom: Double
     let isErasing: Bool
+    let isRepair: Bool
     let onMaskChange: (Data?) -> Void
 
     @State private var sourceImage: CGImage?
@@ -245,9 +257,7 @@ private struct SourceMaskEditor: View {
         }
         .background(.background)
         .overlay(alignment: .top) {
-            Text(isErasing
-                 ? "Måla för att återställa bildens pixlar"
-                 : "Måla rött över sådant som inte ska användas")
+            Text(instruction)
                 .font(.callout.weight(.medium))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 9)
@@ -266,6 +276,16 @@ private struct SourceMaskEditor: View {
         .onDisappear {
             showSystemCursor()
         }
+    }
+
+    private var instruction: String {
+        if isErasing {
+            return "Måla för att återställa bildens pixlar"
+        }
+        if isRepair {
+            return "Måla rött över det som inte ska läggas in i panoramat"
+        }
+        return "Måla rött över sådant som inte ska användas"
     }
 
     private func commitStroke(sourceImage: CGImage) {

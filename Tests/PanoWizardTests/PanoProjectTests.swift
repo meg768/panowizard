@@ -27,6 +27,22 @@ struct PanoProjectTests {
                 projection: .equirectangular,
                 lensProfile: .nikon105DX,
                 inputHorizontalFieldOfView: 100
+            ),
+            nadirRepairPlacement: NadirRepairPlacement(
+                imageID: image.id,
+                localHomography: [
+                    1, 0, 12,
+                    0, 1, -8,
+                    0, 0, 1
+                ],
+                matchedFeatureCount: 42,
+                localViewFieldOfView: 120,
+                manualAdjustment: NadirRepairAdjustment(
+                    translationX: 18,
+                    translationY: -7,
+                    rotationDegrees: 1.25,
+                    scale: 1.03
+                )
             )
         )
         let encoder = JSONEncoder()
@@ -40,6 +56,48 @@ struct PanoProjectTests {
         )
 
         #expect(decoded == project)
+    }
+
+    @Test
+    func nadirAdjustmentIsStoredWithoutChangingRegistration() throws {
+        let imageID = UUID()
+        var project = PanoProject(
+            nadirRepairPlacement: NadirRepairPlacement(
+                imageID: imageID,
+                localHomography: [
+                    1, 0, 12,
+                    0, 1, -8,
+                    0, 0, 1
+                ],
+                matchedFeatureCount: 42,
+                localViewFieldOfView: 120
+            )
+        )
+        let originalHomography = try #require(
+            project.nadirRepairPlacement?.localHomography
+        )
+        let adjustment = NadirRepairAdjustment(
+            translationX: 23,
+            translationY: -11,
+            rotationDegrees: 0.8,
+            scale: 0.97
+        )
+
+        project.setNadirRepairAdjustment(adjustment)
+
+        #expect(project.nadirRepairPlacement?.manualAdjustment == adjustment)
+        #expect(
+            project.nadirRepairPlacement?.localHomography
+                == originalHomography
+        )
+
+        project.setNadirRepairAdjustment(.identity)
+
+        #expect(project.nadirRepairPlacement?.manualAdjustment == nil)
+        #expect(
+            project.nadirRepairPlacement?.localHomography
+                == originalHomography
+        )
     }
 
     @Test
@@ -81,12 +139,23 @@ struct PanoProjectTests {
         var project = PanoProject(
             images: [image],
             cachedRigImageLines: [image.id.uuidString: "i cached"],
-            cachedRigSignature: "old"
+            cachedRigSignature: "old",
+            nadirRepairPlacement: NadirRepairPlacement(
+                imageID: image.id,
+                localHomography: [
+                    1, 0, 0,
+                    0, 1, 0,
+                    0, 0, 1
+                ],
+                matchedFeatureCount: 20,
+                localViewFieldOfView: 120
+            )
         )
 
         project.setDirection(.zenith, for: image.id)
 
         #expect(project.cachedRigImageLines == nil)
         #expect(project.cachedRigSignature == nil)
+        #expect(project.nadirRepairPlacement == nil)
     }
 }

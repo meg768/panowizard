@@ -8,7 +8,11 @@ struct PanoramaSidebar: View {
         List(selection: $model.selection) {
             if !model.project.images.isEmpty {
                 Section("Panorama") {
-                    PanoramaResultRow(isReady: model.stitchedResultURL != nil)
+                    PanoramaResultRow(
+                        isReady: model.stitchedResultURL != nil,
+                        hasNadirRepair: model.nadirOverlayURL != nil,
+                        hasNadirMask: model.hasNadirRepairMask
+                    )
                         .tag(ProjectSelection.panorama)
                         .disabled(model.stitchedResultURL == nil)
                 }
@@ -51,12 +55,14 @@ struct PanoramaSidebar: View {
 
 private struct PanoramaResultRow: View {
     let isReady: Bool
+    let hasNadirRepair: Bool
+    let hasNadirMask: Bool
 
     var body: some View {
         Label {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Sammanfogat panorama")
-                Text(isReady ? "Klar för förhandsvisning" : "Inte sammanfogat")
+                Text(status)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -67,6 +73,15 @@ private struct PanoramaResultRow: View {
                 .frame(width: 44)
         }
         .padding(.vertical, 3)
+    }
+
+    private var status: String {
+        if hasNadirRepair {
+            return hasNadirMask
+                ? "Nadir placerad och maskerad"
+                : "Nadir placerad · mask saknas"
+        }
+        return isReady ? "Klar för förhandsvisning" : "Inte sammanfogat"
     }
 }
 
@@ -89,7 +104,7 @@ private struct SourceImageRow: View {
                 HStack(spacing: 4) {
                     Text("Bild \(index + 1) · \(image.direction.displayName)")
                     if image.role == .fillOnly {
-                        Text("· Utfyllnad")
+                        Text("· Reparation")
                     }
                     if hasMask {
                         Label("Maskerad", systemImage: "paintbrush.fill")
@@ -124,8 +139,8 @@ private struct SourceImageRow: View {
                 )
                 .tag(SourceImage.Role.alignment)
                 Label(
-                    "Endast utfyllnad",
-                    systemImage: "paintbrush.pointed"
+                    "Reparation · påverkar inte geometrin",
+                    systemImage: "square.2.layers.3d.bottom.filled"
                 )
                 .tag(SourceImage.Role.fillOnly)
             }

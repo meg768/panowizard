@@ -12,6 +12,7 @@ struct PanoProject: Codable, Equatable, Sendable {
     var stitching: StitchingConfiguration
     var cachedRigImageLines: [String: String]?
     var cachedRigSignature: String?
+    var nadirRepairPlacement: NadirRepairPlacement?
 
     init(
         formatVersion: Int = Self.currentFormatVersion,
@@ -22,7 +23,8 @@ struct PanoProject: Codable, Equatable, Sendable {
         images: [SourceImage] = [],
         stitching: StitchingConfiguration = .automatic,
         cachedRigImageLines: [String: String]? = nil,
-        cachedRigSignature: String? = nil
+        cachedRigSignature: String? = nil,
+        nadirRepairPlacement: NadirRepairPlacement? = nil
     ) {
         self.formatVersion = formatVersion
         self.id = id
@@ -33,6 +35,7 @@ struct PanoProject: Codable, Equatable, Sendable {
         self.stitching = stitching
         self.cachedRigImageLines = cachedRigImageLines
         self.cachedRigSignature = cachedRigSignature
+        self.nadirRepairPlacement = nadirRepairPlacement
     }
 
     var panorama: PanoramaSet {
@@ -46,6 +49,7 @@ struct PanoProject: Codable, Equatable, Sendable {
             left.0 == right.0 && left.1 == right.1 && left.2 == right.2
         }) == false {
             invalidateRigCache()
+            nadirRepairPlacement = nil
         }
         self.images = images
         modifiedAt = Self.secondPrecision(.now)
@@ -62,6 +66,7 @@ struct PanoProject: Codable, Equatable, Sendable {
         }
         images[index].role = role
         invalidateRigCache()
+        nadirRepairPlacement = nil
         modifiedAt = Self.secondPrecision(.now)
     }
 
@@ -71,6 +76,7 @@ struct PanoProject: Codable, Equatable, Sendable {
         }
         images[index].direction = direction
         invalidateRigCache()
+        nadirRepairPlacement = nil
         modifiedAt = Self.secondPrecision(.now)
     }
 
@@ -91,6 +97,23 @@ struct PanoProject: Codable, Equatable, Sendable {
     mutating func invalidateRigCache() {
         cachedRigImageLines = nil
         cachedRigSignature = nil
+    }
+
+    mutating func setNadirRepairAdjustment(
+        _ adjustment: NadirRepairAdjustment
+    ) {
+        guard var placement = nadirRepairPlacement else { return }
+        placement.manualAdjustment = adjustment.isIdentity ? nil : adjustment
+        placement.blendedPreview = false
+        nadirRepairPlacement = placement
+        modifiedAt = Self.secondPrecision(.now)
+    }
+
+    mutating func setNadirRepairPreviewBlended(_ isBlended: Bool) {
+        guard var placement = nadirRepairPlacement else { return }
+        placement.blendedPreview = isBlended
+        nadirRepairPlacement = placement
+        modifiedAt = Self.secondPrecision(.now)
     }
 
     private static func secondPrecision(_ date: Date) -> Date {

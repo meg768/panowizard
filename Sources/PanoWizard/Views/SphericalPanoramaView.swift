@@ -1,30 +1,70 @@
+import Foundation
 import MetalKit
 import SwiftUI
 
 struct SphericalPanoramaView: View {
     let url: URL
+    let overlayURL: URL?
+    let isAdjustingNadir: Bool
+    let nadirAdjustment: NadirRepairAdjustment
+    let onNadirAdjustmentChange: (NadirRepairAdjustment) -> Void
 
     var body: some View {
-        SphericalMetalView(url: url)
+        SphericalMetalView(
+            url: url,
+            overlayURL: overlayURL,
+            isAdjustingNadir: isAdjustingNadir,
+            nadirAdjustment: nadirAdjustment,
+            onNadirAdjustmentChange: onNadirAdjustmentChange
+        )
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(alignment: .topLeading) {
-                Label("Dra för att se dig omkring · rulla för att zooma", systemImage: "move.3d")
-                    .font(.caption)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(.black.opacity(0.45), in: Capsule())
-                    .padding(14)
-                    .allowsHitTesting(false)
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(
+                        isAdjustingNadir
+                            ? "Dra: flytta · ⌘-dra: rotera · rulla eller nyp: skala"
+                            : "Dra för att se dig omkring · rulla för att zooma",
+                        systemImage: isAdjustingNadir ? "scope" : "move.3d"
+                    )
+                    if overlayURL != nil {
+                        Label(
+                            isAdjustingNadir
+                                ? adjustmentDescription
+                                : "Nadirreparation · normal visning",
+                            systemImage: "square.2.layers.3d.bottom.filled"
+                        )
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 12))
+                .padding(14)
+                .allowsHitTesting(false)
             }
             .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
             .padding(.horizontal, 24)
             .padding(.top, 18)
     }
+
+    private var adjustmentDescription: String {
+        String(
+            format: "%+.0f px · %+.0f px · %+.2f° · %.1f %%",
+            nadirAdjustment.translationX,
+            nadirAdjustment.translationY,
+            nadirAdjustment.rotationDegrees,
+            nadirAdjustment.scale * 100
+        )
+    }
 }
 
 private struct SphericalMetalView: NSViewRepresentable {
     let url: URL
+    let overlayURL: URL?
+    let isAdjustingNadir: Bool
+    let nadirAdjustment: NadirRepairAdjustment
+    let onNadirAdjustmentChange: (NadirRepairAdjustment) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -32,27 +72,54 @@ private struct SphericalMetalView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> PanoramaMTKView {
         let view = PanoramaMTKView()
-        context.coordinator.renderer = try? SphericalPanoramaRenderer(view: view, imageURL: url)
+        context.coordinator.url = url
+        context.coordinator.overlayURL = overlayURL
+        context.coordinator.renderer = try? SphericalPanoramaRenderer(
+            view: view,
+            imageURL: url,
+            overlayURL: overlayURL,
+            nadirAdjustment: nadirAdjustment,
+            isAdjustingNadir: isAdjustingNadir
+        )
         view.panoramaRenderer = context.coordinator.renderer
+        view.configureNadirAdjustment(
+            nadirAdjustment,
+            isAdjusting: isAdjustingNadir,
+            onChange: onNadirAdjustmentChange
+        )
         return view
     }
 
     func updateNSView(_ view: PanoramaMTKView, context: Context) {
-        guard context.coordinator.url != url else { return }
-        context.coordinator.url = url
-        context.coordinator.renderer?.loadTexture(from: url)
-        view.resetViewpoint()
+        view.configureNadirAdjustment(
+            nadirAdjustment,
+            isAdjusting: isAdjustingNadir,
+            onChange: onNadirAdjustmentChange
+        )
+        if context.coordinator.url != url
+            || context.coordinator.overlayURL != overlayURL {
+            context.coordinator.url = url
+            context.coordinator.overlayURL = overlayURL
+            context.coordinator.renderer?.loadTextures(
+                panoramaURL: url,
+                overlayURL: overlayURL
+            )
+        }
     }
 
     final class Coordinator {
         var renderer: SphericalPanoramaRenderer?
         var url: URL?
+        var overlayURL: URL?
     }
 }
 
 private final class PanoramaMTKView: MTKView {
     weak var panoramaRenderer: SphericalPanoramaRenderer?
     private var previousDragLocation: CGPoint?
+    private var isAdjustingNadir = false
+    private var nadirAdjustment = NadirRepairAdjustment.identity
+    private var onNadirAdjustmentChange: ((NadirRepairAdjustment) -> Void)?
 
     init() {
         super.init(frame: .zero, device: MTLCreateSystemDefaultDevice())
@@ -75,10 +142,32 @@ private final class PanoramaMTKView: MTKView {
     override func mouseDragged(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
         if let previousDragLocation {
-            panoramaRenderer?.rotate(
-                horizontal: Float(location.x - previousDragLocation.x),
-                vertical: Float(location.y - previousDragLocation.y)
-            )
+            let horizontal = location.x - previousDragLocation.x
+            let vertical = location.y - previousDragLocation.y
+            if isAdjustingNadir {
+                var adjustment = nadirAdjustment
+                if event.modifierFlags.contains(.command) {
+                    adjustment.rotationDegrees = min(max(
+                        adjustment.rotationDegrees + horizontal * 0.12,
+                        -45
+                    ), 45)
+                } else {
+                    adjustment.translationX = min(max(
+                        adjustment.translationX + horizontal,
+                        -500
+                    ), 500)
+                    adjustment.translationY = min(max(
+                        adjustment.translationY - vertical,
+                        -500
+                    ), 500)
+                }
+                applyNadirAdjustment(adjustment)
+            } else {
+                panoramaRenderer?.rotate(
+                    horizontal: Float(horizontal),
+                    vertical: Float(vertical)
+                )
+            }
         }
         previousDragLocation = location
     }
@@ -88,15 +177,62 @@ private final class PanoramaMTKView: MTKView {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        panoramaRenderer?.zoom(by: Float(event.scrollingDeltaY))
+        if isAdjustingNadir {
+            var adjustment = nadirAdjustment
+            adjustment.scale = min(max(
+                adjustment.scale * exp(event.scrollingDeltaY * 0.008),
+                0.4
+            ), 2)
+            applyNadirAdjustment(adjustment)
+        } else {
+            panoramaRenderer?.zoom(by: Float(event.scrollingDeltaY))
+        }
     }
 
     override func magnify(with event: NSEvent) {
-        panoramaRenderer?.magnify(by: Float(event.magnification))
+        if isAdjustingNadir {
+            var adjustment = nadirAdjustment
+            adjustment.scale = min(max(
+                adjustment.scale * (1 + event.magnification),
+                0.4
+            ), 2)
+            applyNadirAdjustment(adjustment)
+        } else {
+            panoramaRenderer?.magnify(by: Float(event.magnification))
+        }
     }
 
     func resetViewpoint() {
         panoramaRenderer?.resetViewpoint()
+    }
+
+    func configureNadirAdjustment(
+        _ adjustment: NadirRepairAdjustment,
+        isAdjusting: Bool,
+        onChange: @escaping (NadirRepairAdjustment) -> Void
+    ) {
+        let startedAdjusting = isAdjusting && !isAdjustingNadir
+        nadirAdjustment = adjustment
+        isAdjustingNadir = isAdjusting
+        onNadirAdjustmentChange = onChange
+        panoramaRenderer?.setNadirAdjustment(
+            adjustment,
+            isAdjusting: isAdjusting
+        )
+        if startedAdjusting {
+            panoramaRenderer?.focusNadir()
+        }
+    }
+
+    private func applyNadirAdjustment(
+        _ adjustment: NadirRepairAdjustment
+    ) {
+        nadirAdjustment = adjustment
+        panoramaRenderer?.setNadirAdjustment(
+            adjustment,
+            isAdjusting: isAdjustingNadir
+        )
+        onNadirAdjustmentChange?(adjustment)
     }
 }
 
@@ -107,6 +243,12 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         var pitch: Float
         var verticalFieldOfView: Float
         var aspectRatio: Float
+        var hasOverlay: UInt32
+        var overlayTranslationX: Float
+        var overlayTranslationY: Float
+        var overlayRotation: Float
+        var overlayScale: Float
+        var overlayOpacity: Float
     }
 
     private let device: MTLDevice
@@ -114,11 +256,20 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     private let pipeline: MTLRenderPipelineState
     private weak var view: MTKView?
     private var texture: MTLTexture?
+    private var overlayTexture: MTLTexture?
     private var yaw: Float = 0
     private var pitch: Float = 0
     private var verticalFieldOfView: Float = 75 * .pi / 180
+    private var nadirAdjustment: NadirRepairAdjustment
+    private var overlayOpacity: Float
 
-    init(view: MTKView, imageURL: URL) throws {
+    init(
+        view: MTKView,
+        imageURL: URL,
+        overlayURL: URL?,
+        nadirAdjustment: NadirRepairAdjustment,
+        isAdjustingNadir: Bool
+    ) throws {
         guard
             let device = view.device,
             let commandQueue = device.makeCommandQueue()
@@ -129,22 +280,39 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         self.device = device
         self.commandQueue = commandQueue
         self.view = view
+        self.nadirAdjustment = nadirAdjustment
+        overlayOpacity = isAdjustingNadir ? 0.68 : 1
         pipeline = try Self.makePipeline(device: device, pixelFormat: view.colorPixelFormat)
         super.init()
         view.delegate = self
-        loadTexture(from: imageURL)
+        loadTextures(panoramaURL: imageURL, overlayURL: overlayURL)
     }
 
-    func loadTexture(from url: URL) {
+    func loadTextures(panoramaURL: URL, overlayURL: URL?) {
         let loader = MTKTextureLoader(device: device)
         texture = try? loader.newTexture(
-            URL: url,
+            URL: panoramaURL,
             options: [
                 .SRGB: true,
                 .origin: MTKTextureLoader.Origin.topLeft,
                 .textureUsage: MTLTextureUsage.shaderRead.rawValue
             ]
         )
+        if let overlayURL {
+            overlayTexture = try? loader.newTexture(
+                URL: overlayURL,
+                options: [
+                    .SRGB: true,
+                    .origin: MTKTextureLoader.Origin.topLeft,
+                    .textureUsage: MTLTextureUsage.shaderRead.rawValue
+                ]
+            )
+            pitch = .pi / 2
+            verticalFieldOfView = 75 * .pi / 180
+        } else {
+            overlayTexture = nil
+            resetViewpoint()
+        }
         view?.setNeedsDisplay(view?.bounds ?? .zero)
     }
 
@@ -171,6 +339,22 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         view?.setNeedsDisplay(view?.bounds ?? .zero)
     }
 
+    func focusNadir() {
+        yaw = 0
+        pitch = .pi / 2
+        verticalFieldOfView = 75 * .pi / 180
+        view?.setNeedsDisplay(view?.bounds ?? .zero)
+    }
+
+    func setNadirAdjustment(
+        _ adjustment: NadirRepairAdjustment,
+        isAdjusting: Bool
+    ) {
+        nadirAdjustment = adjustment
+        overlayOpacity = isAdjusting ? 0.68 : 1
+        view?.setNeedsDisplay(view?.bounds ?? .zero)
+    }
+
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         view.setNeedsDisplay(view.bounds)
     }
@@ -190,11 +374,20 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             yaw: yaw,
             pitch: pitch,
             verticalFieldOfView: verticalFieldOfView,
-            aspectRatio: Float(view.drawableSize.width / max(view.drawableSize.height, 1))
+            aspectRatio: Float(view.drawableSize.width / max(view.drawableSize.height, 1)),
+            hasOverlay: overlayTexture == nil ? 0 : 1,
+            overlayTranslationX: Float(nadirAdjustment.translationX / 1_600),
+            overlayTranslationY: Float(nadirAdjustment.translationY / 1_600),
+            overlayRotation: Float(
+                nadirAdjustment.rotationDegrees * .pi / 180
+            ),
+            overlayScale: Float(nadirAdjustment.scale),
+            overlayOpacity: overlayOpacity
         )
 
         encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentTexture(texture, index: 0)
+        encoder.setFragmentTexture(overlayTexture, index: 1)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
@@ -228,6 +421,12 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         float pitch;
         float verticalFieldOfView;
         float aspectRatio;
+        uint hasOverlay;
+        float overlayTranslationX;
+        float overlayTranslationY;
+        float overlayRotation;
+        float overlayScale;
+        float overlayOpacity;
     };
 
     vertex VertexOut panoramaVertex(uint vertexID [[vertex_id]]) {
@@ -245,10 +444,16 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     fragment float4 panoramaFragment(
         VertexOut in [[stage_in]],
         texture2d<float> panorama [[texture(0)]],
+        texture2d<float> nadirOverlay [[texture(1)]],
         constant Uniforms &uniforms [[buffer(0)]]
     ) {
         constexpr sampler panoramaSampler(
             address::repeat,
+            filter::linear,
+            mip_filter::linear
+        );
+        constexpr sampler overlaySampler(
+            address::clamp_to_zero,
             filter::linear,
             mip_filter::linear
         );
@@ -282,7 +487,43 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             0.5 + longitude / (2.0 * M_PI_F),
             0.5 - latitude / M_PI_F
         );
-        return panorama.sample(panoramaSampler, coordinate);
+        float4 base = panorama.sample(panoramaSampler, coordinate);
+        if (uniforms.hasOverlay == 0) {
+            return base;
+        }
+        float3 localRay = float3(
+            direction.x,
+            -direction.z,
+            -direction.y
+        );
+        if (localRay.z <= 0.0001) {
+            return base;
+        }
+        constexpr float localProjectionScale = 0.2886751346;
+        float2 localCoordinate = float2(0.5)
+            + localProjectionScale * localRay.xy / localRay.z;
+        float2 centered = localCoordinate
+            - float2(0.5)
+            - float2(
+                uniforms.overlayTranslationX,
+                uniforms.overlayTranslationY
+            );
+        float cosine = cos(-uniforms.overlayRotation);
+        float sine = sin(-uniforms.overlayRotation);
+        centered = float2(
+            centered.x * cosine - centered.y * sine,
+            centered.x * sine + centered.y * cosine
+        ) / max(uniforms.overlayScale, 0.01);
+        float2 repairCoordinate = centered + float2(0.5);
+        float4 repair = nadirOverlay.sample(
+            overlaySampler,
+            repairCoordinate
+        );
+        float repairOpacity = repair.a * uniforms.overlayOpacity;
+        return float4(
+            mix(base.rgb, repair.rgb, repairOpacity),
+            1.0
+        );
     }
     """
 

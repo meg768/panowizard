@@ -24,7 +24,7 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
             case .alignment:
                 "Ingår i positionering"
             case .fillOnly:
-                "Endast utfyllnad"
+                "Reparation"
             }
         }
     }

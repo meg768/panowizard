@@ -12,6 +12,7 @@ protocol PanoramaEngine: Sendable {
 struct PanoramaStitchResult: Sendable {
     let url: URL
     let rigImageLines: [UUID: String]
+    let nadirRepair: NadirRepairRegistrationResult?
 }
 
 enum PanoramaEngineError: LocalizedError {
@@ -57,6 +58,10 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let zenithImages = alignmentImages.filter { $0.direction == .zenith }
         let unsupported = alignmentImages.filter { $0.direction == .nadir }
         let fillOnlyImages = panorama.images.filter { $0.role == .fillOnly }
+        let nadirRepairImages = fillOnlyImages.filter { $0.direction == .nadir }
+        let unsupportedRepairImages = fillOnlyImages.filter {
+            $0.direction != .nadir
+        }
 
         guard ringImages.count >= 2 else {
             throw PanoramaEngineError.insufficientImages
@@ -66,9 +71,19 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 "Den här första stitchmotorn stöder en zenitbild."
             )
         }
-        guard unsupported.isEmpty, fillOnlyImages.isEmpty else {
+        guard unsupported.isEmpty else {
             throw PanoramaEngineError.stitchingFailed(
-                "Nadir och utfyllnadsbilder kopplas in i nästa separata reparationssteg."
+                "En nadirbild måste ha bildrollen Reparation."
+            )
+        }
+        guard unsupportedRepairImages.isEmpty else {
+            throw PanoramaEngineError.stitchingFailed(
+                "I den här etappen kan endast en nadirbild användas som reparation."
+            )
+        }
+        guard nadirRepairImages.count <= 1 else {
+            throw PanoramaEngineError.stitchingFailed(
+                "I den här etappen stöds en nadirreparation."
             )
         }
 
@@ -285,7 +300,24 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             )
         }
 
-        return PanoramaStitchResult(url: result, rigImageLines: [:])
+        var nadirRepair: NadirRepairRegistrationResult?
+        if let repairImage = nadirRepairImages.first {
+            log("Local nadir repair registration", images: [repairImage])
+            let overlay = workDirectory.appending(path: "nadir-overlay.png")
+            nadirRepair = try OpenCVNadirRepairRegistrar.register(
+                panoramaURL: result,
+                repairImage: repairImage,
+                exclusionMaskData: masks[repairImage.id],
+                horizontalFieldOfView: horizontalFieldOfView,
+                outputURL: overlay
+            )
+        }
+
+        return PanoramaStitchResult(
+            url: result,
+            rigImageLines: [:],
+            nadirRepair: nadirRepair
+        )
     }
 
     private static func initialFieldOfView(

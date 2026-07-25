@@ -5,7 +5,10 @@ struct StatusBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if model.phase == .importing || model.phase == .stitching {
+            if model.phase == .importing
+                || model.phase == .stitching
+                || model.phase == .updatingRepair
+                || model.phase == .blendingRepair {
                 ProgressView()
                     .controlSize(.small)
             } else {

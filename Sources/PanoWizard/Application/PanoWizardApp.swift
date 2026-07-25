@@ -20,7 +20,8 @@ private struct ProjectDocumentView: View {
         _model = State(initialValue: AppModel.live(
             project: document.wrappedValue.project,
             masks: document.wrappedValue.masks,
-            panoramaData: document.wrappedValue.panoramaData
+            panoramaData: document.wrappedValue.panoramaData,
+            nadirOverlayData: document.wrappedValue.nadirOverlayData
         ))
     }
 
@@ -34,6 +35,7 @@ private struct ProjectDocumentView: View {
             }
             .onChange(of: model.panoramaRevision) {
                 document.panoramaData = model.panoramaData
+                document.nadirOverlayData = model.nadirOverlayData
             }
     }
 }
