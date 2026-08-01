@@ -7,14 +7,20 @@ struct PanoramaPreview: View {
     let imageURL: URL?
     let isStitched: Bool
     let nadirOverlayURL: URL?
+    let zenithOverlayURL: URL?
     let selectedSource: SourceImage?
     let maskData: Data?
     let brushDiameter: Double
     let zoom: Double
     let isErasing: Bool
+    let isControlPointMask: Bool
     let isAdjustingNadir: Bool
+    let adjustedPole: PanoramaPole
     let nadirAdjustment: NadirRepairAdjustment
+    let nadirContentBounds: [Double]
+    let initialViewpoint: PanoramaViewpoint
     let onNadirAdjustmentChange: (NadirRepairAdjustment) -> Void
+    let onViewpointChange: (PanoramaViewpoint) -> Void
     let onMaskChange: (Data?) -> Void
 
     var body: some View {
@@ -24,9 +30,14 @@ struct PanoramaPreview: View {
                     SphericalPanoramaView(
                         url: imageURL,
                         overlayURL: nadirOverlayURL,
+                        zenithOverlayURL: zenithOverlayURL,
                         isAdjustingNadir: isAdjustingNadir,
+                        adjustedPole: adjustedPole,
                         nadirAdjustment: nadirAdjustment,
-                        onNadirAdjustmentChange: onNadirAdjustmentChange
+                        nadirContentBounds: nadirContentBounds,
+                        initialViewpoint: initialViewpoint,
+                        onNadirAdjustmentChange: onNadirAdjustmentChange,
+                        onViewpointChange: onViewpointChange
                     )
                 } else if let selectedSource {
                     SourceMaskEditor(
@@ -35,7 +46,7 @@ struct PanoramaPreview: View {
                         brushDiameter: brushDiameter,
                         zoom: zoom,
                         isErasing: isErasing,
-                        isRepair: selectedSource.role == .fillOnly,
+                        isControlPointMask: isControlPointMask,
                         onMaskChange: onMaskChange
                     )
                 } else {
@@ -69,7 +80,7 @@ private struct SourceMaskEditor: View {
     let brushDiameter: Double
     let zoom: Double
     let isErasing: Bool
-    let isRepair: Bool
+    let isControlPointMask: Bool
     let onMaskChange: (Data?) -> Void
 
     @State private var sourceImage: CGImage?
@@ -136,7 +147,11 @@ private struct SourceMaskEditor: View {
                                     with: .color(
                                         isErasing
                                             ? .white.opacity(0.8)
-                                            : .red.opacity(0.75)
+                                            : (
+                                                isControlPointMask
+                                                    ? .orange.opacity(0.8)
+                                                    : .red.opacity(0.75)
+                                            )
                                     ),
                                     style: StrokeStyle(
                                         lineWidth: max(displayedBrushRadius * 2, 1),
@@ -282,8 +297,8 @@ private struct SourceMaskEditor: View {
         if isErasing {
             return "Måla för att återställa bildens pixlar"
         }
-        if isRepair {
-            return "Måla rött över det som inte ska läggas in i panoramat"
+        if isControlPointMask {
+            return "Måla orange över rörliga objekt som ska ignoreras vid matchning"
         }
         return "Måla rött över sådant som inte ska användas"
     }
@@ -294,6 +309,7 @@ private struct SourceMaskEditor: View {
             stroke: activeStroke,
             radius: CGFloat(brushDiameter / 2),
             erasing: isErasing,
+            controlPointExclusion: isControlPointMask,
             to: maskData,
             width: sourceImage.width,
             height: sourceImage.height

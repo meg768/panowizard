@@ -1,39 +1,152 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Bindable var model: AppModel
+    let projectName: String?
     @State private var isDropTargeted = false
-    @State private var isStitchSettingsPresented = false
+    @AppStorage("PanoWizard.ProjectWindow.sidebarWidth")
+    private var savedSidebarWidth = 300.0
 
     var body: some View {
         NavigationSplitView {
             PanoramaSidebar(model: model)
-                .navigationSplitViewColumnWidth(min: 190, ideal: 230, max: 300)
+                .onGeometryChange(for: CGFloat.self) { geometry in
+                    geometry.size.width
+                } action: { width in
+                    let clampedWidth = min(max(Double(width), 220), 520)
+                    guard abs(savedSidebarWidth - clampedWidth) >= 1 else {
+                        return
+                    }
+                    savedSidebarWidth = clampedWidth
+                }
+                .navigationSplitViewColumnWidth(
+                    min: 220,
+                    ideal: min(max(savedSidebarWidth, 220), 520),
+                    max: 520
+                )
         } detail: {
             ZStack {
-                PanoramaPreview(
-                    panorama: model.panorama,
-                    imageURL: model.selectedPreviewURL,
-                    isStitched: model.isShowingStitchedPanorama,
-                    nadirOverlayURL: model.isShowingNadirRepair
-                        ? model.nadirOverlayURL
-                        : nil,
-                    selectedSource: model.selectedSourceImage,
-                    maskData: model.selectedSourceImage.flatMap {
-                        model.maskData(for: $0.id)
-                    },
-                    brushDiameter: model.brushDiameter,
-                    zoom: model.sourceImageZoom,
-                    isErasing: model.isErasingMask,
-                    isAdjustingNadir: model.isAdjustingNadir,
-                    nadirAdjustment: model.displayedNadirAdjustment,
-                    onNadirAdjustmentChange: model.setNadirAdjustment,
-                    onMaskChange: { data in
-                        guard let image = model.selectedSourceImage else { return }
-                        model.setMaskData(data, for: image.id)
+                if model.selection == .settings {
+                    PanoramaSettingsView(model: model)
+                } else if model.selection == .export {
+                    PanoramaExportView(
+                        model: model,
+                        projectName: projectName,
+                        viewpoint: model.panoramaViewpoint
+                    )
+                } else if case .poleControlPoints = model.selection {
+                    if let diagnostics = model.poleControlPointDiagnostics {
+                        let pairID = ControlPointPair.ID(
+                            firstImage: 0,
+                            secondImage: 1
+                        )
+                        ControlPointEditor(
+                            diagnostics: diagnostics,
+                            selectedPairID: pairID,
+                            leftImageIndex: 0,
+                            rightImageIndex: 1,
+                            onSelectImages: { _, _ in },
+                            onMovePoint: model.movePoleControlPoint,
+                            onRemovePoint: model.removePoleControlPoint,
+                            onAddPoint: { point, imageIndex in
+                                model.addPoleControlPoint(
+                                    point: point,
+                                    imageIndex: imageIndex
+                                )
+                            },
+                            isSuggestingPoints: model.phase == .suggestingControlPoints,
+                            onSuggestPoints: model.regeneratePoleControlPoints,
+                            onSuggestProjectPoints: {},
+                            onRegenerateProjectPoints: {},
+                            onRemoveAllPoints: {
+                                model.editablePoleControlPoints = []
+                            },
+                            onRemoveAllProjectPoints: {},
+                            onOptimize: model.applyPoleControlPoints,
+                            isPoleAlignment: true
+                        )
                     }
-                )
+                } else if model.selection == .controlPoints {
+                    if let diagnostics = model.controlPointEditorDiagnostics,
+                       diagnostics.images.count >= 2 {
+                        let pairID = model.selectedControlPointPairID
+                            ?? diagnostics.pairs.first?.id
+                            ?? ControlPointPair.ID(firstImage: 0, secondImage: 1)
+                        ControlPointEditor(
+                            diagnostics: diagnostics,
+                            selectedPairID: pairID,
+                            leftImageIndex: model.controlPointLeftImageIndex,
+                            rightImageIndex: model.controlPointRightImageIndex,
+                            onSelectImages: model.selectControlPointImages,
+                            onMovePoint: model.moveControlPoint,
+                            onRemovePoint: model.removeControlPoint,
+                            onAddPoint: { point, imageIndex in
+                                model.addPredictedControlPoint(
+                                    to: pairID,
+                                    point: point,
+                                    in: imageIndex
+                                )
+                            },
+                            isSuggestingPoints: model.isSuggestingControlPoints,
+                            onSuggestPoints: {
+                                model.suggestControlPoints(for: pairID)
+                            },
+                            onSuggestProjectPoints: {
+                                model.suggestControlPointsForProject()
+                            },
+                            onRegenerateProjectPoints: {
+                                model.regenerateControlPointsForProject()
+                            },
+                            onRemoveAllPoints: {
+                                model.removeAllControlPoints(in: pairID)
+                            },
+                            onRemoveAllProjectPoints: {
+                                model.removeAllControlPoints()
+                            },
+                            onOptimize: model.optimizeEditedControlPoints,
+                            isPoleAlignment: false
+                        )
+                    } else {
+                        ContentUnavailableView(
+                            "Minst två bilder behövs",
+                            systemImage: "scope",
+                            description: Text(
+                                "Lägg till fler källbilder för att skapa kontrollpunkter."
+                            )
+                        )
+                    }
+                } else {
+                    PanoramaPreview(
+                        panorama: model.panorama,
+                        imageURL: model.selectedPreviewURL,
+                        isStitched: model.isShowingStitchedPanorama,
+                        nadirOverlayURL: model.isShowingNadirRepair
+                            ? model.nadirOverlayURL
+                            : nil,
+                        zenithOverlayURL: model.zenithOverlayURL,
+                        selectedSource: model.selectedSourceImage,
+                        maskData: model.selectedSourceImage.flatMap {
+                            model.maskData(for: $0.id)
+                        },
+                        brushDiameter: model.brushDiameter,
+                        zoom: model.sourceImageZoom,
+                        isErasing: model.isErasingMask,
+                        isControlPointMask: model.activeMaskKind == .controlPoints,
+                        isAdjustingNadir: model.isAdjustingNadir,
+                        adjustedPole: model.activeRepairPole,
+                        nadirAdjustment: model.displayedNadirAdjustment,
+                        nadirContentBounds: model.nadirContentBounds,
+                        initialViewpoint: model.panoramaViewpoint,
+                        onNadirAdjustmentChange: model.setNadirAdjustment,
+                        onViewpointChange: model.setPanoramaViewpoint,
+                        onMaskChange: { data in
+                            guard let image = model.selectedSourceImage else { return }
+                            model.setMaskData(data, for: image.id)
+                        }
+                    )
+                }
                 if isDropTargeted {
                     RoundedRectangle(cornerRadius: 18)
                         .fill(.tint.opacity(0.08))
@@ -60,15 +173,6 @@ struct ContentView: View {
                     Label("Sammanfoga", systemImage: "wand.and.stars")
                 }
                 .disabled(!model.canStitch)
-
-                Button {
-                    isStitchSettingsPresented.toggle()
-                } label: {
-                    Label("Sammanfogningsinställningar", systemImage: "slider.horizontal.3")
-                }
-                .popover(isPresented: $isStitchSettingsPresented, arrowEdge: .bottom) {
-                    StitchSettingsView(model: model)
-                }
 
                 if model.selectedSourceImage != nil {
                     Menu {
@@ -128,10 +232,36 @@ struct ContentView: View {
                     .disabled(model.sourceImageZoom >= 8)
                     .keyboardShortcut("+", modifiers: .command)
 
+                    if model.selectedSourceImage?.role == .alignment {
+                        Picker("Masktyp", selection: $model.maskKind) {
+                            Label("Göm i panorama", systemImage: "eye.slash")
+                                .tag(AppModel.MaskKind.panorama)
+                            Label(
+                                "Ignorera för kontrollpunkter",
+                                systemImage: "scope"
+                            )
+                            .tag(AppModel.MaskKind.controlPoints)
+                        }
+                        .pickerStyle(.menu)
+                        .help(
+                            model.maskKind == .controlPoints
+                                ? "Orange mask: motivet syns i resultatet men används inte för bildmatchning"
+                                : "Röd mask: området döljs i det färdiga panoramat"
+                        )
+                    }
+
                     Picker("Maskverktyg", selection: $model.isErasingMask) {
-                        Label("Maskera", systemImage: "paintbrush")
+                        Label(
+                            model.activeMaskKind == .controlPoints
+                                ? "Ignorera"
+                                : "Maskera",
+                            systemImage: "paintbrush"
+                        )
                             .tag(false)
-                        Label("Återställ", systemImage: "eraser")
+                        Label(
+                            "Återställ",
+                            systemImage: "eraser"
+                        )
                             .tag(true)
                     }
                     .pickerStyle(.segmented)
@@ -149,6 +279,36 @@ struct ContentView: View {
                     }
                     .disabled(!model.canUndoMask)
                     .keyboardShortcut("z", modifiers: .command)
+
+                    Button {
+                        model.invertSelectedMask()
+                    } label: {
+                        Label(
+                            "Invertera mask",
+                            systemImage: "circle.lefthalf.filled"
+                        )
+                    }
+                    .disabled(
+                        model.selectedSourceImage.map {
+                            model.maskData(for: $0.id) == nil
+                        } ?? true
+                    )
+                    .keyboardShortcut("i", modifiers: [.command, .shift])
+                    .help(
+                        "Byt maskerade och omaskerade områden; åtgärden kan ångras"
+                    )
+
+                    Button(role: .destructive) {
+                        model.clearSelectedMask()
+                    } label: {
+                        Label("Nollställ mask", systemImage: "trash")
+                    }
+                    .disabled(
+                        model.selectedSourceImage.map {
+                            model.maskData(for: $0.id) == nil
+                        } ?? true
+                    )
+                    .help("Ta bort hela masken; åtgärden kan ångras")
 
                     if model.selectedSourceImage?.role == .fillOnly,
                        model.stitchedResultURL != nil {
@@ -169,23 +329,34 @@ struct ContentView: View {
                 }
 
                 if model.isShowingNadirRepair {
-                    Button {
-                        model.toggleNadirAdjustment()
-                    } label: {
-                        Label(
-                            model.isAdjustingNadir ? "Klar" : "Justera nadir",
-                            systemImage: model.isAdjustingNadir
-                                ? "checkmark.circle.fill"
-                                : "scope"
-                        )
+                    if model.isAdjustingNadir {
+                        Button {
+                            model.toggleNadirAdjustment()
+                        } label: {
+                            Label("Förhandsvisning", systemImage: "checkmark.circle.fill")
+                        }
+                    } else {
+                        Menu {
+                            if model.zenithOverlayURL != nil {
+                                Button("Justera zenit") {
+                                    model.beginRepairAdjustment(.zenith)
+                                }
+                                Button("Anpassa zenit mot ringen…") {
+                                    model.beginPoleControlPointAlignment(.zenith)
+                                }
+                            }
+                            if model.nadirOverlayURL != nil {
+                                Button("Justera nadir") {
+                                    model.beginRepairAdjustment(.nadir)
+                                }
+                                Button("Anpassa nadir mot ringen…") {
+                                    model.beginPoleControlPointAlignment(.nadir)
+                                }
+                            }
+                        } label: {
+                            Label("Justering", systemImage: "scope")
+                        }
                     }
-                    .help(
-                        model.isAdjustingNadir
-                            ? "Avsluta finjusteringen"
-                            : "Finjustera nadirlagrets position"
-                    )
-                    .disabled(model.phase != .ready)
-
                     if model.isAdjustingNadir {
                         Button {
                             model.resetNadirAdjustment()
@@ -195,7 +366,7 @@ struct ContentView: View {
                                 systemImage: "arrow.counterclockwise"
                             )
                         }
-                        .disabled(model.nadirAdjustment.isIdentity)
+                        .disabled(model.displayedNadirAdjustment.isIdentity)
                     } else {
                         Button {
                             model.selectNadirRepairForMasking()
@@ -215,11 +386,6 @@ struct ContentView: View {
                     }
                 }
 
-                Button {
-                } label: {
-                    Label("Exportera", systemImage: "square.and.arrow.up")
-                }
-                .disabled(true)
             }
         }
         .fileImporter(
@@ -246,61 +412,182 @@ struct ContentView: View {
         case .horizontal, nil: "scope"
         }
     }
+
 }
 
-private struct StitchSettingsView: View {
+private struct SourceImagesView: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Källbilder")
+                    .font(.title2.weight(.semibold))
+                Spacer()
+                Button {
+                    model.isImporterPresented = true
+                } label: {
+                    Label("Lägg till bilder", systemImage: "plus")
+                }
+            }
+            .padding()
+
+            Divider()
+
+            ScrollView {
+                LazyVGrid(
+                    columns: [
+                        GridItem(
+                            .adaptive(minimum: 180, maximum: 240),
+                            spacing: 16
+                        )
+                    ],
+                    spacing: 16
+                ) {
+                    ForEach(
+                        Array(model.project.images.enumerated()),
+                        id: \.element.id
+                    ) { index, image in
+                        Button {
+                            model.selection = .source(image.id)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 8) {
+                                SourceThumbnail(url: image.url)
+                                    .aspectRatio(4 / 3, contentMode: .fit)
+                                    .clipShape(
+                                        RoundedRectangle(cornerRadius: 8)
+                                    )
+                                HStack {
+                                    Text("\(index + 1)")
+                                        .font(
+                                            .callout.monospacedDigit()
+                                                .weight(.semibold)
+                                        )
+                                        .frame(width: 26, height: 26)
+                                        .background(
+                                            Color.secondary.opacity(0.14),
+                                            in: Circle()
+                                        )
+                                    Text(image.filename)
+                                        .lineLimit(1)
+                                    Spacer(minLength: 0)
+                                }
+                            }
+                            .padding(8)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Picker(
+                                "Riktning",
+                                selection: Binding(
+                                    get: { image.direction },
+                                    set: {
+                                        model.setDirection($0, for: image.id)
+                                    }
+                                )
+                            ) {
+                                ForEach(
+                                    SourceImage.Direction.allCases,
+                                    id: \.self
+                                ) {
+                                    Text($0.displayName).tag($0)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding()
+            }
+        }
+    }
+}
+
+private struct CreatePanoramaView: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Image(systemName: "panorama")
+                .font(.system(size: 52))
+                .foregroundStyle(.tint)
+            Text("Skapa panorama")
+                .font(.largeTitle.weight(.semibold))
+            Text(
+                "PanoWizard hittar kontrollpunkter, optimerar bilderna "
+                    + "och sammanfogar panoramat automatiskt."
+            )
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: 480)
+
+            Button {
+                model.stitch()
+            } label: {
+                Label("Skapa panorama", systemImage: "wand.and.stars")
+                    .padding(.horizontal, 8)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(!model.canStitch)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(40)
+    }
+}
+
+private struct PanoramaSettingsView: View {
     let model: AppModel
 
     var body: some View {
         Form {
-            Picker("Objektiv", selection: lensProfile) {
-                ForEach(StitchingConfiguration.LensProfile.allCases, id: \.self) { profile in
-                    Text(profile.displayName).tag(profile)
+            Section("Objektiv") {
+                Picker("Objektivprofil", selection: lensProfile) {
+                    ForEach(
+                        StitchingConfiguration.LensProfile.selectableProfiles,
+                        id: \.self
+                    ) { profile in
+                        Text(profile.displayName).tag(profile)
+                    }
+                }
+
+                LabeledContent("Horisontellt synfält") {
+                    Text(
+                        String(
+                            format: "%.1f°",
+                            model.project.stitching.inputHorizontalFieldOfView
+                        )
+                    )
                 }
             }
 
-            HStack {
-                Text("Startsynfält")
-                Spacer()
-                TextField(
-                    "Grader",
-                    value: inputFieldOfView,
-                    format: .number.precision(.fractionLength(0...1))
+            Section {
+                Text(
+                    "Riktning, roll och masker anges för varje enskild "
+                        + "källbild."
                 )
-                .frame(width: 64)
-                Text("°")
-                    .foregroundStyle(.secondary)
-            }
-
-            Text("Riktning och roll anges per bild i sidofältet.")
-                .font(.caption)
                 .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 360)
-        .padding(.vertical, 8)
+        .navigationTitle("Panoramainställningar")
+        .frame(maxWidth: 720, maxHeight: .infinity, alignment: .topLeading)
+        .padding()
     }
 
     private var lensProfile: Binding<StitchingConfiguration.LensProfile> {
         Binding(
-            get: { model.project.stitching.lensProfile },
+            get: {
+                model.project.stitching.lensProfile == .nikon105DX
+                    ? .nikon105DX
+                    : .sigma8DX
+            },
             set: { value in
                 model.updateStitchingConfiguration {
                     $0.lensProfile = value
                     if let fieldOfView = value.defaultHorizontalFieldOfView {
                         $0.inputHorizontalFieldOfView = fieldOfView
                     }
-                }
-            }
-        )
-    }
-
-    private var inputFieldOfView: Binding<Double> {
-        Binding(
-            get: { model.project.stitching.inputHorizontalFieldOfView },
-            set: { value in
-                model.updateStitchingConfiguration {
-                    $0.inputHorizontalFieldOfView = min(max(value, 20), 220)
                 }
             }
         )

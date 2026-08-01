@@ -65,7 +65,10 @@ enum MaskedSourceImageWriter {
         let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
         context.draw(image, in: bounds)
         if clipsToFisheyeCircle {
-            let radius = CGFloat(image.height) * 0.504
+            // PTGui's calibrated Sigma 8 mm / Nikon DX crop has a radius of
+            // 11.30455 mm on a 28.400704 mm sensor diagonal. In the portrait
+            // TIFFs the circle is therefore clipped by the short image edges.
+            let radius = max(bounds.width, bounds.height) * 0.4787
             let circle = CGRect(
                 x: bounds.midX - radius,
                 y: bounds.midY - radius,
@@ -112,4 +115,5 @@ enum MaskedSourceImageWriter {
             throw PanoramaEngineError.stitchingFailed("Maskbilden kunde inte sparas.")
         }
     }
+
 }

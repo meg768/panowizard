@@ -17,16 +17,128 @@ struct PanoramaOrientation: Equatable, Sendable {
 }
 
 enum OpenCVControlPointMatcher {
+    static func pair(
+        images: [SourceImage],
+        pair: ControlPointPair.ID,
+        horizontalFieldOfView: Double,
+        controlPointMasks: [UUID: Data] = [:]
+    ) throws -> [PanoramaControlPoint] {
+        guard images.indices.contains(pair.firstImage),
+              images.indices.contains(pair.secondImage) else {
+            throw PanoramaEngineError.stitchingFailed(
+                "Det valda bildparet finns inte."
+            )
+        }
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appending(
+                path: "PanoWizard/PairMatching/\(UUID().uuidString)",
+                directoryHint: .isDirectory
+            )
+        defer {
+            try? FileManager.default.removeItem(at: temporaryDirectory)
+        }
+
+        func matchingURL(for image: SourceImage, name: String) throws -> URL {
+            guard let mask = controlPointMasks[image.id] else {
+                return image.url
+            }
+            try FileManager.default.createDirectory(
+                at: temporaryDirectory,
+                withIntermediateDirectories: true
+            )
+            let destination = temporaryDirectory.appending(path: "\(name).tif")
+            try MaskedSourceImageWriter.write(
+                sourceURL: image.url,
+                maskData: mask,
+                destinationURL: destination
+            )
+            return destination
+        }
+
+        let firstURL = try matchingURL(
+            for: images[pair.firstImage],
+            name: "first"
+        )
+        let secondURL = try matchingURL(
+            for: images[pair.secondImage],
+            name: "second"
+        )
+
+        var rawPoints: UnsafeMutablePointer<PWControlPoint>?
+        var pointCount: Int32 = 0
+        var errorMessage: UnsafeMutablePointer<CChar>?
+        let succeeded = firstURL.path.withCString {
+            firstPath in
+            secondURL.path.withCString { secondPath in
+                PWGeneratePairControlPoints(
+                    firstPath,
+                    secondPath,
+                    Int32(pair.firstImage),
+                    Int32(pair.secondImage),
+                    Int32(images.count),
+                    horizontalFieldOfView,
+                    &rawPoints,
+                    &pointCount,
+                    &errorMessage
+                )
+            }
+        }
+        return try result(
+            succeeded: succeeded,
+            rawPoints: rawPoints,
+            pointCount: pointCount,
+            errorMessage: errorMessage
+        )
+    }
+
     static func ring(
         images: [SourceImage],
-        horizontalFieldOfView: Double
+        horizontalFieldOfView: Double,
+        nominalYaws: [Double]? = nil,
+        controlPointMasks: [UUID: Data] = [:]
     ) throws -> [PanoramaControlPoint] {
-        try withImagePaths(images) { paths in
+        precondition(nominalYaws == nil || nominalYaws?.count == images.count)
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appending(
+                path: "PanoWizard/RingMatching/\(UUID().uuidString)",
+                directoryHint: .isDirectory
+            )
+        defer {
+            try? FileManager.default.removeItem(at: temporaryDirectory)
+        }
+        let matchingImages = try images.enumerated().map { index, image in
+            guard let mask = controlPointMasks[image.id] else { return image }
+            try FileManager.default.createDirectory(
+                at: temporaryDirectory,
+                withIntermediateDirectories: true
+            )
+            let destination = temporaryDirectory.appending(
+                path: "source-\(index).tif"
+            )
+            try MaskedSourceImageWriter.write(
+                sourceURL: image.url,
+                maskData: mask,
+                destinationURL: destination
+            )
+            return replacingURL(of: image, with: destination)
+        }
+        return try withImagePaths(matchingImages) { paths in
             var rawPoints: UnsafeMutablePointer<PWControlPoint>?
             var pointCount: Int32 = 0
             var errorMessage: UnsafeMutablePointer<CChar>?
-            let succeeded = PWGenerateRingControlPoints(
+            let succeeded = nominalYaws?.withUnsafeBufferPointer { yaws in
+                PWGenerateRingControlPoints(
+                    paths.baseAddress,
+                    yaws.baseAddress,
+                    Int32(paths.count),
+                    horizontalFieldOfView,
+                    &rawPoints,
+                    &pointCount,
+                    &errorMessage
+                )
+            } ?? PWGenerateRingControlPoints(
                 paths.baseAddress,
+                nil,
                 Int32(paths.count),
                 horizontalFieldOfView,
                 &rawPoints,
@@ -40,6 +152,23 @@ enum OpenCVControlPointMatcher {
                 errorMessage: errorMessage
             )
         }
+    }
+
+    private static func replacingURL(
+        of image: SourceImage,
+        with url: URL
+    ) -> SourceImage {
+        SourceImage(
+            id: image.id,
+            url: url,
+            captureDate: image.captureDate,
+            pixelWidth: image.pixelWidth,
+            pixelHeight: image.pixelHeight,
+            cameraModel: image.cameraModel,
+            lens: image.lens,
+            direction: image.direction,
+            role: image.role
+        )
     }
 
     static func zenith(

@@ -1,5 +1,260 @@
 # PanoWizard – aktuell projektkontext
 
+## Avslutande läge 2026-08-01
+
+Projekt I fungerar nu mycket bra med en fryst horisontell ring samt valfria,
+handhållna nadir- och zenitreparationer. Båda polerna kan maskas, placeras,
+färgmatchas, Enblend-blandas och justeras med kontrollpunkter mot en lokal
+120°-projektion av den frysta ringen. Poljusteringen får aldrig ändra ringens
+geometri. Förhandsvisningen minns yaw, pitch och FOV. HTML-exporten bäddar in
+både nadir och zenit, men interaktiv HTML i rå e-postbilaga är opålitlig på
+grund av Mail/Safaris säkerhetsmodell; ingen ytterligare e-postlösning ska
+forceras tills en elegant metod finns.
+
+Nikkor 10,5 mm på Nikon D7200 och 360 Precision Atome har gett ett automatiskt
+resultat i nivå med PTGui utan manuell input. Nästa viktiga fälttest blir en
+beställd Atome för Sigma 8 mm. Testa flera verkliga panoraman och kontrollera
+reproducerbarhet, sömmar, polplacering och att samma material alltid ger samma
+geometri. Aktuell signerad app finns i `build/PanoWizard.app`; 19 tester
+passerar. Arbetskopian är fortsatt omfattande och får inte återställas
+destruktivt.
+
+## Polkontrollpunkter 2026-08-01 kl. 01:36
+
+Nadir- och zenitreparationer kan nu anpassas mot en lokal 120°-projektion av
+den färdiga, frysta ringen. Kommandona finns under `Justering` som
+`Anpassa zenit/nadir mot ringen…`. Editorn visar reparationsbilden till vänster
+och ringreferensen till höger, med högst 30 automatiska redigerbara CP.
+`Anpassa` löser endast polbildens lokala homografi; ringens bilder, CP och
+Hugin-geometri berörs aldrig. Punkterna och residualerna sparas per pol i
+projektet. Verifierat mot projekt I. Totalt 19 tester passerar och signerad app
+finns i `build/PanoWizard.app`.
+
+## Nikkor-projektion 2026-07-31 kl. 20:15
+
+Panorama G visade med exakt samma 150 PTGui-kontrollpunkter att den återstående
+skillnaden låg i grundprojektionen. PTGui-profilen använder fisheye factor
+`-0,599227`; PanoWizard använde Hugins equidistant full-frame-fisheye `f3`
+(motsvarande faktor 0). Hugin kan inte uttrycka en godtycklig faktor, men
+equisolid `f21` (faktor `-0,5`) tillsammans med de kalibrerade `a/b/c`-värdena
+är en nära motsvarighet.
+
+På samma 150 punkter gav `f21` 4,65 px medelfel, 3,74 px median och 8,03 px
+90-percentil, jämfört med mycket stora avvikelser för `f3`. Helrenderingen
+ligger visuellt mycket nära PTGui-referensen. Den automatiska CP-vägen har
+också helrenderats och verifierats. Ett regressionstest kräver nu `f21` för
+Nikkor-profilen. Totalt 16 tester passerar och signerad app finns i
+`build/PanoWizard.app`.
+
+## CP-bevarande 2026-07-31 kl. 19:30
+
+`Sammanfoga` använder nu projektets befintliga/redigerade kontrollpunkter när
+sådana finns. Automatisk nystart sker bara när punktlistan är tom. Full
+omgenerering finns som ett separat destruktivt val under `Föreslå punkter…`
+och kräver en extra bekräftelse som varnar för att manuella ändringar ersätts.
+Den befintliga punktlistan lämnas orörd om den nya sökningen misslyckas.
+
+CP-editorns aspect-fit-marginaler är inte längre svarta utan använder den
+adaptiva macOS-fönsterbakgrunden. Bilderna beskärs inte. Alla 15 tester
+passerar och den signerade appen finns i `build/PanoWizard.app`.
+
+## GUI-läge 2026-07-31 kl. 18:40
+
+Den separata trädsektionen `Kontrollpunkter` är borttagen. Sidopanelen har nu
+fasta, icke utfällbara titlar för `Källbilder` och `Panorama`. Ett vanligt
+klick på en källbild gör den till huvudbild och visar den vanliga bild- och
+maskvyn. Shift-klick på en annan källbild behåller huvudbilden till vänster,
+visar den Shift-klickade bilden till höger och öppnar CP-editorn. Ytterligare
+Shift-klick ersätter endast högerbilden; ett vanligt klick lämnar editorn.
+
+Sidopanelen använder en ogenomskinlig adaptiv macOS-fönsterbakgrund i stället
+för material/genomlysning. Huvudbilden markeras blått och högerbilden med en
+orange helradsmarkering. Alla valbara rader markeras över hela listbredden.
+Knappen `Generera` i Panorama-rubriken är borttagen; sammanfogning startas från
+verktygsraden. Under Panorama finns `Inställningar` och `Förhandsvisning`.
+Förhandsvisning aktiveras när ett genererat panorama finns. CP-fellistan visar
+nu samma cirkulära, färgade nummer som bildmarkörerna. Interaktionsflödet har
+ett riktat regressionstest. Totalt 15 tester passerar och den signerade appen
+är byggd i `build/PanoWizard.app`.
+
+## Senaste läget 2026-07-31 kl. 17:55
+
+Nikkor 10,5 mm-profilen har verifierats mot stativprojektet
+`/Users/magnus/Desktop/Panorama/G/Panorama.pw` och PTGui-referensen i samma
+mapp. Den gamla generella full-frame-fisheyevägen gav 77 kontrollpunkter med
+21,8 px medelfel och 74,4 px maxfel samt kraftigt deformerad geometri.
+
+Profilen använder nu PTGui-kalibreringen som stabil startmodell: 87,44°
+horisontell bildvinkel, full-frame fisheye, `a/b/c` =
+`-0,022975 / 0,068365 / -0,054732` och det uppmätta optiska centrumet.
+Nikkor-ringen får en egen poseoptimering från jämna riktningar. Distortion och
+centrum hålls fasta; endast bildvinkel och poser finjusteras.
+
+En automatisk omkörning av G gav 106 punkter med 4,06 px medelfel, 6,36 px
+vid 90:e percentilen och 9,82 px maxfel. Det renderade helpanoramat är visuellt
+nära PTGui-resultatet. Svarta områden vid zenit och nadir är väntade eftersom
+G-projektet bara innehåller de sex horisontella ringbilderna. Alla 13 tester
+passerar och den signerade appen är byggd i `build/PanoWizard.app`.
+
+## Senaste läget 2026-07-30 kl. 23:45
+
+Dagens arbete har främst gällt kontrollpunktseditorn. Optimeringens återstående
+geometriproblem ska inte angripas vidare innan CP-arbetsflödet känns färdigt.
+
+### Produktbeslut
+
+PanoWizard kommer sannolikt behöva leva med en riktig CP-editor. Automatiken
+behöver ge en användbar grund men behöver inte ensam nå PTGui-kvalitet.
+`Panorama A.pw` visar att samma handhållna nio-bildersmaterial kan ge en bra
+stitch när kontrollpunkterna är bra. Stitchmotorn och bildmaterialet är alltså
+i grunden kapabla; kontrollpunktsgrafen och punkturvalet är den stora
+osäkerheten.
+
+Ett senare helt automatiskt försök med orange CP-masker och omkring 249 punkter
+gav faktiskt en ganska bra fullsfärisk grund utan manuella punkter. Det svarta
+stativhålet var då ett separat reparationsproblem. Andra automatiska
+punktuppsättningar har fortfarande gett kraftigt trasig geometri. Antal punkter
+eller låg residual är därför inte ensamt ett kvalitetsmått.
+
+### Nuvarande CP-editor
+
+- Kontrollpunkter är ett utfällbart träd under Panorama i vänsterspalten.
+- Trädet visar samma radformat som Källbilder: bildnummer, thumbnail, filnamn
+  och `Bild N · Horisontell`.
+- Hela bildraden är klickbar.
+- De två senast klickade bilderna visas i editorn; föregående val ligger till
+  vänster och det senaste till höger.
+- De två aktiva raderna har helblå macOS-lik markering.
+- Editorn visar två stora bilder och en fellista till höger.
+- Punkter kan markeras, dras, mikrojusteras med lupp, läggas till och raderas.
+- DEL ska radera markerad punkt, numrera om och markera nästa så att flera
+  punkter kan raderas i följd.
+- `Radera…` erbjuder markerad punkt, alla punkter i aktuellt bildpar eller alla
+  punkter i projektet.
+- `Föreslå punkter…` erbjuder aktuellt bildpar eller hela projektet.
+- Förslag lägger till högst tio nya punkter per matchande bildpar och bevarar
+  befintliga punkter.
+- Knappen animeras inte under sökning. Den inaktiveras och statusraden visar
+  `Söker kontrollpunkter…`.
+- `Optimera` kör om optimeringen med de redigerade punkterna.
+
+### Masker och automatiska punktförslag
+
+Orange masker används nu även av den interaktiva `Föreslå punkter…`-vägen.
+OpenCV arbetar på tillfälliga maskerade TIFF-kopior. Varje föreslaget punktpar
+efterkontrolleras dessutom mot originalmaskerna med 24 pixlars säkerhetsradie
+i båda bilderna. Om någon ände träffar masken kasseras hela paret.
+
+Automatiska punkter valdes tidigare i OpenCV:s kvalitetsordning, vilket kunde
+ge åtta–nio punkter i samma lilla kluster. Urvalet använder nu greedy
+farthest-point sampling: efter första kandidaten väljs varje ny punkt så långt
+som möjligt från redan valda och befintliga punkter, normaliserat i båda
+bilderna. Dubblettkontrollen jämför nu endast punkter inom samma bildpar.
+Detta är implementerat och byggt men behöver bedömas visuellt på riktiga
+projekt.
+
+### Övrigt från dagens pass
+
+- Fönsterstorlek, position och maximerat läge sparas mellan appstarter.
+- Efter varje kodändring ska den riktiga signerade appen byggas automatiskt
+  med `./Scripts/build-app.sh`, inte bara Swift-paketet.
+- Aktuell app finns i `build/PanoWizard.app`.
+- Alla 13 Swift-tester passerade efter senaste ändringen.
+- Arbetskopian innehåller fortfarande omfattande användarändringar och får
+  inte återställas destruktivt.
+
+## Senaste läget 2026-07-28 kl. 03:31
+
+Det senaste arbetspasset gällde extremfallet:
+
+- `/Users/magnus/Desktop/Panorama/F/Panorama 2.pw`
+- nio porträttorienterade TIFF-bilder från Sigma 8 mm på Nikon D80
+- `/Users/magnus/Desktop/Panorama/F/PTGui.pts`
+- `/Users/magnus/Desktop/Panorama/F/PTGui.jpg`
+
+PTGui ger med samma nio källbilder ett geometriskt mycket bra panorama där
+stenläggningens rutnät är sammanhängande. Olika personer får synas i olika
+överlappningar; den statiska markgeometrin är facit.
+
+### Viktig slutsats
+
+Den nuvarande PanoWizard-lösningen är **inte godkänd**. Senaste appresultatet
+har kollapsad/otillräcklig sfärtäckning med ett mycket stort svart område.
+En tidigare lokal nadirprojektion såg bra ut, men detta var ett otillräckligt
+test och ledde till ett felaktigt påstående om att problemet var löst.
+Hela 360×180-resultatet måste alltid granskas innan en lösning godkänns.
+
+Den sista byggda koden använder för Sigma-fallet:
+
+- `cpfind` med all-par-matchning, homografi-RANSAC och `--ncores=1`
+- automatisk gruppering av nästan identiska kamerariktningar
+- filtrering av geometriskt orimliga bildpar
+- Hugin `f21` (equisolid)
+- 113,4° kortsides-FOV
+- fryst `a=b=c=0`
+- fast linsförskjutning `d=-26.093`, `e=-46.95`
+- poseoptimering, `cpclean`, ny poseoptimering och horisontnivellering
+
+Det gav en snygg lokal nadirvy och cirka 3,08 px kontrollpunkts-RMS, men
+appens fullständiga sfärresultat var ändå katastrofalt. Varken låg RMS eller
+en vald lokal vy får därför användas som kvalitetsbevis.
+
+### PTGui
+
+Ett tillfälligt läge som körde en separat installerad PTGui via dess
+kommandorad implementerades och fungerade, men var produktmässigt meningslöst:
+det krävde en redan skapad och optimerad `PTGui.pts`. Integrationen har tagits
+bort ur användarflödet och gamla dokument med `engine: "ptGui"` normaliseras
+till PanoWizards egen motor när de öppnas. Ingen PTGui-kod eller binärfil har
+kopierats in i appen. `PTGui.pts` och `PTGui.jpg` används bara som diagnostiskt
+facit.
+
+### Kontrollpunkter och diagnostik
+
+En kontrollpunktsinspektör finns nu i appen. Den visar råa punkter från
+`cpfind` och punkter efter `cpclean`, grupperade per bildpar.
+
+För nio-bildersfallet har experiment gett ungefär:
+
+- tidigare pipeline: cirka 223 punkter över 18 par
+- tätare all-par-matchning: cirka 500–560 punkter över 27–28 par
+- PTGui: 565 punkter över 26 par
+
+Matchtäthet ensam löser alltså inte problemet. Linsmodell, startposer,
+felaktiga grafkanter, global sfärtäckning och robust optimering måste
+utvärderas tillsammans.
+
+### Nästa omtag
+
+Nästa arbetspass ska börja metodiskt från mätdata, inte från ännu en renderad
+gissning:
+
+1. Återställ eller isolera en känd stabil helring innan fler linsförsök.
+2. Lägg till automatisk validering av verklig 360°-täckning före rendering.
+3. Logga varje grafkant med punkter, residual och uppskattad relativ rotation.
+4. Avvisa poser som viker/kollapsar sfären eller lämnar stora täckningshål.
+5. Jämför alla nio bilders relativa yaw/pitch/roll och linsmodell numeriskt
+   mot `PTGui.pts`.
+6. Rendera och jämför flera fasta kubsidor plus nadir, inte bara en vald vy.
+7. Kör samma pipeline minst två gånger och kräv identisk geometri.
+
+### Separat observerad prestandafråga
+
+Klick på källbilder i vänsterpanelen känns trögt. Trolig orsak är att stora
+2600×3888-TIFF-filer och masker avkodas/rasteriseras om på huvudtråden och att
+panoramavyn invalidieras trots att bara markeringen ändras. Detta är ännu inte
+profilerat eller åtgärdat.
+
+### Arbetskopian
+
+Grenen är `codex/restart` och arbetskopian innehåller många ändringar, inklusive
+användarens tidigare arbete. Inget ska återställas destruktivt. Senaste
+appbygget finns i `build/PanoWizard.app`, men ska inte betraktas som en bra
+stitchversion för nio-bildersprojektet.
+
+> Avsnitten längre ned beskriver tidigare milstolpar och innehåller delvis
+> äldre arkitekturpåståenden. Vid konflikt gäller alltid detta senaste läge.
+
 ## Produkt
 
 PanoWizard är en återupplivning av en macOS-applikation från omkring år 2000.
@@ -335,3 +590,583 @@ slutförande. Det finns ännu inget särskilt slutförandesteg. Nästa konversat
 bör först diskutera eller förbättra denna UX, exempelvis med ett tydligare
 stegflöde och mer precisa knappnamn, innan fler reparationsfunktioner läggs
 till.
+
+## Inkrement efter överlämningen – Förhandsvisning och perspektivjustering
+
+Efter en lyckad stitch går appen nu direkt till `Förhandsvisning`. Om en
+nadirreparation finns körs den lokala Enblend-blandningen automatiskt;
+statusraden visar `Blandar nadirreparation med Enblend…` medan detta pågår.
+Det halvtransparenta redigeringsläget öppnas endast uttryckligen via
+`Justering`.
+
+`Justering` har fyra gula hörnhandtag. De sparar en manuell
+fyrhörnstransform utöver befintlig flytt, rotation och skala. Samma
+perspektivtransform används direkt av Metal-previewn och därefter av OpenCV
+när Enblends lokala reparationslager byggs. `Förhandsvisning` kör Enblend och
+lämnar justeringsläget.
+
+## Kontext 2026-07-26 – Panorama/F och kontrollpunktsmask
+
+Aktivt stresstest är
+`/Users/magnus/Desktop/Panorama/F/Panorama.pw`. Det innehåller nio
+horisontella fisheyeexponeringar med stor överlappning och en zenitbild.
+Användaren har avsiktligt tagit fler horisontella bilder än vad som krävs;
+de är successiva kamerariktningar, inte fyra återanvända kamerastationer.
+
+En separat orange masktyp, `Ignorera för kontrollpunkter`, har lagts till.
+Den sparas i projektpaketets `control-point-masks/` och ska endast utesluta
+rörliga motiv ur geometrimatchningen. Röd mask i `masks/` är ensam om att
+avgöra vad som inte renderas i slutpanoramat. Användaren har målat orange
+över rörliga människor på rätt sätt.
+
+Två felaktiga experiment gjordes och har återtagits:
+
+- orange kontrollpunktsmask användes som renderingsurklipp,
+- bilderna grupperades felaktigt som fyra kamerastationer.
+
+Nuvarande provkod håller, när orange masker finns, samtliga nio bilder vid
+jämnt seedade vinklar runt 360 grader. Det undviker den tidigare kollapsade
+geometrin men är fortfarande inte korrekt: senaste visuella resultatet visar
+en dubblerad LEGOLAND-portal. Det bevisar att de verkliga vridningsstegen inte
+är exakt jämna. Detta är ett geometri-/optimeringsproblem, inte ett fel i
+användarens orange maskning.
+
+Nästa tekniska steg måste därför estimera varje successiv kameras verkliga
+rotation från fasta, omaskerade strukturer, samtidigt som bildordning och
+ringens 360-gradersslutning bevaras. Varken helt fri `autooptimiser` (som
+kollapsar ringen på felaktiga matchningar) eller helt låsta jämna yaw-vinklar
+(som dubblerar fasta byggnader) är godtagbart. Lägg inte tillbaka
+fyrastationsmodellen eller orange renderingsurklipp.
+
+Den senaste användarbilden med dubblerad portal finns på:
+`/var/folders/3t/lrgc1m3n52l350gm_r34yk1w0000gn/T/codex-clipboard-4b925dec-61c8-454b-a3de-5b23c49a4746.png`.
+
+Arbetskopian är fortfarande medvetet smutsig på grenen `codex/restart`.
+Ingen reset får göras. Releaseappen byggdes och startades efter senaste
+inkrementet; `swift test` rapporterade 11 passerade tester.
+
+### Slutläge efter Panorama/F-stresstestet
+
+Styckena ovan om låsta jämna vinklar beskriver ett passerat mellanläge.
+Detta är det aktuella och verifierade slutläget:
+
+- Ringmatcharen provar nu **alla horisontella bildpar**, inte bara närmaste
+  eller näst närmaste granne. Bild 1 kan därmed kopplas direkt till bild 9
+  eller vilket annat bildfält som faktiskt överlappar.
+- Ett par accepteras endast om det ger minst 12 rotationskonsistenta och
+  geografiskt spridda kontrollpunkter.
+- Den resulterande överlappsgrafen måste förbinda samtliga horisontella
+  bilder; annars avbryts stitchningen med ett begripligt fel.
+- Hugin optimerar åter de verkliga kameravinklarna fritt. Inga jämna
+  vridningssteg eller påhittade kamerastationer används som slutgeometri.
+- Nästan identiska fulla renderingslager dedupliceras före Enblend. De extra
+  exponeringarna kan fortfarande stärka geometrin utan att Enblend avbryter
+  med `excessive image overlap`.
+- Orange mask är strikt en kontrollpunktsmask: området får synas men får inte
+  styra geometrin. Röd mask styr vad som inte ska synas i slutresultatet.
+
+Panorama/F ger nu en enda sammanhängande LEGOLAND-portal, sluten mark och
+rimlig horisont. Användarens sista granskning var mycket positiv. De små
+kvarvarande lokala felen förklaras sannolikt av att serien togs handhållet
+kring ett lod i ett snöre, alltså med parallax och utan exakt rotation runt
+objektivets nodalpunkt. Röd mask och Enblends sömval används för lokal
+upprensning.
+
+Den slutligt godkända användarbilden finns på:
+`/var/folders/3t/lrgc1m3n52l350gm_r34yk1w0000gn/T/codex-clipboard-f8a05852-af1d-43b2-aedb-3853dce3e4e0.png`.
+
+Verifierat efter all-pairs-ändringen:
+
+- verklig integration mot Panorama/F passerade och granskades visuellt,
+- verklig integration mot Panorama/C passerade inklusive nadirreparation,
+- `swift test`: 11 tester passerade,
+- releaseappen byggdes och startades med Panorama/F.
+
+Nästa produktsteg enligt användaren är att **rensa upp GUI:t**. Funktioner
+och verktyg har tillkommit successivt och gränssnittet känns nu
+`kaka på kaka`. Börja nästa konversation med inventering och förenkling av
+verktygsrad, masklägen, Förhandsvisning/Justering och bildroller. Ändra inte
+stitchlogiken igen utan ett konkret reproducerat fel.
+
+Arbetskopian är fortsatt medvetet smutsig på `codex/restart`; gör ingen reset
+eller checkout som kastar ändringar. De senaste funktionerna är inte
+committade eller pushade.
+
+### Kontext sparad 2026-07-27: gröna tvångsmasker i Panorama/F
+
+Fortsätt från detta läge; den tidigare uppgiften att först rensa GUI:t har
+skjutits upp medan Panorama/F färdigställs.
+
+Maskmodellen är nu åter tre separata masktyper:
+
+- **Röd – Göm i panorama:** pixelområdet får inte hämtas från bilden.
+- **Grön – Måste vara med:** pixelområdet måste hämtas från just den bilden.
+- **Orange – Ignorera för kontrollpunkter:** påverkar endast geometrin.
+
+`Invertera mask` är borttagen. Gröna masker lagras separat i projektpaketets
+`inclusion-masks/`; röda ligger i `masks/` och orange i
+`control-point-masks/`. `PanoProjectDocument`, `AppModel`, projektkopplingen
+och maskeditorn har uppdaterats för detta.
+
+Panorama/F innehåller nu sex horisontella bilder och användaren har målat en
+liten grön mask runt sin dotter i samtliga sex. Det finns inga röda masker
+kvar. Alla sex har orange kontrollpunktsmask. Maskerna är korrekta:
+grön täckning är cirka 4–7 procent per bild.
+
+Enblend kan inte ta de två nästan identiska helbildsparen som vanliga
+bakgrundslager och avbryter då med `excessive image overlap`. Aktuell
+renderingsmodell är därför:
+
+1. kontrollpunkter och geometri använder samtliga bilder,
+2. bakgrunds-Enblend använder en helbild per nästan identisk kamerariktning,
+3. varje grön mask renderas som ett separat, projekterat lager,
+4. dessa lager kompositeras ovanpå den kompletta bakgrunden.
+
+Den gröna kantblandningen finns i `ForcedLayerCompositor.swift`. Efter några
+förkastade experiment används nu en skarp, eroderad kärna och en cirka fem
+pixel bred Gaussian-fjäder endast runt kanten. Försöket att fjädra före Nona
+gav svarta halon och är återtaget. Försöket att blura hela lagret gjorde
+personen oskarp och är också återtaget.
+
+Senaste verifierade integrationen mot F:
+
+`/var/folders/3t/lrgc1m3n52l350gm_r34yk1w0000gn/T/PanoWizard/Stitches/53C72238-35FC-4F68-9176-A0116A894A44/panorama.jpg`
+
+Den bilden innehåller alla sex versionerna av dottern, utan svarta hål eller
+mörka halon. Kärnorna är skarpa och kanterna betydligt mjukare. Användaren
+har ännu inte lämnat sin egen visuella bedömning av just denna sista
+fjädring; börja där nästa gång.
+
+Integrationstestet `stitchesConfiguredProjectWhenRequested` läser nu även
+`inclusion-masks/` och passerade mot riktiga F på cirka 40 sekunder. De
+vanliga 11 testerna passerade tidigare. Releaseappen byggdes och startades
+med Panorama/F efter senaste ändringen.
+
+Arbetskopian är fortfarande avsiktligt smutsig på `codex/restart`. Gör ingen
+reset eller checkout som kastar ändringar. Ändringarna är inte committade
+eller pushade.
+
+### Kontext sparad 2026-07-27: tillbaka till automatisk Enblend
+
+PSD-spåret och hela funktionen **Manuella sömmar** är förkastade och helt
+borttagna. Det finns ingen PSD-export/import, inga sparade manuella TIFF-lager
+och ingen separat OpenCV-blandare.
+
+Gröna tvångsmasker är också borttagna. Kvar finns:
+
+- röd mask för absolut renderingsuteslutning,
+- orange mask enbart för kontrollpunkter/geometri,
+- vanlig automatisk Nona/Enblend-rendering.
+
+Panorama/F är nu utan röda eller gröna renderingsmasker. Den verkliga
+integrationen passerade och Enblend skapade en sammanhängande 4000×2000-bild
+med alla sex versionerna av dottern synliga. Resultatet finns på:
+
+`/var/folders/3t/lrgc1m3n52l350gm_r34yk1w0000gn/T/PanoWizard/Stitches/0AC1272A-DE05-43CD-9862-A436A2901394/panorama.jpg`
+
+`swift test` är åter 11 tester och samtliga passerar. Arbetskopian är fortsatt
+avsiktligt smutsig och inte committad eller pushad.
+
+### Kontext sparad 2026-07-29: kontrollpunktseditor
+
+Fokus har flyttats från att försöka nå PTGuis automatiska CP-kvalitet till
+att bygga en kontrollpunktseditor som går att leva med. Användaren vill
+fortsätta med detta i nästa konversation.
+
+Editorn är en vanlig del av huvudfönstret, inte en modal sheet. Vänsterpanelen
+har en enda rad `Redigera kontrollpunkter`; själva bildvalet sker med två
+oberoende horisontella miniatyrremsor ovanför bilderna, inspirerat av PTGui.
+Före/efter-cpclean-vyerna är borttagna. Punkterna är nu den redigerbara
+sanningen.
+
+Följande beteende finns:
+
+- cirkulära, numrerade CP-markörer med halvtransparent fyllning,
+- vald punkt och dess motpunkt ritas överst,
+- klick markerar, drag mikrojusterar,
+- håll/drag på en befintlig punkt visar PanoWizards parade förstoringsglas,
+- Delete/backspace raderar båda ändarna och markerar nästa punkt,
+- Tab går framåt och Shift-Tab bakåt,
+- Command visar endast förstoringsglaset under musen; nästa klick skapar en
+  punkt och en lokalt projicerad motpunkt,
+- vanlig `Lägg till punkt` gör samma sak stegvis,
+- `Radera alla` kräver ett andra bekräftande klick,
+- `Optimera igen` använder exakt de manuellt redigerade punkterna och hoppar
+  över cpclean,
+- bildminiatyrer och editorbilder har asynkron cache så bildparsbyte inte ska
+  blockera på upprepad TIFF-avkodning,
+- SwiftUI:s stora blå fokusram runt hela editorn är borttagen utan att
+  tangentbordsstyrningen försvann.
+
+`DiagnosticControlPoint` är nu identifierbar, kodbar och muterbar.
+`PanoProject.controlPoints` sparar den redigerade listan. Viktig semantik:
+
+- `nil` betyder att CP aldrig har genererats,
+- `[]` betyder att användaren uttryckligen har raderat alla.
+
+En bugg där tom lista ignorerades vid återöppning och nya CP kunde dyka upp
+är rättad. Vanliga `Sammanfoga` använder sparade manuella punkter och får
+inte autogenerera efter `Radera alla`. Ett regressionstest
+`explicitlyRemovedControlPointsStayEmptyWhenProjectIsRestored` täcker detta.
+
+Det finns nu en knapp `Föreslå punkter` i editorn. Den kör en ny
+parspecifik OpenCV/SIFT-funktion endast för de två synliga bilderna, behåller
+befintliga CP, filtrerar närliggande dubletter och lägger till högst tolv
+förslag. Den körs aldrig automatiskt. C-bryggan heter
+`PWGeneratePairControlPoints`.
+
+Aktuell invändning från användaren: `Föreslå punkter` läser just nu
+original-TIFF-filerna direkt med OpenCV. Filerna skrivs aldrig till, men om
+de ligger i iCloud kan macOS materialisera dem och visa en förvirrande
+fil-/molnindikator. Användaren kallade detta `lite skumt`. Nästa lämpliga
+steg är att låta CP-editorn och parmatcharen använda lokala cache-/arbetskopior
+i stället för originalens URL:er. Original ska bara behöva läsas när cachen
+skapas och vid slutrendering. Undersök gärna om befintliga 3000-pixels
+editorcachebilder kan återanvändas eller om matcharen behöver en separat
+lokal bildcache. Ändra inte original-TIFF-filerna.
+
+Orange CP-mask påverkar nu faktiskt matchningsgeometrin genom temporära,
+normaliserade TIFF-kopior; original används fortfarande för rendering.
+OpenCV-ringmatcharen använder rotations-RANSAC samt spatial uttunning
+(`minimumSeparation = 20`, högst 20 punkter per par). Stora täta kluster ska
+undvikas.
+
+Senast verifierat:
+
+- `swift test`: 12 tester i 3 sviter passerar,
+- releaseappen bygger till `build/PanoWizard.app`,
+- appen startades inte efter de senaste ändringarna enligt användarens
+  uttryckliga önskemål.
+
+Arbetskopian är fortfarande avsiktligt mycket smutsig på `codex/restart`.
+Ingen reset eller checkout som kastar ändringar. Ingenting från detta
+CP-editorarbete är committat eller pushat.
+
+### Kritisk temp-läcka upptäckt 2026-07-29
+
+macOS varnade för nästan full disk. APFS-behållaren på 245 GB hade bara cirka
+3,3 GB ledigt. En skrivskyddad inventering visade att PanoWizard hade lämnat
+cirka **41 GB temporära arbetsfiler** under:
+
+`/var/folders/3t/lrgc1m3n52l350gm_r34yk1w0000gn/T/PanoWizard`
+
+Fördelningen var ungefär:
+
+- `Stitches`: 39 GB,
+- `Hugin`: 1,1 GB,
+- `Repairs`: 1,0 GB,
+- övrigt: cirka 0,1 GB.
+
+Användaren godkände att hela denna tempmapp raderas. Det betyder att äldre
+diagnostiska resultatvägar i tidigare kontextstycken inte längre kan antas
+finnas kvar. Original-TIFF, sparade `.panowizard`-projekt och repo påverkas
+inte.
+
+Detta är en produktbugg som ska åtgärdas: PanoWizard måste städa gamla
+jobbmappar efter lyckad eller misslyckad stitch/reparation och även ha en
+rimlig upprensningspolicy vid appstart. Behåll bara filer som krävs av en
+aktiv session eller har kopierats in i projektpaketet. Använd säkra,
+jobbunika temporärkataloger och `defer`-baserad cleanup så att även felvägar
+städas.
+
+### Kontext sparad 2026-07-29: PTGui-kalibrering och nytt CP-GUI
+
+Detta avsnitt ersätter äldre uppgifter ovan om horisontella bildremsor i
+kontrollpunktseditorn.
+
+Panorama F är det aktiva referensprojektet:
+
+- PanoWizard: `/Users/magnus/Desktop/Panorama/F/Panorama.pw`
+- PTGui-projekt: `/Users/magnus/Desktop/Panorama/F/Panorama.pts`
+- PTGui-resultat: `/Users/magnus/Desktop/Panorama/F/PTGui.jpg`
+- installerad PTGui: `/Applications/PTGui.app`
+
+PTGui-binären har ingen användbar publik kommandoradsoptimerare; `--help`
+startar GUI:t. `.pts`-filen är däremot JSON och innehåller ett fullständigt
+kalibreringsfacit. Viktiga PTGui-parametrar:
+
+- projektion `circularfisheye`,
+- fisheye factor `-0.526971` (nära equisolid),
+- brännvidd `8.285697037340027 mm`,
+- cropcirkelradie `11.30455 mm`,
+- sensor diagonal `28.400704216621108 mm`,
+- `a=-0.18159452333583262`,
+- `b=0.33241501020519315`,
+- `c=-0.18028126365236766`,
+- PTGui optimerar även linsförskjutning.
+
+Huvudfelet var att PanoWizard valde Hugins equisolid-projektion `f21`, men
+nollställde `a/b/c` och aldrig anropade den redan existerande
+`configuringSigmaLensRefinement`. Bra kontrollpunkter kunde därför inte
+kompensera för den felaktigt låsta linsformen.
+
+PTGui och Hugin normaliserar distortionen olika. PTGui-värdena får inte
+kopieras direkt; det gav tidigare NaN och 10 000 optimizeriterationer.
+PTGui-koefficienterna har nu räknats om från cropcirkelradien till Hugins
+normalisering mot halva kortsidan. Följande säkra startvärden används för
+Sigma 8 mm/DX i `configuringSigmaPoseOptimization`:
+
+- `a=-0.06164565246503961`
+- `b=0.16155732903077044`
+- `c=-0.12544199818788626`
+
+Optimeringen sker nu i två steg:
+
+1. kamera-yaw/pitch/roll med den omräknade linskalibreringen fast,
+2. gemensam FOV och `a/b/c` plus positionerna via
+   `configuringSigmaLensRefinement`.
+
+Verifiering på användarens 127 aktuella CP i Panorama F:
+
+- tidigare Hugin-RMS cirka `4.229 px`,
+- nytt Hugin-RMS cirka `2.967 px`,
+- tidigare värsta CP cirka `29.5 px`,
+- nytt värsta CP cirka `8.8 px`,
+- de flesta CP ligger nu kring `1–5 px`,
+- optimering utan rendering tog cirka 5,8 sekunder och gav endast ändliga
+  residualer,
+- full stitch tog cirka 36 sekunder och Nona/Enblend lyckades.
+
+Senaste fulla diagnostiska resultatet skapades i en tempmapp och kan försvinna
+vid upprensning:
+
+`/var/folders/3t/lrgc1m3n52l350gm_r34yk1w0000gn/T/PanoWizard/Stitches/8E637B7B-AA15-42D4-979F-F355B9089670/panorama.jpg`
+
+Enblend får **inte** alla nio Nona-lager. Bild 1/2/9, 3/4, 5/6 och 7/8 är
+nästan samma kamerariktningar. Alla bilder ska användas för CP/geometri, men
+bara en bild per nästan identisk vy ska skickas till Enblend. När alla nio
+skickades in avbröt Enblend med:
+
+`excessive image overlap detected; too high risk of defective seam line`
+
+Urvalet med `representsSameView` och `backgroundLayerIndices` är därför
+återställt och ska inte tas bort utan en annan stack-/exponeringsstrategi.
+
+Den svarta fyrkanten vid nadir är inget mask- eller Metal-fel. Det är det
+otäckta svarta sydpolsbandet i den equirektangulära bilden som förstoras när
+sfärvisaren riktas rakt ned. Även PTGui-resultatet har ett motsvarande svart
+band; användaren vet att bildserien inte täcker hela sfären.
+
+Kontrollpunkts-GUI:t är omgjort:
+
+- källbildslistan är åter en vanlig källbildslista,
+- de två horisontella thumbnail-remsorna ovanför editorn är borttagna,
+- `Redigera kontrollpunkter` är ett utfällbart diagnostikträd,
+- barnraderna är bildpar sorterade efter största residual,
+- rött betyder över 15 px, orange över 8 px och grönt högst 8 px,
+- klick på ett bildpar öppnar det direkt,
+- valt par markeras,
+- tooltip visar största fel och medelfel.
+
+Senast verifierat efter dessa ändringar:
+
+- `swift test`: 12 tester i 3 sviter passerar,
+- full integration för Panorama F passerar,
+- releaseappen byggdes,
+- Documents/GitHub ligger under en filprovider som ibland återlägger
+  `com.apple.FinderInfo` under signering; vid behov kopiera appen till en ren
+  `/tmp/PanoWizard-run.XXXXXX`-mapp, kör `xattr -cr`, signera och starta där.
+
+Arbetskopian är fortfarande avsiktligt mycket smutsig på `codex/restart`.
+Ingen reset eller checkout som kastar ändringar. Ingenting är committat eller
+pushat.
+
+### Kontext sparad 2026-07-30: automatisk pipeline är ännu inte godkänd
+
+Det nya automatiska testprojektet är:
+
+- `/Users/magnus/Desktop/Panorama/F/A.pw`
+
+Användaren har uttryckligen fastslagit produktmålet: **PanoWizard ska vara ett
+automatiskt stitchprogram.** Manuell CP-redigering får finnas som avancerad
+diagnostik/nödläge, men användaren ska normalt aldrig behöva förstå, lägga
+till eller radera kontrollpunkter. Tidigare positiva formuleringar om att
+resultatet “satt” var felkalibrerade. Resultatet är bättre än total kollaps
+men fortfarande långt från PTGui visuellt, framför allt i stenläggningen.
+Lågt RMS är inte ett tillräckligt kvalitetsmått.
+
+Följande har implementerats under den senaste sessionen:
+
+- Grov OpenCV-passning används för att upptäcka fyra riktningar och grupperna
+  `1/2/9`, `3/4`, `5/6`, `7/8`.
+- Gruppningen använder complete-link-liknande krav; transitiv union fick
+  tidigare bild 5–8 att felaktigt bli en enda riktning.
+- Därefter skapas ett kalibrerat, grovt förorienterat Sigma/Hugin-projekt och
+  `cpfind --prealigned` söker produktions-CP med samma linsmodell som
+  optimeraren.
+- Orimliga icke-överlappande bildpar filtreras.
+- En geometrisk ring-backbone väljer en representativ exponering per riktning
+  för länkarna mellan riktningar. Dubbelexponeringar kopplas inom sin riktning
+  men får inte övervikta själva 360°-ringen.
+- Efter första optimeringen tas robusta CP-avvikare bort. Minst fyra punkter
+  per kvarvarande par bevaras.
+- Slutpasset låser den redan lösta linsen och finjusterar bara
+  yaw/pitch/roll. Att åter frigöra linsen efter outlierborttagning gav en
+  numeriskt låg men visuellt degenererad lösning.
+- Huvudknappen `Sammanfoga` regenererar alltid automatiska CP från början.
+- `canStitch` tillåter nu sammanfogning även när den sparade CP-listan är tom.
+- CP-editorn har två permanenta bildväljare så man kan skapa den första
+  manuella punkten även efter `Radera alla`.
+- Bildvalet för Enblend viktar CP i nedre bildhalvan högre för att prioritera
+  stenläggningen.
+
+Senaste fulla automatiska backbone-testet:
+
+- 369 CP från `cpfind`,
+- 280 CP efter ring-backbone,
+- 259 CP efter optimering/outlierstädning,
+- Hugin-RMS cirka `1.55 px`,
+- representativa Enblend-bilder i testet: 2, 4, 6, 8.
+
+Senare markviktat renderingstest valde 2, 4, 6, 7. Fullupplösta/fina
+Enblend-masker testades men gav stora synliga tonplattor och ska **inte**
+användas; standard multibandsblandning behölls.
+
+Trots siffrorna är automatiken **inte godkänd**. Stenläggningen har fortfarande
+lokala brott/skiftningar som PTGui inte har. Nästa session ska inte fortsätta
+med fler lokala heuristiker eller försöka lösa detta med manuella CP. Gör i
+stället en systematisk, stegvis jämförelse mellan PanoWizards och PTGuis
+facit:
+
+1. exakt linsprojektion och crop,
+2. optiskt centrum/shift och teckenkonventioner,
+3. varje bilds yaw/pitch/roll,
+4. samma CP projicerade genom båda modellerna,
+5. skillnaden mellan geometrifel, parallax och seam/blending.
+
+Målet är att hitta den fundamentala modellskillnaden mot
+`/Users/magnus/Desktop/Panorama/F/Panorama.pts`, inte att optimera vidare mot
+ett missvisande globalt RMS. PTGui-resultatet
+`/Users/magnus/Desktop/Panorama/F/PTGui.jpg` är det visuella facit.
+
+Senast verifierat:
+
+- `swift test`: 13 tester i 3 sviter passerar,
+- releaseappen byggdes och öppnades med `A.pw`,
+- arbetskopian är fortfarande avsiktligt mycket smutsig på `codex/restart`;
+  kasta inga befintliga ändringar.
+
+### Kontext sparad 2026-07-30 03: resultatet isolerar CP-generatorn
+
+Ett kontrollerat experiment har nu gjorts med **exakt alla kontrollpunkter
+från PTGui**, men med PanoWizards egen Hugin-baserade linsmodell, optimering,
+projektion och rendering:
+
+- facitprojekt: `/Users/magnus/Desktop/Panorama/F/Panorama.pts`,
+- testprojekt: `/Users/magnus/Desktop/Panorama/F/A.pw`,
+- 565 PTGui-CP av typ `t=0`,
+- 26 bildpar,
+- PTGui-koordinaterna importerades direkt från endpoint-arrayerna
+  `[imageIndex, 0, x, y]`,
+- A.pw har `stitching.engine == "ptGui"` som särskilt jämförelseläge,
+- PanoWizards optimering landade på cirka `5.04 px RMS`.
+
+Det avgörande visuella resultatet är att stenläggningen blir klart acceptabel
+och i stora drag sammanhängande med PTGui:s CP. Den blir inte exakt identisk
+med PTGui, men skillnaden är liten jämfört med felen från PanoWizards
+automatiska CP. Användarens korrekta slutsats är därför:
+
+> Huvudfelet ligger i PanoWizards automatiska CP-generering/urval, inte i
+> stitchmotorn eller linsmodellen.
+
+Prioritera nästa session därefter. PTGui:s 565 punkter ska användas som facit
+för att analysera varför PanoWizard missar:
+
+1. exakt fisheye-normalisering före feature detection,
+2. vilka bildpar som söks och deras verkliga överlapp,
+3. geografisk spridning över hela överlappet, särskilt marken,
+4. subpixelprecision,
+5. rörliga motiv och andra falska matchningar,
+6. hur många och vilka PTGui-punkter PanoWizard också hittar.
+
+Gör en punkt-för-punkt-/områdesjämförelse mot PTGui-facit innan fler
+heuristiker läggs till. Lågt RMS från PanoWizards egna punkter är inte bevis
+på bra CP; de kan vara självkonsekventa men dåligt fördelade.
+
+Kodändringar för experimentläget:
+
+- `AppModel` konverterar inte längre `.ptGui` tillbaka till `.automatic`.
+- `Sammanfoga` använder projektets sparade CP när engine är `.ptGui`; vanlig
+  PanoWizard-automatisk körning använder fortfarande `controlPoints: nil`.
+- importerade/manuella CP passerar utan PanoWizards plausibility-filter,
+  ring-backbone eller robusta outlierborttagning.
+
+`A.pw/project.json` innehåller efter körningen 565 CP med PanoWizards
+beräknade fel. Den installerade PanoWizard-resultatbilden är 4000×2000 och
+är skapad från PanoWizards optimerade geometri, inte från PTGui-renderingen.
+Under blendtestet måste en representativ bild per dubbelexponerad riktning
+användas eftersom Enblend vägrar nästan fullständigt överlappande dubletter.
+
+En tidigare felaktig mellanåtgärd kopierade PTGui:s färdiga rendering till
+A.pw. Den återställdes och ska inte förväxlas med det riktiga experimentet.
+Original-PTGui-renderingen finns separat som
+`/Users/magnus/Desktop/Panorama/F/PTGui.jpg`.
+
+Senast verifierat efter experimentändringarna:
+
+- `swift test`: 13 tester i 3 sviter passerar,
+- releaseappen byggdes,
+- A.pw visar 565 punkter och PanoWizard-resultatet,
+- arbetskopian är fortfarande avsiktligt mycket smutsig på `codex/restart`;
+  kasta inga befintliga ändringar.
+
+### Kontext sparad 2026-07-31 20: panorama G och Nikkor 10,5 mm
+
+Panorama G isolerade två separata problem. Nikkor 10,5 mm ska modelleras som
+Hugin `f21` (equisolid), inte `f3` (equidistant). En kalibrering mot samtliga
+150 PTGui-CP gav Hugin-koefficienterna `a=-0.0252155339841942`,
+`b=0.0605540979849503`, `c=-0.055438892095899`, `d=4.19324585683399` och
+`e=-1.00751194420142`. Med exakt PTGui-punkterna blev medelfelet `0.223 px`,
+medianen `0.191 px`, p90 `0.444 px` och maxfelet `0.861 px`.
+
+Den automatiska körningen fick därefter god geometri men en stor svart kil.
+Orsaken var inte CP utan global yaw: equirektangulär 360°-skarv låg genom
+centrum av en fisheye-bild och Enblend rapporterade att Dijkstra-sömmen
+slutade utanför kostnadsbilden. Renderingen roterar nu hela den färdiga
+geometrin så skarven ligger mitt emellan första och sista ringbilden. Det
+ändrar inga relativa poser eller CP-fel. Full automatisk G-körning gav en
+ren sammanhängande bild utan kil.
+
+Projekt I verifierar dessutom en handhållen zenit och nadir tillsammans med
+ringen. Bilder märkta `Reparation + Zenit` går nu genom den befintliga
+zenitregistreringen mot den frysta ringen; endast zenitbildens egen pose
+optimeras och körningen avbryts om någon ringpose ändras. `Reparation + Nadir`
+fortsätter som lokal overlay. Full I-körning lyckades och nadirregistreringen
+hittade 68 lokala träffar. Oönskat innehåll vid kanterna (person, stativ,
+fötter och mörka föremål) måste maskas i respektive reparationsbild.
+
+### Kontext sparad 2026-07-31 21: beslut om valfria polreparationer
+
+Användaren har bekräftat att en handhållen zenit ska behandlas enligt samma
+princip som en handhållen nadir. Nuvarande implementation är fortfarande
+asymmetrisk:
+
+- `Nadir + Reparation` registreras som ett separat overlay och kan flyttas,
+  roteras, skalas och perspektivjusteras i Förhandsvisning.
+- `Zenit + Reparation` accepteras för närvarande, men går genom Hugins frysta
+  zenitregistrering och bakas in i panoramat. Den kan bara påverkas med mask
+  och ny stitchning.
+
+En första snabb ansats att återanvända nadirkoden för zenit backades helt
+innan leverans, eftersom den bara kunde bära ett overlay och zenit/nadir då
+skulle skriva över varandra. Lämna inte en sådan halv lösning.
+
+Beslutad korrekt arkitektur:
+
+1. `Zenit + Reparation` är valfri; utan en sådan bild ändras ingenting.
+2. Ringen är alltid fryst och får aldrig påverkas av någon polreparation.
+3. Zenit registreras lokalt mot `+90°`, nadir mot `-90°`.
+4. Projektet måste kunna lagra två oberoende placements och två overlayfiler.
+5. Båda ska ha samma mask-, flytt-, rotations-, skal- och
+   perspektivkontroller i Förhandsvisning.
+6. Båda lagren ska kunna visas samtidigt och följa med i projektfil och
+   HTML-export.
+7. Befintliga projekt med endast den gamla nadirreparationen måste fortsätta
+   fungera utan migreringsproblem.
+
+Detta är **beslutat men ännu inte implementerat**. Nästa session ska göra en
+ren generalisering till polreparationer, inte bara duplicera nadirknapparna.
+
+Senaste färdiga relaterade GUI-funktion är `Invertera mask` (`⇧⌘I`), som
+fungerar för röd panoramamask och orange CP-mask, använder ett ångrasteg och
+är med i den signerade appen. Full testsvit hade då 17 godkända tester.

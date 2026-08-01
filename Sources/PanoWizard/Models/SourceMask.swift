@@ -9,10 +9,78 @@ struct MaskPoint: Equatable, Sendable {
 }
 
 enum SourceMaskRasterizer {
+    struct ExclusionMap: Sendable {
+        let width: Int
+        let height: Int
+        let alpha: [UInt8]
+
+        func contains(_ point: CGPoint, safetyRadius: Int = 24) -> Bool {
+            let centerX = Int(point.x.rounded())
+            let centerY = height - 1 - Int(point.y.rounded())
+            let radiusSquared = safetyRadius * safetyRadius
+            let minimumX = max(centerX - safetyRadius, 0)
+            let maximumX = min(centerX + safetyRadius, width - 1)
+            let minimumY = max(centerY - safetyRadius, 0)
+            let maximumY = min(centerY + safetyRadius, height - 1)
+            guard minimumX <= maximumX, minimumY <= maximumY else {
+                return false
+            }
+            for y in minimumY...maximumY {
+                for x in minimumX...maximumX
+                where (x - centerX) * (x - centerX)
+                    + (y - centerY) * (y - centerY) <= radiusSquared {
+                    if alpha[y * width + x] > 8 {
+                        return true
+                    }
+                }
+            }
+            return false
+        }
+    }
+
+    static func exclusionMap(
+        from data: Data?,
+        width: Int,
+        height: Int
+    ) -> ExclusionMap? {
+        guard let data, width > 0, height > 0,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        else {
+            return nil
+        }
+        var alpha = [UInt8](repeating: 0, count: width * height)
+        let rendered = alpha.withUnsafeMutableBytes { bytes in
+            guard let address = bytes.baseAddress,
+                  let context = CGContext(
+                    data: address,
+                    width: width,
+                    height: height,
+                    bitsPerComponent: 8,
+                    bytesPerRow: width,
+                    space: CGColorSpaceCreateDeviceGray(),
+                    bitmapInfo: CGImageAlphaInfo.none.rawValue
+                  ) else {
+                return false
+            }
+            context.draw(
+                image,
+                in: CGRect(x: 0, y: 0, width: width, height: height)
+            )
+            return true
+        }
+        return rendered ? ExclusionMap(
+            width: width,
+            height: height,
+            alpha: alpha
+        ) : nil
+    }
+
     static func applying(
         stroke: [MaskPoint],
         radius: CGFloat,
         erasing: Bool,
+        controlPointExclusion: Bool = false,
         to existingData: Data?,
         width: Int,
         height: Int
@@ -40,8 +108,11 @@ enum SourceMaskRasterizer {
         }
 
         context.setBlendMode(erasing ? .clear : .normal)
-        context.setStrokeColor(CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1))
-        context.setFillColor(CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1))
+        let color = controlPointExclusion
+            ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
+            : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
+        context.setStrokeColor(color)
+        context.setFillColor(color)
         context.setLineWidth(radius * 2)
         context.setLineCap(.round)
         context.setLineJoin(.round)
@@ -78,6 +149,67 @@ enum SourceMaskRasterizer {
         }
         CGImageDestinationAddImage(destination, image, nil)
         guard CGImageDestinationFinalize(destination) else { return existingData }
+        return data as Data
+    }
+
+    static func inverted(
+        _ existingData: Data?,
+        width: Int,
+        height: Int,
+        controlPointExclusion: Bool = false
+    ) -> Data? {
+        var outputWidth = width
+        var outputHeight = height
+        var existingImage: CGImage?
+        if let existingData,
+           let source = CGImageSourceCreateWithData(existingData as CFData, nil),
+           let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+            existingImage = image
+            outputWidth = image.width
+            outputHeight = image.height
+        }
+        guard outputWidth > 0, outputHeight > 0 else { return existingData }
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: outputWidth,
+            height: outputHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: outputWidth * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return existingData
+        }
+        let bounds = CGRect(
+            x: 0,
+            y: 0,
+            width: outputWidth,
+            height: outputHeight
+        )
+        let color = controlPointExclusion
+            ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
+            : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
+        context.setFillColor(color)
+        context.fill(bounds)
+        if let existingImage {
+            context.setBlendMode(.destinationOut)
+            context.draw(existingImage, in: bounds)
+        }
+        guard let image = context.makeImage() else { return existingData }
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else {
+            return existingData
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            return existingData
+        }
         return data as Data
     }
 }

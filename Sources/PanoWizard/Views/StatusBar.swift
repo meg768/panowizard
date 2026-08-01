@@ -7,8 +7,11 @@ struct StatusBar: View {
         HStack(spacing: 12) {
             if model.phase == .importing
                 || model.phase == .stitching
+                || model.phase == .suggestingControlPoints
+                || model.phase == .optimizingControlPoints
                 || model.phase == .updatingRepair
-                || model.phase == .blendingRepair {
+                || model.phase == .blendingRepair
+                || model.phase == .exporting {
                 ProgressView()
                     .controlSize(.small)
             } else {

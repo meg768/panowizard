@@ -12,7 +12,10 @@ struct PanoProject: Codable, Equatable, Sendable {
     var stitching: StitchingConfiguration
     var cachedRigImageLines: [String: String]?
     var cachedRigSignature: String?
+    var controlPoints: [DiagnosticControlPoint]?
     var nadirRepairPlacement: NadirRepairPlacement?
+    var zenithRepairPlacement: NadirRepairPlacement?
+    var previewViewpoint: PanoramaViewpoint?
 
     init(
         formatVersion: Int = Self.currentFormatVersion,
@@ -24,7 +27,10 @@ struct PanoProject: Codable, Equatable, Sendable {
         stitching: StitchingConfiguration = .automatic,
         cachedRigImageLines: [String: String]? = nil,
         cachedRigSignature: String? = nil,
-        nadirRepairPlacement: NadirRepairPlacement? = nil
+        controlPoints: [DiagnosticControlPoint]? = nil,
+        nadirRepairPlacement: NadirRepairPlacement? = nil,
+        zenithRepairPlacement: NadirRepairPlacement? = nil,
+        previewViewpoint: PanoramaViewpoint? = nil
     ) {
         self.formatVersion = formatVersion
         self.id = id
@@ -35,11 +41,24 @@ struct PanoProject: Codable, Equatable, Sendable {
         self.stitching = stitching
         self.cachedRigImageLines = cachedRigImageLines
         self.cachedRigSignature = cachedRigSignature
+        self.controlPoints = controlPoints
         self.nadirRepairPlacement = nadirRepairPlacement
+        self.zenithRepairPlacement = zenithRepairPlacement
+        self.previewViewpoint = previewViewpoint
     }
 
     var panorama: PanoramaSet {
         PanoramaSet(id: id, images: images)
+    }
+
+    var hasCatastrophicControlPointErrors: Bool {
+        let errors = (controlPoints ?? [])
+            .compactMap(\.error)
+            .filter(\.isFinite)
+            .sorted()
+        guard errors.count >= 10 else { return false }
+        let percentile90 = errors[min(errors.count - 1, errors.count * 9 / 10)]
+        return percentile90 > 50
     }
 
     mutating func replaceImages(_ images: [SourceImage]) {
@@ -97,6 +116,7 @@ struct PanoProject: Codable, Equatable, Sendable {
     mutating func invalidateRigCache() {
         cachedRigImageLines = nil
         cachedRigSignature = nil
+        controlPoints = nil
     }
 
     mutating func setNadirRepairAdjustment(
@@ -116,6 +136,37 @@ struct PanoProject: Codable, Equatable, Sendable {
         modifiedAt = Self.secondPrecision(.now)
     }
 
+    mutating func setNadirRepairContentBounds(_ bounds: [Double]?) {
+        guard var placement = nadirRepairPlacement else { return }
+        placement.contentBounds = bounds
+        nadirRepairPlacement = placement
+        modifiedAt = Self.secondPrecision(.now)
+    }
+
+    mutating func setZenithRepairAdjustment(
+        _ adjustment: NadirRepairAdjustment
+    ) {
+        guard var placement = zenithRepairPlacement else { return }
+        placement.manualAdjustment = adjustment.isIdentity ? nil : adjustment
+        placement.blendedPreview = false
+        zenithRepairPlacement = placement
+        modifiedAt = Self.secondPrecision(.now)
+    }
+
+    mutating func setZenithRepairPreviewBlended(_ isBlended: Bool) {
+        guard var placement = zenithRepairPlacement else { return }
+        placement.blendedPreview = isBlended
+        zenithRepairPlacement = placement
+        modifiedAt = Self.secondPrecision(.now)
+    }
+
+    mutating func setZenithRepairContentBounds(_ bounds: [Double]?) {
+        guard var placement = zenithRepairPlacement else { return }
+        placement.contentBounds = bounds
+        zenithRepairPlacement = placement
+        modifiedAt = Self.secondPrecision(.now)
+    }
+
     private static func secondPrecision(_ date: Date) -> Date {
         Date(timeIntervalSince1970: date.timeIntervalSince1970.rounded(.down))
     }
@@ -126,6 +177,16 @@ struct StitchingConfiguration: Codable, Equatable, Sendable {
         case automatic
         case openCV
         case hugin
+        case ptGui
+
+        var displayName: String {
+            switch self {
+            case .automatic: "PanoWizard"
+            case .openCV: "OpenCV"
+            case .hugin: "Hugin"
+            case .ptGui: "PTGui"
+            }
+        }
     }
 
     enum Projection: String, Codable, Sendable {
@@ -143,17 +204,22 @@ struct StitchingConfiguration: Codable, Equatable, Sendable {
         var displayName: String {
             switch self {
             case .automatic: "Automatiskt från EXIF"
-            case .nikon105DX: "Nikon 10,5 mm · DX"
+            case .nikon105DX: "Nikkor 10,5 mm · DX"
             case .sigma8DX: "Sigma 8 mm · DX"
             case .custom: "Eget"
             }
         }
 
+        static let selectableProfiles: [LensProfile] = [
+            .sigma8DX,
+            .nikon105DX
+        ]
+
         var defaultHorizontalFieldOfView: Double? {
             switch self {
             case .automatic, .custom: nil
-            case .nikon105DX: 100
-            case .sigma8DX: 120
+            case .nikon105DX: 87.44
+            case .sigma8DX: 165.38
             }
         }
     }
@@ -166,7 +232,7 @@ struct StitchingConfiguration: Codable, Equatable, Sendable {
     static let automatic = StitchingConfiguration(
         engine: .automatic,
         projection: .automatic,
-        lensProfile: .automatic,
-        inputHorizontalFieldOfView: 90
+        lensProfile: .sigma8DX,
+        inputHorizontalFieldOfView: 120
     )
 }

@@ -11,6 +11,7 @@
 #include <cstring>
 #include <exception>
 #include <map>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -22,8 +23,11 @@ constexpr int panoramaWidth = 2400;
 constexpr int panoramaHeight = panoramaWidth / 2;
 constexpr int repairLocalViewSize = 1600;
 constexpr double repairLocalViewFieldOfView = 120.0;
-constexpr double maximumPositionError = 120.0;
 constexpr double pi = 3.14159265358979323846;
+// PTGui's calibrated circular crop for the Sigma 8 mm / Nikon DX source
+// is 11.30455 mm on a 28.400704 mm sensor diagonal. For the portrait TIFFs
+// that is a 1861 px radius: the circle is clipped by the short image edges.
+constexpr double sigmaDXCropRadiusPerLongSide = 0.4787;
 
 struct NormalizedFeatures {
     std::vector<cv::KeyPoint> keypoints;
@@ -113,6 +117,14 @@ void makeSourceMap(
     const double focalLength =
         (sourceSize.width / 2.0)
         / radians(horizontalFieldOfView / 2.0);
+    const bool circularFisheye = horizontalFieldOfView >= 110.0;
+    const double circleRadius =
+        std::max(sourceSize.width, sourceSize.height)
+        * sigmaDXCropRadiusPerLongSide;
+    const cv::Point2d circleCenter(
+        sourceSize.width / 2.0,
+        sourceSize.height / 2.0
+    );
 
     for (int y = 0; y < panoramaHeight; ++y) {
         float *mapXRow = mapX.ptr<float>(y);
@@ -145,12 +157,19 @@ void makeSourceMap(
 
             mapXRow[x] = float(sourceX);
             mapYRow[x] = float(sourceY);
+            const bool insideFisheyeCircle =
+                !circularFisheye
+                || std::hypot(
+                    sourceX - circleCenter.x,
+                    sourceY - circleCenter.y
+                ) <= circleRadius;
             maskRow[x] =
                 sourceX >= 0.0
                 && sourceX < sourceSize.width - 1.0
                 && sourceY >= 0.0
                 && sourceY < sourceSize.height - 1.0
                 && angle < pi / 2.0
+                && insideFisheyeCircle
                 ? 255
                 : 0;
         }
@@ -260,9 +279,187 @@ double wrappedDistance(const cv::Point2f &first, const cv::Point2f &second) {
     return std::hypot(horizontal, first.y - second.y);
 }
 
+cv::Vec3d panoramaRay(const cv::Point2f &point) {
+    const double longitude =
+        point.x / panoramaWidth * (2.0 * pi) - pi;
+    const double latitude =
+        pi / 2.0 - point.y / panoramaHeight * pi;
+    return cv::Vec3d(
+        std::sin(longitude) * std::cos(latitude),
+        -std::sin(latitude),
+        std::cos(longitude) * std::cos(latitude)
+    );
+}
+
+cv::Matx33d fittedRotation(
+    const NormalizedFeatures &featuresA,
+    const NormalizedFeatures &featuresB,
+    const std::vector<cv::DMatch> &matches,
+    const std::vector<int> &indices
+) {
+    cv::Matx33d covariance = cv::Matx33d::zeros();
+    for (const int index : indices) {
+        const cv::DMatch &match = matches[index];
+        const cv::Vec3d first = panoramaRay(
+            featuresA.keypoints[match.queryIdx].pt
+        );
+        const cv::Vec3d second = panoramaRay(
+            featuresB.keypoints[match.trainIdx].pt
+        );
+        covariance += cv::Matx33d(
+            second[0] * first[0], second[0] * first[1], second[0] * first[2],
+            second[1] * first[0], second[1] * first[1], second[1] * first[2],
+            second[2] * first[0], second[2] * first[1], second[2] * first[2]
+        );
+    }
+
+    cv::Mat singularValues;
+    cv::Mat left;
+    cv::Mat rightTranspose;
+    cv::SVD::compute(
+        cv::Mat(covariance),
+        singularValues,
+        left,
+        rightTranspose,
+        cv::SVD::FULL_UV
+    );
+    cv::Mat rotation = rightTranspose.t() * left.t();
+    if (cv::determinant(rotation) < 0.0) {
+        cv::Mat correctedRight = rightTranspose.t();
+        correctedRight.col(2) *= -1.0;
+        rotation = correctedRight * left.t();
+    }
+    cv::Matx33d result;
+    for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column < 3; ++column) {
+            result(row, column) = rotation.at<double>(row, column);
+        }
+    }
+    return result;
+}
+
+double rotationError(
+    const NormalizedFeatures &featuresA,
+    const NormalizedFeatures &featuresB,
+    const cv::DMatch &match,
+    const cv::Matx33d &rotation
+) {
+    const cv::Vec3d first = panoramaRay(
+        featuresA.keypoints[match.queryIdx].pt
+    );
+    const cv::Vec3d second = panoramaRay(
+        featuresB.keypoints[match.trainIdx].pt
+    );
+    return std::acos(std::clamp(first.dot(rotation * second), -1.0, 1.0));
+}
+
+int occupiedFeatureCells(
+    const NormalizedFeatures &features,
+    const std::vector<cv::DMatch> &matches,
+    const std::vector<int> &indices,
+    bool first
+) {
+    std::set<std::pair<int, int>> cells;
+    for (const int index : indices) {
+        const cv::DMatch &match = matches[index];
+        const cv::Point2f point = features.keypoints[
+            first ? match.queryIdx : match.trainIdx
+        ].pt;
+        cells.insert({
+            std::clamp(int(point.x / panoramaWidth * 16), 0, 15),
+            std::clamp(int(point.y / panoramaHeight * 8), 0, 7)
+        });
+    }
+    return int(cells.size());
+}
+
+std::vector<cv::DMatch> rotationConsistentMatches(
+    const NormalizedFeatures &featuresA,
+    const NormalizedFeatures &featuresB,
+    const std::vector<cv::DMatch> &matches
+) {
+    if (matches.size() < 5) {
+        return {};
+    }
+
+    constexpr double inlierThreshold = 4.0 * pi / 180.0;
+    cv::RNG random(0);
+    std::vector<int> bestIndices;
+    int bestCellScore = 0;
+    const int iterations = std::min(2000, int(matches.size() * 30));
+    for (int iteration = 0; iteration < iterations; ++iteration) {
+        std::set<int> sampleSet;
+        while (sampleSet.size() < 3) {
+            sampleSet.insert(random.uniform(0, int(matches.size())));
+        }
+        const std::vector<int> sample(sampleSet.begin(), sampleSet.end());
+        const cv::Matx33d rotation = fittedRotation(
+            featuresA,
+            featuresB,
+            matches,
+            sample
+        );
+        std::vector<int> inliers;
+        for (int index = 0; index < int(matches.size()); ++index) {
+            if (
+                rotationError(
+                    featuresA,
+                    featuresB,
+                    matches[index],
+                    rotation
+                ) < inlierThreshold
+            ) {
+                inliers.push_back(index);
+            }
+        }
+        const int cellScore = std::min(
+            occupiedFeatureCells(featuresA, matches, inliers, true),
+            occupiedFeatureCells(featuresB, matches, inliers, false)
+        );
+        if (
+            cellScore > bestCellScore
+            || (
+                cellScore == bestCellScore
+                && inliers.size() > bestIndices.size()
+            )
+        ) {
+            bestCellScore = cellScore;
+            bestIndices = std::move(inliers);
+        }
+    }
+    if (bestIndices.size() < 5) {
+        return {};
+    }
+    if (bestCellScore < 2) {
+        return {};
+    }
+
+    const cv::Matx33d refinedRotation = fittedRotation(
+        featuresA,
+        featuresB,
+        matches,
+        bestIndices
+    );
+    std::vector<cv::DMatch> result;
+    for (const cv::DMatch &match : matches) {
+        if (
+            rotationError(
+                featuresA,
+                featuresB,
+                match,
+                refinedRotation
+            ) < inlierThreshold
+        ) {
+            result.push_back(match);
+        }
+    }
+    return result;
+}
+
 std::vector<cv::DMatch> geometricMatches(
     const NormalizedFeatures &featuresA,
-    const NormalizedFeatures &featuresB
+    const NormalizedFeatures &featuresB,
+    bool requireRotationConsistency = true
 ) {
     std::vector<MatchedPoint> candidates;
     for (
@@ -273,9 +470,7 @@ std::vector<cv::DMatch> geometricMatches(
             featuresA.keypoints[match.queryIdx].pt,
             featuresB.keypoints[match.trainIdx].pt
         );
-        if (error < maximumPositionError) {
-            candidates.push_back({match, error});
-        }
+        candidates.push_back({match, error});
     }
     std::sort(
         candidates.begin(),
@@ -287,14 +482,42 @@ std::vector<cv::DMatch> geometricMatches(
             return left.match.distance < right.match.distance;
         }
     );
+    if (requireRotationConsistency) {
+        std::vector<cv::DMatch> candidateMatches;
+        candidateMatches.reserve(candidates.size());
+        for (const MatchedPoint &candidate : candidates) {
+            candidateMatches.push_back(candidate.match);
+        }
+        const std::vector<cv::DMatch> consistentMatches =
+            rotationConsistentMatches(featuresA, featuresB, candidateMatches);
+        std::set<std::pair<int, int>> consistentIndices;
+        for (const cv::DMatch &match : consistentMatches) {
+            consistentIndices.insert({match.queryIdx, match.trainIdx});
+        }
+        candidates.erase(
+            std::remove_if(
+                candidates.begin(),
+                candidates.end(),
+                [&](const MatchedPoint &candidate) {
+                    return consistentIndices.find({
+                        candidate.match.queryIdx,
+                        candidate.match.trainIdx
+                    }) == consistentIndices.end();
+                }
+            ),
+            candidates.end()
+        );
+    }
 
+    constexpr double minimumSeparation = 20.0;
+    constexpr std::size_t maximumSelectedMatches = 20;
     std::vector<cv::DMatch> selected;
     for (const MatchedPoint &candidate : candidates) {
         const cv::Point2f pointA =
             featuresA.keypoints[candidate.match.queryIdx].pt;
         const cv::Point2f pointB =
             featuresB.keypoints[candidate.match.trainIdx].pt;
-        const bool duplicate = std::any_of(
+        const bool tooClose = std::any_of(
             selected.begin(),
             selected.end(),
             [&](const cv::DMatch &existing) {
@@ -302,15 +525,13 @@ std::vector<cv::DMatch> geometricMatches(
                     featuresA.keypoints[existing.queryIdx].pt;
                 const cv::Point2f existingB =
                     featuresB.keypoints[existing.trainIdx].pt;
-                return std::abs(pointA.x - existingA.x) < 4.0f
-                    && std::abs(pointA.y - existingA.y) < 4.0f
-                    && std::abs(pointB.x - existingB.x) < 4.0f
-                    && std::abs(pointB.y - existingB.y) < 4.0f;
+                return wrappedDistance(pointA, existingA) < minimumSeparation
+                    || wrappedDistance(pointB, existingB) < minimumSeparation;
             }
         );
-        if (!duplicate) {
+        if (!tooClose) {
             selected.push_back(candidate.match);
-            if (selected.size() == 60) {
+            if (selected.size() == maximumSelectedMatches) {
                 break;
             }
         }
@@ -356,13 +577,14 @@ void appendControlPoints(
 
 void makeNadirLocalPanoramaMap(
     const cv::Size &panoramaSize,
+    double polePitchDegrees,
     cv::Mat &mapX,
     cv::Mat &mapY
 ) {
     mapX.create(repairLocalViewSize, repairLocalViewSize, CV_32F);
     mapY.create(repairLocalViewSize, repairLocalViewSize, CV_32F);
 
-    const PWOrientation orientation = {0.0, -90.0, 0.0};
+    const PWOrientation orientation = {0.0, polePitchDegrees, 0.0};
     const cv::Matx33d rotation = rotationMatrix(orientation);
     const double center = repairLocalViewSize / 2.0;
     const double focalLength =
@@ -476,7 +698,8 @@ cv::Mat registerRepairHomography(
     const cv::Mat &baseMask,
     const cv::Mat &repairLocal,
     const cv::Mat &repairMask,
-    int &inlierCount
+    int &inlierCount,
+    std::vector<PWControlPoint> *outputPoints = nullptr
 ) {
     cv::Mat baseFeatureMask;
     cv::Mat repairFeatureMask;
@@ -559,6 +782,34 @@ cv::Mat registerRepairHomography(
             "Nadirbildens lokala position är inte tillräckligt säker."
         );
     }
+    if (outputPoints != nullptr) {
+        std::vector<PWControlPoint> inlierPoints;
+        for (int index = 0; index < int(matches.size()); ++index) {
+            if (inliers.at<unsigned char>(index) == 0) {
+                continue;
+            }
+            inlierPoints.push_back(PWControlPoint{
+                0,
+                1,
+                repairPoints[index].x,
+                repairPoints[index].y,
+                basePoints[index].x,
+                basePoints[index].y
+            });
+        }
+        outputPoints->clear();
+        constexpr int maximumEditablePoints = 30;
+        const double stride = std::max(
+            1.0,
+            double(inlierPoints.size()) / maximumEditablePoints
+        );
+        for (double position = 0.0;
+             int(position) < int(inlierPoints.size())
+                && int(outputPoints->size()) < maximumEditablePoints;
+             position += stride) {
+            outputPoints->push_back(inlierPoints[int(position)]);
+        }
+    }
     homography.convertTo(homography, CV_64F);
     return homography;
 }
@@ -610,23 +861,23 @@ cv::Mat repairOutputMask(
         );
     }
 
-    cv::Mat localExclusion;
+    cv::Mat localSelection;
     cv::remap(
         exclusionAlpha,
-        localExclusion,
+        localSelection,
         mapX,
         mapY,
         cv::INTER_LINEAR,
         cv::BORDER_CONSTANT,
         cv::Scalar(0)
     );
+    cv::Mat outputMask;
     cv::Mat localVisibility;
     cv::subtract(
         cv::Scalar::all(255),
-        localExclusion,
+        localSelection,
         localVisibility
     );
-    cv::Mat outputMask;
     cv::multiply(
         projectionMask,
         localVisibility,
@@ -729,6 +980,33 @@ cv::Mat manualRepairHomography(
     return homography;
 }
 
+cv::Mat cornerRepairHomography(
+    const double *offsets,
+    const double *bounds
+) {
+    if (offsets == nullptr || bounds == nullptr) {
+        return cv::Mat::eye(3, 3, CV_64F);
+    }
+    const float left = float(bounds[0] * repairLocalViewSize);
+    const float top = float(bounds[1] * repairLocalViewSize);
+    const float right = float(
+        (bounds[0] + bounds[2]) * repairLocalViewSize
+    );
+    const float bottom = float(
+        (bounds[1] + bounds[3]) * repairLocalViewSize
+    );
+    const cv::Point2f source[] = {
+        {left, top}, {right, top}, {right, bottom}, {left, bottom}
+    };
+    const cv::Point2f destination[] = {
+        {left + float(offsets[0]), top + float(offsets[1])},
+        {right + float(offsets[2]), top + float(offsets[3])},
+        {right + float(offsets[4]), bottom + float(offsets[5])},
+        {left + float(offsets[6]), bottom + float(offsets[7])}
+    };
+    return cv::getPerspectiveTransform(source, destination);
+}
+
 cv::Mat imageWithAlpha(
     const cv::Mat &color,
     const cv::Mat &alpha
@@ -741,6 +1019,55 @@ cv::Mat imageWithAlpha(
     return result;
 }
 
+cv::Mat colorMatchedRepair(
+    const cv::Mat &base,
+    const cv::Mat &repair,
+    const cv::Mat &alpha
+) {
+    cv::Mat visible;
+    cv::compare(alpha, 96, visible, cv::CMP_GT);
+    if (cv::countNonZero(visible) < 256) {
+        return repair;
+    }
+
+    cv::Mat baseLab;
+    cv::Mat repairLab;
+    cv::cvtColor(base, baseLab, cv::COLOR_BGR2Lab);
+    cv::cvtColor(repair, repairLab, cv::COLOR_BGR2Lab);
+    baseLab.convertTo(baseLab, CV_32F);
+    repairLab.convertTo(repairLab, CV_32F);
+
+    cv::Scalar baseMean;
+    cv::Scalar baseDeviation;
+    cv::Scalar repairMean;
+    cv::Scalar repairDeviation;
+    cv::meanStdDev(baseLab, baseMean, baseDeviation, visible);
+    cv::meanStdDev(repairLab, repairMean, repairDeviation, visible);
+
+    std::vector<cv::Mat> channels;
+    cv::split(repairLab, channels);
+    for (int channel = 0; channel < 3; ++channel) {
+        // Match luminance contrast conservatively. For chroma, an offset is
+        // safer than scaling and keeps coloured objects in the repair intact.
+        const double gain = channel == 0
+            ? std::clamp(
+                baseDeviation[channel]
+                    / std::max(1.0, repairDeviation[channel]),
+                0.75,
+                1.25
+            )
+            : 1.0;
+        channels[channel] =
+            (channels[channel] - repairMean[channel]) * gain
+            + baseMean[channel];
+    }
+    cv::merge(channels, repairLab);
+    repairLab.convertTo(repairLab, CV_8U);
+    cv::Mat matched;
+    cv::cvtColor(repairLab, matched, cv::COLOR_Lab2BGR);
+    return matched;
+}
+
 void writeNadirBlendInputs(
     const cv::Mat &baseLocal,
     const cv::Mat &repairLocal,
@@ -750,11 +1077,14 @@ void writeNadirBlendInputs(
     double translationY,
     double rotationDegrees,
     double scale,
+    const double *cornerOffsets,
+    const double *contentBounds,
     const std::string &baseOutputPath,
     const std::string &repairOutputPath
 ) {
     const cv::Mat adjustedHomography =
-        manualRepairHomography(
+        cornerRepairHomography(cornerOffsets, contentBounds)
+            * manualRepairHomography(
             translationX,
             translationY,
             rotationDegrees,
@@ -782,6 +1112,12 @@ void writeNadirBlendInputs(
         cv::Scalar(0)
     );
 
+    alignedRepair = colorMatchedRepair(
+        baseLocal,
+        alignedRepair,
+        alignedAlpha
+    );
+
     cv::Mat repairVisibility;
     cv::compare(
         alignedAlpha,
@@ -802,10 +1138,7 @@ void writeNadirBlendInputs(
         nullptr,
         &maximumDistance
     );
-    const double overlapWidth = std::min(
-        72.0,
-        maximumDistance * 0.45
-    );
+    const double overlapWidth = std::min(16.0, maximumDistance * 0.2);
     cv::Mat forcedRepairCore;
     cv::compare(
         distanceInsideRepair,
@@ -951,6 +1284,7 @@ cv::Size sourceSizeForPath(const char *path) {
 
 int PWGenerateRingControlPoints(
     const char *const *imagePaths,
+    const double *nominalYaws,
     int imageCount,
     double horizontalFieldOfView,
     PWControlPoint **controlPoints,
@@ -977,7 +1311,9 @@ int PWGenerateRingControlPoints(
         std::vector<NormalizedFeatures> features;
         for (int index = 0; index < imageCount; ++index) {
             const PWOrientation orientation = {
-                index * 360.0 / imageCount,
+                nominalYaws == nullptr
+                    ? index * 360.0 / imageCount
+                    : nominalYaws[index],
                 0.0,
                 0.0
             };
@@ -992,34 +1328,149 @@ int PWGenerateRingControlPoints(
         }
 
         std::vector<PWControlPoint> result;
+        std::vector<std::vector<int>> overlapGraph(imageCount);
         for (int first = 0; first < imageCount; ++first) {
-            const int second = (first + 1) % imageCount;
-            const std::vector<cv::DMatch> matches = geometricMatches(
-                features[first],
-                features[second]
-            );
-            if (matches.size() < 6) {
-                throw std::runtime_error(
-                    "För få säkra träffar mellan bild "
-                    + std::to_string(first + 1)
-                    + " och "
-                    + std::to_string(second + 1)
-                    + "."
+            for (int second = first + 1; second < imageCount; ++second) {
+                const std::vector<cv::DMatch> matches = geometricMatches(
+                    features[first],
+                    features[second]
+                );
+                if (matches.size() < 12) {
+                    continue;
+                }
+                overlapGraph[first].push_back(second);
+                overlapGraph[second].push_back(first);
+                appendControlPoints(
+                    first,
+                    second,
+                    features[first],
+                    features[second],
+                    matches,
+                    sourceSize,
+                    horizontalFieldOfView,
+                    orientations[first],
+                    orientations[second],
+                    result
                 );
             }
-            appendControlPoints(
-                first,
-                second,
-                features[first],
-                features[second],
-                matches,
-                sourceSize,
-                horizontalFieldOfView,
-                orientations[first],
-                orientations[second],
-                result
+        }
+        std::vector<bool> visited(imageCount, false);
+        std::vector<int> pending = {0};
+        visited[0] = true;
+        while (!pending.empty()) {
+            const int current = pending.back();
+            pending.pop_back();
+            for (const int neighbor : overlapGraph[current]) {
+                if (!visited[neighbor]) {
+                    visited[neighbor] = true;
+                    pending.push_back(neighbor);
+                }
+            }
+        }
+        const auto disconnected = std::find(
+            visited.begin(),
+            visited.end(),
+            false
+        );
+        if (disconnected != visited.end()) {
+            throw std::runtime_error(
+                "Kontrollpunkterna bildar inte en sammanhängande 360°-ring."
             );
         }
+        return copyResult(
+            result,
+            controlPoints,
+            controlPointCount,
+            errorMessage
+        );
+    } catch (const std::exception &error) {
+        if (errorMessage != nullptr) {
+            *errorMessage = copiedString(error.what());
+        }
+        if (controlPoints != nullptr) {
+            *controlPoints = nullptr;
+        }
+        if (controlPointCount != nullptr) {
+            *controlPointCount = 0;
+        }
+        return 0;
+    }
+}
+
+int PWGeneratePairControlPoints(
+    const char *firstImagePath,
+    const char *secondImagePath,
+    int firstImageIndex,
+    int secondImageIndex,
+    int ringImageCount,
+    double horizontalFieldOfView,
+    PWControlPoint **controlPoints,
+    int *controlPointCount,
+    char **errorMessage
+) {
+    try {
+        if (
+            firstImagePath == nullptr
+            || secondImagePath == nullptr
+            || ringImageCount < 2
+            || firstImageIndex < 0
+            || secondImageIndex < 0
+            || firstImageIndex >= ringImageCount
+            || secondImageIndex >= ringImageCount
+            || firstImageIndex == secondImageIndex
+        ) {
+            throw std::runtime_error("Det valda bildparet är ogiltigt.");
+        }
+        cv::setNumThreads(1);
+        cv::setRNGSeed(0);
+        const cv::Size sourceSize = sourceSizeForPath(firstImagePath);
+        const cv::Ptr<cv::SIFT> detector = cv::SIFT::create(
+            16000,
+            3,
+            0.012,
+            12
+        );
+        const PWOrientation firstOrientation = {
+            firstImageIndex * 360.0 / ringImageCount,
+            0.0,
+            0.0
+        };
+        const PWOrientation secondOrientation = {
+            secondImageIndex * 360.0 / ringImageCount,
+            0.0,
+            0.0
+        };
+        const NormalizedFeatures firstFeatures = normalizedFeatures(
+            firstImagePath,
+            sourceSize,
+            horizontalFieldOfView,
+            firstOrientation,
+            detector
+        );
+        const NormalizedFeatures secondFeatures = normalizedFeatures(
+            secondImagePath,
+            sourceSize,
+            horizontalFieldOfView,
+            secondOrientation,
+            detector
+        );
+        const std::vector<cv::DMatch> matches = geometricMatches(
+            firstFeatures,
+            secondFeatures
+        );
+        std::vector<PWControlPoint> result;
+        appendControlPoints(
+            firstImageIndex,
+            secondImageIndex,
+            firstFeatures,
+            secondFeatures,
+            matches,
+            sourceSize,
+            horizontalFieldOfView,
+            firstOrientation,
+            secondOrientation,
+            result
+        );
         return copyResult(
             result,
             controlPoints,
@@ -1105,7 +1556,7 @@ int PWGenerateZenithControlPoints(
             int score = 0;
             for (const NormalizedFeatures &ring : ringFeatures) {
                 pairMatches.push_back(
-                    geometricMatches(ring, candidateFeatures)
+                    geometricMatches(ring, candidateFeatures, false)
                 );
                 score += int(pairMatches.back().size());
             }
@@ -1169,11 +1620,148 @@ int PWGenerateZenithControlPoints(
     }
 }
 
+int PWGeneratePoleControlPoints(
+    const char *panoramaPath,
+    const char *repairImagePath,
+    double horizontalFieldOfView,
+    double polePitchDegrees,
+    const char *baseOutputPath,
+    const char *repairOutputPath,
+    PWControlPoint **controlPoints,
+    int *controlPointCount,
+    char **errorMessage
+) {
+    try {
+        if (panoramaPath == nullptr || repairImagePath == nullptr
+            || baseOutputPath == nullptr || repairOutputPath == nullptr
+            || controlPoints == nullptr || controlPointCount == nullptr
+            || errorMessage == nullptr) {
+            throw std::runtime_error(
+                "Underlaget för polens kontrollpunkter är ofullständigt."
+            );
+        }
+        cv::setNumThreads(1);
+        cv::setRNGSeed(0);
+        const cv::Mat panorama = cv::imread(panoramaPath, cv::IMREAD_COLOR);
+        const cv::Mat repairSource = cv::imread(
+            repairImagePath, cv::IMREAD_COLOR
+        );
+        if (panorama.empty() || repairSource.empty()) {
+            throw std::runtime_error(
+                "Polbilden eller det färdiga panoramat kunde inte läsas."
+            );
+        }
+
+        cv::Mat panoramaMapX, panoramaMapY;
+        makeNadirLocalPanoramaMap(
+            panorama.size(), polePitchDegrees, panoramaMapX, panoramaMapY
+        );
+        cv::Mat baseLocal;
+        cv::remap(
+            panorama, baseLocal, panoramaMapX, panoramaMapY,
+            cv::INTER_LINEAR, cv::BORDER_WRAP
+        );
+        cv::Mat baseMask(
+            repairLocalViewSize, repairLocalViewSize, CV_8U, cv::Scalar(255)
+        );
+
+        cv::Mat repairMapX, repairMapY, repairMask;
+        makeRepairLocalMap(
+            repairSource.size(), horizontalFieldOfView,
+            repairMapX, repairMapY, repairMask
+        );
+        cv::Mat repairLocal;
+        cv::remap(
+            repairSource, repairLocal, repairMapX, repairMapY,
+            cv::INTER_LINEAR, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0)
+        );
+        int inlierCount = 0;
+        std::vector<PWControlPoint> points;
+        registerRepairHomography(
+            baseLocal, baseMask, repairLocal, repairMask,
+            inlierCount, &points
+        );
+        if (!cv::imwrite(baseOutputPath, baseLocal)
+            || !cv::imwrite(repairOutputPath, repairLocal)) {
+            throw std::runtime_error(
+                "De lokala polvyerna kunde inte sparas."
+            );
+        }
+        return copyResult(
+            points, controlPoints, controlPointCount, errorMessage
+        );
+    } catch (const std::exception &error) {
+        if (errorMessage != nullptr) *errorMessage = copiedString(error.what());
+        if (controlPoints != nullptr) *controlPoints = nullptr;
+        if (controlPointCount != nullptr) *controlPointCount = 0;
+        return 0;
+    }
+}
+
+int PWSolvePoleControlPoints(
+    const PWControlPoint *controlPoints,
+    int controlPointCount,
+    PWNadirRegistration *registration,
+    double *errors,
+    char **errorMessage
+) {
+    try {
+        if (controlPoints == nullptr || controlPointCount < 4
+            || registration == nullptr || errorMessage == nullptr) {
+            throw std::runtime_error(
+                "Minst fyra kontrollpunkter krävs för att anpassa polbilden."
+            );
+        }
+        std::vector<cv::Point2f> repairPoints;
+        std::vector<cv::Point2f> basePoints;
+        repairPoints.reserve(controlPointCount);
+        basePoints.reserve(controlPointCount);
+        for (int index = 0; index < controlPointCount; ++index) {
+            repairPoints.emplace_back(
+                controlPoints[index].firstX,
+                controlPoints[index].firstY
+            );
+            basePoints.emplace_back(
+                controlPoints[index].secondX,
+                controlPoints[index].secondY
+            );
+        }
+        cv::Mat homography = cv::findHomography(repairPoints, basePoints, 0);
+        if (homography.empty()) {
+            throw std::runtime_error(
+                "Kontrollpunkterna gav ingen stabil polanpassning."
+            );
+        }
+        homography.convertTo(homography, CV_64F);
+        const double *h = homography.ptr<double>();
+        registration->h00 = h[0]; registration->h01 = h[1];
+        registration->h02 = h[2]; registration->h10 = h[3];
+        registration->h11 = h[4]; registration->h12 = h[5];
+        registration->h20 = h[6]; registration->h21 = h[7];
+        registration->h22 = h[8];
+        registration->matchedFeatureCount = controlPointCount;
+        registration->localViewFieldOfView = 120.0;
+        if (errors != nullptr) {
+            std::vector<cv::Point2f> projected;
+            cv::perspectiveTransform(repairPoints, projected, homography);
+            for (int index = 0; index < controlPointCount; ++index) {
+                errors[index] = cv::norm(projected[index] - basePoints[index]);
+            }
+        }
+        *errorMessage = nullptr;
+        return 1;
+    } catch (const std::exception &error) {
+        if (errorMessage != nullptr) *errorMessage = copiedString(error.what());
+        return 0;
+    }
+}
+
 int PWRegisterNadirRepair(
     const char *panoramaPath,
     const char *repairImagePath,
     const char *repairExclusionMaskPath,
     double horizontalFieldOfView,
+    double polePitchDegrees,
     const char *overlayOutputPath,
     PWNadirRegistration *registration,
     char **errorMessage
@@ -1216,6 +1804,7 @@ int PWRegisterNadirRepair(
         cv::Mat panoramaMapY;
         makeNadirLocalPanoramaMap(
             panorama.size(),
+            polePitchDegrees,
             panoramaMapX,
             panoramaMapY
         );
@@ -1395,11 +1984,14 @@ int PWPrepareNadirRepairBlend(
     const char *repairImagePath,
     const char *repairExclusionMaskPath,
     double horizontalFieldOfView,
+    double polePitchDegrees,
     const PWNadirRegistration *registration,
     double translationX,
     double translationY,
     double rotationDegrees,
     double scale,
+    const double *cornerOffsets,
+    const double *contentBounds,
     const char *baseOutputPath,
     const char *repairOutputPath,
     char **errorMessage
@@ -1446,6 +2038,7 @@ int PWPrepareNadirRepairBlend(
         cv::Mat panoramaMapY;
         makeNadirLocalPanoramaMap(
             panorama.size(),
+            polePitchDegrees,
             panoramaMapX,
             panoramaMapY
         );
@@ -1495,6 +2088,8 @@ int PWPrepareNadirRepairBlend(
             translationY,
             rotationDegrees,
             scale,
+            cornerOffsets,
+            contentBounds,
             baseOutputPath,
             repairOutputPath
         );

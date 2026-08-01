@@ -1,3 +1,4 @@
+import AppKit
 import ImageIO
 import SwiftUI
 
@@ -5,38 +6,87 @@ struct PanoramaSidebar: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        List(selection: $model.selection) {
+        List {
             if !model.project.images.isEmpty {
-                Section("Panorama") {
-                    PanoramaResultRow(
-                        isReady: model.stitchedResultURL != nil,
-                        hasNadirRepair: model.nadirOverlayURL != nil,
-                        hasNadirMask: model.hasNadirRepairMask
-                    )
-                        .tag(ProjectSelection.panorama)
-                        .disabled(model.stitchedResultURL == nil)
-                }
-
-                Section("Källbilder") {
-                    ForEach(Array(model.project.images.enumerated()), id: \.element.id) {
-                        index,
-                        image in
+                Section {
+                    ForEach(
+                        Array(model.project.images.enumerated()),
+                        id: \.element.id
+                    ) { index, image in
                         SourceImageRow(
                             index: index,
                             image: image,
                             hasMask: model.maskData(for: image.id) != nil,
-                            onSetRole: { role in
-                                model.setRole(role, for: image.id)
+                            onSelect: { asRightImage in
+                                model.selectSourceImage(
+                                    image.id,
+                                    asRightImage: asRightImage
+                                )
                             },
-                            onSetDirection: { direction in
-                                model.setDirection(direction, for: image.id)
+                            onSetRole: {
+                                model.setRole($0, for: image.id)
+                            },
+                            onSetDirection: {
+                                model.setDirection($0, for: image.id)
                             }
                         )
-                            .tag(ProjectSelection.source(image.id))
+                        .listRowBackground(
+                            model.mainSourceImageID == image.id
+                                ? Color.accentColor.opacity(0.24)
+                                : model.rightSourceImageID == image.id
+                                    ? Color.orange.opacity(0.22)
+                                    : Color.clear
+                        )
                     }
+                } header: {
+                    SidebarTitle("Källbilder")
+                }
+
+                Section {
+                    Button {
+                        model.selection = .settings
+                    } label: {
+                        PanoramaSettingsRow()
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(
+                        model.selection == .settings
+                            ? Color.accentColor.opacity(0.24)
+                            : Color.clear
+                    )
+
+                    Button {
+                        model.selection = .panorama
+                    } label: {
+                        PanoramaPreviewRow()
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(model.stitchedResultURL == nil)
+                    .listRowBackground(
+                        model.selection == .panorama
+                            ? Color.accentColor.opacity(0.24)
+                            : Color.clear
+                    )
+
+                    Button {
+                        model.selection = .export
+                    } label: {
+                        PanoramaExportRow()
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(model.stitchedResultURL == nil)
+                    .listRowBackground(
+                        model.selection == .export
+                            ? Color.accentColor.opacity(0.24)
+                            : Color.clear
+                    )
+                } header: {
+                    SidebarTitle("Panorama")
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
         .overlay {
             if model.project.images.isEmpty {
                 ContentUnavailableView(
@@ -51,37 +101,63 @@ struct PanoramaSidebar: View {
             model.removeSelectedSourceImage()
         }
     }
+
 }
 
-private struct PanoramaResultRow: View {
-    let isReady: Bool
-    let hasNadirRepair: Bool
-    let hasNadirMask: Bool
+private struct SidebarTitle: View {
+    let title: String
 
-    var body: some View {
-        Label {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Sammanfogat panorama")
-                Text(status)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        } icon: {
-            Image(systemName: isReady ? "panorama.fill" : "panorama")
-                .font(.title3)
-                .foregroundStyle(isReady ? Color.accentColor : .secondary)
-                .frame(width: 44)
-        }
-        .padding(.vertical, 3)
+    init(_ title: String) {
+        self.title = title
     }
 
-    private var status: String {
-        if hasNadirRepair {
-            return hasNadirMask
-                ? "Nadir placerad och maskerad"
-                : "Nadir placerad · mask saknas"
+    var body: some View {
+        Text(title)
+            .font(.headline)
+            .foregroundStyle(.primary)
+            .textCase(nil)
+    }
+}
+
+private struct PanoramaSettingsRow: View {
+    var body: some View {
+        Label {
+            Text("Inställningar")
+        } icon: {
+            Image(systemName: "slider.horizontal.3")
+                .foregroundStyle(.tint)
         }
-        return isReady ? "Klar för förhandsvisning" : "Inte sammanfogat"
+        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct PanoramaPreviewRow: View {
+    var body: some View {
+        Label {
+            Text("Förhandsvisning")
+        } icon: {
+            Image(systemName: "photo.on.rectangle.angled")
+                .foregroundStyle(.tint)
+        }
+        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct PanoramaExportRow: View {
+    var body: some View {
+        Label {
+            Text("Exportera")
+        } icon: {
+            Image(systemName: "square.and.arrow.up")
+                .foregroundStyle(.tint)
+        }
+        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 }
 
@@ -89,11 +165,18 @@ private struct SourceImageRow: View {
     let index: Int
     let image: SourceImage
     let hasMask: Bool
+    let onSelect: (Bool) -> Void
     let onSetRole: (SourceImage.Role) -> Void
     let onSetDirection: (SourceImage.Direction) -> Void
 
     var body: some View {
         HStack(spacing: 10) {
+            Text("\(index + 1)")
+                .font(.callout.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .background(Color.secondary.opacity(0.14), in: Circle())
+
             SourceThumbnail(url: image.url)
                 .frame(width: 52, height: 38)
                 .clipShape(RoundedRectangle(cornerRadius: 5))
@@ -102,7 +185,7 @@ private struct SourceImageRow: View {
                 Text(image.filename)
                     .lineLimit(1)
                 HStack(spacing: 4) {
-                    Text("Bild \(index + 1) · \(image.direction.displayName)")
+                    Text(image.direction.displayName)
                     if image.role == .fillOnly {
                         Text("· Reparation")
                     }
@@ -118,6 +201,11 @@ private struct SourceImageRow: View {
             }
         }
         .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onSelect(NSEvent.modifierFlags.contains(.shift))
+        }
         .help(image.filename)
         .contextMenu {
             Picker("Riktning", selection: Binding(
