@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage
 import ImageIO
 import SwiftUI
 
@@ -430,6 +431,24 @@ private struct ControlPointErrorList: View {
     let selectedPointID: DiagnosticControlPoint.ID?
     let onSelectPoint: (DiagnosticControlPoint.ID) -> Void
 
+    private var pointsByDescendingError: [(offset: Int, element: DiagnosticControlPoint)] {
+        points.enumerated().sorted { left, right in
+            switch (left.element.error, right.element.error) {
+            case let (leftError?, rightError?):
+                if leftError != rightError {
+                    return leftError > rightError
+                }
+                return left.offset < right.offset
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            case (nil, nil):
+                return left.offset < right.offset
+            }
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -448,7 +467,7 @@ private struct ControlPointErrorList: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(points.enumerated()), id: \.element.id) {
+                        ForEach(pointsByDescendingError, id: \.element.id) {
                             index,
                             point in
                             Button {
@@ -539,6 +558,8 @@ private struct ControlPointImage: View {
     @State private var sourceImage: CGImage?
     @State private var draggedPointID: DiagnosticControlPoint.ID?
     @State private var draggedPointStartCoordinate: CGPoint?
+    @State private var quarterTurns = 0
+    @State private var exifOrientation = CGImagePropertyOrientation.up
 
     var body: some View {
         VStack(spacing: 0) {
@@ -549,16 +570,29 @@ private struct ControlPointImage: View {
                     .lineLimit(1)
                     .foregroundStyle(.secondary)
                 Spacer()
+                Button {
+                    quarterTurns = (quarterTurns + 1) % 4
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Rotera bilden 90°")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
 
             GeometryReader { geometry in
                 if let sourceImage {
-                    let displayedImageSize = CGSize(
-                        width: sourceImage.width,
-                        height: sourceImage.height
-                    )
+                    let displayedSourceImage = rotatedImage(
+                        sourceImage,
+                        quarterTurns: quarterTurns
+                    ) ?? sourceImage
+                    // Hugin's control-point coordinates already use the
+                    // EXIF-oriented image space. ImageIO applies that same
+                    // orientation while decoding the thumbnail, so applying
+                    // EXIF once more here would rotate the markers away from
+                    // their actual features.
                     let controlPointCoordinateSize =
                         ControlPointCoordinateSpace.orientedSize(
                             rawWidth: image.pixelWidth,
@@ -566,13 +600,23 @@ private struct ControlPointImage: View {
                             displayedWidth: sourceImage.width,
                             displayedHeight: sourceImage.height
                         )
+                    let displayedCoordinateSize = quarterTurns.isMultiple(of: 2)
+                        ? controlPointCoordinateSize
+                        : CGSize(
+                            width: controlPointCoordinateSize.height,
+                            height: controlPointCoordinateSize.width
+                        )
+                    let displayedImageSize = CGSize(
+                        width: displayedSourceImage.width,
+                        height: displayedSourceImage.height
+                    )
                     let fitted = aspectFit(displayedImageSize, in: geometry.size)
                     let origin = CGPoint(
                         x: (geometry.size.width - fitted.width) / 2,
                         y: (geometry.size.height - fitted.height) / 2
                     )
                     ZStack {
-                        Image(decorative: sourceImage, scale: 1)
+                        Image(decorative: displayedSourceImage, scale: 1)
                             .resizable()
                             .frame(width: fitted.width, height: fitted.height)
                             .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
@@ -590,13 +634,16 @@ private struct ControlPointImage: View {
                                 return left.offset < right.offset
                             }
                             for (index, point) in orderedPoints {
-                                let sourcePoint = coordinates(for: point)
+                                let sourcePoint = displayCoordinate(
+                                    for: coordinates(for: point),
+                                    in: controlPointCoordinateSize
+                                )
                                 let position = CGPoint(
                                     x: origin.x + sourcePoint.x
-                                        / controlPointCoordinateSize.width
+                                        / displayedCoordinateSize.width
                                         * fitted.width,
                                     y: origin.y + sourcePoint.y
-                                        / controlPointCoordinateSize.height
+                                        / displayedCoordinateSize.height
                                         * fitted.height
                                 )
                                 drawMarker(
@@ -617,7 +664,7 @@ private struct ControlPointImage: View {
                                     if draggedPointID == nil {
                                         draggedPointID = closestPoint(
                                             to: value.startLocation,
-                                            coordinateSize: controlPointCoordinateSize,
+                                            coordinateSize: displayedCoordinateSize,
                                             fittedSize: fitted,
                                             origin: origin
                                         )
@@ -625,7 +672,12 @@ private struct ControlPointImage: View {
                                             .first {
                                                 $0.id == draggedPointID
                                             }
-                                            .map(coordinates(for:))
+                                            .map {
+                                                displayCoordinate(
+                                                    for: coordinates(for: $0),
+                                                    in: controlPointCoordinateSize
+                                                )
+                                            }
                                         onSelectPoint(draggedPointID)
                                         onMagnifyPoint(draggedPointID)
                                     }
@@ -641,31 +693,37 @@ private struct ControlPointImage: View {
                                                 start.x
                                                     + value.translation.width
                                                     / fitted.width
-                                                    * controlPointCoordinateSize.width,
+                                                    * displayedCoordinateSize.width,
                                                 0
-                                            ), controlPointCoordinateSize.width),
+                                            ), displayedCoordinateSize.width),
                                             y: min(max(
                                                 start.y
                                                     + value.translation.height
                                                     / fitted.height
-                                                    * controlPointCoordinateSize.height,
+                                                    * displayedCoordinateSize.height,
                                                 0
-                                            ), controlPointCoordinateSize.height)
+                                            ), displayedCoordinateSize.height)
                                         )
                                         onMovePoint(
                                             draggedPointID,
                                             imageIndex,
-                                            coordinate
+                                            originalCoordinate(
+                                                for: coordinate,
+                                                in: controlPointCoordinateSize
+                                            )
                                         )
                                     }
                                 }
                                 .onEnded { value in
                                     if shouldAddPoint {
-                                        onAddPoint(sourceCoordinate(
-                                            for: value.location,
-                                            coordinateSize: controlPointCoordinateSize,
-                                            fittedSize: fitted,
-                                            origin: origin
+                                        onAddPoint(originalCoordinate(
+                                            for: sourceCoordinate(
+                                                for: value.location,
+                                                coordinateSize: displayedCoordinateSize,
+                                                fittedSize: fitted,
+                                                origin: origin
+                                            ),
+                                            in: controlPointCoordinateSize
                                         ))
                                     }
                                     draggedPointID = nil
@@ -677,11 +735,14 @@ private struct ControlPointImage: View {
                             switch phase {
                             case .active(let location):
                                 guard commandAddsPoint else { return }
-                                onCommandPreview(sourceCoordinate(
-                                    for: location,
-                                    coordinateSize: controlPointCoordinateSize,
-                                    fittedSize: fitted,
-                                    origin: origin
+                                onCommandPreview(originalCoordinate(
+                                    for: sourceCoordinate(
+                                        for: location,
+                                        coordinateSize: displayedCoordinateSize,
+                                        fittedSize: fitted,
+                                        origin: origin
+                                    ),
+                                    in: controlPointCoordinateSize
                                 ))
                             case .ended:
                                 onCommandPreview(nil)
@@ -697,16 +758,20 @@ private struct ControlPointImage: View {
                             ?? points.first(where: {
                                 $0.id == magnifiedPointID
                             }).map(coordinates(for:)) {
-                            let position = displayedPosition(
+                            let displayPoint = displayCoordinate(
                                 for: sourcePoint,
-                                coordinateSize: controlPointCoordinateSize,
+                                in: controlPointCoordinateSize
+                            )
+                            let position = displayedPosition(
+                                for: displayPoint,
+                                coordinateSize: displayedCoordinateSize,
                                 fittedSize: fitted,
                                 origin: origin
                             )
                             ControlPointLoupe(
-                                sourceImage: sourceImage,
-                                sourcePoint: sourcePoint,
-                                coordinateSize: controlPointCoordinateSize
+                                sourceImage: displayedSourceImage,
+                                sourcePoint: displayPoint,
+                                coordinateSize: displayedCoordinateSize
                             )
                             .position(loupePosition(
                                 near: position,
@@ -723,10 +788,24 @@ private struct ControlPointImage: View {
             .background(Color(nsColor: .windowBackgroundColor))
         }
         .task(id: image.id) {
-            sourceImage = await ControlPointThumbnailCache.shared.image(
+            async let loadedImage = ControlPointThumbnailCache.shared.image(
                 at: image.url,
                 maximumPixelSize: 3000
             )
+            async let loadedOrientation = ControlPointThumbnailCache.shared
+                .orientation(at: image.url)
+            let (resolvedImage, resolvedOrientation) = await (
+                loadedImage,
+                loadedOrientation
+            )
+            exifOrientation = resolvedOrientation
+            // ImageIO has applied the camera's EXIF orientation at this point.
+            // Normalize the CP editor from the decoded dimensions rather than
+            // the raw sensor dimensions stored in the project.
+            if let resolvedImage {
+                quarterTurns = resolvedImage.width > resolvedImage.height ? 1 : 0
+            }
+            sourceImage = resolvedImage
         }
     }
 
@@ -741,6 +820,52 @@ private struct ControlPointImage: View {
         }
         return CGPoint(x: point.secondX, y: point.secondY)
     }
+
+    private func displayCoordinate(
+        for point: CGPoint,
+        in size: CGSize
+    ) -> CGPoint {
+        switch quarterTurns {
+        case 1: CGPoint(x: size.height - point.y, y: point.x)
+        case 2: CGPoint(x: size.width - point.x, y: size.height - point.y)
+        case 3: CGPoint(x: point.y, y: size.width - point.x)
+        default: point
+        }
+    }
+
+    private func originalCoordinate(
+        for point: CGPoint,
+        in size: CGSize
+    ) -> CGPoint {
+        switch quarterTurns {
+        case 1: CGPoint(x: point.y, y: size.height - point.x)
+        case 2: CGPoint(x: size.width - point.x, y: size.height - point.y)
+        case 3: CGPoint(x: size.width - point.y, y: point.x)
+        default: point
+        }
+    }
+
+    private func rotatedImage(
+        _ image: CGImage,
+        quarterTurns: Int
+    ) -> CGImage? {
+        let orientation: CGImagePropertyOrientation = switch quarterTurns {
+        case 1: .right
+        case 2: .down
+        case 3: .left
+        default: .up
+        }
+        guard orientation != .up else { return image }
+        let rotated = CIImage(cgImage: image).oriented(orientation)
+        return Self.rotationContext.createCGImage(
+            rotated,
+            from: rotated.extent
+        )
+    }
+
+    private static let rotationContext = CIContext(options: [
+        .cacheIntermediates: true
+    ])
 
     private func drawMarker(
         number: Int,
@@ -813,7 +938,12 @@ private struct ControlPointImage: View {
     ) -> DiagnosticControlPoint.ID? {
         points.compactMap { point -> (DiagnosticControlPoint.ID, CGFloat)? in
             let position = displayedPosition(
-                for: coordinates(for: point),
+                for: displayCoordinate(
+                    for: coordinates(for: point),
+                    in: quarterTurns.isMultiple(of: 2)
+                        ? coordinateSize
+                        : CGSize(width: coordinateSize.height, height: coordinateSize.width)
+                ),
                 coordinateSize: coordinateSize,
                 fittedSize: fittedSize,
                 origin: origin
@@ -927,6 +1057,16 @@ private actor ControlPointThumbnailCache {
 
     static let shared = ControlPointThumbnailCache()
     private var images: [Key: CGImage] = [:]
+    private var orientations: [URL: CGImagePropertyOrientation] = [:]
+
+    func orientation(at url: URL) async -> CGImagePropertyOrientation {
+        if let orientation = orientations[url] { return orientation }
+        let orientation = await Task.detached(priority: .userInitiated) {
+            Self.loadOrientation(at: url)
+        }.value
+        orientations[url] = orientation
+        return orientation
+    }
 
     func image(at url: URL, maximumPixelSize: Int) async -> CGImage? {
         let key = Key(url: url, maximumPixelSize: maximumPixelSize)
@@ -959,5 +1099,23 @@ private actor ControlPointThumbnailCache {
             0,
             options as CFDictionary
         )
+    }
+
+    nonisolated private static func loadOrientation(
+        at url: URL
+    ) -> CGImagePropertyOrientation {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(
+                  source,
+                  0,
+                  nil
+              ) as? [CFString: Any],
+              let value = properties[kCGImagePropertyOrientation] as? NSNumber,
+              let orientation = CGImagePropertyOrientation(
+                  rawValue: value.uint32Value
+              ) else {
+            return .up
+        }
+        return orientation
     }
 }

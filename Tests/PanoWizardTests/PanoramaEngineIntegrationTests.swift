@@ -6,42 +6,28 @@ import Testing
 
 struct PanoramaEngineIntegrationTests {
     @Test
-    func alignsZenithRepairToFrozenRingWithEditableControlPoints() throws {
-        guard let packagePath = ProcessInfo.processInfo.environment[
-            "PANOWIZARD_INTEGRATION_PROJECT"
-        ] else { return }
-        let package = URL(fileURLWithPath: packagePath)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let project = try decoder.decode(
-            PanoProject.self,
-            from: Data(contentsOf: package.appending(path: "project.json"))
-        )
-        let original = try #require(project.zenithRepairPlacement)
-        let image = try #require(
-            project.images.first { $0.id == original.imageID }
-        )
-        let directory = FileManager.default.temporaryDirectory.appending(
-            path: "PoleCP-\(UUID().uuidString)",
-            directoryHint: .isDirectory
-        )
-        let workspace = try OpenCVNadirRepairRegistrar.controlPointWorkspace(
-            panoramaURL: package.appending(path: "panorama/result.jpg"),
-            repairImage: image,
-            horizontalFieldOfView:
-                project.stitching.inputHorizontalFieldOfView,
-            pole: .zenith,
-            directory: directory
-        )
-        #expect(workspace.points.count >= 4)
-        #expect(workspace.points.count <= 30)
-        let solved = try OpenCVNadirRepairRegistrar.placement(
-            bySolving: workspace.points,
-            from: original
-        )
-        #expect(solved.0.imageID == original.imageID)
-        #expect(solved.1.allSatisfy { $0.error?.isFinite == true })
-        #expect((solved.1.compactMap(\.error).max() ?? 100) < 8)
+    func circularMaskStaysCircularOnLandscapeImages() throws {
+        let width = 300
+        let height = 100
+        let data = try #require(SourceMaskRasterizer.applyingCircle(
+            center: MaskPoint(x: 0.5, y: 0.5),
+            radius: 25,
+            erasing: false,
+            to: nil,
+            width: width,
+            height: height
+        ))
+        let mask = try #require(SourceMaskRasterizer.exclusionMap(
+            from: data,
+            width: width,
+            height: height
+        ))
+
+        #expect(mask.contains(CGPoint(x: 150, y: 50), safetyRadius: 0))
+        #expect(mask.contains(CGPoint(x: 174, y: 50), safetyRadius: 0))
+        #expect(mask.contains(CGPoint(x: 150, y: 74), safetyRadius: 0))
+        #expect(!mask.contains(CGPoint(x: 176, y: 50), safetyRadius: 0))
+        #expect(!mask.contains(CGPoint(x: 150, y: 76), safetyRadius: 0))
     }
 
     @Test

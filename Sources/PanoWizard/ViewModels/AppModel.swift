@@ -1,5 +1,7 @@
 import Foundation
+import ImageIO
 import Observation
+import CryptoKit
 
 enum ProjectSelection: Hashable {
     case panorama
@@ -7,7 +9,6 @@ enum ProjectSelection: Hashable {
     case export
     case source(SourceImage.ID)
     case controlPoints
-    case poleControlPoints(PanoramaPole)
 }
 
 @MainActor
@@ -79,16 +80,16 @@ final class AppModel {
     var panoramaRevision = 0
     var brushDiameter: Double = 48
     var isErasingMask = false
+    var sourceMaskTool = SourceMaskTool.brush
     var maskKind: MaskKind = .panorama
     var sourceImageZoom = 1.0
     var isAdjustingNadir = false
     var nadirAdjustment = NadirRepairAdjustment.identity
     var zenithAdjustment = NadirRepairAdjustment.identity
     var activeRepairPole = PanoramaPole.nadir
-    var poleControlPointWorkspace: PoleControlPointWorkspace?
-    var editablePoleControlPoints: [DiagnosticControlPoint] = []
     private var maskUndoStack: [(MaskKind, UUID, Data?)] = []
     private var repairRenderRevision = 0
+    private var stitchOperationID = UUID()
 
     init(
         project: PanoProject,
@@ -103,6 +104,15 @@ final class AppModel {
         zenithOverlayData: Data? = nil
     ) {
         var normalizedProject = project
+        normalizedProject.removeUnsupportedControlPoints()
+        let currentMaskSignature = Self.controlPointMaskSignature(
+            controlPointMasks
+        )
+        if normalizedProject.controlPointMaskSignature
+            != currentMaskSignature {
+            normalizedProject.controlPoints = []
+            normalizedProject.controlPointMaskSignature = currentMaskSignature
+        }
         if !StitchingConfiguration.LensProfile.selectableProfiles.contains(
             normalizedProject.stitching.lensProfile
         ) {
@@ -122,12 +132,9 @@ final class AppModel {
         maskDataByImageID = masks
         controlPointMaskDataByImageID = controlPointMasks
         if let savedControlPoints = normalizedProject.controlPoints {
-            let ringImages = normalizedProject.images.filter {
-                $0.role == .alignment && $0.direction == .horizontal
-            }
             editableControlPoints = savedControlPoints
             controlPointDiagnostics = ControlPointDiagnostics(
-                images: ringImages,
+                images: normalizedProject.images,
                 rawPoints: savedControlPoints,
                 cleanedPoints: savedControlPoints
             )
@@ -161,6 +168,7 @@ final class AppModel {
                 filename: "\(project.id.uuidString)-zenith-overlay.png"
             )
         }
+        invalidateControlPointsCoveredByMasks()
     }
 
     static func live(
@@ -196,7 +204,7 @@ final class AppModel {
         case .source(let id):
             return project.images.first { $0.id == id }?.url
                 ?? project.images.first?.url
-        case .controlPoints, .poleControlPoints:
+        case .controlPoints:
             return nil
         case .settings, .export:
             return nil
@@ -238,10 +246,7 @@ final class AppModel {
     }
 
     var controlPointEditorDiagnostics: ControlPointDiagnostics? {
-        let images = controlPointDiagnostics?.images
-            ?? project.images.filter {
-                $0.role == .alignment && $0.direction == .horizontal
-            }
+        let images = project.images
         guard images.count >= 2 else { return nil }
         return ControlPointDiagnostics(
             images: images,
@@ -384,6 +389,7 @@ final class AppModel {
     }
 
     func stitch() {
+        invalidateControlPointsCoveredByMasks()
         stitch(
             controlPoints: editableControlPoints.isEmpty
                 ? nil
@@ -392,6 +398,7 @@ final class AppModel {
     }
 
     func optimizeEditedControlPoints() {
+        invalidateControlPointsCoveredByMasks()
         guard !editableControlPoints.isEmpty, let panorama else { return }
         phase = .optimizingControlPoints
         let points = editableControlPoints
@@ -413,6 +420,8 @@ final class AppModel {
 
     private func stitch(controlPoints: [DiagnosticControlPoint]?) {
         guard let panorama, canStitch else { return }
+        let operationID = UUID()
+        stitchOperationID = operationID
         repairRenderRevision += 1
         phase = .stitching
         let previousPlacement = project.nadirRepairPlacement
@@ -435,6 +444,7 @@ final class AppModel {
                         }
                     )
                 )
+                guard stitchOperationID == operationID else { return }
                 guard let resultURL = result.url else {
                     throw PanoramaEngineError.stitchingFailed(
                         "Stitchmotorn skapade inget panorama."
@@ -448,16 +458,27 @@ final class AppModel {
                     applyControlPointDiagnostics(diagnostics)
                 }
                 var newPlacement = result.nadirRepair?.placement
-                if newPlacement?.imageID == previousPlacement?.imageID {
-                    newPlacement?.manualAdjustment =
-                        previousPlacement?.manualAdjustment
+                if let placement = newPlacement,
+                   placement.imageID == previousPlacement?.imageID {
+                    if !hasSourceControlPoints(
+                        for: placement.imageID,
+                        in: controlPoints ?? []
+                    ) {
+                        newPlacement?.manualAdjustment =
+                            previousPlacement?.manualAdjustment
+                    }
                 }
                 project.nadirRepairPlacement = newPlacement
                 var newZenithPlacement = result.zenithRepair?.placement
-                if newZenithPlacement?.imageID
-                    == previousZenithPlacement?.imageID {
-                    newZenithPlacement?.manualAdjustment =
-                        previousZenithPlacement?.manualAdjustment
+                if let placement = newZenithPlacement,
+                   placement.imageID == previousZenithPlacement?.imageID {
+                    if !hasSourceControlPoints(
+                        for: placement.imageID,
+                        in: controlPoints ?? []
+                    ) {
+                        newZenithPlacement?.manualAdjustment =
+                            previousZenithPlacement?.manualAdjustment
+                    }
                 }
                 project.zenithRepairPlacement = newZenithPlacement
                 nadirAdjustment = newPlacement?.manualAdjustment ?? .identity
@@ -472,11 +493,30 @@ final class AppModel {
                 }
                 panoramaRevision += 1
                 selection = .panorama
-                phase = .ready
-                if result.nadirRepair != nil {
-                    renderBlendedRepairPreview(.nadir)
+                if let newPlacement {
+                    let overlayURL = try await blendedRepairOverlay(
+                        .nadir,
+                        panoramaURL: resultURL,
+                        placement: newPlacement
+                    )
+                    guard stitchOperationID == operationID else { return }
+                    nadirOverlayURL = overlayURL
+                    project.setNadirRepairPreviewBlended(true)
                 }
+                if let newZenithPlacement {
+                    let overlayURL = try await blendedRepairOverlay(
+                        .zenith,
+                        panoramaURL: resultURL,
+                        placement: newZenithPlacement
+                    )
+                    guard stitchOperationID == operationID else { return }
+                    zenithOverlayURL = overlayURL
+                    project.setZenithRepairPreviewBlended(true)
+                }
+                panoramaRevision += 1
+                phase = .ready
             } catch {
+                guard stitchOperationID == operationID else { return }
                 phase = .failed(error.localizedDescription)
             }
         }
@@ -485,19 +525,73 @@ final class AppModel {
     private func applyControlPointDiagnostics(
         _ diagnostics: ControlPointDiagnostics
     ) {
-        controlPointDiagnostics = diagnostics
-        editableControlPoints = diagnostics.cleanedPoints
-        project.controlPoints = diagnostics.cleanedPoints
+        let existingRepairPoints = editableControlPoints.filter { point in
+            !isFrozenRingImage(at: point.firstImage)
+                || !isFrozenRingImage(at: point.secondImage)
+        }
+        let projectIndexByID = Dictionary(uniqueKeysWithValues:
+            project.images.enumerated().map { ($0.element.id, $0.offset) }
+        )
+        let refreshedRingPoints: [DiagnosticControlPoint] =
+            diagnostics.cleanedPoints.compactMap { point -> DiagnosticControlPoint? in
+            guard diagnostics.images.indices.contains(point.firstImage),
+                  diagnostics.images.indices.contains(point.secondImage),
+                  let first = projectIndexByID[
+                      diagnostics.images[point.firstImage].id
+                  ],
+                  let second = projectIndexByID[
+                      diagnostics.images[point.secondImage].id
+                  ] else { return nil }
+            return DiagnosticControlPoint(
+                id: point.id,
+                firstImage: first,
+                secondImage: second,
+                firstX: point.firstX,
+                firstY: point.firstY,
+                secondX: point.secondX,
+                secondY: point.secondY,
+                error: point.error
+            )
+        }
+        let refreshedIDs = Set(refreshedRingPoints.map(\.id))
+        let unreportedRepairPoints = existingRepairPoints.filter {
+            !refreshedIDs.contains($0.id)
+        }
+        editableControlPoints = refreshedRingPoints + unreportedRepairPoints
+        saveEditableControlPoints()
+        controlPointDiagnostics = ControlPointDiagnostics(
+            images: project.images,
+            rawPoints: editableControlPoints,
+            cleanedPoints: editableControlPoints
+        )
         selectedControlPointPairID =
             selectedControlPointPairID.flatMap { selected in
-                diagnostics.pairs.contains { $0.id == selected }
+                controlPointDiagnostics?.pairs.contains { $0.id == selected }
+                    == true
                     ? selected
                     : nil
-            } ?? diagnostics.pairs.first?.id
+            } ?? controlPointDiagnostics?.pairs.first?.id
         if let pair = selectedControlPointPairID {
             controlPointLeftImageIndex = pair.firstImage
             controlPointRightImageIndex = pair.secondImage
         }
+    }
+
+    private func hasSourceControlPoints(
+        for imageID: UUID,
+        in points: [DiagnosticControlPoint]
+    ) -> Bool {
+        guard let index = project.images.firstIndex(where: { $0.id == imageID })
+        else { return false }
+        return points.contains {
+            $0.firstImage == index || $0.secondImage == index
+        }
+    }
+
+    private func isFrozenRingImage(at index: Int) -> Bool {
+        guard project.images.indices.contains(index) else { return false }
+        let image = project.images[index]
+        return image.role == .alignment && image.direction == .horizontal
     }
 
     func moveControlPoint(
@@ -541,7 +635,11 @@ final class AppModel {
 
     func suggestControlPoints(for pair: ControlPointPair.ID) {
         guard !isSuggestingControlPoints,
-              let images = controlPointEditorDiagnostics?.images else {
+              let images = controlPointEditorDiagnostics?.images,
+              images.indices.contains(pair.firstImage),
+              images.indices.contains(pair.secondImage),
+              isRingControlPointImage(images[pair.firstImage]),
+              isRingControlPointImage(images[pair.secondImage]) else {
             return
         }
         isSuggestingControlPoints = true
@@ -629,14 +727,33 @@ final class AppModel {
     }
 
     func regenerateControlPointsForProject() {
-        suggestControlPointsForProject(replacingExisting: true)
+        suggestControlPointsForProject(
+            replacingExisting: true,
+            stitchesAfterGeneration: false
+        )
     }
 
-    private func suggestControlPointsForProject(replacingExisting: Bool) {
+    func runWizard() {
+        suggestControlPointsForProject(
+            replacingExisting: true,
+            stitchesAfterGeneration: true
+        )
+    }
+
+    private func suggestControlPointsForProject(
+        replacingExisting: Bool,
+        stitchesAfterGeneration: Bool = false
+    ) {
         guard !isSuggestingControlPoints,
               let images = controlPointEditorDiagnostics?.images else {
             return
         }
+        let eligible = images.enumerated().filter {
+            isRingControlPointImage($0.element)
+        }
+        guard eligible.count >= 2 else { return }
+        let matchingImages = eligible.map(\.element)
+        let projectIndices = eligible.map(\.offset)
         isSuggestingControlPoints = true
         phase = .suggestingControlPoints
         let horizontalFieldOfView = project.stitching.inputHorizontalFieldOfView
@@ -647,7 +764,7 @@ final class AppModel {
             do {
                 let matches = try await Task.detached(priority: .userInitiated) {
                     try OpenCVControlPointMatcher.ring(
-                        images: images,
+                        images: matchingImages,
                         horizontalFieldOfView: horizontalFieldOfView,
                         controlPointMasks: controlPointMasks
                     )
@@ -665,8 +782,8 @@ final class AppModel {
                 )
                 let mappedPoints: [DiagnosticControlPoint] = matches.map {
                     DiagnosticControlPoint(
-                        firstImage: $0.firstImage,
-                        secondImage: $0.secondImage,
+                        firstImage: projectIndices[$0.firstImage],
+                        secondImage: projectIndices[$0.secondImage],
                         firstX: $0.firstX,
                         firstY: $0.firstY,
                         secondX: $0.secondX,
@@ -721,6 +838,13 @@ final class AppModel {
                 saveEditableControlPoints()
                 isSuggestingControlPoints = false
                 phase = .ready
+                if stitchesAfterGeneration {
+                    stitch(
+                        controlPoints: editableControlPoints.isEmpty
+                            ? nil
+                            : editableControlPoints
+                    )
+                }
             } catch {
                 isSuggestingControlPoints = false
                 phase = .failed(error.localizedDescription)
@@ -791,7 +915,11 @@ final class AppModel {
     }
 
     func selectControlPointImages(_ first: Int, _ second: Int) {
-        guard first != second else { return }
+        guard first != second,
+              project.images.indices.contains(first),
+              project.images.indices.contains(second),
+              isRingControlPointImage(project.images[first]),
+              isRingControlPointImage(project.images[second]) else { return }
         controlPointLeftImageIndex = first
         controlPointRightImageIndex = second
         selectedControlPointPairID = ControlPointPair.ID(
@@ -813,8 +941,23 @@ final class AppModel {
               let rightIndex = images.firstIndex(where: { $0.id == id }) else {
             return
         }
+        guard isRingControlPointImage(images[mainIndex]),
+              isRingControlPointImage(images[rightIndex]) else { return }
         selectControlPointImages(mainIndex, rightIndex)
         selection = .controlPoints
+    }
+
+    private func isRingControlPointImage(_ image: SourceImage) -> Bool {
+        image.role == .alignment && image.direction == .horizontal
+    }
+
+    var selectedImageSupportsControlPoints: Bool {
+        selectedSourceImage.map(isRingControlPointImage) == true
+    }
+
+    var selectedImageSupportsCircleMask: Bool {
+        guard let image = selectedSourceImage else { return false }
+        return image.role == .fillOnly && image.direction != .horizontal
     }
 
     @discardableResult
@@ -869,7 +1012,13 @@ final class AppModel {
             }
             .sorted { $0.1 < $1.1 }
             .prefix(12)
-        guard !candidates.isEmpty else { return clickedPoint }
+        guard !candidates.isEmpty else {
+            return clampedCounterpart(
+                clickedPoint,
+                for: pair,
+                clickedFirstImage: clickedFirstImage
+            )
+        }
 
         if candidates.count >= 3 {
             let samples = candidates.map { point, distance in
@@ -981,24 +1130,92 @@ final class AppModel {
         for pair: ControlPointPair.ID,
         clickedFirstImage: Bool
     ) -> CGPoint {
-        let images = controlPointDiagnostics?.images ?? []
+        let images = project.images
         let index = clickedFirstImage ? pair.secondImage : pair.firstImage
-        let image = images.indices.contains(index) ? images[index] : nil
-        return CGPoint(
-            x: min(max(point.x, 0), image.map {
-                Double($0.pixelWidth)
-            } ?? .greatestFiniteMagnitude),
-            y: min(max(point.y, 0), image.map {
-                Double($0.pixelHeight)
-            } ?? .greatestFiniteMagnitude)
+        guard let image = images.indices.contains(index) ? images[index] : nil
+        else { return point }
+        let size = counterpartCoordinateSize(for: image)
+        guard point.x.isFinite,
+              point.y.isFinite,
+              point.x >= 0,
+              point.y >= 0,
+              point.x <= size.width,
+              point.y <= size.height else {
+            return CGPoint(x: size.width / 2, y: size.height / 2)
+        }
+        return point
+    }
+
+    private func counterpartCoordinateSize(for image: SourceImage) -> CGSize {
+        let rawSize = CGSize(
+            width: image.pixelWidth,
+            height: image.pixelHeight
         )
+        guard let source = CGImageSourceCreateWithURL(image.url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(
+                  source,
+                  0,
+                  nil
+              ) as? [CFString: Any],
+              let value = properties[kCGImagePropertyOrientation] as? NSNumber,
+              let orientation = CGImagePropertyOrientation(
+                  rawValue: value.uint32Value
+              ) else {
+            return rawSize
+        }
+        switch orientation {
+        case .left, .leftMirrored, .right, .rightMirrored:
+            return CGSize(width: rawSize.height, height: rawSize.width)
+        default:
+            return rawSize
+        }
     }
 
     private func saveEditableControlPoints() {
+        editableControlPoints = editableControlPoints.filter { point in
+            project.images.indices.contains(point.firstImage)
+                && project.images.indices.contains(point.secondImage)
+                && isRingControlPointImage(project.images[point.firstImage])
+                && isRingControlPointImage(project.images[point.secondImage])
+        }
         project.controlPoints = editableControlPoints
+        project.controlPointMaskSignature = Self.controlPointMaskSignature(
+            controlPointMaskDataByImageID
+        )
         project.modifiedAt = Date(
             timeIntervalSince1970: Date.now.timeIntervalSince1970.rounded(.down)
         )
+    }
+
+    private func invalidateControlPointsCoveredByMasks() {
+        let signature = Self.controlPointMaskSignature(
+            controlPointMaskDataByImageID
+        )
+        guard project.controlPointMaskSignature != signature else { return }
+        project.controlPointMaskSignature = signature
+        guard !editableControlPoints.isEmpty else { return }
+        editableControlPoints = []
+        saveEditableControlPoints()
+        controlPointDiagnostics = nil
+        selectedControlPointPairID = nil
+    }
+
+    private static func controlPointMaskSignature(
+        _ masks: [UUID: Data]
+    ) -> String? {
+        guard !masks.isEmpty else { return nil }
+        var digestInput = Data()
+        for (id, data) in masks.sorted(by: {
+            $0.key.uuidString < $1.key.uuidString
+        }) {
+            digestInput.append(contentsOf: id.uuidString.utf8)
+            digestInput.append(0)
+            digestInput.append(data)
+            digestInput.append(0)
+        }
+        return SHA256.hash(data: digestInput)
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 
     func removeSelectedSourceImage() {
@@ -1007,19 +1224,25 @@ final class AppModel {
             return
         }
 
-        var images = project.images
-        images.remove(at: index)
-        project.replaceImages(images)
+        stitchOperationID = UUID()
+        project.removeImage(at: index)
+        let images = project.images
+        editableControlPoints = project.controlPoints ?? []
+        selectedControlPointPairID = nil
         maskDataByImageID[id] = nil
         controlPointMaskDataByImageID[id] = nil
+        maskUndoStack.removeAll { $0.1 == id }
         maskRevision += 1
         repairRenderRevision += 1
         stitchedResultURL = nil
         nadirOverlayURL = nil
+        zenithOverlayURL = nil
         controlPointDiagnostics = nil
-        project.nadirRepairPlacement = nil
         nadirAdjustment = .identity
+        zenithAdjustment = .identity
         isAdjustingNadir = false
+        phase = .ready
+        panoramaRevision += 1
 
         if images.isEmpty {
             selection = nil
@@ -1031,6 +1254,7 @@ final class AppModel {
     func setRole(_ role: SourceImage.Role, for imageID: UUID) {
         repairRenderRevision += 1
         project.setRole(role, for: imageID)
+        clearEditableControlPointsAfterGeometryChange()
         stitchedResultURL = nil
         nadirOverlayURL = nil
         nadirAdjustment = .identity
@@ -1041,11 +1265,18 @@ final class AppModel {
     func setDirection(_ direction: SourceImage.Direction, for imageID: UUID) {
         repairRenderRevision += 1
         project.setDirection(direction, for: imageID)
+        clearEditableControlPointsAfterGeometryChange()
         stitchedResultURL = nil
         nadirOverlayURL = nil
         nadirAdjustment = .identity
         isAdjustingNadir = false
         panoramaRevision += 1
+    }
+
+    private func clearEditableControlPointsAfterGeometryChange() {
+        editableControlPoints = []
+        controlPointDiagnostics = nil
+        selectedControlPointPairID = nil
     }
 
     func updateStitchingConfiguration(
@@ -1082,6 +1313,7 @@ final class AppModel {
         }
         maskRevision += 1
         if kind == .controlPoints {
+            invalidateControlPointsCoveredByMasks()
             project.invalidateRigCache()
             stitchedResultURL = nil
             nadirOverlayURL = nil
@@ -1162,7 +1394,7 @@ final class AppModel {
     }
 
     var activeMaskKind: MaskKind {
-        selectedSourceImage?.role == .fillOnly ? .panorama : maskKind
+        selectedImageSupportsControlPoints ? maskKind : .panorama
     }
 
     func zoomSourceImageIn() {
@@ -1404,8 +1636,8 @@ final class AppModel {
         repairRenderRevision += 1
         let revision = repairRenderRevision
         let exclusionMaskData = maskDataByImageID[imageID]
-        let horizontalFieldOfView =
-            project.stitching.inputHorizontalFieldOfView
+        let horizontalFieldOfView = placement.sourceHorizontalFieldOfView
+            ?? project.stitching.inputHorizontalFieldOfView
         let outputDirectory = FileManager.default.temporaryDirectory
             .appending(
                 path: "PanoWizard/Repairs/\(project.id.uuidString)",
@@ -1483,8 +1715,8 @@ final class AppModel {
         repairRenderRevision += 1
         let revision = repairRenderRevision
         let exclusionMaskData = maskDataByImageID[repairImage.id]
-        let horizontalFieldOfView =
-            project.stitching.inputHorizontalFieldOfView
+        let horizontalFieldOfView = placement.sourceHorizontalFieldOfView
+            ?? project.stitching.inputHorizontalFieldOfView
         let outputDirectory = FileManager.default.temporaryDirectory
             .appending(
                 path: "PanoWizard/Repairs/\(project.id.uuidString)",
@@ -1536,164 +1768,48 @@ final class AppModel {
         }
     }
 
-    var poleControlPointDiagnostics: ControlPointDiagnostics? {
-        guard let workspace = poleControlPointWorkspace else { return nil }
-        let lens = LensDescription(
-            model: "Lokal 120°-vy",
-            focalLengthIn35mm: nil,
-            kind: .rectilinear
-        )
-        let images = [
-            SourceImage(
-                url: workspace.repairViewURL,
-                captureDate: nil,
-                pixelWidth: 1_600,
-                pixelHeight: 1_600,
-                cameraModel: nil,
-                lens: lens
-            ),
-            SourceImage(
-                url: workspace.ringViewURL,
-                captureDate: nil,
-                pixelWidth: 1_600,
-                pixelHeight: 1_600,
-                cameraModel: nil,
-                lens: lens
-            )
-        ]
-        return ControlPointDiagnostics(
-            images: images,
-            rawPoints: editablePoleControlPoints,
-            cleanedPoints: editablePoleControlPoints
-        )
-    }
-
-    func beginPoleControlPointAlignment(_ pole: PanoramaPole) {
-        guard let panoramaURL = stitchedResultURL,
-              let placement = pole == .zenith
-                ? project.zenithRepairPlacement
-                : project.nadirRepairPlacement,
-              let image = project.images.first(where: { $0.id == placement.imageID })
-        else { return }
-        phase = .suggestingControlPoints
-        let directory = FileManager.default.temporaryDirectory.appending(
-            path: "PanoWizard/PoleCP/\(project.id.uuidString)/\(pole.rawValue)",
-            directoryHint: .isDirectory
-        )
-        let horizontalFieldOfView = project.stitching.inputHorizontalFieldOfView
-        Task {
-            do {
-                let workspace = try await Task.detached(priority: .userInitiated) {
-                    try OpenCVNadirRepairRegistrar.controlPointWorkspace(
-                        panoramaURL: panoramaURL,
-                        repairImage: image,
-                        horizontalFieldOfView: horizontalFieldOfView,
-                        pole: pole,
-                        directory: directory
-                    )
-                }.value
-                poleControlPointWorkspace = workspace
-                editablePoleControlPoints = placement.controlPoints?.isEmpty == false
-                    ? placement.controlPoints!
-                    : workspace.points
-                activeRepairPole = pole
-                selection = .poleControlPoints(pole)
-                phase = .ready
-            } catch {
-                phase = .failed(error.localizedDescription)
-            }
-        }
-    }
-
-    func regeneratePoleControlPoints() {
-        if activeRepairPole == .zenith {
-            project.zenithRepairPlacement?.controlPoints = nil
-        } else {
-            project.nadirRepairPlacement?.controlPoints = nil
-        }
-        beginPoleControlPointAlignment(activeRepairPole)
-    }
-
-    func movePoleControlPoint(
-        _ id: DiagnosticControlPoint.ID,
-        imageIndex: Int,
-        point: CGPoint
-    ) {
-        guard let index = editablePoleControlPoints.firstIndex(where: { $0.id == id })
-        else { return }
-        if imageIndex == 0 {
-            editablePoleControlPoints[index].firstX = point.x
-            editablePoleControlPoints[index].firstY = point.y
-        } else {
-            editablePoleControlPoints[index].secondX = point.x
-            editablePoleControlPoints[index].secondY = point.y
-        }
-        editablePoleControlPoints[index].error = nil
-    }
-
-    func removePoleControlPoint(_ id: DiagnosticControlPoint.ID) {
-        editablePoleControlPoints.removeAll { $0.id == id }
-    }
-
-    @discardableResult
-    func addPoleControlPoint(point: CGPoint, imageIndex: Int) -> UUID {
-        let counterpart = predictedPoleCounterpart(point, from: imageIndex)
-        let value = DiagnosticControlPoint(
-            firstImage: 0,
-            secondImage: 1,
-            firstX: imageIndex == 0 ? point.x : counterpart.x,
-            firstY: imageIndex == 0 ? point.y : counterpart.y,
-            secondX: imageIndex == 1 ? point.x : counterpart.x,
-            secondY: imageIndex == 1 ? point.y : counterpart.y
-        )
-        editablePoleControlPoints.append(value)
-        return value.id
-    }
-
-    private func predictedPoleCounterpart(
-        _ point: CGPoint,
-        from imageIndex: Int
-    ) -> CGPoint {
-        guard let placement = activeRepairPole == .zenith
-            ? project.zenithRepairPlacement : project.nadirRepairPlacement,
-              placement.localHomography.count == 9 else { return point }
-        let h = placement.localHomography
-        if imageIndex == 0 {
-            let w = h[6] * point.x + h[7] * point.y + h[8]
-            return CGPoint(
-                x: (h[0] * point.x + h[1] * point.y + h[2]) / w,
-                y: (h[3] * point.x + h[4] * point.y + h[5]) / w
+    private func blendedRepairOverlay(
+        _ pole: PanoramaPole,
+        panoramaURL: URL,
+        placement: NadirRepairPlacement
+    ) async throws -> URL {
+        guard let repairImage = project.images.first(where: {
+            $0.id == placement.imageID
+                && $0.role == .fillOnly
+                && $0.direction == (pole == .zenith ? .zenith : .nadir)
+        }) else {
+            throw PanoramaEngineError.stitchingFailed(
+                "\(pole.displayName)bilden saknas i projektet."
             )
         }
-        return point
+        phase = .blendingRepair
+        let outputDirectory = FileManager.default.temporaryDirectory
+            .appending(
+                path: "PanoWizard/Repairs/\(project.id.uuidString)",
+                directoryHint: .isDirectory
+            )
+        try FileManager.default.createDirectory(
+            at: outputDirectory,
+            withIntermediateDirectories: true
+        )
+        let outputURL = outputDirectory.appending(
+            path: "\(UUID().uuidString)-\(pole.rawValue)-wand-blended.png"
+        )
+        let exclusionMaskData = maskDataByImageID[repairImage.id]
+        let horizontalFieldOfView = placement.sourceHorizontalFieldOfView
+            ?? project.stitching.inputHorizontalFieldOfView
+        try await Task.detached(priority: .userInitiated) {
+            try OpenCVNadirRepairRegistrar.renderBlendedOverlay(
+                panoramaURL: panoramaURL,
+                repairImage: repairImage,
+                exclusionMaskData: exclusionMaskData,
+                horizontalFieldOfView: horizontalFieldOfView,
+                pole: pole,
+                placement: placement,
+                outputURL: outputURL
+            )
+        }.value
+        return outputURL
     }
 
-    func applyPoleControlPoints() {
-        guard editablePoleControlPoints.count >= 4,
-              let placement = activeRepairPole == .zenith
-                ? project.zenithRepairPlacement : project.nadirRepairPlacement
-        else { return }
-        phase = .optimizingControlPoints
-        do {
-            let result = try OpenCVNadirRepairRegistrar.placement(
-                bySolving: editablePoleControlPoints,
-                from: placement
-            )
-            editablePoleControlPoints = result.1
-            if activeRepairPole == .zenith {
-                project.zenithRepairPlacement = result.0
-                zenithAdjustment = .identity
-            } else {
-                project.nadirRepairPlacement = result.0
-                nadirAdjustment = .identity
-            }
-            phase = .ready
-            _ = refreshRepairOverlayIfPossible(
-                for: result.0.imageID,
-                enterAdjustment: true
-            )
-        } catch {
-            phase = .failed(error.localizedDescription)
-        }
-    }
 }

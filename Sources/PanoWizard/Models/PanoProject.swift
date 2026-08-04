@@ -13,6 +13,7 @@ struct PanoProject: Codable, Equatable, Sendable {
     var cachedRigImageLines: [String: String]?
     var cachedRigSignature: String?
     var controlPoints: [DiagnosticControlPoint]?
+    var controlPointMaskSignature: String?
     var nadirRepairPlacement: NadirRepairPlacement?
     var zenithRepairPlacement: NadirRepairPlacement?
     var previewViewpoint: PanoramaViewpoint?
@@ -28,6 +29,7 @@ struct PanoProject: Codable, Equatable, Sendable {
         cachedRigImageLines: [String: String]? = nil,
         cachedRigSignature: String? = nil,
         controlPoints: [DiagnosticControlPoint]? = nil,
+        controlPointMaskSignature: String? = nil,
         nadirRepairPlacement: NadirRepairPlacement? = nil,
         zenithRepairPlacement: NadirRepairPlacement? = nil,
         previewViewpoint: PanoramaViewpoint? = nil
@@ -42,9 +44,11 @@ struct PanoProject: Codable, Equatable, Sendable {
         self.cachedRigImageLines = cachedRigImageLines
         self.cachedRigSignature = cachedRigSignature
         self.controlPoints = controlPoints
+        self.controlPointMaskSignature = controlPointMaskSignature
         self.nadirRepairPlacement = nadirRepairPlacement
         self.zenithRepairPlacement = zenithRepairPlacement
         self.previewViewpoint = previewViewpoint
+        removeUnsupportedControlPoints()
     }
 
     var panorama: PanoramaSet {
@@ -79,11 +83,42 @@ struct PanoProject: Codable, Equatable, Sendable {
         }
     }
 
+    mutating func removeImage(at removedIndex: Int) {
+        guard images.indices.contains(removedIndex) else { return }
+        let remainingControlPoints: [DiagnosticControlPoint]? = controlPoints?.compactMap { point -> DiagnosticControlPoint? in
+            guard point.firstImage != removedIndex,
+                  point.secondImage != removedIndex else {
+                return nil
+            }
+            return DiagnosticControlPoint(
+                id: point.id,
+                firstImage: point.firstImage > removedIndex
+                    ? point.firstImage - 1 : point.firstImage,
+                secondImage: point.secondImage > removedIndex
+                    ? point.secondImage - 1 : point.secondImage,
+                firstX: point.firstX,
+                firstY: point.firstY,
+                secondX: point.secondX,
+                secondY: point.secondY,
+                error: point.error
+            )
+        }
+        images.remove(at: removedIndex)
+        controlPoints = remainingControlPoints
+        cachedRigImageLines = nil
+        cachedRigSignature = nil
+        nadirRepairPlacement = nil
+        zenithRepairPlacement = nil
+        removeUnsupportedControlPoints()
+        modifiedAt = Self.secondPrecision(.now)
+    }
+
     mutating func setRole(_ role: SourceImage.Role, for imageID: UUID) {
         guard let index = images.firstIndex(where: { $0.id == imageID }) else {
             return
         }
         images[index].role = role
+        removeUnsupportedControlPoints()
         invalidateRigCache()
         nadirRepairPlacement = nil
         modifiedAt = Self.secondPrecision(.now)
@@ -94,6 +129,7 @@ struct PanoProject: Codable, Equatable, Sendable {
             return
         }
         images[index].direction = direction
+        removeUnsupportedControlPoints()
         invalidateRigCache()
         nadirRepairPlacement = nil
         modifiedAt = Self.secondPrecision(.now)
@@ -117,6 +153,24 @@ struct PanoProject: Codable, Equatable, Sendable {
         cachedRigImageLines = nil
         cachedRigSignature = nil
         controlPoints = nil
+    }
+
+    mutating func removeUnsupportedControlPoints() {
+        controlPoints = controlPoints?.filter { point in
+            images.indices.contains(point.firstImage)
+                && images.indices.contains(point.secondImage)
+                && images[point.firstImage].role == .alignment
+                && images[point.firstImage].direction == .horizontal
+                && images[point.secondImage].role == .alignment
+                && images[point.secondImage].direction == .horizontal
+        }
+        if controlPoints?.isEmpty == true {
+            controlPoints = nil
+        }
+        nadirRepairPlacement?.controlPoints = nil
+        nadirRepairPlacement?.sphericalProjection = nil
+        zenithRepairPlacement?.controlPoints = nil
+        zenithRepairPlacement?.sphericalProjection = nil
     }
 
     mutating func setNadirRepairAdjustment(

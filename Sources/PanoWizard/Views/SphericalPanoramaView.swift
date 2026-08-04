@@ -239,11 +239,12 @@ private final class PanoramaMTKView: MTKView {
             var adjustment = nadirAdjustment
             adjustment.scale = min(max(
                 adjustment.scale * exp(event.scrollingDeltaY * 0.008),
-                0.4
-            ), 2)
+                0.2
+            ), 8)
             applyNadirAdjustment(adjustment)
         } else {
             panoramaRenderer?.zoom(by: Float(event.scrollingDeltaY))
+            updateHandles()
         }
     }
 
@@ -252,11 +253,12 @@ private final class PanoramaMTKView: MTKView {
             var adjustment = nadirAdjustment
             adjustment.scale = min(max(
                 adjustment.scale * (1 + event.magnification),
-                0.4
-            ), 2)
+                0.2
+            ), 8)
             applyNadirAdjustment(adjustment)
         } else {
             panoramaRenderer?.magnify(by: Float(event.magnification))
+            updateHandles()
         }
     }
 
@@ -312,7 +314,9 @@ private final class PanoramaMTKView: MTKView {
 
     private var handlePoints: [CGPoint] {
         let projectionScale = 0.2886751346
-        let tangent = tan(75.0 * .pi / 360.0)
+        let fieldOfView = panoramaRenderer?.verticalFieldOfViewRadians
+            ?? 75.0 * .pi / 180.0
+        let tangent = tan(fieldOfView / 2)
         let localToScreen = bounds.height / (2 * projectionScale * tangent)
         let x = contentBounds[0]
         let y = contentBounds[1]
@@ -497,15 +501,25 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     }
 
     func zoom(by delta: Float) {
-        verticalFieldOfView = min(max(verticalFieldOfView - delta * 0.006, 30 * .pi / 180), 105 * .pi / 180)
+        verticalFieldOfView = min(
+            max(verticalFieldOfView - delta * 0.006, 30 * .pi / 180),
+            150 * .pi / 180
+        )
         reportViewpoint()
         view?.setNeedsDisplay(view?.bounds ?? .zero)
     }
 
     func magnify(by amount: Float) {
-        verticalFieldOfView = min(max(verticalFieldOfView * (1 - amount), 30 * .pi / 180), 105 * .pi / 180)
+        verticalFieldOfView = min(
+            max(verticalFieldOfView * (1 - amount), 30 * .pi / 180),
+            150 * .pi / 180
+        )
         reportViewpoint()
         view?.setNeedsDisplay(view?.bounds ?? .zero)
+    }
+
+    var verticalFieldOfViewRadians: CGFloat {
+        CGFloat(verticalFieldOfView)
     }
 
     func resetViewpoint() {

@@ -36,38 +36,6 @@ struct ContentView: View {
                         projectName: projectName,
                         viewpoint: model.panoramaViewpoint
                     )
-                } else if case .poleControlPoints = model.selection {
-                    if let diagnostics = model.poleControlPointDiagnostics {
-                        let pairID = ControlPointPair.ID(
-                            firstImage: 0,
-                            secondImage: 1
-                        )
-                        ControlPointEditor(
-                            diagnostics: diagnostics,
-                            selectedPairID: pairID,
-                            leftImageIndex: 0,
-                            rightImageIndex: 1,
-                            onSelectImages: { _, _ in },
-                            onMovePoint: model.movePoleControlPoint,
-                            onRemovePoint: model.removePoleControlPoint,
-                            onAddPoint: { point, imageIndex in
-                                model.addPoleControlPoint(
-                                    point: point,
-                                    imageIndex: imageIndex
-                                )
-                            },
-                            isSuggestingPoints: model.phase == .suggestingControlPoints,
-                            onSuggestPoints: model.regeneratePoleControlPoints,
-                            onSuggestProjectPoints: {},
-                            onRegenerateProjectPoints: {},
-                            onRemoveAllPoints: {
-                                model.editablePoleControlPoints = []
-                            },
-                            onRemoveAllProjectPoints: {},
-                            onOptimize: model.applyPoleControlPoints,
-                            isPoleAlignment: true
-                        )
-                    }
                 } else if model.selection == .controlPoints {
                     if let diagnostics = model.controlPointEditorDiagnostics,
                        diagnostics.images.count >= 2 {
@@ -131,6 +99,9 @@ struct ContentView: View {
                             model.maskData(for: $0.id)
                         },
                         brushDiameter: model.brushDiameter,
+                        maskTool: model.selectedImageSupportsCircleMask
+                            ? model.sourceMaskTool
+                            : .brush,
                         zoom: model.sourceImageZoom,
                         isErasing: model.isErasingMask,
                         isControlPointMask: model.activeMaskKind == .controlPoints,
@@ -170,9 +141,26 @@ struct ContentView: View {
                 Button {
                     model.stitch()
                 } label: {
-                    Label("Sammanfoga", systemImage: "wand.and.stars")
+                    Label(
+                        "Skapa panorama",
+                        systemImage: "rectangle.on.rectangle"
+                    )
                 }
                 .disabled(!model.canStitch)
+                .help(
+                    "Rendera med exakt de kontrollpunkter som finns nu"
+                )
+
+                Button {
+                    model.runWizard()
+                } label: {
+                    Label("Börja om automatiskt", systemImage: "wand.and.stars")
+                }
+                .disabled(!model.canStitch)
+                .help(
+                    "Radera gamla kontrollpunkter och skapa, optimera och "
+                        + "rendera allt från grunden"
+                )
 
                 if model.selectedSourceImage != nil {
                     Menu {
@@ -232,7 +220,7 @@ struct ContentView: View {
                     .disabled(model.sourceImageZoom >= 8)
                     .keyboardShortcut("+", modifiers: .command)
 
-                    if model.selectedSourceImage?.role == .alignment {
+                    if model.selectedImageSupportsControlPoints {
                         Picker("Masktyp", selection: $model.maskKind) {
                             Label("Göm i panorama", systemImage: "eye.slash")
                                 .tag(AppModel.MaskKind.panorama)
@@ -267,10 +255,25 @@ struct ContentView: View {
                     .pickerStyle(.segmented)
                     .frame(width: 190)
 
-                    Slider(value: $model.brushDiameter, in: 8...240) {
-                        Text("Penselstorlek")
+                    if model.selectedImageSupportsCircleMask {
+                        Picker("Maskform", selection: $model.sourceMaskTool) {
+                            Label("Frihand", systemImage: "paintbrush.pointed")
+                                .tag(SourceMaskTool.brush)
+                            Label("Cirkel", systemImage: "circle")
+                                .tag(SourceMaskTool.circle)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 170)
+                        .help("Välj frihandsmask eller en perfekt cirkel")
                     }
-                    .frame(width: 120)
+
+                    if !model.selectedImageSupportsCircleMask
+                        || model.sourceMaskTool == .brush {
+                        Slider(value: $model.brushDiameter, in: 8...240) {
+                            Text("Penselstorlek")
+                        }
+                        .frame(width: 120)
+                    }
 
                     Button {
                         model.undoMask()
@@ -310,6 +313,14 @@ struct ContentView: View {
                     )
                     .help("Ta bort hela masken; åtgärden kan ångras")
 
+                    Button(role: .destructive) {
+                        model.removeSelectedSourceImage()
+                    } label: {
+                        Label("Ta bort källbild", systemImage: "trash")
+                    }
+                    .keyboardShortcut(.delete, modifiers: [])
+                    .help("Ta bort bilden och dess kontrollpunkter")
+
                     if model.selectedSourceImage?.role == .fillOnly,
                        model.stitchedResultURL != nil {
                         Button {
@@ -341,16 +352,10 @@ struct ContentView: View {
                                 Button("Justera zenit") {
                                     model.beginRepairAdjustment(.zenith)
                                 }
-                                Button("Anpassa zenit mot ringen…") {
-                                    model.beginPoleControlPointAlignment(.zenith)
-                                }
                             }
                             if model.nadirOverlayURL != nil {
                                 Button("Justera nadir") {
                                     model.beginRepairAdjustment(.nadir)
-                                }
-                                Button("Anpassa nadir mot ringen…") {
-                                    model.beginPoleControlPointAlignment(.nadir)
                                 }
                             }
                         } label: {
@@ -522,7 +527,7 @@ private struct CreatePanoramaView: View {
             .frame(maxWidth: 480)
 
             Button {
-                model.stitch()
+                model.runWizard()
             } label: {
                 Label("Skapa panorama", systemImage: "wand.and.stars")
                     .padding(.horizontal, 8)

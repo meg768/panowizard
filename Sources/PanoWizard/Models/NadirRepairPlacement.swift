@@ -45,31 +45,38 @@ struct NadirRepairPlacement: Codable, Equatable, Sendable {
     var localHomography: [Double]
     let matchedFeatureCount: Int
     let localViewFieldOfView: Double
+    /// The optimized source-lens HFOV used to defish this repair image.
+    var sourceHorizontalFieldOfView: Double?
     /// Normalized x, y, width and height of non-transparent overlay pixels.
     var contentBounds: [Double]?
     var manualAdjustment: NadirRepairAdjustment?
     var blendedPreview: Bool?
     var controlPoints: [DiagnosticControlPoint]?
+    var sphericalProjection: Bool?
 
     init(
         imageID: UUID,
         localHomography: [Double],
         matchedFeatureCount: Int,
         localViewFieldOfView: Double,
+        sourceHorizontalFieldOfView: Double? = nil,
         contentBounds: [Double]? = nil,
         manualAdjustment: NadirRepairAdjustment? = nil,
         blendedPreview: Bool? = nil,
-        controlPoints: [DiagnosticControlPoint]? = nil
+        controlPoints: [DiagnosticControlPoint]? = nil,
+        sphericalProjection: Bool? = nil
     ) {
         precondition(localHomography.count == 9)
         self.imageID = imageID
         self.localHomography = localHomography
         self.matchedFeatureCount = matchedFeatureCount
         self.localViewFieldOfView = localViewFieldOfView
+        self.sourceHorizontalFieldOfView = sourceHorizontalFieldOfView
         self.contentBounds = contentBounds
         self.manualAdjustment = manualAdjustment
         self.blendedPreview = blendedPreview
         self.controlPoints = controlPoints
+        self.sphericalProjection = sphericalProjection
     }
 
     var isBlendedPreview: Bool {

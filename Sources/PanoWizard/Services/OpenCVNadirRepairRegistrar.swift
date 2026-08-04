@@ -15,6 +15,150 @@ struct PoleControlPointWorkspace: Sendable {
 }
 
 enum OpenCVNadirRepairRegistrar {
+    static func extractPoleOverlay(
+        from equirectangularLayer: URL,
+        pole: PanoramaPole,
+        outputURL: URL
+    ) throws {
+        var errorMessage: UnsafeMutablePointer<CChar>?
+        let succeeded = equirectangularLayer.path.withCString { layerPath in
+            outputURL.path.withCString { outputPath in
+                PWExtractPoleOverlay(
+                    layerPath,
+                    pole.pitchDegrees,
+                    outputPath,
+                    &errorMessage
+                )
+            }
+        }
+        defer { PWFreeString(errorMessage) }
+        guard succeeded != 0 else {
+            throw PanoramaEngineError.stitchingFailed(
+                errorMessage.map { String(cString: $0) }
+                    ?? "Hugins pollager kunde inte projiceras."
+            )
+        }
+    }
+
+    static func warpPoleOverlay(
+        at sourceURL: URL,
+        using placement: NadirRepairPlacement,
+        outputURL: URL
+    ) throws {
+        var registration = cRegistration(from: placement)
+        var errorMessage: UnsafeMutablePointer<CChar>?
+        let succeeded = sourceURL.path.withCString { sourcePath in
+            outputURL.path.withCString { outputPath in
+                PWWarpPoleOverlay(
+                    sourcePath,
+                    &registration,
+                    outputPath,
+                    &errorMessage
+                )
+            }
+        }
+        defer { PWFreeString(errorMessage) }
+        guard succeeded != 0 else {
+            throw PanoramaEngineError.stitchingFailed(
+                errorMessage.map { String(cString: $0) }
+                    ?? "Polbildens perspektiv kunde inte justeras."
+            )
+        }
+    }
+    static func localRepairCoordinate(
+        _ point: CGPoint,
+        image: SourceImage,
+        horizontalFieldOfView: Double
+    ) -> CGPoint? {
+        let size = orientedPixelSize(of: image)
+        let equisolidProjection = horizontalFieldOfView < 110
+        let sourceCenter = CGPoint(
+            x: size.width / 2 + (equisolidProjection ? 4.19324585683399 : 0),
+            y: size.height / 2 + (equisolidProjection ? -1.00751194420142 : 0)
+        )
+        let dx = point.x - sourceCenter.x
+        let dy = point.y - sourceCenter.y
+        let radius = hypot(dx, dy)
+        let fishFocal = equisolidProjection
+            ? (size.width / 2)
+                / (2 * sin(horizontalFieldOfView / 4 * .pi / 180))
+            : (size.width / 2)
+                / (horizontalFieldOfView / 2 * .pi / 180)
+        let angle: Double
+        if equisolidProjection {
+            let a = -0.0252155339841942
+            let b = 0.0605540979849503
+            let c = -0.055438892095899
+            let constant = 1 - a - b - c
+            var idealRadius = radius
+            for _ in 0..<12 {
+                let q = idealRadius / (size.width / 2)
+                let factor = a * q * q * q + b * q * q + c * q + constant
+                guard abs(factor) > 1e-8 else { return nil }
+                idealRadius = radius / factor
+            }
+            let normalizedRadius = idealRadius / (2 * fishFocal)
+            guard normalizedRadius <= 1 else { return nil }
+            angle = 2 * asin(normalizedRadius)
+        } else {
+            angle = radius / fishFocal
+        }
+        guard angle < .pi / 2 else { return nil }
+        let localCenter = 800.0
+        let rectilinearFocal = localCenter / tan(60 * .pi / 180)
+        guard radius > 1e-7 else {
+            return CGPoint(x: localCenter, y: localCenter)
+        }
+        let localRadius = rectilinearFocal * tan(angle)
+        return CGPoint(
+            x: localCenter + localRadius * dx / radius,
+            y: localCenter + localRadius * dy / radius
+        )
+    }
+
+    static func localPoleCoordinate(
+        panoramaPoint: CGPoint,
+        panoramaSize: CGSize,
+        pole: PanoramaPole
+    ) -> CGPoint? {
+        let longitude = panoramaPoint.x / panoramaSize.width * 2 * .pi - .pi
+        let latitude = .pi / 2 - panoramaPoint.y / panoramaSize.height * .pi
+        let worldX = sin(longitude) * cos(latitude)
+        let worldY = -sin(latitude)
+        let worldZ = cos(longitude) * cos(latitude)
+        let pitch = pole.pitchDegrees * .pi / 180
+        let cameraX = worldX
+        let cameraY = cos(pitch) * worldY + sin(pitch) * worldZ
+        let cameraZ = -sin(pitch) * worldY + cos(pitch) * worldZ
+        guard cameraZ > 1e-7 else { return nil }
+        let center = 800.0
+        let focal = center / tan(60 * .pi / 180)
+        return CGPoint(
+            x: center + focal * cameraX / cameraZ,
+            y: center + focal * cameraY / cameraZ
+        )
+    }
+
+    private static func orientedPixelSize(of image: SourceImage) -> CGSize {
+        guard let source = CGImageSourceCreateWithURL(image.url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(
+                  source, 0, nil
+              ) as? [CFString: Any],
+              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?
+                  .doubleValue,
+              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?
+                  .doubleValue else {
+            return CGSize(width: image.pixelWidth, height: image.pixelHeight)
+        }
+        let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?
+            .uint32Value
+        if orientation == 5 || orientation == 6
+            || orientation == 7 || orientation == 8 {
+            return CGSize(width: height, height: width)
+        }
+        return CGSize(width: width, height: height)
+    }
+
     static func controlPointWorkspace(
         panoramaURL: URL,
         repairImage: SourceImage,
@@ -133,6 +277,55 @@ enum OpenCVNadirRepairRegistrar {
         }
         return (updated, updated.controlPoints ?? [])
     }
+
+    static func coarseSimilarityPlacement(
+        bySolving points: [DiagnosticControlPoint],
+        from placement: NadirRepairPlacement
+    ) throws -> (NadirRepairPlacement, [DiagnosticControlPoint]) {
+        var cPoints = points.map {
+            PWControlPoint(
+                firstImage: 0,
+                secondImage: 1,
+                firstX: $0.firstX,
+                firstY: $0.firstY,
+                secondX: $0.secondX,
+                secondY: $0.secondY
+            )
+        }
+        var registration = PWNadirRegistration()
+        var errors = [Double](repeating: 0, count: points.count)
+        var errorMessage: UnsafeMutablePointer<CChar>?
+        let succeeded = cPoints.withUnsafeMutableBufferPointer { buffer in
+            errors.withUnsafeMutableBufferPointer { errorBuffer in
+                PWSolvePoleSimilarity(
+                    buffer.baseAddress,
+                    Int32(buffer.count),
+                    &registration,
+                    errorBuffer.baseAddress,
+                    &errorMessage
+                )
+            }
+        }
+        defer { PWFreeString(errorMessage) }
+        guard succeeded != 0 else {
+            throw PanoramaEngineError.stitchingFailed(
+                errorMessage.map { String(cString: $0) }
+                    ?? "Polbildens grova skala kunde inte bestämmas."
+            )
+        }
+        var updated = placement
+        updated.localHomography = [
+            registration.h00, registration.h01, registration.h02,
+            registration.h10, registration.h11, registration.h12,
+            registration.h20, registration.h21, registration.h22
+        ]
+        updated.controlPoints = zip(points, errors).map { point, error in
+            var point = point
+            point.error = error
+            return point
+        }
+        return (updated, updated.controlPoints ?? [])
+    }
     static func register(
         panoramaURL: URL,
         repairImage: SourceImage,
@@ -207,8 +400,70 @@ enum OpenCVNadirRepairRegistrar {
                 localHomography: homography,
                 matchedFeatureCount: Int(registration.matchedFeatureCount),
                 localViewFieldOfView: registration.localViewFieldOfView,
+                sourceHorizontalFieldOfView: horizontalFieldOfView,
                 contentBounds: alphaContentBounds(at: outputURL)
             )
+        )
+    }
+
+    static func refine(
+        panoramaURL: URL,
+        repairImage: SourceImage,
+        exclusionMaskData: Data?,
+        horizontalFieldOfView: Double,
+        pole: PanoramaPole,
+        initialPlacement: NadirRepairPlacement,
+        outputURL: URL
+    ) throws -> NadirRepairRegistrationResult {
+        let (repairImage, decodedURL) = try decodedWorkingCopy(
+            of: repairImage,
+            beside: outputURL
+        )
+        defer { if let decodedURL { try? FileManager.default.removeItem(at: decodedURL) } }
+        let maskURL = try temporaryMaskURL(
+            for: exclusionMaskData,
+            beside: outputURL
+        )
+        defer { if let maskURL { try? FileManager.default.removeItem(at: maskURL) } }
+        var initial = cRegistration(from: initialPlacement)
+        var refined = PWNadirRegistration()
+        var errorMessage: UnsafeMutablePointer<CChar>?
+        let succeeded = panoramaURL.path.withCString { panoramaPath in
+            repairImage.url.path.withCString { repairPath in
+                (maskURL?.path ?? "").withCString { maskPath in
+                    outputURL.path.withCString { outputPath in
+                        PWRefineNadirRepair(
+                            panoramaPath, repairPath, maskPath,
+                            horizontalFieldOfView, pole.pitchDegrees,
+                            &initial, outputPath, &refined, &errorMessage
+                        )
+                    }
+                }
+            }
+        }
+        defer { PWFreeString(errorMessage) }
+        guard succeeded != 0 else {
+            throw PanoramaEngineError.stitchingFailed(
+                errorMessage.map { String(cString: $0) }
+                    ?? "Polbilden kunde inte finjusteras från kontrollpunkterna."
+            )
+        }
+        let placement = NadirRepairPlacement(
+            imageID: initialPlacement.imageID,
+            localHomography: [
+                refined.h00, refined.h01, refined.h02,
+                refined.h10, refined.h11, refined.h12,
+                refined.h20, refined.h21, refined.h22
+            ],
+            matchedFeatureCount: Int(refined.matchedFeatureCount),
+            localViewFieldOfView: initialPlacement.localViewFieldOfView,
+            contentBounds: initialPlacement.contentBounds,
+            manualAdjustment: .identity,
+            blendedPreview: false
+        )
+        return NadirRepairRegistrationResult(
+            overlayURL: outputURL,
+            placement: placement
         )
     }
 

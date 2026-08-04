@@ -21,6 +21,7 @@ struct StatusBar: View {
 
             Text(model.phase.message)
                 .lineLimit(1)
+                .help(model.phase.message)
 
             Spacer()
 

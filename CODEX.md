@@ -1,5 +1,265 @@
 # PanoWizard – aktuell projektkontext
 
+## Produktordning efter Panorama F
+
+Användaren skrev ursprungliga PanoWizard för Windows 2006; den nuvarande
+macOS-appen är den uttryckliga uppföljaren. Produktmålet är systemkamerans
+bildkvalitet och kontroll med ett arbetsflöde som så småningom närmar sig
+moderna ettklickskameror.
+
+Arbetsordningen är beslutad och ska hållas strikt:
+
+1. Slutför mardrömspanorama F. Trollstaven ska från ett helt nytt projekt
+   reproducera `I.pw` utan manuella eller ärvda CP.
+2. Testa den kommande 360 Precision Atome för Sigma 8 mm på stativ. Verifiera
+   att den borttagna handhållna parallaxen ger stabil, upprepningsbar automatik.
+3. Jämför Sigma 8 mm och Nikkor 10,5 mm avseende detalj, antal riktningar,
+   sömmar, projektion och automatisk reproducerbarhet.
+4. Först därefter byggs lekfulla/sekundära funktioner.
+
+Planerade senare funktioner, inte aktuella innan 1–3 fungerar:
+
+- Kubexport till sex förlustfria bilder: front, höger, bak, vänster, zenit och
+  nadir. Syftet är att kunna retuschera den plana nadirbilden i Photoshop.
+- Återimport av retuscherad nadirkubsida och exakt återprojektion utan att
+  bygga om resten av panoramat.
+- Little Planet/stereografisk export med rotation, centrum och planetstorlek.
+
+Användarens formulering sammanfattar prioriteringen: en sak i taget – först
+mardrömspanorama, sedan stativ, därefter kan vi leka.
+
+## Förtydligande 2026-08-03 kl. 23:20 – reproducerbarhet
+
+Användaren skapade ett helt nytt projekt med samma nio F-bilder och klickade
+på trollstaven. Automatiken stoppade korrekt med meddelandet:
+`Ringen saknar kontrollpunkter mellan bildgrupp 4 och 5.` Detta bekräftar att
+ett nytt projekt ännu inte reproducerar `I.pw` autonomt.
+
+`I.pw` är fortsatt den enda visuellt lyckade referensen. För samma bilder kan
+man duplicera I, behålla dess 442 CP och använda vanliga `Skapa panorama`.
+Man ska inte klicka trollstaven i kopian, eftersom den ersätter punktnätet.
+
+Viktigt: försöken M–S skapades genom att kopiera I som testskal. När de
+automatiska körningarna misslyckades låg I:s gamla `panorama/result.jpg` och
+442 CP kvar i paketen. Att M–S ser lika bra ut är därför inte bevis på
+reproducerbarhet; de är missvisande ärvda resultat. Använd dem inte som
+referenser. Överväg att rensa dem kontrollerat nästa gång efter användarens
+godkännande och använd beskrivande testnamn i stället för alfabetet.
+
+Den återstående nyckeln är CP-generatorn, inte en ny panoramamotor. Koden har
+redan ändrats för exaktare Sigma-projektion, optiskt centrum och tätare nät,
+men den autonoma generatorn behöver:
+
+1. identifiera saknade övergångar mellan verkliga vygrupper,
+2. göra en riktad maskmedveten all-pairs-sökning mellan just de grupperna,
+3. globalt validera och rensa kandidaterna,
+4. optimera om från nominella kamerariktningar, aldrig från kollapsad geometri,
+5. underkänna lösningar med orimlig FOV/pose eller utan faktisk duk­täckning,
+6. bevisa resultatet genom ett helt nytt projekt utan CP eller cachad panorama.
+
+Slutkriteriet är uttryckligt: trollstaven ska från ett tomt projekt med de nio
+original-TIFF-filerna skapa ett resultat i nivå med I. Fram till dess behövs
+fortfarande handpåläggning i CP-generatorns kod.
+
+## Avslutande läge 2026-08-03 kl. 23:15 – Panorama F
+
+Panorama F (`/Users/magnus/Desktop/Panorama/F`) är fortfarande projektets
+viktigaste mardrömstest: nio stående Sigma 8 mm/DX-bilder, fyra verkliga
+kamerariktningar med dubbelexponeringar, mycket rörliga personer och en
+regelbunden stenläggning som avslöjar små projektions- och sömfel.
+
+Det bästa resultatet är `I.pw`. Det är visuellt mycket nära, och enligt
+användaren nästan bättre än, PTGui-referensen. Stenläggningen är betydligt
+jämnare än i tidigare A–H, den svarta Enblend-fliken vid nadir försvann och
+lagerurvalet blev renare. Nadir- och zenithålen är avsiktliga och ska inte
+fyllas.
+
+I använder 442 egna kontrollpunkter över 25 bildpar. Medelfelet är cirka
+0,865 px och 90-percentilen cirka 1,555 px. Inga PTGui-kontrollpunkter har
+kopierats. PTGui-projektet `Panorama.pts` användes endast för att förstå
+modellen: 565 CP över 26 par, fisheye-faktor -0,526971, optimerat optiskt
+centrum och multibandssöm över alla nio lager.
+
+Följande förbättringar finns nu permanent i koden:
+
+- Sigma-källor förwarpas från PTGuis generella fisheye-faktor -0,526971 till
+  Hugins equisolidmodell -0,5. Kontrollpunktskoordinater transformeras fram
+  och tillbaka så editorn fortfarande använder originalbildens koordinater.
+- OpenCV-bryggan har `PWWarpFisheyeFactor`; punkttransformationen har ett
+  roundtrip-regressionstest.
+- Sigma-linsförfiningen optimerar även optiskt centrum `d/e` utöver FOV och
+  `a/b/c`.
+- Sigma-vägen behåller ett redundant tätt CP-nät i stället för att alltid
+  reducera det till en minimal ringryggrad.
+- Ett nytt rått all-pairs-SIFT/homografi/RANSAC-förstapass finns för att
+  upptäcka dubbelexponeringar och överlapp utan antagandet att nio filer är
+  nio jämnt fördelade kamerariktningar.
+- Global residualrensning kan starta om Sigma-optimeringen från nominella
+  riktningar, och CP-jämförelser tolererar Hugins avrundning.
+
+Viktig begränsning: trollstaven reproducerar ännu inte I autonomt från ett
+helt nytt projekt. Flera rena noll-CP-försök (J–S) hittade mer av nätet men
+kunde fortfarande ge en numeriskt giltig, geometriskt kollapsad lösning,
+sakna en ringövergång eller få alla lager utanför renderingsduken. I:s 442 CP
+kommer från den interaktiva kedjan: 566 egna råa kandidater, en första
+kollapsad optimering, global felmätning, filtrering och en ny optimering från
+scratch. Projektion och optimering är alltså kodade; det återstår att ersätta
+den sista visuella/plausibilitetsbedömningen med deterministisk kod.
+
+Nästa steg ska vara:
+
+1. Lägg till en explicit plausibilitetskontroll efter varje Sigma-lösning:
+   fyra riktningar runt 360°, rimlig FOV/lins, begränsad pitch/roll, faktisk
+   bildtäckning på 4000×2000-duken och CP-förbindelse mellan varje vygrupp.
+2. Om lösningen underkänns: återstarta från ursprungliga nominella riktningar
+   med nästa robusta CP-urval, inte från den kollapsade PTO-geometrin.
+3. Bevisa autonomin genom att skapa ett helt nytt `.pw` från de nio TIFF-filerna,
+   utan CP från I, klicka `Börja om automatiskt` och visuellt jämföra samma
+   stenläggningsvy mot I och PTGui.
+4. Först när det testet håller får man säga att trollstaven reproducerar I.
+
+Ordinarie testsvit passerar med 27 tester och `git diff --check` är ren.
+Den signerade app som byggdes före de sista autonoma CP-experimenten finns i
+`build/PanoWizard.app`; bygg om efter nästa kodpass innan appverifiering.
+
+## Aktiv kontext 2026-08-03 kl. 03:00
+
+Arbeta i `/Users/magnus/Documents/GitHub/panowizard` på branch
+`codex/restart`. Arbetskopian innehåller stora avsiktliga ändringar och får
+inte återställas destruktivt. Efter ändringar: kör `swift test`,
+`git diff --check`, `./Scripts/build-app.sh` och verifiera appen i
+`build/PanoWizard.app`. För närvarande passerar 25 tester.
+
+### Aktuellt testprojekt F
+
+Projektet är `/Users/magnus/Desktop/Panorama/F/Panorama.pw` med nio stående
+Sigma 8 mm/DX-ringbilder. Inga PTGui-punkter får användas. Materialet består
+av fyra verkliga handhållna kamerariktningar med dubbelexponeringar. Orange
+CP-masker finns på alla nio bilder och ska utesluta rörliga personer från
+punktmatchningen.
+
+Senaste goda ringresultatet krävde manuella CP över den saknade övergången
+mellan bildgrupperna 3–4 och 5–6. Utan den övergången drev vinkeln till cirka
+100° och samma blå bod och flaggstång projicerades två gånger. Motorn stoppar
+nu rendering om en övergång mellan verkliga ringvyer helt saknar CP och anger
+vilka bildgrupper som behöver kompletteras.
+
+Ringen är därefter visuellt betydligt bättre. Återstående kända brist är
+polblandningen: urvalet av en representant per dubbelexponerad riktning är bra
+mot dubbla människor vid horisonten, men kastar bort alternativa lager som
+PTGui använder för ren stenläggning vid nadir/zenit. Resultatet kan därför få
+ett litet svart hål vid nadir trots att PTGui klarar samma nio ringbilder utan
+reparationsbild. Rätt framtida lösning är polspecifikt lagerurval/blandning:
+representanter vid horisonten, alternativa exponeringar nära polerna.
+Nadirreparation ska vara valfri retuschering, inte ett krav för grundtäckning.
+
+### Fastslaget arbetsflöde
+
+- Kontrollpunkter tillåts endast mellan horisontella ringbilder. Nadir och
+  zenit med rollen Reparation får inga CP och grovplaceras med OpenCV mot det
+  frysta ringpanoramat.
+- Orange CP-mask påverkar både nya förslag och giltigheten hos den befintliga
+  punktlösningen. Projektet sparar en SHA-256-signatur av CP-maskerna. Ändras
+  maskerna ogiltigförklaras hela gamla CP-nätet; ett nytt sammanhängande nät
+  skapas från scratch. Enstaka maskerade CP får inte bara plockas bort eftersom
+  det gav ett glest, kollapsat nät.
+- Trollstaven heter `Börja om automatiskt`: ersätter alla CP, genererar nya
+  med aktuella masker, optimerar och renderar.
+- Den separata mittenknappen `Skapa panorama` (lagerikon) renderar med exakt
+  nuvarande/redigerade CP utan att generera om dem.
+- `Föreslå punkter…` kompletterar befintliga CP lokalt eller i projektet;
+  `Optimera` använder exakt nuvarande CP.
+- CP-fellistan sorteras fallande på pixelfel men behåller ursprungligt nummer
+  och färg så markörerna fortfarande motsvarar bilderna.
+
+### Bildborttagning
+
+Delete eller `Ta bort källbild` tar bort vald bild och endast CP som berör
+den. Övriga CP bevaras och bildindex räknas om. Masker, placeringar, cachad
+rigg och inaktuella panoramaresultat rensas. Pågående stitchresultat har en
+operationsidentitet och får inte skriva tillbaka efter att en bild raderats.
+En tidigare crash vid tom nadir/zenitplacering och samtidig borttagning är
+fixad; inga optional-värden tvångsuppackas där längre.
+
+### Masker och poler
+
+Källmasker har frihand och fylld cirkel för nadir/zenit; ingen ellips.
+Rektangel med skarpa hörn är en senare idé, inte implementerad. Sigma/Nikkor
+poldefish använder optimerad ring-HFOV via
+`NadirRepairPlacement.sourceHorizontalFieldOfView`; stående/liggande
+sensoraxlar hanteras. Valfri manuell poljustering har flytt, rotation, skala
+20–800 % och hörnperspektiv.
+
+### Diskutrymmesbugg
+
+Varje stitch lämnade tidigare hela arbetsmappen med warpade TIFF-lager kvar i
+`.../T/PanoWizard/Stitches`. Det hade vuxit till 75 GB. Äldre övergivna
+mappar raderades 2026-08-03; endast senaste aktiva mappen (cirka 275 MB)
+behölls och total PanoWizard-temp sjönk från 76 GB till 1,4 GB. Motorn har nu
+`defer`-rensning av arbetsmappen och kopierar endast slutpanorama samt
+eventuella polöverlägg till `PanoWizard/Results/<UUID>` före retur. Ingen
+källbild eller `.pw`-fil raderades. `PanoWizard/Repairs` är fortfarande cirka
+1 GB med många gamla PNG-förhandsvisningar och bör saneras i den planerade
+cleanup-rundan.
+
+### Senare cleanup
+
+När funktionerna är stabila vill användaren uttryckligen rensa ut överlappande
+kod och gamla specialfall. Prioritera först korrekt beteende och verklig
+visuell verifiering; gör sedan en separat, kontrollerad saneringsrunda.
+
+## Produktbeslut 2026-08-02 kl. 20:40
+
+Kontrollpunkter tillåts endast mellan horisontella positioneringsbilder i
+ringen. Nadir och zenit med rollen Reparation får inte öppnas i CP-editorn,
+får inga punktförslag och påverkas inte av CP-optimeringen. Punkter som berör
+en polbild rensas ur projektmodellen; ringens punkter lämnas orörda.
+
+Polbilder grovplaceras enbart med den tidigare fungerande OpenCV-registreringen
+mot det frysta panoramat. Finjustering ska ske visuellt med flytt, rotation,
+skala och hörn/perspektiv. Ingen bakåtkompatibilitet för det borttagna
+pol-CP-arbetsflödet behövs. Planerade men inte implementerade maskverktyg är
+frihand, cirkel (inte ellips) och rektangel med skarpa hörn.
+
+## Avslutande läge 2026-08-02 kl. 01:30
+
+Projekt J finns i `/Users/magnus/Desktop/Panorama/J/Panorama.pw`. Den
+horisontella sexbildsringen är nu visuellt perfekt med autogenererade
+kontrollpunkter och ska betraktas som färdig. Reparationspunkter får aldrig
+påverka denna ring.
+
+CP-editorn visar de verkliga valda källbilderna och behandlar horisontella,
+nadir och zenit lika. Reparations-CP sparas och används endast som ledtråd för
+hur den handhållna polbilden ska ligga. Markörer, lupp och koordinater följer
+bildrotationen. En projicerad motpunkt som hamnar utanför bilden placeras i
+mitten så att den alltid går att flytta.
+
+Den nya polkedjan använder Hugins kalibrerade `f21`-projektion även för
+reparationsbilderna, fryser ringen och optimerar polens yaw/pitch/roll från CP.
+Liggande nadir får eget HFOV beräknat från samma kalibrerade brännvidd som de
+stående ringbilderna. Källans användarmask avgör ensam vilken reparationsyta
+som används; ingen automatisk cirkel- eller feather-mask får läggas ovanpå.
+
+Både nadir och zenit är handhållna från en annan kameraposition. Därför räcker
+inte enbart sfärisk yaw/pitch/roll: efter Hugin-projektionen görs en lokal
+CP-baserad perspektiv-/skaljustering. Första fulla homografiförsöket blev
+degenererat för nadir: endast fyra av sju lokalt användbara punkter blev
+inliers, projektiv horisont korsade patchen och en jättelik skev matta
+skapades. Detta är nu spärrat genom krav på minst 65 % inliers och kontroll av
+den homogena nämnaren i alla fyra hörn. Vid instabil homografi används en
+sexparameters affine-modell som säker reserv. Denna senaste stabilisering är
+byggd, signerad och startad men ännu inte visuellt verifierad efter ett nytt
+klick på trollstaven.
+
+Projekt J kan fortfarande innehålla den senast sparade, degenererade
+nadirplaceringen från körningen före spärren. Ett nytt trollstavsklick med den
+senaste appen ska ersätta den. Ändra inte J:s masker eller manuella
+justeringar direkt i projektfilen utan uttrycklig begäran.
+
+Aktuell app finns i `build/PanoWizard.app`. Alla 22 tester passerar. Nästa pass
+ska fokusera uteslutande på att visuellt verifiera och förbättra automatisk
+nadir/zenitplacering; ringgeometrin ska lämnas orörd.
+
 ## Avslutande läge 2026-08-01
 
 Projekt I fungerar nu mycket bra med en fryst horisontell ring samt valfria,

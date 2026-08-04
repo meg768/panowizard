@@ -8,6 +8,11 @@ struct MaskPoint: Equatable, Sendable {
     var y: CGFloat
 }
 
+enum SourceMaskTool: Hashable, Sendable {
+    case brush
+    case circle
+}
+
 enum SourceMaskRasterizer {
     struct ExclusionMap: Sendable {
         let width: Int
@@ -136,6 +141,69 @@ enum SourceMaskRasterizer {
             points.dropFirst().forEach { context.addLine(to: $0) }
             context.strokePath()
         }
+
+        guard let image = context.makeImage() else { return existingData }
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else {
+            return existingData
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { return existingData }
+        return data as Data
+    }
+
+    static func applyingCircle(
+        center: MaskPoint,
+        radius: CGFloat,
+        erasing: Bool,
+        controlPointExclusion: Bool = false,
+        to existingData: Data?,
+        width: Int,
+        height: Int
+    ) -> Data? {
+        guard width > 0, height > 0, radius > 0 else { return existingData }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return existingData
+        }
+
+        let canvas = CGRect(x: 0, y: 0, width: width, height: height)
+        context.clear(canvas)
+        if let existingData,
+           let source = CGImageSourceCreateWithData(existingData as CFData, nil),
+           let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+            context.draw(image, in: canvas)
+        }
+
+        context.setBlendMode(erasing ? .clear : .normal)
+        let color = controlPointExclusion
+            ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
+            : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
+        context.setFillColor(color)
+        let sourceCenter = CGPoint(
+            x: center.x * CGFloat(width),
+            y: (1 - center.y) * CGFloat(height)
+        )
+        context.fillEllipse(in: CGRect(
+            x: sourceCenter.x - radius,
+            y: sourceCenter.y - radius,
+            width: radius * 2,
+            height: radius * 2
+        ))
 
         guard let image = context.makeImage() else { return existingData }
         let data = NSMutableData()

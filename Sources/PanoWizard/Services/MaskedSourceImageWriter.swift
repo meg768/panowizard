@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+import OpenCVBridge
 import UniformTypeIdentifiers
 
 enum MaskedSourceImageWriter {
@@ -21,6 +22,7 @@ enum MaskedSourceImageWriter {
         sourceURL: URL,
         maskData: Data?,
         clipsToFisheyeCircle: Bool,
+        sourceFisheyeFactor: Double? = nil,
         destinationURL: URL
     ) throws {
         guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
@@ -97,9 +99,19 @@ enum MaskedSourceImageWriter {
             context.draw(mask, in: bounds)
         }
 
+        let encodedDestination = sourceFisheyeFactor == nil
+            ? destinationURL
+            : destinationURL.deletingLastPathComponent().appending(
+                path: "unwarped-\(UUID().uuidString).tif"
+            )
+        defer {
+            if encodedDestination != destinationURL {
+                try? FileManager.default.removeItem(at: encodedDestination)
+            }
+        }
         guard let result = context.makeImage(),
               let destination = CGImageDestinationCreateWithURL(
-                destinationURL as CFURL,
+                encodedDestination as CFURL,
                 UTType.tiff.identifier as CFString,
                 1,
                 nil
@@ -113,6 +125,22 @@ enum MaskedSourceImageWriter {
         ] as CFDictionary)
         guard CGImageDestinationFinalize(destination) else {
             throw PanoramaEngineError.stitchingFailed("Maskbilden kunde inte sparas.")
+        }
+        if let sourceFisheyeFactor {
+            var errorPointer: UnsafeMutablePointer<CChar>?
+            let succeeded = PWWarpFisheyeFactor(
+                encodedDestination.path(percentEncoded: false),
+                destinationURL.path(percentEncoded: false),
+                sourceFisheyeFactor,
+                -0.5,
+                &errorPointer
+            )
+            defer { PWFreeString(errorPointer) }
+            guard succeeded != 0 else {
+                let message = errorPointer.map { String(cString: $0) }
+                    ?? "Fisheye-projektionen misslyckades."
+                throw PanoramaEngineError.stitchingFailed(message)
+            }
         }
     }
 

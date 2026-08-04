@@ -79,6 +79,18 @@ int PWRegisterNadirRepair(
     char **errorMessage
 );
 
+int PWRefineNadirRepair(
+    const char *panoramaPath,
+    const char *repairImagePath,
+    const char *repairExclusionMaskPath,
+    double horizontalFieldOfView,
+    double polePitchDegrees,
+    const PWNadirRegistration *initialRegistration,
+    const char *overlayOutputPath,
+    PWNadirRegistration *registration,
+    char **errorMessage
+);
+
 int PWGeneratePoleControlPoints(
     const char *panoramaPath,
     const char *repairImagePath,
@@ -99,12 +111,34 @@ int PWSolvePoleControlPoints(
     char **errorMessage
 );
 
+int PWSolvePoleSimilarity(
+    const PWControlPoint *controlPoints,
+    int controlPointCount,
+    PWNadirRegistration *registration,
+    double *errors,
+    char **errorMessage
+);
+
 int PWRenderNadirRepairOverlay(
     const char *repairImagePath,
     const char *repairExclusionMaskPath,
     double horizontalFieldOfView,
     const PWNadirRegistration *registration,
     const char *overlayOutputPath,
+    char **errorMessage
+);
+
+int PWExtractPoleOverlay(
+    const char *equirectangularLayerPath,
+    double polePitchDegrees,
+    const char *overlayOutputPath,
+    char **errorMessage
+);
+
+int PWWarpPoleOverlay(
+    const char *sourceOverlayPath,
+    const PWNadirRegistration *registration,
+    const char *outputOverlayPath,
     char **errorMessage
 );
 
@@ -129,6 +163,14 @@ int PWPrepareNadirRepairBlend(
 int PWFinishNadirRepairBlend(
     const char *blendedLocalPath,
     const char *overlayOutputPath,
+    char **errorMessage
+);
+
+int PWWarpFisheyeFactor(
+    const char *sourcePath,
+    const char *destinationPath,
+    double sourceFactor,
+    double destinationFactor,
     char **errorMessage
 );
 

@@ -88,8 +88,19 @@ struct HuginToolchain: Sendable {
         guard process.terminationStatus == 0 else {
             let data = (try? Data(contentsOf: logURL)) ?? Data()
             let output = String(decoding: data.suffix(4_000), as: UTF8.self)
+            let retainedLog = FileManager.default.temporaryDirectory
+                .appending(
+                    path: "PanoWizard/Logs",
+                    directoryHint: .isDirectory
+                )
+                .appending(path: "\(tool)-\(UUID().uuidString).log")
+            try? FileManager.default.createDirectory(
+                at: retainedLog.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try? data.write(to: retainedLog, options: .atomic)
             throw PanoramaEngineError.stitchingFailed(
-                "\(tool) misslyckades.\n\(output)"
+                "\(tool) misslyckades.\n\(output)\nLogg: \(retainedLog.path())"
             )
         }
     }
@@ -187,5 +198,57 @@ struct HuginToolchain: Sendable {
             }
             return hypot(horizontalDistance, first.1 - second.1)
         }
+    }
+
+    func panoramaCoordinates(
+        in project: URL,
+        points: [(image: Int, point: CGPoint)]
+    ) throws -> [CGPoint] {
+        guard !points.isEmpty else { return [] }
+        let executable = toolsDirectory.appending(path: "pano_trafo")
+        let input = points.map {
+            "\($0.image) \($0.point.x) \($0.point.y)"
+        }.joined(separator: "\n") + "\n"
+        let standardInput = Pipe()
+        let standardOutput = Pipe()
+        let standardError = Pipe()
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = [project.path(percentEncoded: false)]
+        process.standardInput = standardInput
+        process.standardOutput = standardOutput
+        process.standardError = standardError
+        var environment = ProcessInfo.processInfo.environment
+        environment["DYLD_LIBRARY_PATH"] =
+            librariesDirectory.path(percentEncoded: false)
+        environment["OMP_NUM_THREADS"] = "1"
+        process.environment = environment
+        try process.run()
+        standardInput.fileHandleForWriting.write(Data(input.utf8))
+        try standardInput.fileHandleForWriting.close()
+        let output = standardOutput.fileHandleForReading.readDataToEndOfFile()
+        let error = standardError.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw PanoramaEngineError.stitchingFailed(
+                "pano_trafo misslyckades.\n"
+                    + String(decoding: error, as: UTF8.self)
+            )
+        }
+        let result = String(decoding: output, as: UTF8.self)
+            .split(whereSeparator: \.isNewline)
+            .compactMap { line -> CGPoint? in
+                let values = line.split(whereSeparator: \.isWhitespace)
+                guard values.count == 2,
+                      let x = Double(values[0]),
+                      let y = Double(values[1]) else { return nil }
+                return CGPoint(x: x, y: y)
+            }
+        guard result.count == points.count else {
+            throw PanoramaEngineError.stitchingFailed(
+                "Alla reparationspunkter kunde inte projiceras till panoramat."
+            )
+        }
+        return result
     }
 }

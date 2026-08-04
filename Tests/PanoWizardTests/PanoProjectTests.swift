@@ -3,6 +3,90 @@ import Testing
 @testable import PanoWizard
 
 struct PanoProjectTests {
+    @Test @MainActor
+    func controlPointMasksInvalidateExistingPointSolution() throws {
+        let images = (0..<2).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: 100,
+                pixelHeight: 100,
+                cameraModel: "Camera",
+                lens: LensDescription(
+                    model: "Fisheye",
+                    focalLengthIn35mm: 16,
+                    kind: .fisheye
+                )
+            )
+        }
+        let covered = DiagnosticControlPoint(
+            firstImage: 0, secondImage: 1,
+            firstX: 50, firstY: 50, secondX: 50, secondY: 50
+        )
+        let retained = DiagnosticControlPoint(
+            firstImage: 0, secondImage: 1,
+            firstX: 5, firstY: 5, secondX: 5, secondY: 5
+        )
+        let mask = try #require(SourceMaskRasterizer.applying(
+            stroke: [MaskPoint(x: 0.5, y: 0.5)],
+            radius: 8,
+            erasing: false,
+            controlPointExclusion: true,
+            to: nil,
+            width: 100,
+            height: 100
+        ))
+
+        let model = AppModel.live(
+            project: PanoProject(
+                images: images,
+                controlPoints: [covered, retained]
+            ),
+            controlPointMasks: [images[0].id: mask]
+        )
+
+        #expect(model.editableControlPoints.isEmpty)
+        #expect(model.project.controlPoints?.isEmpty == true)
+    }
+
+    @Test
+    func removingImageDropsConnectedPointsAndRemapsRemainingIndices() {
+        let images = (0..<4).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: 4_000,
+                pixelHeight: 6_000,
+                cameraModel: "Camera",
+                lens: LensDescription(
+                    model: "Fisheye",
+                    focalLengthIn35mm: 16,
+                    kind: .fisheye
+                )
+            )
+        }
+        let connected = DiagnosticControlPoint(
+            firstImage: 0, secondImage: 1,
+            firstX: 10, firstY: 20, secondX: 30, secondY: 40
+        )
+        let retained = DiagnosticControlPoint(
+            firstImage: 2, secondImage: 3,
+            firstX: 50, firstY: 60, secondX: 70, secondY: 80
+        )
+        var project = PanoProject(
+            images: images,
+            controlPoints: [connected, retained]
+        )
+
+        project.removeImage(at: 1)
+
+        #expect(project.images.map(\.id) == [images[0].id, images[2].id, images[3].id])
+        #expect(project.controlPoints?.count == 1)
+        #expect(project.controlPoints?.first?.id == retained.id)
+        #expect(project.controlPoints?.first?.firstImage == 1)
+        #expect(project.controlPoints?.first?.secondImage == 2)
+    }
+
     @Test
     func panoramaSeamIsCenteredBetweenRingImages() throws {
         let directory = FileManager.default.temporaryDirectory.appending(
@@ -65,6 +149,50 @@ struct PanoProjectTests {
         #expect(imageLines.allSatisfy { $0.contains(" f21 ") })
     }
 
+    @Test
+    func sigmaLensRefinementOptimizesOpticalCenter() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizardTests/\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        let source = directory.appending(path: "source.pto")
+        let destination = directory.appending(path: "destination.pto")
+        try """
+        # hugin project file
+        i w2600 h3888 f21 v165.38 r0 p0 y0 a0 b0 c0 d0 e0 n"one.tif"
+        i w2600 h3888 f21 v=0 r0 p0 y90 a=0 b=0 c=0 d=0 e=0 n"two.tif"
+        v
+        # control points
+        """.write(to: source, atomically: true, encoding: .utf8)
+
+        try HuginProjectFile.configuringSigmaLensRefinement(
+            from: source,
+            to: destination
+        )
+
+        let contents = try String(contentsOf: destination, encoding: .utf8)
+        #expect(contents.contains("v d0"))
+        #expect(contents.contains("v e0"))
+    }
+
+    @Test
+    func sigmaFisheyeFactorPointMappingRoundTrips() {
+        let mapped = HuginOpenCVPanoramaEngine.remappingFisheyePoint(
+            x: 900, y: 700, width: 2_600, height: 3_888,
+            sourceFactor: -0.526971, destinationFactor: -0.5
+        )
+        let restored = HuginOpenCVPanoramaEngine.remappingFisheyePoint(
+            x: mapped.0, y: mapped.1, width: 2_600, height: 3_888,
+            sourceFactor: -0.5, destinationFactor: -0.526971
+        )
+        #expect(abs(restored.0 - 900) < 0.000_001)
+        #expect(abs(restored.1 - 700) < 0.000_001)
+    }
+
     @Test @MainActor
     func sourceSelectionUsesShiftClickForRightControlPointImage() {
         let images = (0..<3).map { index in
@@ -101,6 +229,142 @@ struct PanoProjectTests {
         #expect(model.selection == .source(images[2].id))
         #expect(model.mainSourceImageID == images[2].id)
         #expect(model.rightSourceImageID == nil)
+    }
+
+    @Test @MainActor
+    func poleImagesCannotUseTheControlPointEditor() {
+        let lens = LensDescription(
+            model: "Fisheye",
+            focalLengthIn35mm: 16,
+            kind: .fisheye
+        )
+        let directions: [SourceImage.Direction] = [
+            .horizontal, .horizontal, .nadir, .zenith
+        ]
+        let images = directions.enumerated().map { index, direction in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/panorama/\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: 4_000,
+                pixelHeight: 6_000,
+                cameraModel: "Camera",
+                lens: lens,
+                direction: direction,
+                role: .alignment
+            )
+        }
+        let model = AppModel.live(project: PanoProject(images: images))
+
+        model.selectSourceImage(images[1].id, asRightImage: false)
+        model.selectSourceImage(images[2].id, asRightImage: true)
+        #expect(model.selection == .source(images[1].id))
+        #expect(model.mainSourceImageID == images[1].id)
+        #expect(model.rightSourceImageID == nil)
+
+        model.selectSourceImage(images[3].id, asRightImage: true)
+        #expect(model.mainSourceImageID == images[1].id)
+        #expect(model.editableControlPoints.isEmpty)
+        #expect(model.project.controlPoints == nil)
+    }
+
+    @Test @MainActor
+    func fillOnlyRepairsCannotUseTheControlPointEditor() {
+        let lens = LensDescription(
+            model: "Fisheye",
+            focalLengthIn35mm: 16,
+            kind: .fisheye
+        )
+        let images = (0..<8).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/DSC_\(index).JPG"),
+                captureDate: nil,
+                pixelWidth: 6_000,
+                pixelHeight: 4_000,
+                cameraModel: "Camera",
+                lens: lens,
+                direction: index == 6 ? .nadir : (index == 7 ? .zenith : .horizontal),
+                role: index >= 6 ? .fillOnly : .alignment
+            )
+        }
+        let model = AppModel.live(project: PanoProject(images: images))
+
+        model.selectSourceImage(images[4].id, asRightImage: false)
+        model.selectSourceImage(images[6].id, asRightImage: true)
+
+        #expect(model.selection == .source(images[4].id))
+        #expect(model.mainSourceImageID == images[4].id)
+        #expect(model.rightSourceImageID == nil)
+    }
+
+    @Test @MainActor
+    func projectDropsControlPointsThatTouchPoleImages() {
+        let lens = LensDescription(
+            model: "Fisheye", focalLengthIn35mm: 16, kind: .fisheye
+        )
+        let images = (0..<4).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: index == 3 ? 6_000 : 4_000,
+                pixelHeight: index == 3 ? 4_000 : 6_000,
+                cameraModel: "Camera",
+                lens: lens,
+                direction: index == 3 ? .nadir : .horizontal,
+                role: index == 3 ? .fillOnly : .alignment
+            )
+        }
+        let ringPoint = DiagnosticControlPoint(
+            firstImage: 0, secondImage: 1,
+            firstX: 10, firstY: 20, secondX: 30, secondY: 40
+        )
+        let polePoint = DiagnosticControlPoint(
+            firstImage: 1, secondImage: 3,
+            firstX: 10, firstY: 20, secondX: 30, secondY: 40
+        )
+        let model = AppModel.live(project: PanoProject(
+            images: images,
+            controlPoints: [ringPoint, polePoint]
+        ))
+
+        #expect(model.project.controlPoints == [ringPoint])
+        #expect(model.editableControlPoints == [ringPoint])
+    }
+
+    @Test @MainActor
+    func invisiblePredictedCounterpartFallsBackToImageCenter() {
+        let lens = LensDescription(
+            model: "Fisheye",
+            focalLengthIn35mm: 16,
+            kind: .fisheye
+        )
+        let images = [
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/large.jpg"),
+                captureDate: nil,
+                pixelWidth: 1_000,
+                pixelHeight: 1_000,
+                cameraModel: nil,
+                lens: lens
+            ),
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/small.jpg"),
+                captureDate: nil,
+                pixelWidth: 100,
+                pixelHeight: 80,
+                cameraModel: nil,
+                lens: lens
+            )
+        ]
+        let model = AppModel.live(project: PanoProject(images: images))
+        let id = model.addPredictedControlPoint(
+            to: ControlPointPair.ID(firstImage: 0, secondImage: 1),
+            point: CGPoint(x: 900, y: 900),
+            in: 0
+        )
+        let point = model.editableControlPoints.first { $0.id == id }
+
+        #expect(point?.secondX == 50)
+        #expect(point?.secondY == 40)
     }
 
     @Test
@@ -168,7 +432,7 @@ struct PanoProjectTests {
             project: PanoProject(images: images, controlPoints: [])
         )
 
-        #expect(model.project.controlPoints == [])
+        #expect(model.project.controlPoints == nil)
         #expect(model.editableControlPoints.isEmpty)
         #expect(model.controlPointEditorDiagnostics?.cleanedPoints == [])
         #expect(model.canStitch)

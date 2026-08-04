@@ -239,7 +239,13 @@ enum HuginProjectFile {
         let imageCount = lines.count { $0.hasPrefix("i ") }
         let insertionIndex = lines.firstIndex(of: "# control points")
             ?? lines.endIndex
-        var variables = ["v v0", "v a0", "v b0", "v c0"]
+        // PTGui's "heavy + shift" Sigma solve refines the optical centre as
+        // well as radial distortion.  Leaving d/e fixed forces near-nadir
+        // control points to bend the camera poses instead, producing a
+        // visible discontinuity in regular ground patterns.
+        var variables = [
+            "v v0", "v a0", "v b0", "v c0", "v d0", "v e0"
+        ]
         for index in 0..<imageCount {
             variables += ["v y\(index)", "v p\(index)", "v r\(index)"]
         }
@@ -271,6 +277,9 @@ enum HuginProjectFile {
 
     static func addingZenith(
         image: SourceImage,
+        renderedImageURL: URL? = nil,
+        pixelWidth: Int? = nil,
+        pixelHeight: Int? = nil,
         orientation: PanoramaOrientation,
         controlPoints: [PanoramaControlPoint],
         ringProject: URL,
@@ -288,10 +297,57 @@ enum HuginProjectFile {
         }
 
         var zenithLine = lines[imageIndices[1]]
+        let calibratedLine = lines[imageIndices[0]]
         zenithLine = replacing("y", with: orientation.yaw, in: zenithLine)
         zenithLine = replacing("p", with: orientation.pitch, in: zenithLine)
         zenithLine = replacing("r", with: orientation.roll, in: zenithLine)
-        zenithLine = replacingFilename(image.url.path(percentEncoded: false), in: zenithLine)
+        if let pixelWidth {
+            zenithLine = replacingInteger("w", with: pixelWidth, in: zenithLine)
+        }
+        if let pixelHeight {
+            zenithLine = replacingInteger("h", with: pixelHeight, in: zenithLine)
+        }
+        if let pixelWidth,
+           let calibratedWidth = integer("w", in: calibratedLine),
+           pixelWidth != calibratedWidth,
+           let calibratedFieldOfView = number("v", in: calibratedLine) {
+            // The calibrated ring images are EXIF-oriented portrait images.
+            // A hand-held pole image can instead be landscape. Hugin links
+            // `v=0` by image width, which would apply the portrait HFOV to a
+            // 50% wider image and make the repair vastly too large. Preserve
+            // the calibrated equisolid focal length in pixels and derive the
+            // corresponding landscape HFOV.
+            let focalPixels = Double(calibratedWidth) / (
+                4 * sin(calibratedFieldOfView * .pi / 720)
+            )
+            let ratio = min(1, Double(pixelWidth) / (4 * focalPixels))
+            let repairFieldOfView = 720 / .pi * asin(ratio)
+            zenithLine = replacingResolved(
+                "v",
+                with: repairFieldOfView,
+                in: zenithLine
+            )
+            for parameter in ["a", "b", "c"] {
+                if let value = number(parameter, in: calibratedLine) {
+                    zenithLine = replacingResolved(
+                        parameter,
+                        with: value,
+                        in: zenithLine
+                    )
+                }
+            }
+            // Rotating the sensor axes from portrait to landscape rotates the
+            // calibrated optical-centre offset clockwise as well.
+            if let d = number("d", in: calibratedLine),
+               let e = number("e", in: calibratedLine) {
+                zenithLine = replacingResolved("d", with: -e, in: zenithLine)
+                zenithLine = replacingResolved("e", with: d, in: zenithLine)
+            }
+        }
+        zenithLine = replacingFilename(
+            (renderedImageURL ?? image.url).path(percentEncoded: false),
+            in: zenithLine
+        )
         lines.insert("#-hugin  cropFactor=1.5", at: lastImageIndex + 1)
         lines.insert(zenithLine, at: lastImageIndex + 2)
 
@@ -628,6 +684,40 @@ enum HuginProjectFile {
         in line: String
     ) -> String {
         let pattern = #"((?:^| )\#(parameter))-?[0-9]+(?:\.[0-9]+)?(?= |$)"#
+        guard let expression = try? NSRegularExpression(pattern: pattern) else {
+            return line
+        }
+        let range = NSRange(line.startIndex..., in: line)
+        return expression.stringByReplacingMatches(
+            in: line,
+            range: range,
+            withTemplate: "$1\(value)"
+        )
+    }
+
+    private static func replacingInteger(
+        _ parameter: String,
+        with value: Int,
+        in line: String
+    ) -> String {
+        let pattern = #"((?:^| )\#(parameter))[0-9]+(?= |$)"#
+        guard let expression = try? NSRegularExpression(pattern: pattern) else {
+            return line
+        }
+        let range = NSRange(line.startIndex..., in: line)
+        return expression.stringByReplacingMatches(
+            in: line,
+            range: range,
+            withTemplate: "$1\(value)"
+        )
+    }
+
+    private static func replacingResolved(
+        _ parameter: String,
+        with value: Double,
+        in line: String
+    ) -> String {
+        let pattern = #"((?:^| )\#(parameter))(?:=[0-9]+|-?[0-9]+(?:\.[0-9]+)?)(?= |$)"#
         guard let expression = try? NSRegularExpression(pattern: pattern) else {
             return line
         }
