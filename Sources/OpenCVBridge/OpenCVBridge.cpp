@@ -39,6 +39,13 @@ struct MatchedPoint {
     double positionError;
 };
 
+thread_local std::vector<PWControlPointPairDiagnostic> lastPairDiagnostics;
+
+struct MatchCounts {
+    int ratio = 0;
+    int mutual = 0;
+};
+
 double radians(double degrees) {
     return degrees * pi / 180.0;
 }
@@ -228,7 +235,8 @@ NormalizedFeatures normalizedFeatures(
 
 std::vector<cv::DMatch> mutualRatioMatches(
     const cv::Mat &descriptorsA,
-    const cv::Mat &descriptorsB
+    const cv::Mat &descriptorsB,
+    MatchCounts *counts = nullptr
 ) {
     cv::BFMatcher matcher(cv::NORM_L2);
     std::vector<std::vector<cv::DMatch>> forward;
@@ -255,6 +263,10 @@ std::vector<cv::DMatch> mutualRatioMatches(
         }
     }
 
+    if (counts != nullptr) {
+        counts->ratio = int(acceptedForward.size());
+    }
+
     std::vector<cv::DMatch> result;
     for (const auto &[queryIndex, match] : acceptedForward) {
         const auto reverse = acceptedBackward.find(match.trainIdx);
@@ -265,7 +277,107 @@ std::vector<cv::DMatch> mutualRatioMatches(
             result.push_back(match);
         }
     }
+    if (counts != nullptr) {
+        counts->mutual = int(result.size());
+    }
     return result;
+}
+
+double selectedSpatialCoverage(
+    const std::vector<cv::DMatch> &matches,
+    const std::vector<cv::KeyPoint> &keypointsA,
+    const std::vector<cv::KeyPoint> &keypointsB,
+    const cv::Size &sizeA,
+    const cv::Size &sizeB
+) {
+    if (matches.empty()) return 0.0;
+    constexpr int columns = 6;
+    constexpr int rows = 4;
+    std::set<std::pair<int, int>> cells;
+    for (const cv::DMatch &match : matches) {
+        const cv::Point2f a = keypointsA[match.queryIdx].pt;
+        const cv::Point2f b = keypointsB[match.trainIdx].pt;
+        const double x = 0.5 * (
+            a.x / std::max(1, sizeA.width)
+            + b.x / std::max(1, sizeB.width)
+        );
+        const double y = 0.5 * (
+            a.y / std::max(1, sizeA.height)
+            + b.y / std::max(1, sizeB.height)
+        );
+        cells.insert({
+            std::clamp(int(x * columns), 0, columns - 1),
+            std::clamp(int(y * rows), 0, rows - 1)
+        });
+    }
+    return cells.size() / double(columns * rows);
+}
+
+std::vector<cv::DMatch> spatiallyBalancedSelection(
+    const std::vector<cv::DMatch> &inliers,
+    const std::vector<cv::KeyPoint> &keypointsA,
+    const std::vector<cv::KeyPoint> &keypointsB,
+    const cv::Size &sizeA,
+    const cv::Size &sizeB
+) {
+    constexpr int columns = 6;
+    constexpr int rows = 4;
+    std::vector<std::vector<cv::DMatch>> cells(columns * rows);
+    for (const cv::DMatch &match : inliers) {
+        const cv::Point2f a = keypointsA[match.queryIdx].pt;
+        const cv::Point2f b = keypointsB[match.trainIdx].pt;
+        const double x = 0.5 * (
+            a.x / std::max(1, sizeA.width)
+            + b.x / std::max(1, sizeB.width)
+        );
+        const double y = 0.5 * (
+            a.y / std::max(1, sizeA.height)
+            + b.y / std::max(1, sizeB.height)
+        );
+        const int column = std::clamp(int(x * columns), 0, columns - 1);
+        const int row = std::clamp(int(y * rows), 0, rows - 1);
+        cells[row * columns + column].push_back(match);
+    }
+    int occupiedCells = 0;
+    for (auto &cell : cells) {
+        if (!cell.empty()) ++occupiedCells;
+        std::sort(
+            cell.begin(), cell.end(),
+            [](const cv::DMatch &a, const cv::DMatch &b) {
+                return a.distance < b.distance;
+            }
+        );
+    }
+    const int target = std::clamp(occupiedCells * 2 + 7, 15, 25);
+    const int maximumRank = std::max_element(
+        cells.begin(), cells.end(),
+        [](const auto &a, const auto &b) { return a.size() < b.size(); }
+    )->size();
+    constexpr double minimumSeparation = 20.0;
+    std::vector<cv::DMatch> selected;
+    for (int rank = 0;
+         rank < maximumRank && int(selected.size()) < target; ++rank) {
+        for (const auto &cell : cells) {
+            if (rank >= int(cell.size())) continue;
+            const cv::DMatch &candidate = cell[rank];
+            const cv::Point2f a = keypointsA[candidate.queryIdx].pt;
+            const cv::Point2f b = keypointsB[candidate.trainIdx].pt;
+            const bool crowded = std::any_of(
+                selected.begin(), selected.end(),
+                [&](const cv::DMatch &existing) {
+                    return cv::norm(a - keypointsA[existing.queryIdx].pt)
+                            < minimumSeparation
+                        || cv::norm(b - keypointsB[existing.trainIdx].pt)
+                            < minimumSeparation;
+                }
+            );
+            if (!crowded) {
+                selected.push_back(candidate);
+                if (int(selected.size()) == target) break;
+            }
+        }
+    }
+    return selected;
 }
 
 double wrappedDistance(const cv::Point2f &first, const cv::Point2f &second) {
@@ -1326,6 +1438,7 @@ int PWGenerateRingControlPoints(
     char **errorMessage
 ) {
     try {
+        lastPairDiagnostics.clear();
         if (imagePaths == nullptr || imageCount < 2) {
             throw std::runtime_error(
                 "Minst två horisontella bilder krävs."
@@ -1384,11 +1497,20 @@ int PWGenerateRingControlPoints(
             std::vector<std::vector<int>> rawGraph(imageCount);
             for (int first = 0; first < imageCount; ++first) {
                 for (int second = first + 1; second < imageCount; ++second) {
+                    MatchCounts matchCounts;
                     const auto matches = mutualRatioMatches(
                         rawFeatures[first].descriptors,
-                        rawFeatures[second].descriptors
+                        rawFeatures[second].descriptors,
+                        &matchCounts
                     );
                     if (matches.size() < 8) {
+                        lastPairDiagnostics.push_back({
+                            first, second,
+                            int(rawFeatures[first].keypoints.size()),
+                            int(rawFeatures[second].keypoints.size()),
+                            matchCounts.ratio, matchCounts.mutual,
+                            0, 0, 0.0, 0.0
+                        });
                         continue;
                     }
                     std::vector<cv::Point2f> firstPoints;
@@ -1414,36 +1536,80 @@ int PWGenerateRingControlPoints(
                         }
                     }
                     if (inliers.size() < 8) {
+                        lastPairDiagnostics.push_back({
+                            first, second,
+                            int(rawFeatures[first].keypoints.size()),
+                            int(rawFeatures[second].keypoints.size()),
+                            matchCounts.ratio, matchCounts.mutual,
+                            int(inliers.size()), 0, 0.0, 0.0
+                        });
                         continue;
                     }
-                    std::sort(
-                        inliers.begin(), inliers.end(),
-                        [](const cv::DMatch &a, const cv::DMatch &b) {
-                            return a.distance < b.distance;
-                        }
+                    const cv::Size firstMatchingSize(
+                        int(rawSizes[first].width * rawFeatures[first].scale),
+                        int(rawSizes[first].height * rawFeatures[first].scale)
                     );
+                    const cv::Size secondMatchingSize(
+                        int(rawSizes[second].width * rawFeatures[second].scale),
+                        int(rawSizes[second].height * rawFeatures[second].scale)
+                    );
+                    const bool fourImageCircularRing =
+                        imageCount == 4 && horizontalFieldOfView >= 110.0;
+                    const bool fourImageRingEdge = !fourImageCircularRing
+                        || second == first + 1
+                        || first == 0 && second == 3;
                     std::vector<cv::DMatch> selected;
-                    for (const auto &candidate : inliers) {
-                        const cv::Point2f a = rawFeatures[first]
-                            .keypoints[candidate.queryIdx].pt;
-                        const cv::Point2f b = rawFeatures[second]
-                            .keypoints[candidate.trainIdx].pt;
-                        const bool crowded = std::any_of(
-                            selected.begin(), selected.end(),
-                            [&](const cv::DMatch &existing) {
-                                const cv::Point2f ea = rawFeatures[first]
-                                    .keypoints[existing.queryIdx].pt;
-                                const cv::Point2f eb = rawFeatures[second]
-                                    .keypoints[existing.trainIdx].pt;
-                                return cv::norm(a - ea) < 45
-                                    || cv::norm(b - eb) < 45;
+                    if (fourImageCircularRing && fourImageRingEdge) {
+                        selected = spatiallyBalancedSelection(
+                            inliers,
+                            rawFeatures[first].keypoints,
+                            rawFeatures[second].keypoints,
+                            firstMatchingSize,
+                            secondMatchingSize
+                        );
+                    } else if (!fourImageCircularRing) {
+                        std::sort(
+                            inliers.begin(), inliers.end(),
+                            [](const cv::DMatch &a, const cv::DMatch &b) {
+                                return a.distance < b.distance;
                             }
                         );
-                        if (!crowded) {
-                            selected.push_back(candidate);
-                            if (selected.size() == 25) break;
+                        for (const auto &candidate : inliers) {
+                            const cv::Point2f a = rawFeatures[first]
+                                .keypoints[candidate.queryIdx].pt;
+                            const cv::Point2f b = rawFeatures[second]
+                                .keypoints[candidate.trainIdx].pt;
+                            const bool crowded = std::any_of(
+                                selected.begin(), selected.end(),
+                                [&](const cv::DMatch &existing) {
+                                    const cv::Point2f ea = rawFeatures[first]
+                                        .keypoints[existing.queryIdx].pt;
+                                    const cv::Point2f eb = rawFeatures[second]
+                                        .keypoints[existing.trainIdx].pt;
+                                    return cv::norm(a - ea) < 45
+                                        || cv::norm(b - eb) < 45;
+                                }
+                            );
+                            if (!crowded) {
+                                selected.push_back(candidate);
+                                if (selected.size() == 25) break;
+                            }
                         }
                     }
+                    lastPairDiagnostics.push_back({
+                        first, second,
+                        int(rawFeatures[first].keypoints.size()),
+                        int(rawFeatures[second].keypoints.size()),
+                        matchCounts.ratio, matchCounts.mutual,
+                        int(inliers.size()), int(selected.size()),
+                        0.0, selectedSpatialCoverage(
+                            selected,
+                            rawFeatures[first].keypoints,
+                            rawFeatures[second].keypoints,
+                            firstMatchingSize,
+                            secondMatchingSize
+                        )
+                    });
                     if (selected.size() < 6) continue;
                     rawGraph[first].push_back(second);
                     rawGraph[second].push_back(first);
@@ -1670,6 +1836,29 @@ int PWGeneratePairControlPoints(
         }
         return 0;
     }
+}
+
+int PWCopyLastControlPointPairDiagnostics(
+    PWControlPointPairDiagnostic **diagnostics,
+    int *diagnosticCount
+) {
+    if (diagnostics == nullptr || diagnosticCount == nullptr) return 0;
+    *diagnosticCount = int(lastPairDiagnostics.size());
+    *diagnostics = static_cast<PWControlPointPairDiagnostic *>(std::malloc(
+        lastPairDiagnostics.size() * sizeof(PWControlPointPairDiagnostic)
+    ));
+    if (*diagnostics == nullptr && !lastPairDiagnostics.empty()) {
+        *diagnosticCount = 0;
+        return 0;
+    }
+    if (!lastPairDiagnostics.empty()) {
+        std::memcpy(
+            *diagnostics,
+            lastPairDiagnostics.data(),
+            lastPairDiagnostics.size() * sizeof(PWControlPointPairDiagnostic)
+        );
+    }
+    return 1;
 }
 
 int PWGenerateZenithControlPoints(
@@ -2737,6 +2926,12 @@ int PWWarpFisheyeFactor(
 
 void PWFreeControlPoints(PWControlPoint *controlPoints) {
     std::free(controlPoints);
+}
+
+void PWFreeControlPointPairDiagnostics(
+    PWControlPointPairDiagnostic *diagnostics
+) {
+    std::free(diagnostics);
 }
 
 void PWFreeString(char *string) {

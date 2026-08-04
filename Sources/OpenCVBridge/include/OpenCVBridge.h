@@ -21,6 +21,19 @@ typedef struct {
 } PWControlPoint;
 
 typedef struct {
+    int firstImage;
+    int secondImage;
+    int firstFeatureCount;
+    int secondFeatureCount;
+    int ratioMatchCount;
+    int mutualMatchCount;
+    int geometricMatchCount;
+    int selectedControlPointCount;
+    double meanReprojectionError;
+    double spatialCoverage;
+} PWControlPointPairDiagnostic;
+
+typedef struct {
     double h00;
     double h01;
     double h02;
@@ -54,6 +67,11 @@ int PWGeneratePairControlPoints(
     PWControlPoint **controlPoints,
     int *controlPointCount,
     char **errorMessage
+);
+
+int PWCopyLastControlPointPairDiagnostics(
+    PWControlPointPairDiagnostic **diagnostics,
+    int *diagnosticCount
 );
 
 int PWGenerateZenithControlPoints(
@@ -175,6 +193,9 @@ int PWWarpFisheyeFactor(
 );
 
 void PWFreeControlPoints(PWControlPoint *controlPoints);
+void PWFreeControlPointPairDiagnostics(
+    PWControlPointPairDiagnostic *diagnostics
+);
 void PWFreeString(char *string);
 
 #ifdef __cplusplus

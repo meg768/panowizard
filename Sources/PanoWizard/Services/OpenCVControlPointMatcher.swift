@@ -16,7 +16,22 @@ struct PanoramaOrientation: Equatable, Sendable {
     let roll: Double
 }
 
+struct ControlPointPairGenerationDiagnostic: Equatable, Sendable {
+    let firstImage: Int
+    let secondImage: Int
+    let firstFeatureCount: Int
+    let secondFeatureCount: Int
+    let ratioMatchCount: Int
+    let mutualMatchCount: Int
+    let geometricMatchCount: Int
+    let selectedControlPointCount: Int
+    let meanReprojectionError: Double
+    let spatialCoverage: Double
+}
+
 enum OpenCVControlPointMatcher {
+    nonisolated(unsafe) private(set) static var lastPairDiagnostics:
+        [ControlPointPairGenerationDiagnostic] = []
     static func pair(
         images: [SourceImage],
         pair: ControlPointPair.ID,
@@ -145,12 +160,14 @@ enum OpenCVControlPointMatcher {
                 &pointCount,
                 &errorMessage
             )
-            return try result(
+            let points = try result(
                 succeeded: succeeded,
                 rawPoints: rawPoints,
                 pointCount: pointCount,
                 errorMessage: errorMessage
             )
+            lastPairDiagnostics = copyLastPairDiagnostics()
+            return points
         }
     }
 
@@ -280,6 +297,35 @@ enum OpenCVControlPointMatcher {
                 firstY: $0.firstY,
                 secondX: $0.secondX,
                 secondY: $0.secondY
+            )
+        }
+    }
+
+    private static func copyLastPairDiagnostics()
+        -> [ControlPointPairGenerationDiagnostic] {
+        var rawDiagnostics: UnsafeMutablePointer<PWControlPointPairDiagnostic>?
+        var count: Int32 = 0
+        guard PWCopyLastControlPointPairDiagnostics(
+            &rawDiagnostics,
+            &count
+        ) != 0 else { return [] }
+        defer { PWFreeControlPointPairDiagnostics(rawDiagnostics) }
+        guard let rawDiagnostics, count > 0 else { return [] }
+        return UnsafeBufferPointer(
+            start: rawDiagnostics,
+            count: Int(count)
+        ).map {
+            ControlPointPairGenerationDiagnostic(
+                firstImage: Int($0.firstImage),
+                secondImage: Int($0.secondImage),
+                firstFeatureCount: Int($0.firstFeatureCount),
+                secondFeatureCount: Int($0.secondFeatureCount),
+                ratioMatchCount: Int($0.ratioMatchCount),
+                mutualMatchCount: Int($0.mutualMatchCount),
+                geometricMatchCount: Int($0.geometricMatchCount),
+                selectedControlPointCount: Int($0.selectedControlPointCount),
+                meanReprojectionError: $0.meanReprojectionError,
+                spatialCoverage: $0.spatialCoverage
             )
         }
     }

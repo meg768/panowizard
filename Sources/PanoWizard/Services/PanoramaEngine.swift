@@ -281,8 +281,25 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let ringControlPoints = try usesEditedControlPoints
             ? editedRingPoints! : OpenCVControlPointMatcher.ring(
             images: geometryRingImages,
-            horizontalFieldOfView: matchingFieldOfView
+            horizontalFieldOfView: matchingFieldOfView,
+            controlPointMasks: controlPointMasks
         )
+        if !usesEditedControlPoints {
+            for diagnostic in OpenCVControlPointMatcher.lastPairDiagnostics {
+                print(
+                    "[PanoWizard] CP pair "
+                        + "\(diagnostic.firstImage)-\(diagnostic.secondImage): "
+                        + "features=\(diagnostic.firstFeatureCount)/"
+                        + "\(diagnostic.secondFeatureCount) "
+                        + "ratio=\(diagnostic.ratioMatchCount) "
+                        + "mutual=\(diagnostic.mutualMatchCount) "
+                        + "geometric=\(diagnostic.geometricMatchCount) "
+                        + "selected=\(diagnostic.selectedControlPointCount) "
+                        + "coverage="
+                        + String(format: "%.3f", diagnostic.spatialCoverage)
+                )
+            }
+        }
         try HuginProjectFile.appending(
             controlPoints: ringControlPoints,
             from: seededProject,
@@ -564,6 +581,12 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let ringOrientations = try HuginProjectFile.orientations(
             in: ringGeometryProject
         )
+        print("[PanoWizard] Ring orientations: " + ringOrientations
+            .enumerated().map { index, orientation in
+                "\(index):y=\(String(format: "%.2f", orientation.yaw)) "
+                    + "p=\(String(format: "%.2f", orientation.pitch)) "
+                    + "r=\(String(format: "%.2f", orientation.roll))"
+            }.joined(separator: ", "))
         if let missingConnection = Self.missingAdjacentViewConnection(
             orientations: ringOrientations,
             controlPoints: cleanedDiagnosticPoints

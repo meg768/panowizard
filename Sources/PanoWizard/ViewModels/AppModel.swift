@@ -791,13 +791,18 @@ final class AppModel {
                     )
                 }
                 let candidates = mappedPoints.filter { candidate in
-                    let firstIsMasked =
-                        exclusionMaps[candidate.firstImage]?.contains(CGPoint(
-                        x: candidate.firstX,
-                        y: candidate.firstY
-                    )) == true
-                    let secondIsMasked =
-                        exclusionMaps[candidate.secondImage]?.contains(CGPoint(
+                    // Automatic regeneration matches against temporary source
+                    // images with the exclusion masks already applied. Running
+                    // the points through SourceMaskRasterizer a second time can
+                    // disagree about the image coordinate origin and remove a
+                    // complete, otherwise valid transition from the ring.
+                    let firstIsMasked = !replacingExisting
+                        && exclusionMaps[candidate.firstImage]?.contains(CGPoint(
+                            x: candidate.firstX,
+                            y: candidate.firstY
+                        )) == true
+                    let secondIsMasked = !replacingExisting
+                        && exclusionMaps[candidate.secondImage]?.contains(CGPoint(
                             x: candidate.secondX,
                             y: candidate.secondY
                         )) == true
@@ -817,19 +822,30 @@ final class AppModel {
                         && !secondIsMasked
                         && !duplicatesExisting
                 }
-                let groupedCandidates = Dictionary(
-                    grouping: candidates,
-                    by: \.pair
-                )
-                let suggestions = groupedCandidates.keys.sorted()
-                    .flatMap { pair in
-                        spatiallyDistributedControlPoints(
-                            from: groupedCandidates[pair, default: []],
-                            existing: existingPoints.filter { $0.pair == pair },
-                            images: images,
-                            maximumCount: 10
-                        )
-                    }
+                let suggestions: [DiagnosticControlPoint]
+                if replacingExisting {
+                    // The ring matcher has already performed geometric and
+                    // spatial selection. Re-selecting ten points per pair
+                    // here can erase an entire masked transition and makes
+                    // the wizard differ from the engine integration path.
+                    suggestions = candidates
+                } else {
+                    let groupedCandidates = Dictionary(
+                        grouping: candidates,
+                        by: \.pair
+                    )
+                    suggestions = groupedCandidates.keys.sorted()
+                        .flatMap { pair in
+                            spatiallyDistributedControlPoints(
+                                from: groupedCandidates[pair, default: []],
+                                existing: existingPoints.filter {
+                                    $0.pair == pair
+                                },
+                                images: images,
+                                maximumCount: 10
+                            )
+                        }
+                }
                 if replacingExisting {
                     editableControlPoints = suggestions
                 } else {
@@ -839,11 +855,16 @@ final class AppModel {
                 isSuggestingControlPoints = false
                 phase = .ready
                 if stitchesAfterGeneration {
-                    stitch(
-                        controlPoints: editableControlPoints.isEmpty
+                    // The wizard's points are automatic input. Let the engine
+                    // run its automatic CP cleanup and robust Sigma pose
+                    // restart instead of treating them as a manually edited
+                    // set, which can leave the otherwise equivalent solution
+                    // in the 180-degree inverted orientation.
+                    stitch(controlPoints: replacingExisting ? nil : (
+                        editableControlPoints.isEmpty
                             ? nil
                             : editableControlPoints
-                    )
+                    ))
                 }
             } catch {
                 isSuggestingControlPoints = false
@@ -865,8 +886,10 @@ final class AppModel {
         while selected.count < maximumCount, !remaining.isEmpty {
             let anchors = existing + selected
             let nextIndex: Int
+            let nextDistance: Double
             if anchors.isEmpty {
                 nextIndex = 0
+                nextDistance = .greatestFiniteMagnitude
             } else {
                 nextIndex = remaining.indices.max { left, right in
                     minimumNormalizedDistance(
@@ -879,6 +902,18 @@ final class AppModel {
                         images: images
                     )
                 } ?? 0
+                nextDistance = minimumNormalizedDistance(
+                    from: remaining[nextIndex],
+                    to: anchors,
+                    images: images
+                )
+            }
+            // Do not meet the requested count by packing several points into
+            // the same local feature cluster. A point must add meaningful
+            // coverage in both images; otherwise a smaller set is more useful
+            // and honestly signals that this pair is spatially weak.
+            if nextDistance < 0.08 {
+                break
             }
             selected.append(remaining.remove(at: nextIndex))
         }
