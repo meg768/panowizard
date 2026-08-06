@@ -28,6 +28,9 @@ struct PanoramaSidebar: View {
                             },
                             onSetDirection: {
                                 model.setDirection($0, for: image.id)
+                            },
+                            onToggleEnabled: {
+                                model.toggleSourceImageEnabled(image.id)
                             }
                         )
                         .listRowBackground(
@@ -168,14 +171,26 @@ private struct SourceImageRow: View {
     let onSelect: (Bool) -> Void
     let onSetRole: (SourceImage.Role) -> Void
     let onSetDirection: (SourceImage.Direction) -> Void
+    let onToggleEnabled: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            Text("\(index + 1)")
-                .font(.callout.monospacedDigit().weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24)
-                .background(Color.secondary.opacity(0.14), in: Circle())
+            Button(action: onToggleEnabled) {
+                Text("\(index + 1)")
+                    .font(.callout.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(
+                        image.isEnabled ? Color.white : Color.secondary
+                    )
+                    .frame(width: 24, height: 24)
+                    .background(
+                        image.isEnabled
+                            ? Color.accentColor
+                            : Color.secondary.opacity(0.16),
+                        in: Circle()
+                    )
+            }
+            .buttonStyle(.plain)
+            .help(image.isEnabled ? "Inaktivera bilden" : "Aktivera bilden")
 
             SourceThumbnail(url: image.url)
                 .frame(width: 52, height: 38)

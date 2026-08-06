@@ -48,6 +48,7 @@ struct ControlPointEditor: View {
     let onMovePoint: (DiagnosticControlPoint.ID, Int, CGPoint) -> Void
     let onRemovePoint: (DiagnosticControlPoint.ID) -> Void
     let onAddPoint: (CGPoint, Int) -> DiagnosticControlPoint.ID
+    let onPredictPoint: (CGPoint, Int) -> (point: CGPoint, imageIndex: Int)
     let isSuggestingPoints: Bool
     let onSuggestPoints: () -> Void
     let onSuggestProjectPoints: () -> Void
@@ -57,6 +58,7 @@ struct ControlPointEditor: View {
     let onOptimize: () -> Void
     let isPoleAlignment: Bool
     @State private var selectedPointID: DiagnosticControlPoint.ID?
+    @State private var pointIDToReveal: DiagnosticControlPoint.ID?
     @State private var magnifiedPointID: DiagnosticControlPoint.ID?
     @State private var isAddingPoint = false
     @State private var isCommandPressed = false
@@ -409,6 +411,7 @@ struct ControlPointEditor: View {
             points: displayedPoints,
             selectedPointID: selectedPointID,
             magnifiedPointID: magnifiedPointID,
+            pointIDToReveal: pointIDToReveal,
             isAddingPoint: isAddingPoint,
             commandAddsPoint: isCommandPressed,
             commandPreviewPoint: commandPreviewPoints[imageIndex],
@@ -429,6 +432,7 @@ struct ControlPointEditor: View {
                 isAddingPoint = false
                 let newPointID = onAddPoint(point, imageIndex)
                 selectedPointID = newPointID
+                pointIDToReveal = newPointID
                 editorHasFocus = true
             }
         )
@@ -566,6 +570,7 @@ private struct ControlPointImage: View {
     let points: [DiagnosticControlPoint]
     let selectedPointID: DiagnosticControlPoint.ID?
     let magnifiedPointID: DiagnosticControlPoint.ID?
+    let pointIDToReveal: DiagnosticControlPoint.ID?
     let isAddingPoint: Bool
     let commandAddsPoint: Bool
     let commandPreviewPoint: CGPoint?
@@ -616,13 +621,14 @@ private struct ControlPointImage: View {
                     // orientation while decoding the thumbnail, so applying
                     // EXIF once more here would rotate the markers away from
                     // their actual features.
-                    let controlPointCoordinateSize =
+                    let decodedCoordinateSize =
                         ControlPointCoordinateSpace.orientedSize(
                             rawWidth: image.pixelWidth,
                             rawHeight: image.pixelHeight,
                             displayedWidth: sourceImage.width,
                             displayedHeight: sourceImage.height
                         )
+                    let controlPointCoordinateSize = decodedCoordinateSize
                     let displayedCoordinateSize = quarterTurns.isMultiple(of: 2)
                         ? controlPointCoordinateSize
                         : CGSize(
@@ -641,20 +647,60 @@ private struct ControlPointImage: View {
                     let documentSize = displayedImageSize
                     let origin = CGPoint.zero
                     let markerLocations = points.map { point in
-                        displayedPosition(
-                            for: displayCoordinate(
-                                for: coordinates(for: point),
-                                in: controlPointCoordinateSize
-                            ),
-                            coordinateSize: displayedCoordinateSize,
-                            fittedSize: documentSize,
-                            origin: origin
+                        ControlPointHitTarget(
+                            id: point.id,
+                            position: displayedPosition(
+                                for: displayCoordinate(
+                                    for: coordinates(for: point),
+                                    in: controlPointCoordinateSize
+                                ),
+                                coordinateSize: displayedCoordinateSize,
+                                fittedSize: documentSize,
+                                origin: origin
+                            )
                         )
                     }
                     ControlPointNativeScrollView(
                         controller: viewport,
                         protectedPoints: markerLocations,
-                        fitMagnification: fitMagnification
+                        fitMagnification: fitMagnification,
+                        backgroundPanEnabled:
+                            !(isAddingPoint && allowsAdding),
+                        onCommandClick: { location in
+                            onAddPoint(originalCoordinate(
+                                for: sourceCoordinate(
+                                    for: location,
+                                    coordinateSize: displayedCoordinateSize,
+                                    fittedSize: documentSize,
+                                    origin: origin
+                                ),
+                                in: controlPointCoordinateSize
+                            ))
+                        },
+                        onPointMouseDown: { pointID in
+                            viewport.beginPointMove()
+                            onSelectPoint(pointID)
+                            onMagnifyPoint(pointID)
+                        },
+                        onPointDragged: { pointID, location in
+                            onMovePoint(
+                                pointID,
+                                imageIndex,
+                                originalCoordinate(
+                                    for: sourceCoordinate(
+                                        for: location,
+                                        coordinateSize: displayedCoordinateSize,
+                                        fittedSize: documentSize,
+                                        origin: origin
+                                    ),
+                                    in: controlPointCoordinateSize
+                                )
+                            )
+                        },
+                        onPointMouseUp: {
+                            viewport.endPointMove()
+                            onMagnifyPoint(nil)
+                        }
                     ) {
                         ZStack {
                                 Image(decorative: displayedSourceImage, scale: 1)
@@ -672,6 +718,7 @@ private struct ControlPointImage: View {
                             markers: Array(points.enumerated()).map {
                                 index, point in
                                 ControlPointScreenMarker(
+                                    id: point.id,
                                     number: index + 1,
                                     position: displayedPosition(
                                         for: displayCoordinate(
@@ -685,115 +732,62 @@ private struct ControlPointImage: View {
                                     selected: point.id == selectedPointID
                                 )
                             },
-                            controller: viewport
-                        )
-                        .contentShape(Rectangle())
-                        .gesture(
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { value in
-                                    if draggedPointID == nil,
-                                       !viewport.isPanning {
-                                        if shouldAddPoint {
-                                            return
-                                        }
-                                        draggedPointID = closestPoint(
-                                            to: value.startLocation,
-                                            coordinateSize: displayedCoordinateSize,
-                                            fittedSize: documentSize,
-                                            origin: origin
-                                        )
-                                        draggedPointStartCoordinate = points
-                                            .first {
-                                                $0.id == draggedPointID
-                                            }
-                                            .map {
-                                                displayCoordinate(
-                                                    for: coordinates(for: $0),
-                                                    in: controlPointCoordinateSize
-                                                )
-                                            }
-                                        onSelectPoint(draggedPointID)
-                                        onMagnifyPoint(draggedPointID)
-                                    }
-                                    let distance = hypot(
-                                        value.translation.width,
-                                        value.translation.height
-                                    )
-                                    if let draggedPointID,
-                                       let start = draggedPointStartCoordinate,
-                                       distance >= 3 {
-                                        let coordinate = CGPoint(
-                                            x: min(max(
-                                                start.x
-                                                    + value.translation.width
-                                                    / documentSize.width
-                                                    * displayedCoordinateSize.width,
-                                                0
-                                            ), displayedCoordinateSize.width),
-                                            y: min(max(
-                                                start.y
-                                                    + value.translation.height
-                                                    / documentSize.height
-                                                    * displayedCoordinateSize.height,
-                                                0
-                                            ), displayedCoordinateSize.height)
-                                        )
-                                        onMovePoint(
-                                            draggedPointID,
-                                            imageIndex,
-                                            originalCoordinate(
-                                                for: coordinate,
+                            controller: viewport,
+                            fitMagnification: fitMagnification,
+                            onSelect: { pointID in
+                                onSelectPoint(pointID)
+                            },
+                            onDragChanged: { pointID, translation in
+                                if draggedPointID != pointID {
+                                    draggedPointID = pointID
+                                    draggedPointStartCoordinate = points
+                                        .first { $0.id == pointID }
+                                        .map {
+                                            displayCoordinate(
+                                                for: coordinates(for: $0),
                                                 in: controlPointCoordinateSize
                                             )
-                                        )
-                                    }
+                                        }
+                                    onSelectPoint(pointID)
+                                    onMagnifyPoint(pointID)
                                 }
-                                .onEnded { value in
-                                    let distance = hypot(
-                                        value.translation.width,
-                                        value.translation.height
+                                guard let start = draggedPointStartCoordinate
+                                else { return }
+                                let coordinate = CGPoint(
+                                    x: min(max(
+                                        start.x + translation.width
+                                            / documentSize.width
+                                            * displayedCoordinateSize.width,
+                                        0
+                                    ), displayedCoordinateSize.width),
+                                    y: min(max(
+                                        start.y + translation.height
+                                            / documentSize.height
+                                            * displayedCoordinateSize.height,
+                                        0
+                                    ), displayedCoordinateSize.height)
+                                )
+                                onMovePoint(
+                                    pointID,
+                                    imageIndex,
+                                    originalCoordinate(
+                                        for: coordinate,
+                                        in: controlPointCoordinateSize
                                     )
-                                    if shouldAddPoint, distance < 3 {
-                                        onAddPoint(originalCoordinate(
-                                            for: sourceCoordinate(
-                                                for: value.location,
-                                                coordinateSize: displayedCoordinateSize,
-                                                fittedSize: documentSize,
-                                                origin: origin
-                                            ),
-                                            in: controlPointCoordinateSize
-                                        ))
-                                    }
-                                    draggedPointID = nil
-                                    draggedPointStartCoordinate = nil
-                                    onMagnifyPoint(nil)
-                                }
+                                )
+                            },
+                            onDragEnded: {
+                                draggedPointID = nil
+                                draggedPointStartCoordinate = nil
+                                onMagnifyPoint(nil)
+                            }
                         )
-                        .onContinuousHover { phase in
-                            switch phase {
-                            case .active(let location):
-                                guard commandAddsPoint else { return }
-                                onCommandPreview(originalCoordinate(
-                                    for: sourceCoordinate(
-                                        for: location,
-                                        coordinateSize: displayedCoordinateSize,
-                                        fittedSize: documentSize,
-                                        origin: origin
-                                    ),
-                                    in: controlPointCoordinateSize
-                                ))
-                            case .ended:
-                                onCommandPreview(nil)
-                            }
-                        }
-                        .onChange(of: commandAddsPoint) {
-                            if !commandAddsPoint {
-                                onCommandPreview(nil)
-                            }
-                        }
-
-                        if let sourcePoint = commandPreviewPoint
-                            ?? points.first(where: {
+                        .frame(
+                            width: documentSize.width,
+                            height: documentSize.height
+                        )
+                        .allowsHitTesting(false)
+                        if let sourcePoint = points.first(where: {
                                 $0.id == magnifiedPointID
                             }).map(coordinates(for:)) {
                             let displayPoint = displayCoordinate(
@@ -809,11 +803,20 @@ private struct ControlPointImage: View {
                             ControlPointLoupe(
                                 sourceImage: displayedSourceImage,
                                 sourcePoint: displayPoint,
-                                coordinateSize: displayedCoordinateSize
+                                coordinateSize: displayedCoordinateSize,
+                                viewportMagnification:
+                                    viewport.actualMagnification
+                            )
+                            .scaleEffect(
+                                1 / max(
+                                    viewport.actualMagnification,
+                                    0.001
+                                )
                             )
                             .position(loupePosition(
                                 near: position,
-                                in: viewport.visibleDocumentRect
+                                in: viewport.visibleDocumentRect,
+                                magnification: viewport.actualMagnification
                             ))
                             .allowsHitTesting(false)
                         }
@@ -822,6 +825,35 @@ private struct ControlPointImage: View {
                                 width: documentSize.width,
                                 height: documentSize.height
                             )
+                    }
+                    .onChange(of: pointIDToReveal) {
+                        guard let pointIDToReveal,
+                              let location = markerLocations.first(where: {
+                                  $0.id == pointIDToReveal
+                              })?.position else { return }
+                        Task { @MainActor in
+                            await Task.yield()
+                            let visible = viewport.visibleDocumentRect
+                            guard !visible.contains(location) else { return }
+                            let visibleCenter = CGPoint(
+                                x: visible.midX,
+                                y: visible.midY
+                            )
+                            let coordinate = originalCoordinate(
+                                for: sourceCoordinate(
+                                    for: visibleCenter,
+                                    coordinateSize: displayedCoordinateSize,
+                                    fittedSize: documentSize,
+                                    origin: origin
+                                ),
+                                in: controlPointCoordinateSize
+                            )
+                            onMovePoint(
+                                pointIDToReveal,
+                                imageIndex,
+                                coordinate
+                            )
+                        }
                     }
                 } else {
                     ProgressView()
@@ -842,12 +874,7 @@ private struct ControlPointImage: View {
                 loadedOrientation
             )
             exifOrientation = resolvedOrientation
-            // ImageIO has applied the camera's EXIF orientation at this point.
-            // Normalize the CP editor from the decoded dimensions rather than
-            // the raw sensor dimensions stored in the project.
-            if let resolvedImage {
-                quarterTurns = resolvedImage.width > resolvedImage.height ? 1 : 0
-            }
+            quarterTurns = 0
             sourceImage = resolvedImage
         }
         .onChange(of: selectedPointID) {
@@ -860,8 +887,7 @@ private struct ControlPointImage: View {
     }
 
     private var shouldAddPoint: Bool {
-        NSEvent.modifierFlags.contains(.command)
-            || (isAddingPoint && allowsAdding)
+        commandAddsPoint || (isAddingPoint && allowsAdding)
     }
 
     private func coordinates(for point: DiagnosticControlPoint) -> CGPoint {
@@ -875,7 +901,7 @@ private struct ControlPointImage: View {
         for point: CGPoint,
         in size: CGSize
     ) -> CGPoint {
-        switch quarterTurns {
+        return switch quarterTurns {
         case 1: CGPoint(x: size.height - point.y, y: point.x)
         case 2: CGPoint(x: size.width - point.x, y: size.height - point.y)
         case 3: CGPoint(x: point.y, y: size.width - point.x)
@@ -887,7 +913,7 @@ private struct ControlPointImage: View {
         for point: CGPoint,
         in size: CGSize
     ) -> CGPoint {
-        switch quarterTurns {
+        return switch quarterTurns {
         case 1: CGPoint(x: point.y, y: size.height - point.x)
         case 2: CGPoint(x: size.width - point.x, y: size.height - point.y)
         case 3: CGPoint(x: size.width - point.y, y: point.x)
@@ -999,7 +1025,8 @@ private struct ControlPointImage: View {
                 origin: origin
             )
             let distance = hypot(position.x - location.x, position.y - location.y)
-            return distance <= 22 ? (point.id, distance) : nil
+            let hitRadius = 22 / max(viewport.actualMagnification, 0.001)
+            return distance <= hitRadius ? (point.id, distance) : nil
         }
         .min { $0.1 < $1.1 }?
         .0
@@ -1007,17 +1034,20 @@ private struct ControlPointImage: View {
 
     private func loupePosition(
         near point: CGPoint,
-        in visibleRect: CGRect
+        in visibleRect: CGRect,
+        magnification: Double
     ) -> CGPoint {
-        let offset: CGFloat = 92
+        let scale = max(CGFloat(magnification), 0.001)
+        let offset: CGFloat = 92 / scale
+        let margin: CGFloat = 78 / scale
         let x = min(
-            max(point.x + offset, visibleRect.minX + 78),
-            visibleRect.maxX - 78
+            max(point.x + offset, visibleRect.minX + margin),
+            visibleRect.maxX - margin
         )
         let proposedY = point.y - offset
-        let y = proposedY >= visibleRect.minY + 78
+        let y = proposedY >= visibleRect.minY + margin
             ? proposedY
-            : min(point.y + offset, visibleRect.maxY - 78)
+            : min(point.y + offset, visibleRect.maxY - margin)
         return CGPoint(x: x, y: y)
     }
 
@@ -1033,6 +1063,7 @@ private struct ControlPointImage: View {
 
 @MainActor
 private struct ControlPointScreenMarker {
+    let id: DiagnosticControlPoint.ID
     let number: Int
     let position: CGPoint
     let selected: Bool
@@ -1042,45 +1073,54 @@ private struct ControlPointScreenMarker {
 private struct ControlPointMarkerLayer: View {
     let markers: [ControlPointScreenMarker]
     @ObservedObject var controller: ControlPointViewportController
+    let fitMagnification: Double
+    let onSelect: (DiagnosticControlPoint.ID) -> Void
+    let onDragChanged: (DiagnosticControlPoint.ID, CGSize) -> Void
+    let onDragEnded: () -> Void
 
     var body: some View {
-        Canvas { context, _ in
-            let inverseZoom = 1 / max(
-                controller.actualMagnification,
-                0.001
-            )
-            for marker in markers {
-                let label = Text("\(marker.number)")
-                    .font(.system(
-                        size: 11 * inverseZoom,
-                        weight: .bold
-                    ))
-                    .foregroundStyle(.black)
-                let resolved = context.resolve(label)
-                let measured = resolved.measure(
-                    in: CGSize(width: 60, height: 30)
+        let inverseZoom = 1 / max(
+            fitMagnification * controller.magnification,
+            0.001
+        )
+        ZStack(alignment: .topLeading) {
+            ForEach(markers.indices, id: \.self) { index in
+                let marker = markers[index]
+                Button {
+                    onSelect(marker.id)
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                ControlPointMarkerPalette.color(marker.number - 1)
+                                    .opacity(marker.selected ? 0.82 : 0.62)
+                            )
+                        Circle()
+                            .stroke(
+                                marker.selected ? .white : .black,
+                                lineWidth: (marker.selected ? 2 : 1) * inverseZoom
+                            )
+                        Text("\(marker.number)")
+                            .font(.system(
+                                size: 11 * inverseZoom,
+                                weight: .bold
+                            ))
+                            .foregroundStyle(.black)
+                    }
+                    .frame(width: 28 * inverseZoom, height: 28 * inverseZoom)
+                    .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .position(marker.position)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 2)
+                        .onChanged {
+                            onDragChanged(marker.id, $0.translation)
+                        }
+                        .onEnded { _ in
+                            onDragEnded()
+                        }
                 )
-                let diameter = max(measured.width, measured.height)
-                    + 12 * inverseZoom
-                let box = CGRect(
-                    x: marker.position.x - diameter / 2,
-                    y: marker.position.y - diameter / 2,
-                    width: diameter,
-                    height: diameter
-                )
-                context.fill(
-                    Path(ellipseIn: box),
-                    with: .color(
-                        ControlPointMarkerPalette.color(marker.number - 1)
-                            .opacity(marker.selected ? 0.82 : 0.62)
-                    )
-                )
-                context.stroke(
-                    Path(ellipseIn: box),
-                    with: .color(marker.selected ? .white : .black),
-                    lineWidth: (marker.selected ? 2 : 1) * inverseZoom
-                )
-                context.draw(resolved, at: marker.position)
             }
         }
     }
@@ -1121,6 +1161,7 @@ private struct ControlPointZoomControls: View {
 @MainActor
 private final class ControlPointViewportController: ObservableObject {
     @Published private(set) var magnification = 1.0
+    @Published private(set) var isMovingPoint = false
     weak var scrollView: ControlPointNSScrollView?
     private var panOrigin: CGPoint?
     private var fitMagnification = 1.0
@@ -1172,11 +1213,19 @@ private final class ControlPointViewportController: ObservableObject {
         let constrained = scrollView.contentView.constrainBoundsRect(proposed)
         scrollView.contentView.scroll(to: constrained.origin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
-        objectWillChange.send()
     }
 
     func endPan() {
         panOrigin = nil
+    }
+
+    func beginPointMove() {
+        endPan()
+        isMovingPoint = true
+    }
+
+    func endPointMove() {
+        isMovingPoint = false
     }
 
     func updateMagnification(_ value: Double) {
@@ -1188,6 +1237,10 @@ private final class ControlPointViewportController: ObservableObject {
         updateMagnification(
             scrollView.map { Double($0.magnification) } ?? fitMagnification
         )
+        // The relative zoom can remain exactly 1.0 while the native fit
+        // magnification changes from its placeholder value. Marker sizes use
+        // the absolute magnification, so they still need a redraw.
+        objectWillChange.send()
     }
 }
 
@@ -1201,10 +1254,19 @@ private final class ControlPointNSScrollView: NSScrollView {
             return
         }
         let anchor = documentView.convert(event.locationInWindow, from: nil)
+        let proposedTarget = magnification
+            * exp(event.scrollingDeltaY * 0.008)
         let target = min(max(
-            magnification * exp(event.scrollingDeltaY * 0.008),
+            proposedTarget,
             minMagnification
         ), maxMagnification)
+        if abs(target - magnification) < 0.000_001,
+           abs(proposedTarget - magnification) > 0.000_001 {
+            // At a zoom boundary, do not swallow continued trackpad/mouse
+            // movement. Let NSScrollView use it for panning instead.
+            super.scrollWheel(with: event)
+            return
+        }
         setMagnification(target, centeredAt: anchor)
         viewportController?.updateMagnification(magnification)
     }
@@ -1229,22 +1291,42 @@ private final class CenteringControlPointClipView: NSClipView {
     }
 }
 
+private struct ControlPointHitTarget {
+    let id: DiagnosticControlPoint.ID
+    let position: CGPoint
+}
+
 private struct ControlPointNativeScrollView<Content: View>:
     NSViewRepresentable {
     let controller: ControlPointViewportController
-    let protectedPoints: [CGPoint]
+    let protectedPoints: [ControlPointHitTarget]
     let fitMagnification: Double
+    let backgroundPanEnabled: Bool
+    let onCommandClick: (CGPoint) -> Void
+    let onPointMouseDown: (DiagnosticControlPoint.ID) -> Void
+    let onPointDragged: (DiagnosticControlPoint.ID, CGPoint) -> Void
+    let onPointMouseUp: () -> Void
     let content: Content
 
     init(
         controller: ControlPointViewportController,
-        protectedPoints: [CGPoint],
+        protectedPoints: [ControlPointHitTarget],
         fitMagnification: Double,
+        backgroundPanEnabled: Bool,
+        onCommandClick: @escaping (CGPoint) -> Void,
+        onPointMouseDown: @escaping (DiagnosticControlPoint.ID) -> Void,
+        onPointDragged: @escaping (DiagnosticControlPoint.ID, CGPoint) -> Void,
+        onPointMouseUp: @escaping () -> Void,
         @ViewBuilder content: () -> Content
     ) {
         self.controller = controller
         self.protectedPoints = protectedPoints
         self.fitMagnification = fitMagnification
+        self.backgroundPanEnabled = backgroundPanEnabled
+        self.onCommandClick = onCommandClick
+        self.onPointMouseDown = onPointMouseDown
+        self.onPointDragged = onPointDragged
+        self.onPointMouseUp = onPointMouseUp
         self.content = content()
     }
 
@@ -1267,10 +1349,9 @@ private struct ControlPointNativeScrollView<Content: View>:
         hostingView.frame.size = hostingView.fittingSize
         let panGesture = NSPanGestureRecognizer(
             target: context.coordinator,
-            action: #selector(Coordinator.pan(_:))
+            action: #selector(Coordinator.panBackground(_:))
         )
         panGesture.buttonMask = 0x1
-        panGesture.delegate = context.coordinator
         hostingView.addGestureRecognizer(panGesture)
         scrollView.documentView = hostingView
         scrollView.viewportController = controller
@@ -1279,6 +1360,12 @@ private struct ControlPointNativeScrollView<Content: View>:
         controller.configureFitMagnification(fitMagnification)
         context.coordinator.scrollView = scrollView
         context.coordinator.protectedPoints = protectedPoints
+        context.coordinator.onPointMouseDown = onPointMouseDown
+        context.coordinator.onPointDragged = onPointDragged
+        context.coordinator.onPointMouseUp = onPointMouseUp
+        context.coordinator.backgroundPanEnabled = backgroundPanEnabled
+        context.coordinator.onCommandClick = onCommandClick
+        context.coordinator.installMouseMonitor()
         return scrollView
     }
 
@@ -1314,47 +1401,126 @@ private struct ControlPointNativeScrollView<Content: View>:
         }
         context.coordinator.scrollView = scrollView
         context.coordinator.protectedPoints = protectedPoints
+        context.coordinator.onPointMouseDown = onPointMouseDown
+        context.coordinator.onPointDragged = onPointDragged
+        context.coordinator.onPointMouseUp = onPointMouseUp
+        context.coordinator.backgroundPanEnabled = backgroundPanEnabled
+        context.coordinator.onCommandClick = onCommandClick
+    }
+
+    static func dismantleNSView(
+        _ scrollView: ControlPointNSScrollView,
+        coordinator: Coordinator
+    ) {
+        coordinator.removeMouseMonitor()
     }
 
     @MainActor
-    final class Coordinator: NSObject, NSGestureRecognizerDelegate {
+    final class Coordinator: NSObject {
         let controller: ControlPointViewportController
         weak var scrollView: NSScrollView?
-        var protectedPoints: [CGPoint] = []
+        var protectedPoints: [ControlPointHitTarget] = []
+        var onPointMouseDown: (DiagnosticControlPoint.ID) -> Void = { _ in }
+        var onPointDragged: (DiagnosticControlPoint.ID, CGPoint) -> Void = {
+            _, _ in
+        }
+        var onPointMouseUp: () -> Void = {}
+        var onCommandClick: (CGPoint) -> Void = { _ in }
+        var backgroundPanEnabled = true
+        private var mouseMonitor: Any?
+        private var activePointID: DiagnosticControlPoint.ID?
 
         init(controller: ControlPointViewportController) {
             self.controller = controller
         }
 
-        func gestureRecognizerShouldBegin(
-            _ gestureRecognizer: NSGestureRecognizer
-        ) -> Bool {
-            guard let scrollView,
-                  let documentView = scrollView.documentView else {
-                return false
-            }
-            let clipView = scrollView.contentView
-            let location = gestureRecognizer.location(in: clipView)
-            return !protectedPoints.contains {
-                let documentPoint = documentView.isFlipped
-                    ? $0
-                    : CGPoint(
-                        x: $0.x,
-                        y: documentView.bounds.height - $0.y
-                    )
-                let screenPoint = clipView.convert(
-                    documentPoint,
-                    from: documentView
-                )
-                return hypot(
-                    screenPoint.x - location.x,
-                    screenPoint.y - location.y
-                ) <= 24
+        func installMouseMonitor() {
+            guard mouseMonitor == nil else { return }
+            mouseMonitor = NSEvent.addLocalMonitorForEvents(
+                matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+            ) { [weak self] event in
+                self?.handleMouseEvent(event) ?? event
             }
         }
 
-        @objc func pan(_ gesture: NSPanGestureRecognizer) {
-            guard let scrollView else { return }
+        func removeMouseMonitor() {
+            guard let mouseMonitor else { return }
+            NSEvent.removeMonitor(mouseMonitor)
+            self.mouseMonitor = nil
+            finishActiveMouseOperation()
+        }
+
+        private func handleMouseEvent(_ event: NSEvent) -> NSEvent? {
+            // Mouse-up can belong to another view (or no window at all) when
+            // the pointer leaves this pane during a drag. Always release the
+            // CP lock before applying the usual window hit test.
+            if event.type == .leftMouseUp,
+               activePointID != nil {
+                finishActiveMouseOperation()
+                return nil
+            }
+            // Recover from a missed mouse-up before starting a new gesture.
+            if event.type == .leftMouseDown,
+               activePointID != nil {
+                finishActiveMouseOperation()
+            }
+            guard let scrollView,
+                  event.window === scrollView.window,
+                  let documentView = scrollView.documentView else {
+                return event
+            }
+            var location = documentView.convert(event.locationInWindow, from: nil)
+            if !documentView.isFlipped {
+                location.y = documentView.bounds.height - location.y
+            }
+            switch event.type {
+            case .leftMouseDown:
+                let pointInScrollView = scrollView.convert(
+                    event.locationInWindow,
+                    from: nil
+                )
+                guard scrollView.bounds.contains(pointInScrollView) else {
+                    return event
+                }
+                if event.modifierFlags.contains(.command) {
+                    onCommandClick(location)
+                    return nil
+                }
+                let hitRadius = 24 / max(scrollView.magnification, 0.001)
+                if let target = protectedPoints.min(by: {
+                    hypot($0.position.x - location.x, $0.position.y - location.y)
+                        < hypot($1.position.x - location.x, $1.position.y - location.y)
+                }), hypot(
+                    target.position.x - location.x,
+                    target.position.y - location.y
+                ) <= hitRadius {
+                    activePointID = target.id
+                    onPointMouseDown(target.id)
+                    return nil
+                }
+                return event
+            case .leftMouseDragged:
+                if let activePointID {
+                    onPointDragged(activePointID, location)
+                    return nil
+                }
+                return event
+            case .leftMouseUp:
+                return event
+            default:
+                return event
+            }
+        }
+
+        private func finishActiveMouseOperation() {
+            if activePointID != nil {
+                activePointID = nil
+                onPointMouseUp()
+            }
+        }
+
+        @objc func panBackground(_ gesture: NSPanGestureRecognizer) {
+            guard activePointID == nil, let scrollView else { return }
             switch gesture.state {
             case .began:
                 controller.beginPan()
@@ -1370,6 +1536,7 @@ private struct ControlPointNativeScrollView<Content: View>:
                 break
             }
         }
+
     }
 }
 
@@ -1377,6 +1544,10 @@ private struct ControlPointLoupe: View {
     let sourceImage: CGImage
     let sourcePoint: CGPoint
     let coordinateSize: CGSize
+    let viewportMagnification: Double
+
+    private let diameter: CGFloat = 148
+    private let relativeMagnification: CGFloat = 2
 
     private var croppedImage: CGImage? {
         let scaleX = CGFloat(sourceImage.width) / coordinateSize.width
@@ -1385,7 +1556,13 @@ private struct ControlPointLoupe: View {
             x: sourcePoint.x * scaleX,
             y: sourcePoint.y * scaleY
         )
-        let cropSize: CGFloat = 110
+        let cropSize = min(
+            diameter / max(
+                CGFloat(viewportMagnification) * relativeMagnification,
+                0.001
+            ),
+            CGFloat(min(sourceImage.width, sourceImage.height))
+        )
         let rect = CGRect(
             x: min(max(center.x - cropSize / 2, 0), CGFloat(sourceImage.width) - cropSize),
             y: min(max(center.y - cropSize / 2, 0), CGFloat(sourceImage.height) - cropSize),
@@ -1412,7 +1589,7 @@ private struct ControlPointLoupe: View {
                 .fill(.white)
                 .frame(width: 1, height: 18)
         }
-        .frame(width: 148, height: 148)
+        .frame(width: diameter, height: diameter)
         .clipShape(Circle())
         .overlay {
             Circle().stroke(.black.opacity(0.7), lineWidth: 1)

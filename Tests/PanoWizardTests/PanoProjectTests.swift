@@ -4,6 +4,224 @@ import Testing
 
 struct PanoProjectTests {
     @Test @MainActor
+    func optimizationDiagnosticsNeverDeleteEditedControlPoints() {
+        let lens = LensDescription(
+            model: "Fisheye", focalLengthIn35mm: 16, kind: .fisheye
+        )
+        let images = (0..<2).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: 100,
+                pixelHeight: 100,
+                cameraModel: nil,
+                lens: lens
+            )
+        }
+        let first = DiagnosticControlPoint(
+            firstImage: 0, secondImage: 1,
+            firstX: 10, firstY: 10, secondX: 20, secondY: 20
+        )
+        let second = DiagnosticControlPoint(
+            firstImage: 0, secondImage: 1,
+            firstX: 30, firstY: 30, secondX: 40, secondY: 40
+        )
+        let model = AppModel.live(project: PanoProject(
+            images: images,
+            controlPoints: [first, second]
+        ))
+        let reported = DiagnosticControlPoint(
+            firstImage: 0, secondImage: 1,
+            firstX: 10, firstY: 10, secondX: 20, secondY: 20,
+            error: 1.5
+        )
+
+        model.applyOptimizationDiagnostics(
+            ControlPointDiagnostics(
+                images: images,
+                rawPoints: [reported],
+                cleanedPoints: [reported]
+            ),
+            preserving: [first, second]
+        )
+
+        #expect(model.editableControlPoints.count == 2)
+        #expect(model.editableControlPoints.map(\.id) == [first.id, second.id])
+        #expect(model.editableControlPoints[0].error == 1.5)
+    }
+
+    @Test
+    func disablingImagePreservesItsControlPoints() {
+        let images = (0..<2).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: 100,
+                pixelHeight: 100,
+                cameraModel: "Camera",
+                lens: LensDescription(
+                    model: "Fisheye",
+                    focalLengthIn35mm: 16,
+                    kind: .fisheye
+                )
+            )
+        }
+        let point = DiagnosticControlPoint(
+            firstImage: 0,
+            secondImage: 1,
+            firstX: 10,
+            firstY: 20,
+            secondX: 30,
+            secondY: 40
+        )
+        var project = PanoProject(images: images, controlPoints: [point])
+
+        project.toggleImageEnabled(images[1].id)
+
+        #expect(project.images[1].isEnabled == false)
+        #expect(project.controlPoints == [point])
+        project.toggleImageEnabled(images[1].id)
+        #expect(project.images[1].isEnabled == true)
+        #expect(project.controlPoints == [point])
+    }
+
+    @Test
+    func insertingAndReimportingImagesKeepsControlPointsWithTheirFiles() {
+        let lens = LensDescription(
+            model: "Fisheye",
+            focalLengthIn35mm: 16,
+            kind: .fisheye
+        )
+        let first = SourceImage(
+            url: URL(fileURLWithPath: "/Pictures/first.jpg"),
+            captureDate: nil,
+            pixelWidth: 100,
+            pixelHeight: 100,
+            cameraModel: nil,
+            lens: lens
+        )
+        let second = SourceImage(
+            url: URL(fileURLWithPath: "/Pictures/second.jpg"),
+            captureDate: nil,
+            pixelWidth: 100,
+            pixelHeight: 100,
+            cameraModel: nil,
+            lens: lens
+        )
+        let inserted = SourceImage(
+            url: URL(fileURLWithPath: "/Pictures/inserted.jpg"),
+            captureDate: nil,
+            pixelWidth: 100,
+            pixelHeight: 100,
+            cameraModel: nil,
+            lens: lens
+        )
+        let point = DiagnosticControlPoint(
+            firstImage: 0, secondImage: 1,
+            firstX: 10, firstY: 20, secondX: 30, secondY: 40
+        )
+        var project = PanoProject(images: [first, second], controlPoints: [point])
+
+        let reimportedFirst = SourceImage(
+            url: URL(fileURLWithPath: "/Moved/first.jpg"),
+            captureDate: nil,
+            pixelWidth: 100,
+            pixelHeight: 100,
+            cameraModel: nil,
+            lens: lens
+        )
+        let reimportedSecond = SourceImage(
+            url: URL(fileURLWithPath: "/Moved/second.jpg"),
+            captureDate: nil,
+            pixelWidth: 100,
+            pixelHeight: 100,
+            cameraModel: nil,
+            lens: lens
+        )
+
+        project.replaceImages([reimportedSecond, inserted, reimportedFirst])
+
+        #expect(project.controlPoints?.first?.firstImage == 2)
+        #expect(project.controlPoints?.first?.secondImage == 0)
+        #expect(project.controlPoints?.first?.firstX == 10)
+        #expect(project.controlPoints?.first?.secondX == 30)
+    }
+
+    @Test
+    func activeRingIndicesUseVisibleProjectImageNumbers() {
+        let images = (0..<3).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: 100,
+                pixelHeight: 100,
+                cameraModel: "Camera",
+                lens: LensDescription(
+                    model: "Fisheye",
+                    focalLengthIn35mm: 16,
+                    kind: .fisheye
+                ),
+                isEnabled: index != 1
+            )
+        }
+        let activeRing = images.filter(\.isEnabled)
+
+        let numbers = HuginOpenCVPanoramaEngine.projectImageNumbers(
+            for: [0, 1],
+            ringImages: activeRing,
+            panoramaImages: images
+        )
+
+        #expect(numbers == [1, 3])
+    }
+
+    @Test
+    func indirectControlPointChainIsAConnectedRingNetwork() {
+        let points = [
+            DiagnosticControlPoint(
+                firstImage: 0, secondImage: 1,
+                firstX: 1, firstY: 1, secondX: 1, secondY: 1
+            ),
+            DiagnosticControlPoint(
+                firstImage: 1, secondImage: 2,
+                firstX: 1, firstY: 1, secondX: 1, secondY: 1
+            ),
+            DiagnosticControlPoint(
+                firstImage: 2, secondImage: 3,
+                firstX: 1, firstY: 1, secondX: 1, secondY: 1
+            )
+        ]
+
+        let components = HuginOpenCVPanoramaEngine.controlPointComponents(
+            imageCount: 4,
+            controlPoints: points
+        )
+
+        #expect(components == [[0, 1, 2, 3]])
+    }
+
+    @Test
+    func disconnectedControlPointNetworkReportsActualComponents() {
+        let points = [
+            DiagnosticControlPoint(
+                firstImage: 0, secondImage: 1,
+                firstX: 1, firstY: 1, secondX: 1, secondY: 1
+            ),
+            DiagnosticControlPoint(
+                firstImage: 2, secondImage: 3,
+                firstX: 1, firstY: 1, secondX: 1, secondY: 1
+            )
+        ]
+
+        let components = HuginOpenCVPanoramaEngine.controlPointComponents(
+            imageCount: 4,
+            controlPoints: points
+        )
+
+        #expect(components == [[0, 1], [2, 3]])
+    }
+
+    @Test @MainActor
     func controlPointMasksInvalidateExistingPointSolution() throws {
         let images = (0..<2).map { index in
             SourceImage(
@@ -365,6 +583,36 @@ struct PanoProjectTests {
 
         #expect(point?.secondX == 50)
         #expect(point?.secondY == 40)
+    }
+
+    @Test @MainActor
+    func missingProjectionFallsBackToImageCenter() {
+        let lens = LensDescription(
+            model: "Fisheye",
+            focalLengthIn35mm: 16,
+            kind: .fisheye
+        )
+        let images = (0..<2).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: 1_000,
+                pixelHeight: 800,
+                cameraModel: nil,
+                lens: lens
+            )
+        }
+        let model = AppModel.live(project: PanoProject(images: images))
+
+        let id = model.addPredictedControlPoint(
+            to: ControlPointPair.ID(firstImage: 0, secondImage: 1),
+            point: CGPoint(x: 100, y: 120),
+            in: 0
+        )
+        let point = model.editableControlPoints.first { $0.id == id }
+
+        #expect(point?.secondX == 500)
+        #expect(point?.secondY == 400)
     }
 
     @Test

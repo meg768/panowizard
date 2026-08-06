@@ -38,6 +38,7 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
     let lens: LensDescription
     var direction: Direction
     var role: Role
+    var isEnabled: Bool
 
     init(
         id: UUID = UUID(),
@@ -48,7 +49,8 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
         cameraModel: String?,
         lens: LensDescription,
         direction: Direction = .horizontal,
-        role: Role = .alignment
+        role: Role = .alignment,
+        isEnabled: Bool = true
     ) {
         self.id = id
         self.url = url
@@ -59,9 +61,30 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
         self.lens = lens
         self.direction = direction
         self.role = role
+        self.isEnabled = isEnabled
     }
 
     var filename: String {
         url.lastPathComponent
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, url, captureDate, pixelWidth, pixelHeight, cameraModel, lens
+        case direction, role, isEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        url = try values.decode(URL.self, forKey: .url)
+        captureDate = try values.decodeIfPresent(Date.self, forKey: .captureDate)
+        pixelWidth = try values.decode(Int.self, forKey: .pixelWidth)
+        pixelHeight = try values.decode(Int.self, forKey: .pixelHeight)
+        cameraModel = try values.decodeIfPresent(String.self, forKey: .cameraModel)
+        lens = try values.decode(LensDescription.self, forKey: .lens)
+        direction = try values.decode(Direction.self, forKey: .direction)
+        role = try values.decode(Role.self, forKey: .role)
+        isEnabled = try values.decodeIfPresent(Bool.self, forKey: .isEnabled)
+            ?? true
     }
 }

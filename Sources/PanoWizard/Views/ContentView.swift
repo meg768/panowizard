@@ -57,6 +57,13 @@ struct ContentView: View {
                                     in: imageIndex
                                 )
                             },
+                            onPredictPoint: { point, imageIndex in
+                                model.predictedControlPointCounterpart(
+                                    to: pairID,
+                                    point: point,
+                                    in: imageIndex
+                                )
+                            },
                             isSuggestingPoints: model.isSuggestingControlPoints,
                             onSuggestPoints: {
                                 model.suggestControlPoints(for: pairID)

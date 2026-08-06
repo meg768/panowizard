@@ -101,8 +101,9 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         configuration: StitchingConfiguration,
         rendersPanorama: Bool
     ) throws -> PanoramaStitchResult {
-        let alignmentImages = panorama.images.filter { $0.role == .alignment }
-        let fillOnlyImages = panorama.images.filter { $0.role == .fillOnly }
+        let enabledImages = panorama.images.filter(\.isEnabled)
+        let alignmentImages = enabledImages.filter { $0.role == .alignment }
+        let fillOnlyImages = enabledImages.filter { $0.role == .fillOnly }
         let ringImages = alignmentImages.filter { $0.direction == .horizontal }
         // A hand-held zenith marked as Reparation still uses the frozen-ring
         // zenith registrar. Only its own pose is optimized; the ring is
@@ -247,8 +248,8 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let ringIndexByID = Dictionary(uniqueKeysWithValues:
             ringImages.enumerated().map { ($0.element.id, $0.offset) }
         )
-        let editedRingPoints = controlPoints?.compactMap {
-            point -> PanoramaControlPoint? in
+        let editedRingEntries = controlPoints?.compactMap {
+            point -> (point: PanoramaControlPoint, id: UUID)? in
             guard panorama.images.indices.contains(point.firstImage),
                   panorama.images.indices.contains(point.secondImage),
                   let first = ringIndexByID[
@@ -271,12 +272,17 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     height: ringImages[second].pixelHeight,
                     sourceFactor: -0.526971, destinationFactor: -0.5
                 ) : (point.secondX, point.secondY)
-            return PanoramaControlPoint(
-                firstImage: first, secondImage: second,
-                firstX: firstPoint.0, firstY: firstPoint.1,
-                secondX: secondPoint.0, secondY: secondPoint.1
+            return (
+                PanoramaControlPoint(
+                    firstImage: first, secondImage: second,
+                    firstX: firstPoint.0, firstY: firstPoint.1,
+                    secondX: secondPoint.0, secondY: secondPoint.1
+                ),
+                point.id
             )
         }
+        let editedRingPoints = editedRingEntries?.map(\.point)
+        let editedRingPointIDs = editedRingEntries?.map(\.id) ?? []
         let usesEditedControlPoints = editedRingPoints?.isEmpty == false
         let ringControlPoints = try usesEditedControlPoints
             ? editedRingPoints! : OpenCVControlPointMatcher.ring(
@@ -312,7 +318,8 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 imageCount: ringImages.count
             )
             calibratedNominalYaws = nominalYaws
-            if usesEditedControlPoints {
+            let hasDuplicateViews = Set(nominalYaws).count < nominalYaws.count
+            if usesEditedControlPoints && !hasDuplicateViews {
                 // A manual/imported CP set is the experiment's input. Do not
                 // silently discard pairs or reduce it to PanoWizard's
                 // automatically selected ring backbone.
@@ -321,7 +328,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     to: ringBackboneProject
                 )
             } else {
-                if isCircularFisheye {
+                if isCircularFisheye && !hasDuplicateViews {
                     // A 165° Sigma ring has useful overlap well beyond the
                     // immediate neighbour pair.  Keep that redundant graph:
                     // it constrains radial distortion and optical centre at
@@ -334,6 +341,10 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                         to: ringBackboneProject
                     )
                 } else {
+                    // Repeated exposures from the same direction make a dense
+                    // fisheye graph poorly conditioned. Keep their internal
+                    // constraints, but solve the ring through one well-linked
+                    // representative per detected camera direction.
                     try HuginProjectFile.filteringImplausibleRingPairs(
                         from: controlPointProject,
                         to: plausibleRingProject,
@@ -516,15 +527,44 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             }
             finalOptimizedRingProject = robustRingProject
         }
-        var cleanedDiagnosticPoints = try HuginProjectFile.controlPoints(
-            in: finalOptimizedRingProject
-        )
+        var cleanedDiagnosticPoints: [DiagnosticControlPoint]
+        if usesEditedControlPoints, let editedRingPoints {
+            cleanedDiagnosticPoints = zip(
+                editedRingPoints,
+                editedRingPointIDs
+            ).map { point, id in
+                DiagnosticControlPoint(
+                    id: id,
+                    firstImage: point.firstImage,
+                    secondImage: point.secondImage,
+                    firstX: point.firstX,
+                    firstY: point.firstY,
+                    secondX: point.secondX,
+                    secondY: point.secondY
+                )
+            }
+        } else {
+            cleanedDiagnosticPoints = try HuginProjectFile.controlPoints(
+                in: finalOptimizedRingProject
+            )
+        }
         let pointErrors = try toolchain.controlPointErrors(
             in: finalOptimizedRingProject,
             points: cleanedDiagnosticPoints
         )
         for index in cleanedDiagnosticPoints.indices {
-            cleanedDiagnosticPoints[index].error = pointErrors[index]
+            let parsed = cleanedDiagnosticPoints[index]
+            cleanedDiagnosticPoints[index] = DiagnosticControlPoint(
+                id: editedRingPointIDs.indices.contains(index)
+                    ? editedRingPointIDs[index] : parsed.id,
+                firstImage: parsed.firstImage,
+                secondImage: parsed.secondImage,
+                firstX: parsed.firstX,
+                firstY: parsed.firstY,
+                secondX: parsed.secondX,
+                secondY: parsed.secondY,
+                error: pointErrors[index]
+            )
         }
         let panoramaIndexByID = Dictionary(uniqueKeysWithValues:
             panorama.images.enumerated().map { ($0.element.id, $0.offset) }
@@ -587,18 +627,22 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     + "p=\(String(format: "%.2f", orientation.pitch)) "
                     + "r=\(String(format: "%.2f", orientation.roll))"
             }.joined(separator: ", "))
-        if let missingConnection = Self.missingAdjacentViewConnection(
-            orientations: ringOrientations,
+        let disconnectedComponents = Self.controlPointComponents(
+            imageCount: ringImages.count,
             controlPoints: cleanedDiagnosticPoints
-        ) {
-            let first = missingConnection.0.map { String($0 + 1) }
-                .joined(separator: "–")
-            let second = missingConnection.1.map { String($0 + 1) }
-                .joined(separator: "–")
+        )
+        if disconnectedComponents.count > 1 {
+            let groups = disconnectedComponents.map { component in
+                Self.projectImageNumbers(
+                    for: component,
+                    ringImages: ringImages,
+                    panoramaImages: panorama.images
+                ).map(String.init).joined(separator: ", ")
+            }.joined(separator: " | ")
             throw PanoramaEngineError.stitchingFailed(
-                "Ringen saknar kontrollpunkter mellan bildgrupp "
-                    + "\(first) och \(second). Komplettera det bildparet "
-                    + "innan panoramat skapas."
+                "Kontrollpunktsnätet är uppdelat i separata bildgrupper: "
+                    + "\(groups). Aktivera en bryggbild eller lägg till "
+                    + "kontrollpunkter mellan två bilder som faktiskt överlappar."
             )
         }
         var finalGeometryProject = ringGeometryProject
@@ -673,13 +717,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             withIntermediateDirectories: true
         )
         let clipsToCircle = configuration.lensProfile == .sigma8DX
-        let renderOrientations = try HuginProjectFile.orientations(
-            in: finalGeometryProject
-        )
-        let representativeIndices = Self.bestBackgroundLayerIndices(
-            orientations: renderOrientations,
-            controlPoints: cleanedDiagnosticPoints
-        )
         let preparedImages = try orderedImages.enumerated().map { index, image in
             let destination = preparedDirectory.appending(
                 path: "source-\(index).tif"
@@ -696,11 +733,38 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let renderSourcesProject = workDirectory.appending(
             path: "09-render-sources.pto"
         )
+        let photometricProject = workDirectory.appending(
+            path: "09-photometric.pto"
+        )
+        var renderGeometryProject = finalGeometryProject
+        do {
+            // Geometry and control points are already final. Match exposure,
+            // white balance and vignetting before Nona creates the layers so
+            // Enblend does not have to hide a broad brightness discontinuity
+            // at the edge of a hand-painted exclusion mask.
+            try toolchain.run(
+                "autooptimiser",
+                arguments: [
+                    "-m",
+                    "-o", photometricProject.path(percentEncoded: false),
+                    finalGeometryProject.path(percentEncoded: false)
+                ],
+                in: workDirectory
+            )
+            renderGeometryProject = photometricProject
+        } catch {
+            // Photometric matching improves difficult seams but must never
+            // prevent an otherwise valid panorama from rendering.
+            log(
+                "Photometric matching skipped: \(error.localizedDescription)",
+                images: orderedImages
+            )
+        }
         let seamCenteredProject = workDirectory.appending(
             path: "09-seam-centered.pto"
         )
         try HuginProjectFile.centeringPanoramaSeamBetweenRingImages(
-            from: finalGeometryProject,
+            from: renderGeometryProject,
             to: seamCenteredProject,
             ringImageCount: ringImages.count
         )
@@ -748,53 +812,44 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             )
         }
         let result = workDirectory.appending(path: "panorama.jpg")
-        let blendArguments = [
-            "-f", "4000x2000+0+0",
-            "--wrap=horizontal",
-            "--compression=92",
-            "--output=\(result.path(percentEncoded: false))"
-        ] + layers.map { $0.path(percentEncoded: false) }
+        let usesSourceMasks = orderedImages.contains { masks[$0.id] != nil }
         func blend(
             _ inputLayers: [URL],
-            fineMask: Bool = false,
-            withoutOptimization: Bool = false
+            to output: URL
         ) throws {
             try toolchain.run(
                 "enblend",
-                arguments: (withoutOptimization ? ["--no-optimize"] : [])
-                    + (fineMask ? ["--fine-mask"] : [])
-                    + Array(blendArguments.prefix(5))
+                arguments: [
+                    "-f", "4000x2000+0+0", "--wrap=horizontal",
+                    "--compression=92",
+                    "--output=\(output.path(percentEncoded: false))"
+                ]
+                    + (usesSourceMasks ? [
+                        "--primary-seam-generator=nearest-feature-transform"
+                    ] : [])
                     + inputLayers.map { $0.path(percentEncoded: false) },
                 in: workDirectory
             )
         }
-
-        do {
-            try blend(layers)
-        } catch {
-            try? FileManager.default.removeItem(at: result)
-            let representatives = layers.enumerated().compactMap { index, layer in
-                representativeIndices.contains(index) ? layer : nil
-            }
-            do {
-                try blend(representatives)
-            } catch {
-                try? FileManager.default.removeItem(at: result)
+        func blendCyclically(_ inputLayers: [URL], to output: URL) throws {
+            var blendError: Error?
+            for offset in inputLayers.indices {
+                try? FileManager.default.removeItem(at: output)
                 do {
-                    // Coarse mask generation can collapse narrow or irregular
-                    // fisheye overlaps into degenerate geometry.
-                    try blend(representatives, fineMask: true)
+                    let orderedLayers = Array(inputLayers[offset...])
+                        + Array(inputLayers[..<offset])
+                    try blend(orderedLayers, to: output)
+                    return
                 } catch {
-                    // The final fallback must start with a clean destination.
-                    try? FileManager.default.removeItem(at: result)
-                    try blend(
-                        representatives,
-                        fineMask: true,
-                        withoutOptimization: true
-                    )
+                    blendError = error
                 }
             }
+            throw blendError ?? PanoramaEngineError.stitchingFailed(
+                "Enblend kunde inte kombinera bildlagren."
+            )
         }
+
+        try blendCyclically(layers, to: result)
 
         var nadirRepair: NadirRepairRegistrationResult?
         let repairHorizontalFieldOfView = try HuginProjectFile
@@ -1488,41 +1543,49 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         return Set(bestSelection)
     }
 
-    private static func missingAdjacentViewConnection(
-        orientations: [PanoramaOrientation],
+    static func controlPointComponents(
+        imageCount: Int,
         controlPoints: [DiagnosticControlPoint]
-    ) -> ([Int], [Int])? {
-        var groups: [[Int]] = []
-        for index in orientations.indices {
-            if let groupIndex = groups.firstIndex(where: { group in
-                group.contains {
-                    representsSameView(orientations[$0], orientations[index])
+    ) -> [[Int]] {
+        guard imageCount > 0 else { return [] }
+        var neighbors = Array(repeating: Set<Int>(), count: imageCount)
+        for point in controlPoints
+        where (0..<imageCount).contains(point.firstImage)
+            && (0..<imageCount).contains(point.secondImage) {
+            neighbors[point.firstImage].insert(point.secondImage)
+            neighbors[point.secondImage].insert(point.firstImage)
+        }
+        var remaining = Set(0..<imageCount)
+        var components: [[Int]] = []
+        while let start = remaining.first {
+            var component: [Int] = []
+            var pending = [start]
+            remaining.remove(start)
+            while let current = pending.popLast() {
+                component.append(current)
+                for neighbor in neighbors[current] where remaining.remove(neighbor) != nil {
+                    pending.append(neighbor)
                 }
-            }) {
-                groups[groupIndex].append(index)
-            } else {
-                groups.append([index])
             }
+            components.append(component.sorted())
         }
-        guard groups.count > 1 else { return nil }
-        let ordered = groups.sorted {
-            normalizedYaw(orientations[$0[0]].yaw)
-                < normalizedYaw(orientations[$1[0]].yaw)
+        return components.sorted { ($0.first ?? 0) < ($1.first ?? 0) }
+    }
+
+    static func projectImageNumbers(
+        for ringIndices: [Int],
+        ringImages: [SourceImage],
+        panoramaImages: [SourceImage]
+    ) -> [Int] {
+        let panoramaIndexByID = Dictionary(uniqueKeysWithValues:
+            panoramaImages.enumerated().map { ($0.element.id, $0.offset) }
+        )
+        return ringIndices.compactMap { ringIndex in
+            guard ringImages.indices.contains(ringIndex),
+                  let panoramaIndex = panoramaIndexByID[ringImages[ringIndex].id]
+            else { return nil }
+            return panoramaIndex + 1
         }
-        for index in ordered.indices {
-            let first = ordered[index]
-            let second = ordered[(index + 1) % ordered.count]
-            let hasConnection = controlPoints.contains { point in
-                first.contains(point.firstImage)
-                    && second.contains(point.secondImage)
-                    || first.contains(point.secondImage)
-                        && second.contains(point.firstImage)
-            }
-            if !hasConnection {
-                return (first, second)
-            }
-        }
-        return nil
     }
 
     private static func normalizedYaw(_ yaw: Double) -> Double {

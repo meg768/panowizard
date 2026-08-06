@@ -52,6 +52,11 @@ final class AppModel {
                 message
             }
         }
+
+        var failureDetails: String? {
+            guard case .failed(let message) = self else { return nil }
+            return message
+        }
     }
 
     private let importer: any ImageImporting
@@ -305,7 +310,9 @@ final class AppModel {
 
     var canStitch: Bool {
         project.images.filter {
-            $0.role == .alignment && $0.direction == .horizontal
+            $0.isEnabled
+                && $0.role == .alignment
+                && $0.direction == .horizontal
         }.count >= 2
             && phase != .importing
             && phase != .stitching
@@ -410,12 +417,80 @@ final class AppModel {
                     controlPoints: points,
                     configuration: project.stitching
                 )
-                applyControlPointDiagnostics(result.diagnostics)
+                applyOptimizationDiagnostics(
+                    result.diagnostics,
+                    preserving: points
+                )
                 phase = .ready
             } catch {
                 phase = .failed(error.localizedDescription)
             }
         }
+    }
+
+    func applyOptimizationDiagnostics(
+        _ diagnostics: ControlPointDiagnostics,
+        preserving originalPoints: [DiagnosticControlPoint]
+    ) {
+        let projectIndexByFilename = Dictionary(grouping:
+            project.images.enumerated(), by: { $0.element.filename }
+        ).compactMapValues { matches in
+            matches.count == 1 ? matches[0].offset : nil
+        }
+        let optimizedPoints = diagnostics.cleanedPoints.compactMap {
+            point -> DiagnosticControlPoint? in
+            guard diagnostics.images.indices.contains(point.firstImage),
+                  diagnostics.images.indices.contains(point.secondImage),
+                  let first = projectIndexByFilename[
+                      diagnostics.images[point.firstImage].filename
+                  ],
+                  let second = projectIndexByFilename[
+                      diagnostics.images[point.secondImage].filename
+                  ] else { return nil }
+            return DiagnosticControlPoint(
+                id: point.id,
+                firstImage: first,
+                secondImage: second,
+                firstX: point.firstX,
+                firstY: point.firstY,
+                secondX: point.secondX,
+                secondY: point.secondY,
+                error: point.error
+            )
+        }
+        var unusedOptimizedIndices = Set(optimizedPoints.indices)
+        editableControlPoints = originalPoints.map { original in
+            let match = unusedOptimizedIndices.first {
+                optimizedPoints[$0].id == original.id
+            } ?? unusedOptimizedIndices
+                .filter { optimizedPoints[$0].pair == original.pair }
+                .min { left, right in
+                    Self.controlPointDistance(
+                        optimizedPoints[left], original
+                    ) < Self.controlPointDistance(
+                        optimizedPoints[right], original
+                    )
+                }
+            guard let match else { return original }
+            unusedOptimizedIndices.remove(match)
+            var preserved = original
+            preserved.error = optimizedPoints[match].error
+            return preserved
+        }
+        saveEditableControlPoints()
+        controlPointDiagnostics = ControlPointDiagnostics(
+            images: project.images,
+            rawPoints: editableControlPoints,
+            cleanedPoints: editableControlPoints
+        )
+    }
+
+    private static func controlPointDistance(
+        _ lhs: DiagnosticControlPoint,
+        _ rhs: DiagnosticControlPoint
+    ) -> Double {
+        hypot(lhs.firstX - rhs.firstX, lhs.firstY - rhs.firstY)
+            + hypot(lhs.secondX - rhs.secondX, lhs.secondY - rhs.secondY)
     }
 
     private func stitch(controlPoints: [DiagnosticControlPoint]?) {
@@ -529,6 +604,14 @@ final class AppModel {
             !isFrozenRingImage(at: point.firstImage)
                 || !isFrozenRingImage(at: point.secondImage)
         }
+        let inactiveImagePoints = editableControlPoints.filter { point in
+            guard project.images.indices.contains(point.firstImage),
+                  project.images.indices.contains(point.secondImage) else {
+                return false
+            }
+            return !project.images[point.firstImage].isEnabled
+                || !project.images[point.secondImage].isEnabled
+        }
         let projectIndexByID = Dictionary(uniqueKeysWithValues:
             project.images.enumerated().map { ($0.element.id, $0.offset) }
         )
@@ -557,7 +640,13 @@ final class AppModel {
         let unreportedRepairPoints = existingRepairPoints.filter {
             !refreshedIDs.contains($0.id)
         }
-        editableControlPoints = refreshedRingPoints + unreportedRepairPoints
+        let preservedInactivePoints = inactiveImagePoints.filter {
+            !refreshedIDs.contains($0.id)
+                && !unreportedRepairPoints.map(\.id).contains($0.id)
+        }
+        editableControlPoints = refreshedRingPoints
+            + unreportedRepairPoints
+            + preservedInactivePoints
         saveEditableControlPoints()
         controlPointDiagnostics = ControlPointDiagnostics(
             images: project.images,
@@ -749,7 +838,7 @@ final class AppModel {
             return
         }
         let eligible = images.enumerated().filter {
-            isRingControlPointImage($0.element)
+            $0.element.isEnabled && isRingControlPointImage($0.element)
         }
         guard eligible.count >= 2 else { return }
         let matchingImages = eligible.map(\.element)
@@ -1029,6 +1118,22 @@ final class AppModel {
         return point.id
     }
 
+    func predictedControlPointCounterpart(
+        to pair: ControlPointPair.ID,
+        point: CGPoint,
+        in imageIndex: Int
+    ) -> (point: CGPoint, imageIndex: Int) {
+        let clickedFirstImage = imageIndex == pair.firstImage
+        return (
+            predictedCounterpart(
+                for: point,
+                in: pair,
+                clickedFirstImage: clickedFirstImage
+            ),
+            clickedFirstImage ? pair.secondImage : pair.firstImage
+        )
+    }
+
     private func predictedCounterpart(
         for clickedPoint: CGPoint,
         in pair: ControlPointPair.ID,
@@ -1048,8 +1153,7 @@ final class AppModel {
             .sorted { $0.1 < $1.1 }
             .prefix(12)
         guard !candidates.isEmpty else {
-            return clampedCounterpart(
-                clickedPoint,
+            return counterpartCenter(
                 for: pair,
                 clickedFirstImage: clickedFirstImage
             )
@@ -1093,7 +1197,12 @@ final class AppModel {
             predictedY += (clickedPoint.y + offsetY) * weight
             totalWeight += weight
         }
-        guard totalWeight > 0 else { return clickedPoint }
+        guard totalWeight > 0 else {
+            return counterpartCenter(
+                for: pair,
+                clickedFirstImage: clickedFirstImage
+            )
+        }
         return clampedCounterpart(
             CGPoint(x: predictedX / totalWeight, y: predictedY / totalWeight),
             for: pair,
@@ -1179,6 +1288,18 @@ final class AppModel {
             return CGPoint(x: size.width / 2, y: size.height / 2)
         }
         return point
+    }
+
+    private func counterpartCenter(
+        for pair: ControlPointPair.ID,
+        clickedFirstImage: Bool
+    ) -> CGPoint {
+        let images = project.images
+        let index = clickedFirstImage ? pair.secondImage : pair.firstImage
+        guard let image = images.indices.contains(index) ? images[index] : nil
+        else { return .zero }
+        let size = counterpartCoordinateSize(for: image)
+        return CGPoint(x: size.width / 2, y: size.height / 2)
     }
 
     private func counterpartCoordinateSize(for image: SourceImage) -> CGSize {
@@ -1294,6 +1415,20 @@ final class AppModel {
         nadirOverlayURL = nil
         nadirAdjustment = .identity
         isAdjustingNadir = false
+        panoramaRevision += 1
+    }
+
+    func toggleSourceImageEnabled(_ imageID: UUID) {
+        stitchOperationID = UUID()
+        repairRenderRevision += 1
+        project.toggleImageEnabled(imageID)
+        stitchedResultURL = nil
+        nadirOverlayURL = nil
+        zenithOverlayURL = nil
+        nadirAdjustment = .identity
+        zenithAdjustment = .identity
+        isAdjustingNadir = false
+        phase = .ready
         panoramaRevision += 1
     }
 

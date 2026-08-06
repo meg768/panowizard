@@ -66,13 +66,43 @@ struct PanoProject: Codable, Equatable, Sendable {
     }
 
     mutating func replaceImages(_ images: [SourceImage]) {
-        let oldGeometry = self.images.map { ($0.id, $0.direction, $0.role) }
+        let oldImages = self.images
+        let oldControlPoints = controlPoints
+        let oldGeometry = oldImages.map { ($0.id, $0.direction, $0.role) }
         let newGeometry = images.map { ($0.id, $0.direction, $0.role) }
         if oldGeometry.elementsEqual(newGeometry, by: { left, right in
             left.0 == right.0 && left.1 == right.1 && left.2 == right.2
         }) == false {
             invalidateRigCache()
             nadirRepairPlacement = nil
+        }
+        let oldFilenameCounts = Dictionary(grouping: oldImages, by: \.filename)
+            .mapValues(\.count)
+        let newFilenameIndices = Dictionary(grouping: images.enumerated()) {
+            $0.element.filename
+        }.compactMapValues { matches in
+            matches.count == 1 ? matches[0].offset : nil
+        }
+        func replacementIndex(for oldImage: SourceImage) -> Int? {
+            guard oldFilenameCounts[oldImage.filename] == 1 else { return nil }
+            return newFilenameIndices[oldImage.filename]
+        }
+        controlPoints = oldControlPoints?.compactMap { point in
+            guard oldImages.indices.contains(point.firstImage),
+                  oldImages.indices.contains(point.secondImage),
+                  let first = replacementIndex(for: oldImages[point.firstImage]),
+                  let second = replacementIndex(for: oldImages[point.secondImage])
+            else { return nil }
+            return DiagnosticControlPoint(
+                id: point.id,
+                firstImage: first,
+                secondImage: second,
+                firstX: point.firstX,
+                firstY: point.firstY,
+                secondX: point.secondX,
+                secondY: point.secondY,
+                error: point.error
+            )
         }
         self.images = images
         modifiedAt = Self.secondPrecision(.now)
@@ -135,10 +165,22 @@ struct PanoProject: Codable, Equatable, Sendable {
         modifiedAt = Self.secondPrecision(.now)
     }
 
+    mutating func toggleImageEnabled(_ imageID: UUID) {
+        guard let index = images.firstIndex(where: { $0.id == imageID }) else {
+            return
+        }
+        images[index].isEnabled.toggle()
+        cachedRigImageLines = nil
+        cachedRigSignature = nil
+        modifiedAt = Self.secondPrecision(.now)
+    }
+
     var rigSignature: String {
         let imagePart = images
             .filter { $0.role == .alignment }
-            .map { "\($0.id.uuidString):\($0.direction.rawValue)" }
+            .map {
+                "\($0.id.uuidString):\($0.direction.rawValue):\($0.isEnabled)"
+            }
             .joined(separator: "|")
         return [
             imagePart,
