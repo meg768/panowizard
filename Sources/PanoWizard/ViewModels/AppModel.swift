@@ -776,6 +776,7 @@ final class AppModel {
         isSuggestingControlPoints = true
         phase = .suggestingControlPoints
         let horizontalFieldOfView = project.stitching.inputHorizontalFieldOfView
+        let lensProfile = project.stitching.lensProfile
         let existingPoints = editableControlPoints
         let controlPointMasks = effectiveControlPointMasks
         let cachedLines = project.cachedRigSignature == project.rigSignature
@@ -797,6 +798,7 @@ final class AppModel {
                         images: images,
                         pair: pair,
                         horizontalFieldOfView: horizontalFieldOfView,
+                        lensProfile: lensProfile,
                         controlPointMasks: controlPointMasks
                     )
                 }.value
@@ -907,6 +909,7 @@ final class AppModel {
         isSuggestingControlPoints = true
         phase = .suggestingControlPoints
         let horizontalFieldOfView = project.stitching.inputHorizontalFieldOfView
+        let lensProfile = project.stitching.lensProfile
         let existingPoints = replacingExisting ? [] : editableControlPoints
         let controlPointMasks = effectiveControlPointMasks
 
@@ -916,6 +919,7 @@ final class AppModel {
                     try OpenCVControlPointMatcher.ring(
                         images: matchingImages,
                         horizontalFieldOfView: horizontalFieldOfView,
+                        lensProfile: lensProfile,
                         controlPointMasks: controlPointMasks,
                         displayImageNumbers: projectIndices.map { $0 + 1 }
                     )

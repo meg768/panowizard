@@ -47,11 +47,18 @@ typedef struct {
     double localViewFieldOfView;
 } PWNadirRegistration;
 
+typedef enum {
+    PWLensModelRectilinear = 0,
+    PWLensModelNikon105DX = 1,
+    PWLensModelSigma8DX = 2
+} PWLensModel;
+
 int PWGenerateRingControlPoints(
     const char *const *imagePaths,
     const double *nominalYaws,
     int imageCount,
     double horizontalFieldOfView,
+    int lensModel,
     PWControlPoint **controlPoints,
     int *controlPointCount,
     char **errorMessage
@@ -64,6 +71,7 @@ int PWGeneratePairControlPoints(
     int secondImageIndex,
     int ringImageCount,
     double horizontalFieldOfView,
+    int lensModel,
     PWControlPoint **controlPoints,
     int *controlPointCount,
     char **errorMessage

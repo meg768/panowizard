@@ -44,11 +44,17 @@ struct PanoramaEngineIntegrationTests {
             images[zenithNumber - 1].direction = .zenith
         }
 
+        let lensProfile = environment[
+            "PANOWIZARD_FOLDER_LENS_PROFILE"
+        ].flatMap(StitchingConfiguration.LensProfile.init(rawValue:))
+            ?? .sigma8DX
+        let inputFieldOfView = lensProfile.defaultHorizontalFieldOfView
+            ?? 165.38
         let configuration = StitchingConfiguration(
             engine: .automatic,
             projection: .automatic,
-            lensProfile: .sigma8DX,
-            inputHorizontalFieldOfView: 165.38
+            lensProfile: lensProfile,
+            inputHorizontalFieldOfView: inputFieldOfView
         )
         var project = PanoProject(
             title: source.lastPathComponent,
@@ -73,7 +79,8 @@ struct PanoramaEngineIntegrationTests {
             let ring = ringIndices.map { images[$0] }
             let points = try OpenCVControlPointMatcher.ring(
                 images: ring,
-                horizontalFieldOfView: 165.38,
+                horizontalFieldOfView: inputFieldOfView,
+                lensProfile: lensProfile,
                 nominalYaws: ring.indices.map {
                     Double($0) * 360 / Double(ring.count)
                 }
@@ -115,7 +122,8 @@ struct PanoramaEngineIntegrationTests {
                         firstImage: first,
                         secondImage: second
                     ),
-                    horizontalFieldOfView: 165.38
+                    horizontalFieldOfView: inputFieldOfView,
+                    lensProfile: lensProfile
                 )
                 print(
                     "PANOWIZARD_FOLDER_MANUAL_PAIR="

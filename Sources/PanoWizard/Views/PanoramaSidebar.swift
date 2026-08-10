@@ -47,47 +47,6 @@ struct PanoramaSidebar: View {
                     SidebarTitle("Källbilder")
                 }
 
-                Section {
-                    Button {
-                        model.selection = .settings
-                    } label: {
-                        PanoramaSettingsRow()
-                    }
-                    .buttonStyle(.plain)
-                    .listRowBackground(
-                        model.selection == .settings
-                            ? Color.accentColor.opacity(0.24)
-                            : Color.clear
-                    )
-
-                    Button {
-                        model.selection = .panorama
-                    } label: {
-                        PanoramaPreviewRow()
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(model.stitchedResultURL == nil)
-                    .listRowBackground(
-                        model.selection == .panorama
-                            ? Color.accentColor.opacity(0.24)
-                            : Color.clear
-                    )
-
-                    Button {
-                        model.selection = .export
-                    } label: {
-                        PanoramaExportRow()
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(model.stitchedResultURL == nil)
-                    .listRowBackground(
-                        model.selection == .export
-                            ? Color.accentColor.opacity(0.24)
-                            : Color.clear
-                    )
-                } header: {
-                    SidebarTitle("Panorama")
-                }
             }
         }
         .contentMargins(.horizontal, 16, for: .scrollContent)
@@ -123,48 +82,6 @@ private struct SidebarTitle: View {
             .font(.headline)
             .foregroundStyle(.primary)
             .textCase(nil)
-    }
-}
-
-private struct PanoramaSettingsRow: View {
-    var body: some View {
-        Label {
-            Text("Inställningar")
-        } icon: {
-            Image(systemName: "slider.horizontal.3")
-                .foregroundStyle(.tint)
-        }
-        .padding(.vertical, 2)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-    }
-}
-
-private struct PanoramaPreviewRow: View {
-    var body: some View {
-        Label {
-            Text("Förhandsvisning")
-        } icon: {
-            Image(systemName: "photo.on.rectangle.angled")
-                .foregroundStyle(.tint)
-        }
-        .padding(.vertical, 2)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-    }
-}
-
-private struct PanoramaExportRow: View {
-    var body: some View {
-        Label {
-            Text("Exportera")
-        } icon: {
-            Image(systemName: "square.and.arrow.up")
-                .foregroundStyle(.tint)
-        }
-        .padding(.vertical, 2)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 }
 

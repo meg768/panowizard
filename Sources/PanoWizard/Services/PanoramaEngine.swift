@@ -279,6 +279,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             ? editedRingPoints! : OpenCVControlPointMatcher.ring(
                 images: geometryRingImages,
                 horizontalFieldOfView: matchingFieldOfView,
+                lensProfile: configuration.lensProfile,
                 controlPointMasks: controlPointMasks,
                 displayImageNumbers: ringDisplayImageNumbers
             )

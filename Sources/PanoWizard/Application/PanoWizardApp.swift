@@ -1,6 +1,28 @@
 import AppKit
 import SwiftUI
 
+struct PanoramaCommandActions {
+    let canOpenProjectViews: Bool
+    let canShowPanorama: Bool
+    let canStitch: Bool
+    let createPanorama: () -> Void
+    let restartAutomatically: () -> Void
+    let showSettings: () -> Void
+    let showPreview: () -> Void
+    let showExport: () -> Void
+}
+
+private struct PanoramaCommandActionsKey: FocusedValueKey {
+    typealias Value = PanoramaCommandActions
+}
+
+extension FocusedValues {
+    var panoramaCommandActions: PanoramaCommandActions? {
+        get { self[PanoramaCommandActionsKey.self] }
+        set { self[PanoramaCommandActionsKey.self] = newValue }
+    }
+}
+
 @main
 struct PanoWizardApp: App {
     var body: some Scene {
@@ -13,6 +35,110 @@ struct PanoWizardApp: App {
                 .background(WindowStateRestorer())
         }
         .defaultSize(width: 1_240, height: 780)
+        .commands {
+            PanoramaMenuCommands()
+            ControlPointMenuCommands()
+        }
+    }
+}
+
+private struct PanoramaMenuCommands: Commands {
+    @FocusedValue(\.panoramaCommandActions)
+    private var actions
+
+    var body: some Commands {
+        CommandMenu("Panorama") {
+            Button("Skapa panorama") {
+                actions?.createPanorama()
+            }
+            .keyboardShortcut("r", modifiers: .option)
+            .disabled(actions?.canStitch != true)
+
+            Button("Börja om automatiskt…") {
+                actions?.restartAutomatically()
+            }
+            .disabled(actions?.canStitch != true)
+
+            Divider()
+
+            Button("Inställningar") {
+                actions?.showSettings()
+            }
+            .keyboardShortcut(",", modifiers: .option)
+            .disabled(actions?.canOpenProjectViews != true)
+
+            Button("Förhandsvisning") {
+                actions?.showPreview()
+            }
+            .keyboardShortcut("p", modifiers: .option)
+            .disabled(actions?.canShowPanorama != true)
+
+            Button("Exportera…") {
+                actions?.showExport()
+            }
+            .keyboardShortcut("e", modifiers: .option)
+            .disabled(actions?.canShowPanorama != true)
+        }
+    }
+}
+
+private struct ControlPointMenuCommands: Commands {
+    @FocusedValue(\.controlPointCommandActions)
+    private var actions
+
+    var body: some Commands {
+        CommandMenu("Kontrollpunkter") {
+            Button(actions?.addPointTitle ?? "Lägg till punkt") {
+                actions?.toggleAddingPoint()
+            }
+            .keyboardShortcut("a", modifiers: .option)
+            .disabled(actions == nil)
+
+            Divider()
+
+            Button("Föreslå för aktuellt bildpar") {
+                actions?.suggestPairPoints()
+            }
+            .keyboardShortcut("f", modifiers: .option)
+            .disabled(actions?.canSuggest != true)
+
+            Button("Föreslå för hela projektet") {
+                actions?.suggestProjectPoints()
+            }
+            .keyboardShortcut("f", modifiers: [.option, .shift])
+            .disabled(actions?.canSuggestProject != true)
+
+            Button("Generera om alla kontrollpunkter…") {
+                actions?.requestRegenerateProjectPoints()
+            }
+            .disabled(actions?.canRegenerateProject != true)
+
+            Divider()
+
+            Button(actions?.optimizeTitle ?? "Optimera") {
+                actions?.optimize()
+            }
+            .keyboardShortcut("o", modifiers: .option)
+            .disabled(actions?.canOptimize != true)
+
+            Divider()
+
+            Button("Radera markerad punkt") {
+                actions?.removeSelectedPoint()
+            }
+            .keyboardShortcut(.delete, modifiers: [])
+            .disabled(actions?.canRemoveSelectedPoint != true)
+
+            Button("Radera alla i aktuellt bildpar…") {
+                actions?.requestRemovePairPoints()
+            }
+            .disabled(actions?.canRemovePairPoints != true)
+
+            Button("Radera alla kontrollpunkter i projektet…") {
+                actions?.requestRemoveProjectPoints()
+            }
+            .disabled(actions?.canRemoveProjectPoints != true)
+        }
     }
 }
 

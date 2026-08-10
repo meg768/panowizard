@@ -12,6 +12,37 @@ private extension Notification.Name {
     )
 }
 
+struct ControlPointCommandActions {
+    let addPointTitle: String
+    let optimizeTitle: String
+    let canSuggest: Bool
+    let canSuggestProject: Bool
+    let canRegenerateProject: Bool
+    let canRemoveSelectedPoint: Bool
+    let canRemovePairPoints: Bool
+    let canRemoveProjectPoints: Bool
+    let canOptimize: Bool
+    let toggleAddingPoint: () -> Void
+    let suggestPairPoints: () -> Void
+    let suggestProjectPoints: () -> Void
+    let requestRegenerateProjectPoints: () -> Void
+    let removeSelectedPoint: () -> Void
+    let requestRemovePairPoints: () -> Void
+    let requestRemoveProjectPoints: () -> Void
+    let optimize: () -> Void
+}
+
+private struct ControlPointCommandActionsKey: FocusedValueKey {
+    typealias Value = ControlPointCommandActions
+}
+
+extension FocusedValues {
+    var controlPointCommandActions: ControlPointCommandActions? {
+        get { self[ControlPointCommandActionsKey.self] }
+        set { self[ControlPointCommandActionsKey.self] = newValue }
+    }
+}
+
 enum ControlPointCoordinateSpace {
     static func orientedSize(
         rawWidth: Int,
@@ -40,6 +71,11 @@ private enum ControlPointMarkerPalette {
 }
 
 struct ControlPointEditor: View {
+    private enum BulkDeletionRequest {
+        case pair
+        case project
+    }
+
     let diagnostics: ControlPointDiagnostics
     let selectedPairID: ControlPointPair.ID
     let leftImageIndex: Int
@@ -68,9 +104,8 @@ struct ControlPointEditor: View {
     @State private var deleteKeyMonitor: Any?
     @State private var pendingSelectionAfterDelete:
         DiagnosticControlPoint.ID?
-    @State private var isDeleteDialogPresented = false
-    @State private var isSuggestDialogPresented = false
     @State private var isRegenerateDialogPresented = false
+    @State private var bulkDeletionRequest: BulkDeletionRequest?
     @FocusState private var editorHasFocus: Bool
 
     private var selectedPair: ControlPointPair? {
@@ -100,135 +135,12 @@ struct ControlPointEditor: View {
            diagnostics.images.indices.contains(pair.firstImage),
            diagnostics.images.indices.contains(pair.secondImage) {
             VStack(spacing: 0) {
-                HStack {
-                    Button {
-                        isAddingPoint.toggle()
-                        selectedPointID = nil
-                    } label: {
-                        Label(
-                            isAddingPoint ? "Avbryt ny punkt" : "Lägg till punkt",
-                            systemImage: isAddingPoint ? "xmark" : "plus"
-                        )
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(isAddingPoint ? .orange : .accentColor)
-
-                    Button {
-                        if isPoleAlignment {
-                            onSuggestPoints()
-                        } else {
-                            isSuggestDialogPresented = true
-                        }
-                    } label: {
-                        Label(
-                            isPoleAlignment ? "Föreslå om" : "Föreslå punkter…",
-                            systemImage: "sparkles"
-                        )
-                    }
-                    .disabled(isSuggestingPoints)
-                    .confirmationDialog(
-                        "Föreslå kontrollpunkter",
-                        isPresented: $isSuggestDialogPresented,
-                        titleVisibility: .visible
-                    ) {
-                        Button(
-                            "Mellan bild \(leftImageIndex + 1) och "
-                                + "\(rightImageIndex + 1)",
-                            action: onSuggestPoints
-                        )
-                        if !isPoleAlignment {
-                            Button(
-                                "I hela projektet",
-                                action: onSuggestProjectPoints
-                            )
-                            Button(
-                                "Generera om alla punkter…",
-                                role: .destructive
-                            ) {
-                                DispatchQueue.main.async {
-                                    isRegenerateDialogPresented = true
-                                }
-                            }
-                        }
-                        Button("Avbryt", role: .cancel) {}
-                    } message: {
-                        Text(
-                            "Välj om PanoWizard ska söka i det aktuella "
-                                + "bildparet eller mellan alla projektets bilder."
-                        )
-                    }
-                    .confirmationDialog(
-                        "Ersätt alla kontrollpunkter?",
-                        isPresented: $isRegenerateDialogPresented,
-                        titleVisibility: .visible
-                    ) {
-                        Button(
-                            "Radera manuella ändringar och generera om",
-                            role: .destructive,
-                            action: onRegenerateProjectPoints
-                        )
-                        Button("Avbryt", role: .cancel) {}
-                    } message: {
-                        Text(
-                            "Alla befintliga och manuellt redigerade "
-                                + "kontrollpunkter ersätts. Detta kan inte "
-                                + "ångras efter att projektet har sparats."
-                        )
-                    }
-
-                    Button {
-                        isDeleteDialogPresented = true
-                    } label: {
-                        Label("Radera…", systemImage: "trash")
-                    }
-                    .disabled(diagnostics.cleanedPoints.isEmpty)
-                    .confirmationDialog(
-                        "Radera kontrollpunkter",
-                        isPresented: $isDeleteDialogPresented,
-                        titleVisibility: .visible
-                    ) {
-                        Button("Radera markerad punkt", role: .destructive) {
-                            removeSelectedPoint()
-                        }
-                        .disabled(selectedPointID == nil)
-
-                        Button(
-                            "Radera alla mellan bild "
-                                + "\(leftImageIndex + 1) och "
-                                + "\(rightImageIndex + 1)",
-                            role: .destructive,
-                            action: onRemoveAllPoints
-                        )
-                        .disabled(displayedPoints.isEmpty)
-
-                        if !isPoleAlignment {
-                            Button(
-                                "Radera alla kontrollpunkter i projektet",
-                                role: .destructive,
-                                action: onRemoveAllProjectPoints
-                            )
-                        }
-
-                        Button("Avbryt", role: .cancel) {}
-                    } message: {
-                        Text("Välj vilka kontrollpunkter som ska tas bort.")
-                    }
-
-                    Button {
-                        onOptimize()
-                    } label: {
-                        Label(
-                            isPoleAlignment ? "Anpassa" : "Optimera",
-                            systemImage: "arrow.triangle.2.circlepath"
-                        )
-                    }
-                    .disabled(displayedPoints.count < 3)
-
-                    Spacer()
-                    Text(instruction)
-                        .foregroundStyle(.secondary)
-                }
-                .padding()
+                Text(instruction)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(.bar)
 
                 HStack(spacing: 1) {
                     controlPointColumn(
@@ -253,6 +165,54 @@ struct ControlPointEditor: View {
             .focusable()
             .focusEffectDisabled()
             .focused($editorHasFocus)
+            .focusedSceneValue(
+                \.controlPointCommandActions,
+                commandActions
+            )
+            .toolbar {
+                ToolbarItemGroup(placement: .principal) {
+                    controlPointToolbar
+                }
+            }
+            .confirmationDialog(
+                "Ersätt alla kontrollpunkter?",
+                isPresented: $isRegenerateDialogPresented,
+                titleVisibility: .visible
+            ) {
+                Button(
+                    "Radera manuella ändringar och generera om",
+                    role: .destructive,
+                    action: onRegenerateProjectPoints
+                )
+                Button("Avbryt", role: .cancel) {}
+            } message: {
+                Text(
+                    "Alla befintliga och manuellt redigerade "
+                        + "kontrollpunkter ersätts. Detta kan inte "
+                        + "ångras efter att projektet har sparats."
+                )
+            }
+            .confirmationDialog(
+                bulkDeletionTitle,
+                isPresented: Binding(
+                    get: { bulkDeletionRequest != nil },
+                    set: { presented in
+                        if !presented {
+                            bulkDeletionRequest = nil
+                        }
+                    }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button(bulkDeletionButtonTitle, role: .destructive) {
+                    performBulkDeletion()
+                }
+                Button("Avbryt", role: .cancel) {
+                    bulkDeletionRequest = nil
+                }
+            } message: {
+                Text("Åtgärden kan inte ångras efter att projektet har sparats.")
+            }
             .onReceive(
                 NotificationCenter.default.publisher(
                     for: .controlPointEditorDelete
@@ -342,6 +302,148 @@ struct ControlPointEditor: View {
                 description: Text("Det valda bildparet finns inte längre.")
             )
         }
+    }
+
+    private var commandActions: ControlPointCommandActions {
+        ControlPointCommandActions(
+            addPointTitle: isAddingPoint
+                ? "Avbryt ny punkt" : "Lägg till punkt",
+            optimizeTitle: isPoleAlignment ? "Anpassa" : "Optimera",
+            canSuggest: !isSuggestingPoints,
+            canSuggestProject: !isPoleAlignment && !isSuggestingPoints,
+            canRegenerateProject: !isPoleAlignment && !isSuggestingPoints,
+            canRemoveSelectedPoint: selectedPointID != nil,
+            canRemovePairPoints: !displayedPoints.isEmpty,
+            canRemoveProjectPoints:
+                !isPoleAlignment && !diagnostics.cleanedPoints.isEmpty,
+            canOptimize: displayedPoints.count >= 3,
+            toggleAddingPoint: toggleAddingPoint,
+            suggestPairPoints: onSuggestPoints,
+            suggestProjectPoints: onSuggestProjectPoints,
+            requestRegenerateProjectPoints: {
+                isRegenerateDialogPresented = true
+            },
+            removeSelectedPoint: removeSelectedPoint,
+            requestRemovePairPoints: {
+                bulkDeletionRequest = .pair
+            },
+            requestRemoveProjectPoints: {
+                bulkDeletionRequest = .project
+            },
+            optimize: onOptimize
+        )
+    }
+
+    @ViewBuilder
+    private var controlPointToolbar: some View {
+        Button(action: toggleAddingPoint) {
+            Label(
+                isAddingPoint ? "Avbryt ny punkt" : "Lägg till punkt",
+                systemImage: isAddingPoint ? "xmark" : "plus"
+            )
+        }
+        .help(isAddingPoint ? "Avbryt ny punkt (⌥A)" : "Lägg till punkt (⌥A)")
+
+        Menu {
+            Button(
+                "Föreslå för aktuellt bildpar",
+                action: onSuggestPoints
+            )
+            if !isPoleAlignment {
+                Button(
+                    "Föreslå för hela projektet",
+                    action: onSuggestProjectPoints
+                )
+                Divider()
+                Button("Generera om alla kontrollpunkter…") {
+                    isRegenerateDialogPresented = true
+                }
+            }
+        } label: {
+            Label(
+                isPoleAlignment ? "Föreslå om" : "Föreslå punkter",
+                systemImage: "sparkles"
+            )
+        }
+        .disabled(isSuggestingPoints)
+        .help("Föreslå kontrollpunkter (⌥F)")
+
+        Menu {
+            Button("Radera markerad punkt", role: .destructive) {
+                removeSelectedPoint()
+            }
+            .disabled(selectedPointID == nil)
+            Button(
+                "Radera alla mellan bild \(leftImageIndex + 1) och "
+                    + "\(rightImageIndex + 1)…",
+                role: .destructive
+            ) {
+                bulkDeletionRequest = .pair
+            }
+            .disabled(displayedPoints.isEmpty)
+            if !isPoleAlignment {
+                Button(
+                    "Radera alla kontrollpunkter i projektet…",
+                    role: .destructive
+                ) {
+                    bulkDeletionRequest = .project
+                }
+            }
+        } label: {
+            Label("Radera kontrollpunkter", systemImage: "trash")
+        }
+        .disabled(diagnostics.cleanedPoints.isEmpty)
+        .help("Radera markerad punkt med Delete")
+
+        Button(action: onOptimize) {
+            Label(
+                isPoleAlignment ? "Anpassa" : "Optimera",
+                systemImage: "arrow.triangle.2.circlepath"
+            )
+        }
+        .disabled(displayedPoints.count < 3)
+        .help(isPoleAlignment ? "Anpassa" : "Optimera (⌥O)")
+
+    }
+
+    private func toggleAddingPoint() {
+        isAddingPoint.toggle()
+        selectedPointID = nil
+    }
+
+    private var bulkDeletionTitle: String {
+        switch bulkDeletionRequest {
+        case .pair:
+            "Radera alla punkter i bildparet?"
+        case .project:
+            "Radera alla kontrollpunkter i projektet?"
+        case nil:
+            "Radera kontrollpunkter?"
+        }
+    }
+
+    private var bulkDeletionButtonTitle: String {
+        switch bulkDeletionRequest {
+        case .pair:
+            "Radera alla mellan bild \(leftImageIndex + 1) och "
+                + "\(rightImageIndex + 1)"
+        case .project:
+            "Radera alla kontrollpunkter"
+        case nil:
+            "Radera"
+        }
+    }
+
+    private func performBulkDeletion() {
+        switch bulkDeletionRequest {
+        case .pair:
+            onRemoveAllPoints()
+        case .project:
+            onRemoveAllProjectPoints()
+        case nil:
+            break
+        }
+        bulkDeletionRequest = nil
     }
 
     private var instruction: String {

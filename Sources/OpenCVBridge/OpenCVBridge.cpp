@@ -321,15 +321,102 @@ std::pair<int, int> sourceCell(const cv::Point2f &point, const cv::Size &size) {
     };
 }
 
+struct SourceBounds {
+    double minimumX;
+    double maximumX;
+    double minimumY;
+    double maximumY;
+};
+
+double percentile(std::vector<float> values, double fraction) {
+    if (values.empty()) return 0.0;
+    std::sort(values.begin(), values.end());
+    const double position = std::clamp(fraction, 0.0, 1.0)
+        * (values.size() - 1);
+    const std::size_t lower = std::size_t(std::floor(position));
+    const std::size_t upper = std::size_t(std::ceil(position));
+    const double blend = position - lower;
+    return values[lower] * (1.0 - blend) + values[upper] * blend;
+}
+
+double median(std::vector<double> values) {
+    if (values.empty()) return 0.0;
+    std::sort(values.begin(), values.end());
+    const std::size_t middle = values.size() / 2;
+    if (values.size() % 2 == 0) {
+        return (values[middle - 1] + values[middle]) * 0.5;
+    }
+    return values[middle];
+}
+
+SourceBounds robustSourceBounds(
+    const std::vector<cv::DMatch> &matches,
+    const std::vector<cv::KeyPoint> &keypoints,
+    bool first
+) {
+    std::vector<float> horizontal;
+    std::vector<float> vertical;
+    horizontal.reserve(matches.size());
+    vertical.reserve(matches.size());
+    for (const cv::DMatch &match : matches) {
+        const cv::Point2f point = keypoints[
+            first ? match.queryIdx : match.trainIdx
+        ].pt;
+        horizontal.push_back(point.x);
+        vertical.push_back(point.y);
+    }
+    return {
+        percentile(horizontal, 0.05),
+        percentile(horizontal, 0.95),
+        percentile(vertical, 0.05),
+        percentile(vertical, 0.95)
+    };
+}
+
+cv::Point2d normalizedOverlapPoint(
+    const cv::Point2f &point,
+    const SourceBounds &bounds
+) {
+    const double width = std::max(1.0, bounds.maximumX - bounds.minimumX);
+    const double height = std::max(1.0, bounds.maximumY - bounds.minimumY);
+    return {
+        (std::clamp(double(point.x), bounds.minimumX, bounds.maximumX)
+            - bounds.minimumX) / width,
+        (std::clamp(double(point.y), bounds.minimumY, bounds.maximumY)
+            - bounds.minimumY) / height
+    };
+}
+
+std::pair<int, int> overlapCell(
+    const cv::Point2f &point,
+    const SourceBounds &bounds
+) {
+    constexpr int columns = 5;
+    constexpr int rows = 5;
+    const cv::Point2d normalized = normalizedOverlapPoint(point, bounds);
+    return {
+        std::clamp(int(normalized.x * columns), 0, columns - 1),
+        std::clamp(int(normalized.y * rows), 0, rows - 1)
+    };
+}
+
 double normalizedSourceDistance(
+    const cv::Point2f &first,
+    const cv::Point2f &second,
+    const SourceBounds &bounds
+) {
+    const cv::Point2d normalizedFirst = normalizedOverlapPoint(first, bounds);
+    const cv::Point2d normalizedSecond = normalizedOverlapPoint(second, bounds);
+    return cv::norm(normalizedFirst - normalizedSecond);
+}
+
+double normalizedImageDistance(
     const cv::Point2f &first,
     const cv::Point2f &second,
     const cv::Size &size
 ) {
-    return std::hypot(
-        (first.x - second.x) / std::max(1, size.width),
-        (first.y - second.y) / std::max(1, size.height)
-    );
+    const double shortSide = std::max(1, std::min(size.width, size.height));
+    return cv::norm(first - second) / shortSide;
 }
 
 std::vector<cv::DMatch> spatiallyBalancedSelection(
@@ -348,7 +435,17 @@ std::vector<cv::DMatch> spatiallyBalancedSelection(
         }
     );
     const int target = std::min(25, int(remaining.size()));
-    constexpr double minimumNormalizedSeparation = 0.02;
+    // Five percent of the source image's short side is about 100 px for a
+    // 2000x3008 D70 frame. Require it at both endpoints: two matches that
+    // collapse onto the same local detail in either image add almost no new
+    // geometric information, even if their other endpoints are separated.
+    constexpr double minimumImageSeparation = 0.05;
+    const SourceBounds firstBounds = robustSourceBounds(
+        inliers, keypointsA, true
+    );
+    const SourceBounds secondBounds = robustSourceBounds(
+        inliers, keypointsB, false
+    );
     std::vector<cv::DMatch> selected;
     std::set<std::pair<int, int>> selectedFirstCells;
     std::set<std::pair<int, int>> selectedSecondCells;
@@ -361,21 +458,34 @@ std::vector<cv::DMatch> spatiallyBalancedSelection(
             const cv::DMatch &candidate = remaining[index];
             const cv::Point2f a = keypointsA[candidate.queryIdx].pt;
             const cv::Point2f b = keypointsB[candidate.trainIdx].pt;
+            const bool sufficientlySeparated = std::all_of(
+                selected.begin(),
+                selected.end(),
+                [&](const cv::DMatch &existing) {
+                    return normalizedImageDistance(
+                        a, keypointsA[existing.queryIdx].pt, sizeA
+                    ) >= minimumImageSeparation
+                        && normalizedImageDistance(
+                            b, keypointsB[existing.trainIdx].pt, sizeB
+                        ) >= minimumImageSeparation;
+                }
+            );
+            if (!sufficientlySeparated) continue;
             double separation = std::numeric_limits<double>::max();
             for (const cv::DMatch &existing : selected) {
                 separation = std::min(separation, std::min(
                     normalizedSourceDistance(
-                        a, keypointsA[existing.queryIdx].pt, sizeA
+                        a, keypointsA[existing.queryIdx].pt, firstBounds
                     ),
                     normalizedSourceDistance(
-                        b, keypointsB[existing.trainIdx].pt, sizeB
+                        b, keypointsB[existing.trainIdx].pt, secondBounds
                     )
                 ));
             }
             const int novelCells =
-                (selectedFirstCells.find(sourceCell(a, sizeA))
+                (selectedFirstCells.find(overlapCell(a, firstBounds))
                     == selectedFirstCells.end())
-                + (selectedSecondCells.find(sourceCell(b, sizeB))
+                + (selectedSecondCells.find(overlapCell(b, secondBounds))
                     == selectedSecondCells.end());
             if (
                 novelCells > bestNovelCells
@@ -392,27 +502,25 @@ std::vector<cv::DMatch> spatiallyBalancedSelection(
                 bestDescriptorDistance = candidate.distance;
             }
         }
-        if (bestIndex < 0
-            || (!selected.empty()
-                && bestSeparation < minimumNormalizedSeparation)) {
-            break;
-        }
+        if (bestIndex < 0) break;
         const cv::DMatch chosen = remaining[bestIndex];
         selected.push_back(chosen);
-        selectedFirstCells.insert(sourceCell(
-            keypointsA[chosen.queryIdx].pt, sizeA
+        selectedFirstCells.insert(overlapCell(
+            keypointsA[chosen.queryIdx].pt, firstBounds
         ));
-        selectedSecondCells.insert(sourceCell(
-            keypointsB[chosen.trainIdx].pt, sizeB
+        selectedSecondCells.insert(overlapCell(
+            keypointsB[chosen.trainIdx].pt, secondBounds
         ));
         remaining.erase(remaining.begin() + bestIndex);
     }
     return selected;
 }
 
-cv::Vec3d calibratedSigmaRay(
+cv::Vec3d calibratedFisheyeRay(
     const cv::Point2f &point,
-    const cv::Size &size
+    const cv::Size &size,
+    double horizontalFieldOfView,
+    int lensModel
 ) {
     // The ring matcher receives the already converted equisolid geometry
     // sources. Undo the shared Hugin radial model approximately so matches
@@ -420,16 +528,23 @@ cv::Vec3d calibratedSigmaRay(
     // A planar homography only describes a small local patch of two views
     // separated by roughly 90 degrees and systematically rejects the useful
     // zenith/nadir constraints.
-    constexpr double horizontalFieldOfView = 113.4;
-    constexpr double distortionA = -0.06164565246503961;
-    constexpr double distortionB = 0.16155732903077044;
-    constexpr double distortionC = -0.12544199818788626;
-    constexpr double referenceWidth = 2600.0;
-    constexpr double referenceHeight = 3888.0;
+    const bool isNikon105 = lensModel == PWLensModelNikon105DX;
+    const double calibratedFieldOfView = isNikon105
+        ? horizontalFieldOfView : 113.4;
+    const double distortionA = isNikon105
+        ? -0.0252155339841942 : -0.06164565246503961;
+    const double distortionB = isNikon105
+        ? 0.0605540979849503 : 0.16155732903077044;
+    const double distortionC = isNikon105
+        ? -0.055438892095899 : -0.12544199818788626;
+    const double referenceWidth = isNikon105 ? 2000.0 : 2600.0;
+    const double referenceHeight = isNikon105 ? 3008.0 : 3888.0;
     const double scaleX = size.width / referenceWidth;
     const double scaleY = size.height / referenceHeight;
-    const double centerX = (size.width - 1) * 0.5 - 26.093 * scaleX;
-    const double centerY = (size.height - 1) * 0.5 - 46.95 * scaleY;
+    const double centerShiftX = isNikon105 ? 4.19324585683399 : -26.093;
+    const double centerShiftY = isNikon105 ? -1.00751194420142 : -46.95;
+    const double centerX = (size.width - 1) * 0.5 + centerShiftX * scaleX;
+    const double centerY = (size.height - 1) * 0.5 + centerShiftY * scaleY;
     const double dx = point.x - centerX;
     const double dy = point.y - centerY;
     const double observedRadius = std::hypot(dx, dy);
@@ -459,7 +574,7 @@ cv::Vec3d calibratedSigmaRay(
     }
 
     const double focalLength = normalizationRadius / (
-        2.0 * std::sin(radians(horizontalFieldOfView / 4.0))
+        2.0 * std::sin(radians(calibratedFieldOfView / 4.0))
     );
     const double angle = 2.0 * std::asin(std::clamp(
         idealRadius / (2.0 * focalLength), 0.0, 1.0
@@ -478,16 +593,20 @@ cv::Matx33d fittedSourceRotation(
     const std::vector<cv::KeyPoint> &keypointsB,
     const cv::Size &sizeA,
     const cv::Size &sizeB,
-    const std::vector<int> &indices
+    const std::vector<int> &indices,
+    double horizontalFieldOfView,
+    int lensModel
 ) {
     cv::Matx33d covariance = cv::Matx33d::zeros();
     for (const int index : indices) {
         const cv::DMatch &match = matches[index];
-        const cv::Vec3d first = calibratedSigmaRay(
-            keypointsA[match.queryIdx].pt, sizeA
+        const cv::Vec3d first = calibratedFisheyeRay(
+            keypointsA[match.queryIdx].pt, sizeA,
+            horizontalFieldOfView, lensModel
         );
-        const cv::Vec3d second = calibratedSigmaRay(
-            keypointsB[match.trainIdx].pt, sizeB
+        const cv::Vec3d second = calibratedFisheyeRay(
+            keypointsB[match.trainIdx].pt, sizeB,
+            horizontalFieldOfView, lensModel
         );
         covariance += cv::Matx33d(
             second[0] * first[0], second[0] * first[1], second[0] * first[2],
@@ -523,13 +642,17 @@ double sourceRotationError(
     const std::vector<cv::KeyPoint> &keypointsB,
     const cv::Size &sizeA,
     const cv::Size &sizeB,
-    const cv::Matx33d &rotation
+    const cv::Matx33d &rotation,
+    double horizontalFieldOfView,
+    int lensModel
 ) {
-    const cv::Vec3d first = calibratedSigmaRay(
-        keypointsA[match.queryIdx].pt, sizeA
+    const cv::Vec3d first = calibratedFisheyeRay(
+        keypointsA[match.queryIdx].pt, sizeA,
+        horizontalFieldOfView, lensModel
     );
-    const cv::Vec3d second = calibratedSigmaRay(
-        keypointsB[match.trainIdx].pt, sizeB
+    const cv::Vec3d second = calibratedFisheyeRay(
+        keypointsB[match.trainIdx].pt, sizeB,
+        horizontalFieldOfView, lensModel
     );
     return std::acos(std::clamp(first.dot(rotation * second), -1.0, 1.0));
 }
@@ -552,15 +675,21 @@ int occupiedSourceCells(
     return int(cells.size());
 }
 
-std::vector<cv::DMatch> sigmaRotationConsistentMatches(
+std::vector<cv::DMatch> fisheyeRotationConsistentMatches(
     const std::vector<cv::DMatch> &matches,
     const std::vector<cv::KeyPoint> &keypointsA,
     const std::vector<cv::KeyPoint> &keypointsB,
     const cv::Size &sizeA,
-    const cv::Size &sizeB
+    const cv::Size &sizeB,
+    double horizontalFieldOfView,
+    int lensModel
 ) {
     if (matches.size() < 8) return {};
-    constexpr double inlierThreshold = 1.5 * pi / 180.0;
+    // The loose threshold is only for finding the dominant camera rotation.
+    // A second, data-driven threshold below decides which matches actually
+    // become candidates. This keeps wind and parallax from becoming a fixed
+    // special case in the matcher.
+    constexpr double discoveryThreshold = 1.5 * pi / 180.0;
     cv::RNG random(0);
     std::vector<int> bestIndices;
     int bestCellScore = 0;
@@ -572,14 +701,15 @@ std::vector<cv::DMatch> sigmaRotationConsistentMatches(
         }
         const std::vector<int> sample(sampleSet.begin(), sampleSet.end());
         const cv::Matx33d rotation = fittedSourceRotation(
-            matches, keypointsA, keypointsB, sizeA, sizeB, sample
+            matches, keypointsA, keypointsB, sizeA, sizeB, sample,
+            horizontalFieldOfView, lensModel
         );
         std::vector<int> inliers;
         for (int index = 0; index < int(matches.size()); ++index) {
             if (sourceRotationError(
                     matches[index], keypointsA, keypointsB, sizeA, sizeB,
-                    rotation
-                ) < inlierThreshold) {
+                    rotation, horizontalFieldOfView, lensModel
+                ) < discoveryThreshold) {
                 inliers.push_back(index);
             }
         }
@@ -595,15 +725,65 @@ std::vector<cv::DMatch> sigmaRotationConsistentMatches(
         }
     }
     if (bestIndices.size() < 8 || bestCellScore < 3) return {};
+    const cv::Matx33d discoveryRotation = fittedSourceRotation(
+        matches, keypointsA, keypointsB, sizeA, sizeB, bestIndices,
+        horizontalFieldOfView, lensModel
+    );
+    std::vector<double> discoveryErrors;
+    discoveryErrors.reserve(matches.size());
+    for (const cv::DMatch &match : matches) {
+        const double error = sourceRotationError(
+            match, keypointsA, keypointsB, sizeA, sizeB,
+            discoveryRotation, horizontalFieldOfView, lensModel
+        );
+        if (error < discoveryThreshold) discoveryErrors.push_back(error);
+    }
+    if (discoveryErrors.size() < 8) return {};
+
+    const double medianError = median(discoveryErrors);
+    std::vector<double> deviations;
+    deviations.reserve(discoveryErrors.size());
+    for (const double error : discoveryErrors) {
+        deviations.push_back(std::abs(error - medianError));
+    }
+    const double robustSigma = 1.4826 * median(deviations);
+    const double consistencyThreshold = std::clamp(
+        medianError + 3.0 * robustSigma,
+        0.25 * pi / 180.0,
+        0.75 * pi / 180.0
+    );
+
+    std::vector<int> consistentIndices;
+    for (int index = 0; index < int(matches.size()); ++index) {
+        if (sourceRotationError(
+            matches[index], keypointsA, keypointsB, sizeA, sizeB,
+            discoveryRotation, horizontalFieldOfView, lensModel
+            ) <= consistencyThreshold) {
+            consistentIndices.push_back(index);
+        }
+    }
+    const int consistentCellScore = std::min(
+        occupiedSourceCells(
+            matches, keypointsA, sizeA, consistentIndices, true
+        ),
+        occupiedSourceCells(
+            matches, keypointsB, sizeB, consistentIndices, false
+        )
+    );
+    if (consistentIndices.size() < 8 || consistentCellScore < 3) {
+        return {};
+    }
+
     const cv::Matx33d refinedRotation = fittedSourceRotation(
-        matches, keypointsA, keypointsB, sizeA, sizeB, bestIndices
+        matches, keypointsA, keypointsB, sizeA, sizeB, consistentIndices,
+        horizontalFieldOfView, lensModel
     );
     std::vector<cv::DMatch> result;
     for (const cv::DMatch &match : matches) {
         if (sourceRotationError(
-                match, keypointsA, keypointsB, sizeA, sizeB,
-                refinedRotation
-            ) < inlierThreshold) {
+            match, keypointsA, keypointsB, sizeA, sizeB,
+            refinedRotation, horizontalFieldOfView, lensModel
+            ) <= consistencyThreshold) {
             result.push_back(match);
         }
     }
@@ -1663,6 +1843,7 @@ int PWGenerateRingControlPoints(
     const double *nominalYaws,
     int imageCount,
     double horizontalFieldOfView,
+    int lensModel,
     PWControlPoint **controlPoints,
     int *controlPointCount,
     char **errorMessage
@@ -1791,16 +1972,18 @@ int PWGenerateRingControlPoints(
                     // because a zenith image makes the alignment set larger
                     // than four images; a homography only retains one local
                     // patch of a wide fisheye overlap.
-                    const bool wideCircularFisheye =
-                        horizontalFieldOfView >= 110.0;
+                    const bool calibratedFisheye =
+                        lensModel != PWLensModelRectilinear;
                     std::vector<cv::DMatch> inliers;
-                    if (wideCircularFisheye) {
-                        inliers = sigmaRotationConsistentMatches(
+                    if (calibratedFisheye) {
+                        inliers = fisheyeRotationConsistentMatches(
                             matches,
                             rawFeatures[first].keypoints,
                             rawFeatures[second].keypoints,
                             firstMatchingSize,
-                            secondMatchingSize
+                            secondMatchingSize,
+                            horizontalFieldOfView,
+                            lensModel
                         );
                     } else {
                         std::vector<cv::Point2f> firstPoints;
@@ -2002,6 +2185,7 @@ int PWGeneratePairControlPoints(
     int secondImageIndex,
     int ringImageCount,
     double horizontalFieldOfView,
+    int lensModel,
     PWControlPoint **controlPoints,
     int *controlPointCount,
     char **errorMessage
@@ -2019,62 +2203,23 @@ int PWGeneratePairControlPoints(
         ) {
             throw std::runtime_error("Det valda bildparet är ogiltigt.");
         }
-        cv::setNumThreads(1);
-        cv::setRNGSeed(0);
-        const cv::Size sourceSize = sourceSizeForPath(firstImagePath);
-        const cv::Size secondSourceSize = sourceSizeForPath(secondImagePath);
-        const cv::Ptr<cv::SIFT> detector = cv::SIFT::create(
-            16000,
-            3,
-            0.012,
-            12
-        );
-        const PWOrientation firstOrientation = {
-            firstImageIndex * 360.0 / ringImageCount,
-            0.0,
-            0.0
-        };
-        const PWOrientation secondOrientation = {
-            secondImageIndex * 360.0 / ringImageCount,
-            0.0,
-            0.0
-        };
-        const NormalizedFeatures firstFeatures = normalizedFeatures(
-            firstImagePath,
+        const char *paths[] = {firstImagePath, secondImagePath};
+        const int succeeded = PWGenerateRingControlPoints(
+            paths,
+            nullptr,
+            2,
             horizontalFieldOfView,
-            firstOrientation,
-            detector
-        );
-        const NormalizedFeatures secondFeatures = normalizedFeatures(
-            secondImagePath,
-            horizontalFieldOfView,
-            secondOrientation,
-            detector
-        );
-        const std::vector<cv::DMatch> matches = geometricMatches(
-            firstFeatures,
-            secondFeatures
-        );
-        std::vector<PWControlPoint> result;
-        appendControlPoints(
-            firstImageIndex,
-            secondImageIndex,
-            firstFeatures,
-            secondFeatures,
-            matches,
-            sourceSize,
-            secondSourceSize,
-            horizontalFieldOfView,
-            firstOrientation,
-            secondOrientation,
-            result
-        );
-        return copyResult(
-            result,
+            lensModel,
             controlPoints,
             controlPointCount,
             errorMessage
         );
+        if (!succeeded) return 0;
+        for (int index = 0; index < *controlPointCount; ++index) {
+            (*controlPoints)[index].firstImage = firstImageIndex;
+            (*controlPoints)[index].secondImage = secondImageIndex;
+        }
+        return 1;
     } catch (const std::exception &error) {
         if (errorMessage != nullptr) {
             *errorMessage = copiedString(error.what());

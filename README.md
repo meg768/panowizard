@@ -1,8 +1,16 @@
 # PanoWizard
 
+The automatic control-point generator's principles and deliberate limits are
+documented in [CONTROL_POINT_STRATEGY.md](CONTROL_POINT_STRATEGY.md).
+
 PanoWizard is a native macOS application for automatic panorama stitching,
 with an emphasis on full-spherical fisheye panoramas and an efficient manual
 control-point workflow when a difficult handheld set needs refinement.
+
+The product goal is fully automatic output at least as good as the matching
+PTGui reference, starting from source images and metadata only. Manual control
+points and corrections remain diagnostic tools, not part of the acceptance
+path.
 
 Each document window contains one panorama. Projects are saved as `.pw` file
 packages and can be reopened with the standard macOS document commands. A

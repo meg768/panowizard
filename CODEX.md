@@ -1,5 +1,100 @@
 # PanoWizard – aktuell projektkontext
 
+## Överordnat mål 2026-08-11 – A–H är regressionskorpuset
+
+PanoWizards produktmål är att från endast originalbilder och bildmetadata ge
+minst lika bra resultat som PTGui-referensen, utan manuella kontrollpunkter,
+masker, rolländringar eller geometriska korrigeringar. Den manuella editorn är
+ett diagnostik-/reservverktyg och ingår inte i godkännandeflödet.
+
+`/Users/magnus/Desktop/Panorama/A`–`H` är det permanenta lokala
+regressionskorpuset för kluriga panorama: handhållet, monopod eller stativ,
+med zenit/nadir tagna med eller utan stativ. Aktuell inventering är A=10,
+B=0, C=8, D=5, E=0, F=6, G=13 och H=6 originalbilder. Tomma mappar hoppas
+över. Varje kontroll ska börja från originalbilderna; befintliga `.pw`,
+PTGui-filer, masker och sparade CP är endast facit/diagnostik och får inte
+användas som indata. En algoritmändring måste kontrolleras mot samtliga
+icke-tomma mappar och får inte godkännas enbart på lägre RMS eller förbättring
+av ett enda panorama. Det fullständiga kontraktet står i
+`CONTROL_POINT_STRATEGY.md`.
+
+## Aktiv kontext 2026-08-10 – bredare CP-spridning för Nikkor
+
+Panorama A visade att kontrollpunkterna i bland annat bildpar 2–3 blev
+onödigt klustrade. Grundfelet var inte främst sluturvalet: Nikkor 10,5 mm
+verifierades som om överlappet följde en plan homografi. För en roterad
+full-frame-fisheye beskriver homografin bara en lokal yta och lämnade därför
+nästan enbart fasad-/statypunkter till spridningssteget.
+
+OpenCV-bryggan får nu den valda objektivprofilen explicit. Nikkor- och
+Sigma-profilerna verifierar råa SIFT-matchningar med varsin kalibrerad
+fiskeögeprojektion och en gemensam 3D-rotation; plan homografi är kvar för
+rektlinjära/egna profiler. Samma modell används av helprojektsgenerering och
+`Föreslå för aktuellt bildpar`.
+
+Det spatiala sluturvalet använder dessutom ett robust 5–95-percentilområde
+för det verkliga överlappet och ett 5×5-rutnät relativt detta område, i
+stället för ett grovt rutnät över hela källbilden. Det behåller högst 25
+punkter per genererat par men fördelar dem över den yta som faktiskt kan
+matchas. Ett hårt minimiavstånd på 5 procent av bildens kortsida gäller i
+båda källbilderna. För D70-materialets 2000×3008-bilder motsvarar det 100 px.
+Generatorn fyller aldrig upp till 25 med närliggande punkter; ett svagare
+par får i stället färre, ärligt separerade punkter.
+
+På A:s bildpar 2–3 ökade den geometriskt verifierade kandidatmängden från
+240 till 1 026 och rutnätstäckningen från 16,7 till 33,3 procent, fortfarande
+med 25 valda råpunkter. Efter hela Hugin-kedjan återstod 24 punkter med
+1,45 px medelfel och 3,45 px maxfel. Deras vertikala spann i bild 2 ökade
+från cirka 1 079 till 1 477 pixlar. Ett fullständigt, visuellt granskat
+Nikkor-test av alla tio bilder i `/Users/magnus/Desktop/Panorama/A` skapade
+ett sammanhängande 360×180-resultat och passerade integrationstestet.
+I bildpar 4–5 hade den föregående körningen 14 punktpar där åtminstone ena
+bildens avstånd var under 100 px, med 73/77 px som minsta avstånd. Efter den
+hårda regeln återstår 24 optimerade punkter, minsta avstånd är 100,4/100,1 px
+och antalet överträdelser är noll. Samma helkörning av A passerar fortfarande.
+
+Generatorn har nu även en enkel rörelsekonsistensregel utan semantisk AI.
+RANSAC:s tidigare fasta 1,5°-gräns används bara för att hitta den dominerande
+kamerarotationen. Median och MAD för dessa residualer ger därefter en robust
+gräns mellan 0,25° och 0,75°; rotationen anpassas om och endast kandidater
+inom denna bildspecifika gräns går vidare till spridningsurvalet. Därmed
+sorteras tydlig vindrörelse och parallax bort som geometriska avvikelser,
+utan regler för människor, palmblad eller parasoller. Strategin, felbeteendet
+och gränserna är dokumenterade i `CONTROL_POINT_STRATEGY.md`.
+
+## Aktiv kontext 2026-08-10 – CP-kommandon i toolbar och meny
+
+Den stora lokala knappraden i kontrollpunktseditorn är borttagen. Editorn
+visar nu bara en kompakt instruktionsrad ovanför bilderna; Lägg till,
+Föreslå, Radera och Optimera ligger som kontextuella verktyg i fönstrets
+toolbar. Föreslå och Radera är menyer så att par-, projekt- och
+omgenereringsnivåerna är synliga utan en extra valdialog. Massradering och
+full omgenerering har fortfarande bekräftelse eftersom de kan förstöra
+manuellt arbete.
+
+En ny appmeny `Kontrollpunkter` exponerar samma funktioner. Kortkommandon är
+⌥A för Lägg till/Avbryt ny punkt, ⌥F för förslag i aktuellt bildpar,
+⇧⌥F för hela projektet, ⌥O för Optimera och Delete för markerad punkt.
+Destruktiv massradering och full omgenerering har medvetet inga kortkommandon.
+Menykommandona använder det aktiva dokumentets fokuserade editor och är
+inaktiva utanför kontrollpunktsvyn.
+
+Sidopanelens separata Panorama-sektion är också borttagen; panelen är nu
+reserverad för källbilderna som faktiskt behöver ständig överblick. En ny
+appmeny `Panorama` innehåller Inställningar (⌥,), Förhandsvisning (⌥P) och
+Exportera (⌥E). Förhandsvisning och export är inaktiva tills ett renderat
+panorama finns. Menyn innehåller även Skapa panorama (⌥R) och Börja om
+automatiskt; det destruktiva omstartsflödet saknar medvetet kortkommando.
+De två globala renderingsknapparna döljs när CP-editorn är aktiv så att dess
+toolbar bara visar de kontextuella CP-verktygen. Samtliga menykommandon riktas
+till det aktiva dokumentet.
+
+Ett försök med en infällbar CP-inspektör till höger togs bort. SwiftUI gör
+inte den högra inspektören visuellt och strukturellt identisk med den vänstra
+NavigationSplitView-panelen, vilket var det önskade beteendet. CP-fellistan
+ligger tills vidare kvar som en enkel fast kolumn i editorn. Toolbaren,
+menyerna och kortkommandona påverkas inte av detta beslut.
+
 ## Aktiv kontext 2026-08-10 – EXIF styr objektivprofilen
 
 Det nya verkliga provet `/Users/magnus/Desktop/Panorama/A` består av tio

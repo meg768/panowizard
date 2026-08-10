@@ -36,6 +36,7 @@ enum OpenCVControlPointMatcher {
         images: [SourceImage],
         pair: ControlPointPair.ID,
         horizontalFieldOfView: Double,
+        lensProfile: StitchingConfiguration.LensProfile? = nil,
         controlPointMasks: [UUID: Data] = [:]
     ) throws -> [PanoramaControlPoint] {
         guard images.indices.contains(pair.firstImage),
@@ -82,6 +83,11 @@ enum OpenCVControlPointMatcher {
         var rawPoints: UnsafeMutablePointer<PWControlPoint>?
         var pointCount: Int32 = 0
         var errorMessage: UnsafeMutablePointer<CChar>?
+        let bridgeLensModel = bridgeLensModel(
+            images: [images[pair.firstImage], images[pair.secondImage]],
+            horizontalFieldOfView: horizontalFieldOfView,
+            lensProfile: lensProfile
+        )
         let succeeded = firstURL.path.withCString {
             firstPath in
             secondURL.path.withCString { secondPath in
@@ -92,6 +98,7 @@ enum OpenCVControlPointMatcher {
                     Int32(pair.secondImage),
                     Int32(images.count),
                     horizontalFieldOfView,
+                    bridgeLensModel,
                     &rawPoints,
                     &pointCount,
                     &errorMessage
@@ -109,6 +116,7 @@ enum OpenCVControlPointMatcher {
     static func ring(
         images: [SourceImage],
         horizontalFieldOfView: Double,
+        lensProfile: StitchingConfiguration.LensProfile? = nil,
         nominalYaws: [Double]? = nil,
         controlPointMasks: [UUID: Data] = [:],
         displayImageNumbers: [Int]? = nil
@@ -139,6 +147,11 @@ enum OpenCVControlPointMatcher {
             return replacingURL(of: image, with: destination)
         }
         return try withImagePaths(matchingImages) { paths in
+            let bridgeLensModel = bridgeLensModel(
+                images: matchingImages,
+                horizontalFieldOfView: horizontalFieldOfView,
+                lensProfile: lensProfile
+            )
             var rawPoints: UnsafeMutablePointer<PWControlPoint>?
             var pointCount: Int32 = 0
             var errorMessage: UnsafeMutablePointer<CChar>?
@@ -148,6 +161,7 @@ enum OpenCVControlPointMatcher {
                     yaws.baseAddress,
                     Int32(paths.count),
                     horizontalFieldOfView,
+                    bridgeLensModel,
                     &rawPoints,
                     &pointCount,
                     &errorMessage
@@ -157,6 +171,7 @@ enum OpenCVControlPointMatcher {
                 nil,
                 Int32(paths.count),
                 horizontalFieldOfView,
+                bridgeLensModel,
                 &rawPoints,
                 &pointCount,
                 &errorMessage
@@ -208,6 +223,26 @@ enum OpenCVControlPointMatcher {
                 )
             }
             return broadlyDistributedPoints
+        }
+    }
+
+    private static func bridgeLensModel(
+        images: [SourceImage],
+        horizontalFieldOfView: Double,
+        lensProfile: StitchingConfiguration.LensProfile?
+    ) -> Int32 {
+        switch lensProfile {
+        case .nikon105DX:
+            return 1
+        case .sigma8DX:
+            return 2
+        case .automatic, .custom:
+            return 0
+        case nil:
+            if horizontalFieldOfView >= 110 {
+                return 2
+            }
+            return images.allSatisfy { $0.lens.kind == .fisheye } ? 1 : 0
         }
     }
 

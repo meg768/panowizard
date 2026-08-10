@@ -145,6 +145,19 @@ struct ContentView: View {
                 StatusBar(model: model)
             }
         }
+        .focusedSceneValue(
+            \.panoramaCommandActions,
+            PanoramaCommandActions(
+                canOpenProjectViews: !model.project.images.isEmpty,
+                canShowPanorama: model.stitchedResultURL != nil,
+                canStitch: model.canStitch,
+                createPanorama: model.stitch,
+                restartAutomatically: model.runWizard,
+                showSettings: { model.selection = .settings },
+                showPreview: { model.selection = .panorama },
+                showExport: { model.selection = .export }
+            )
+        )
         .toolbar {
             ToolbarItemGroup {
                 Button {
@@ -153,29 +166,34 @@ struct ContentView: View {
                     Label("Importera", systemImage: "plus")
                 }
 
-                Button {
-                    model.stitch()
-                } label: {
-                    Label(
-                        "Skapa panorama",
-                        systemImage: "rectangle.on.rectangle"
+                if model.selection != .controlPoints {
+                    Button {
+                        model.stitch()
+                    } label: {
+                        Label(
+                            "Skapa panorama",
+                            systemImage: "rectangle.on.rectangle"
+                        )
+                    }
+                    .disabled(!model.canStitch)
+                    .help(
+                        "Rendera med exakt de kontrollpunkter som finns nu"
+                    )
+
+                    Button {
+                        model.runWizard()
+                    } label: {
+                        Label(
+                            "Börja om automatiskt",
+                            systemImage: "wand.and.stars"
+                        )
+                    }
+                    .disabled(!model.canStitch)
+                    .help(
+                        "Radera gamla kontrollpunkter och skapa, optimera och "
+                            + "rendera allt från grunden"
                     )
                 }
-                .disabled(!model.canStitch)
-                .help(
-                    "Rendera med exakt de kontrollpunkter som finns nu"
-                )
-
-                Button {
-                    model.runWizard()
-                } label: {
-                    Label("Börja om automatiskt", systemImage: "wand.and.stars")
-                }
-                .disabled(!model.canStitch)
-                .help(
-                    "Radera gamla kontrollpunkter och skapa, optimera och "
-                        + "rendera allt från grunden"
-                )
 
                 if model.selectedSourceImage != nil {
                     Menu {
