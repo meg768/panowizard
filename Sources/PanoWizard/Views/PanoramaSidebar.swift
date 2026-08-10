@@ -16,7 +16,9 @@ struct PanoramaSidebar: View {
                         SourceImageRow(
                             index: index,
                             image: image,
-                            hasMask: model.maskData(for: image.id) != nil,
+                            hasMask: model.maskDataByImageID[image.id] != nil
+                                || model.protectedMaskDataByImageID[image.id] != nil
+                                || model.controlPointMaskDataByImageID[image.id] != nil,
                             onSelect: { asRightImage in
                                 model.selectSourceImage(
                                     image.id,
@@ -88,6 +90,8 @@ struct PanoramaSidebar: View {
                 }
             }
         }
+        .contentMargins(.horizontal, 16, for: .scrollContent)
+        .contentMargins(.top, 8, for: .scrollContent)
         .scrollContentBackground(.hidden)
         .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
         .overlay {
@@ -200,10 +204,9 @@ private struct SourceImageRow: View {
                 Text(image.filename)
                     .lineLimit(1)
                 HStack(spacing: 4) {
-                    Text(image.direction.displayName)
-                    if image.role == .fillOnly {
-                        Text("· Reparation")
-                    }
+                    Text(image.role == .alignment
+                        ? image.role.displayName
+                        : "\(image.direction.displayName) · Reparation")
                     if hasMask {
                         Label("Maskerad", systemImage: "paintbrush.fill")
                             .labelStyle(.iconOnly)
@@ -223,15 +226,17 @@ private struct SourceImageRow: View {
         }
         .help(image.filename)
         .contextMenu {
-            Picker("Riktning", selection: Binding(
-                get: { image.direction },
-                set: { direction in onSetDirection(direction) }
-            )) {
-                ForEach(SourceImage.Direction.allCases, id: \.self) { direction in
-                    Text(direction.displayName).tag(direction)
+            if image.role == .fillOnly {
+                Picker("Reparationsområde", selection: Binding(
+                    get: { image.direction },
+                    set: { direction in onSetDirection(direction) }
+                )) {
+                    ForEach(SourceImage.Direction.repairCases, id: \.self) { direction in
+                        Text(direction.displayName).tag(direction)
+                    }
                 }
+                Divider()
             }
-            Divider()
             Picker("Bildroll", selection: Binding(
                 get: { image.role },
                 set: { role in onSetRole(role) }

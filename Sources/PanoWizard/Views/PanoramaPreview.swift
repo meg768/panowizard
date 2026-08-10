@@ -1,4 +1,4 @@
-import AppKit
+@preconcurrency import AppKit
 import ImageIO
 import SwiftUI
 
@@ -10,11 +10,11 @@ struct PanoramaPreview: View {
     let zenithOverlayURL: URL?
     let selectedSource: SourceImage?
     let maskData: Data?
-    let brushDiameter: Double
+    let protectedMaskData: Data?
+    let controlPointMaskData: Data?
     let maskTool: SourceMaskTool
     let zoom: Double
-    let isErasing: Bool
-    let isControlPointMask: Bool
+    let maskIntent: AppModel.SourceMaskIntent
     let isAdjustingNadir: Bool
     let adjustedPole: PanoramaPole
     let nadirAdjustment: NadirRepairAdjustment
@@ -22,7 +22,8 @@ struct PanoramaPreview: View {
     let initialViewpoint: PanoramaViewpoint
     let onNadirAdjustmentChange: (NadirRepairAdjustment) -> Void
     let onViewpointChange: (PanoramaViewpoint) -> Void
-    let onMaskChange: (Data?) -> Void
+    let onSourceZoomChange: (Double) -> Void
+    let onMasksChange: (Data?, Data?, Data?) -> Void
 
     var body: some View {
         Group {
@@ -44,12 +45,13 @@ struct PanoramaPreview: View {
                     SourceMaskEditor(
                         image: selectedSource,
                         maskData: maskData,
-                        brushDiameter: brushDiameter,
+                        protectedMaskData: protectedMaskData,
+                        controlPointMaskData: controlPointMaskData,
                         maskTool: maskTool,
                         zoom: zoom,
-                        isErasing: isErasing,
-                        isControlPointMask: isControlPointMask,
-                        onMaskChange: onMaskChange
+                        maskIntent: maskIntent,
+                        onZoomChange: onSourceZoomChange,
+                        onMasksChange: onMasksChange
                     )
                 } else {
                     VStack(spacing: 12) {
@@ -79,24 +81,31 @@ struct PanoramaPreview: View {
 private struct SourceMaskEditor: View {
     let image: SourceImage
     let maskData: Data?
-    let brushDiameter: Double
+    let protectedMaskData: Data?
+    let controlPointMaskData: Data?
     let maskTool: SourceMaskTool
     let zoom: Double
-    let isErasing: Bool
-    let isControlPointMask: Bool
-    let onMaskChange: (Data?) -> Void
+    let maskIntent: AppModel.SourceMaskIntent
+    let onZoomChange: (Double) -> Void
+    let onMasksChange: (Data?, Data?, Data?) -> Void
 
     @State private var sourceImage: CGImage?
     @State private var maskImage: CGImage?
+    @State private var protectedMaskImage: CGImage?
+    @State private var controlPointMaskImage: CGImage?
     @State private var activeStroke: [MaskPoint] = []
     @State private var circleStart: MaskPoint?
     @State private var circleEnd: MaskPoint?
-    @State private var visibleScrollRect = CGRect.zero
     @State private var zoomAnchor = UnitPoint.center
+    @State private var pendingZoomAnchor: UnitPoint?
     @State private var hoverPoint: CGPoint?
     @State private var isSystemCursorHidden = false
+    @State private var magnificationStartZoom: Double?
 
     private let zoomAnchorID = "source-image-zoom-anchor"
+    /// Brush size in screen points. Zoom changes how many source pixels those
+    /// points cover, not the apparent size of the brush cursor.
+    private let screenBrushDiameter: CGFloat = 48
 
     var body: some View {
         GeometryReader { geometry in
@@ -115,7 +124,7 @@ private struct SourceMaskEditor: View {
                     height: fitSize.height * zoom
                 )
                 let displayScale = displaySize.width / imageSize.width
-                let displayedBrushRadius = CGFloat(brushDiameter) * displayScale / 2
+                let displayedBrushRadius = screenBrushDiameter / 2
 
                 ScrollViewReader { proxy in
                     ScrollView([.horizontal, .vertical]) {
@@ -136,8 +145,31 @@ private struct SourceMaskEditor: View {
                                     .allowsHitTesting(false)
                             }
 
+                            if let protectedMaskImage {
+                                Image(decorative: protectedMaskImage, scale: 1)
+                                    .resizable()
+                                    .frame(
+                                        width: displaySize.width,
+                                        height: displaySize.height
+                                    )
+                                    .opacity(0.55)
+                                    .allowsHitTesting(false)
+                            }
+
+                            if let controlPointMaskImage {
+                                Image(decorative: controlPointMaskImage, scale: 1)
+                                    .resizable()
+                                    .frame(
+                                        width: displaySize.width,
+                                        height: displaySize.height
+                                    )
+                                    .opacity(0.55)
+                                    .allowsHitTesting(false)
+                            }
+
                             Canvas { context, _ in
-                                if let circleStart, let circleEnd {
+                                if let circleStart, let circleEnd,
+                                   maskTool == .rectangle {
                                     let center = CGPoint(
                                         x: circleStart.x * displaySize.width,
                                         y: circleStart.y * displaySize.height
@@ -146,27 +178,33 @@ private struct SourceMaskEditor: View {
                                         x: circleEnd.x * displaySize.width,
                                         y: circleEnd.y * displaySize.height
                                     )
-                                    let radius = hypot(edge.x - center.x, edge.y - center.y)
                                     let rect = CGRect(
-                                        x: center.x - radius,
-                                        y: center.y - radius,
-                                        width: radius * 2,
-                                        height: radius * 2
+                                        x: min(center.x, edge.x),
+                                        y: min(center.y, edge.y),
+                                        width: abs(edge.x - center.x),
+                                        height: abs(edge.y - center.y)
                                     )
-                                    let color: Color = isErasing
-                                        ? .white
-                                        : (isControlPointMask ? .orange : .red)
-                                    context.fill(
-                                        Path(ellipseIn: rect),
-                                        with: .color(color.opacity(0.28))
-                                    )
+                                    let color = strokeColor
+                                    let shape = Path(rect)
+                                    if isErasing {
+                                        context.clip(to: shape)
+                                        context.draw(
+                                            Image(decorative: sourceImage, scale: 1),
+                                            in: CGRect(origin: .zero, size: displaySize)
+                                        )
+                                    } else {
+                                        context.fill(
+                                            shape,
+                                            with: .color(color.opacity(0.28))
+                                        )
+                                    }
                                     context.stroke(
-                                        Path(ellipseIn: rect),
+                                        shape,
                                         with: .color(.black.opacity(0.85)),
                                         lineWidth: 3
                                     )
                                     context.stroke(
-                                        Path(ellipseIn: rect),
+                                        shape,
                                         with: .color(.white),
                                         lineWidth: 1
                                     )
@@ -182,29 +220,29 @@ private struct SourceMaskEditor: View {
                                 var path = Path()
                                 path.move(to: points[0])
                                 points.dropFirst().forEach { path.addLine(to: $0) }
-                                context.stroke(
-                                    path,
-                                    with: .color(
-                                        isErasing
-                                            ? .white.opacity(0.8)
-                                            : (
-                                                isControlPointMask
-                                                    ? .orange.opacity(0.8)
-                                                    : .red.opacity(0.75)
-                                            )
-                                    ),
-                                    style: StrokeStyle(
-                                        lineWidth: max(displayedBrushRadius * 2, 1),
-                                        lineCap: .round,
-                                        lineJoin: .round
-                                    )
+                                let style = StrokeStyle(
+                                    lineWidth: max(displayedBrushRadius * 2, 1),
+                                    lineCap: .round, lineJoin: .round
                                 )
+                                if isErasing {
+                                    context.clip(to: path.strokedPath(style))
+                                    context.draw(
+                                        Image(decorative: sourceImage, scale: 1),
+                                        in: CGRect(origin: .zero, size: displaySize)
+                                    )
+                                } else {
+                                    context.stroke(
+                                        path,
+                                        with: .color(strokeColor.opacity(0.8)),
+                                        style: style
+                                    )
+                                }
                             }
                             .allowsHitTesting(false)
 
                             Canvas { context, _ in
                                 guard let hoverPoint else { return }
-                                if maskTool == .circle {
+                                if maskTool == .rectangle {
                                     let arm: CGFloat = 8
                                     var crosshair = Path()
                                     crosshair.move(to: CGPoint(x: hoverPoint.x - arm, y: hoverPoint.y))
@@ -263,7 +301,7 @@ private struct SourceMaskEditor: View {
                                         x: value.location.x / displaySize.width,
                                         y: value.location.y / displaySize.height
                                     )
-                                    if maskTool == .circle {
+                                    if maskTool == .rectangle {
                                         if circleStart == nil {
                                             circleStart = point
                                         }
@@ -273,10 +311,13 @@ private struct SourceMaskEditor: View {
                                     }
                                 }
                                 .onEnded { _ in
-                                    if maskTool == .circle {
-                                        commitCircle(sourceImage: sourceImage)
+                                    if maskTool == .rectangle {
+                                        commitShape(sourceImage: sourceImage)
                                     } else {
-                                        commitStroke(sourceImage: sourceImage)
+                                        commitStroke(
+                                            sourceImage: sourceImage,
+                                            displayScale: displayScale
+                                        )
                                     }
                                 }
                         )
@@ -296,34 +337,27 @@ private struct SourceMaskEditor: View {
                         )
                     }
                     .scrollIndicators(.visible)
-                    .onScrollGeometryChange(for: CGRect.self) { scrollGeometry in
-                        scrollGeometry.visibleRect
-                    } action: { _, visibleRect in
-                        visibleScrollRect = visibleRect
-                    }
-                    .onChange(of: zoom) { oldZoom, _ in
-                        let oldSize = CGSize(
-                            width: fitSize.width * oldZoom,
-                            height: fitSize.height * oldZoom
-                        )
-                        let oldOrigin = CGPoint(
-                            x: max((geometry.size.width - oldSize.width) / 2, 0),
-                            y: max((geometry.size.height - oldSize.height) / 2, 0)
-                        )
-                        zoomAnchor = UnitPoint(
-                            x: min(max(
-                                (visibleScrollRect.midX - oldOrigin.x) / oldSize.width,
-                                0
-                            ), 1),
-                            y: min(max(
-                                (visibleScrollRect.midY - oldOrigin.y) / oldSize.height,
-                                0
-                            ), 1)
-                        )
-                        Task { @MainActor in
-                            await Task.yield()
-                            proxy.scrollTo(zoomAnchorID, anchor: .center)
-                        }
+                    .scrollDisabled(false)
+                    .simultaneousGesture(
+                        MagnifyGesture()
+                            .onChanged { value in
+                                let start = magnificationStartZoom ?? zoom
+                                if magnificationStartZoom == nil {
+                                    magnificationStartZoom = zoom
+                                }
+                                onZoomChange(min(max(
+                                    start * value.magnification,
+                                    1
+                                ), 8))
+                            }
+                            .onEnded { _ in
+                                magnificationStartZoom = nil
+                            }
+                    )
+                    .onChange(of: zoom) {
+                        guard let anchor = pendingZoomAnchor else { return }
+                        pendingZoomAnchor = nil
+                        proxy.scrollTo(zoomAnchorID, anchor: anchor)
                     }
                 }
             } else {
@@ -331,18 +365,18 @@ private struct SourceMaskEditor: View {
             }
         }
         .background(.background)
-        .overlay(alignment: .top) {
-            Text(instruction)
-                .font(.callout.weight(.medium))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 9)
-                .background(.regularMaterial, in: Capsule())
-                .padding(.top, 18)
-                .allowsHitTesting(false)
+        .background {
+            ScrollWheelZoomMonitor { delta, anchor in
+                zoomAnchor = anchor
+                pendingZoomAnchor = anchor
+                onZoomChange(min(max(zoom * exp(-delta * 0.01), 1), 8))
+            }
         }
         .task(id: image.id) {
             sourceImage = Self.loadImage(at: image.url)
             maskImage = Self.loadImage(data: maskData)
+            protectedMaskImage = Self.loadImage(data: protectedMaskData)
+            controlPointMaskImage = Self.loadImage(data: controlPointMaskData)
             activeStroke = []
             circleStart = nil
             circleEnd = nil
@@ -350,47 +384,54 @@ private struct SourceMaskEditor: View {
         .onChange(of: maskData) {
             maskImage = Self.loadImage(data: maskData)
         }
+        .onChange(of: protectedMaskData) {
+            protectedMaskImage = Self.loadImage(data: protectedMaskData)
+        }
+        .onChange(of: controlPointMaskData) {
+            controlPointMaskImage = Self.loadImage(data: controlPointMaskData)
+        }
         .onChange(of: maskTool) {
             activeStroke = []
             circleStart = nil
             circleEnd = nil
+            showSystemCursor()
         }
         .onDisappear {
             showSystemCursor()
         }
     }
 
-    private var instruction: String {
-        if maskTool == .circle {
-            return isErasing
-                ? "Dra från centrum för att återställa en cirkel"
-                : "Dra från cirkelns centrum för att ange radien"
+    private var isErasing: Bool { maskIntent == .erase }
+
+    private var strokeColor: Color {
+        if isErasing { return .white }
+        switch maskIntent {
+        case .exclude: return .red
+        case .protect: return .green
+        case .controlPoints: return .orange
+        case .erase: return .white
         }
-        if isErasing {
-            return "Måla för att återställa bildens pixlar"
-        }
-        if isControlPointMask {
-            return "Måla orange över rörliga objekt som ska ignoreras vid matchning"
-        }
-        return "Måla rött över sådant som inte ska användas"
     }
 
-    private func commitStroke(sourceImage: CGImage) {
-        guard !activeStroke.isEmpty else { return }
-        let data = SourceMaskRasterizer.applying(
-            stroke: activeStroke,
-            radius: CGFloat(brushDiameter / 2),
-            erasing: isErasing,
-            controlPointExclusion: isControlPointMask,
-            to: maskData,
-            width: sourceImage.width,
-            height: sourceImage.height
-        )
+    private func commitStroke(
+        sourceImage: CGImage,
+        displayScale: CGFloat
+    ) {
+        guard !activeStroke.isEmpty, displayScale > 0 else { return }
+        let radius = screenBrushDiameter / 2 / displayScale
+        let apply: (Data?, Bool, AppModel.SourceMaskIntent) -> Data? = { data, erase, intent in
+            SourceMaskRasterizer.applying(
+                stroke: activeStroke, radius: radius, erasing: erase,
+                controlPointExclusion: intent == .controlPoints,
+                protectedArea: intent == .protect, to: data,
+                width: sourceImage.width, height: sourceImage.height
+            )
+        }
+        applyToAllMasks(apply: apply)
         activeStroke = []
-        onMaskChange(data)
     }
 
-    private func commitCircle(sourceImage: CGImage) {
+    private func commitShape(sourceImage: CGImage) {
         guard let start = circleStart, let end = circleEnd else { return }
         let deltaX = (end.x - start.x) * CGFloat(sourceImage.width)
         let deltaY = (end.y - start.y) * CGFloat(sourceImage.height)
@@ -398,16 +439,39 @@ private struct SourceMaskEditor: View {
         circleStart = nil
         circleEnd = nil
         guard radius >= 1 else { return }
-        let data = SourceMaskRasterizer.applyingCircle(
-            center: start,
-            radius: radius,
-            erasing: isErasing,
-            controlPointExclusion: isControlPointMask,
-            to: maskData,
-            width: sourceImage.width,
-            height: sourceImage.height
+        let apply: (Data?, Bool, AppModel.SourceMaskIntent) -> Data? = { data, erase, intent in
+            if maskTool == .rectangle {
+                return SourceMaskRasterizer.applyingRectangle(
+                    from: start, to: end, erasing: erase,
+                    controlPointExclusion: intent == .controlPoints,
+                    protectedArea: intent == .protect, to: data,
+                    width: sourceImage.width, height: sourceImage.height
+                )
+            }
+            return SourceMaskRasterizer.applyingCircle(
+                center: start, radius: radius, erasing: erase,
+                controlPointExclusion: intent == .controlPoints,
+                protectedArea: intent == .protect, to: data,
+                width: sourceImage.width, height: sourceImage.height
+            )
+        }
+        applyToAllMasks(apply: apply)
+    }
+
+    private func applyToAllMasks(
+        apply: (Data?, Bool, AppModel.SourceMaskIntent) -> Data?
+    ) {
+        let eraseAll = maskIntent == .erase
+        let red = apply(maskData, eraseAll || maskIntent != .exclude, .exclude)
+        let green = apply(
+            protectedMaskData, eraseAll || maskIntent != .protect, .protect
         )
-        onMaskChange(data)
+        let orange = apply(
+            controlPointMaskData,
+            eraseAll || maskIntent != .controlPoints,
+            .controlPoints
+        )
+        onMasksChange(red, green, orange)
     }
 
     private func hideSystemCursor() {
@@ -459,6 +523,80 @@ private struct SourceMaskEditor: View {
             return nil
         }
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+}
+
+private struct ScrollWheelZoomMonitor: NSViewRepresentable {
+    let onScroll: (Double, UnitPoint) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onScroll: onScroll) }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        context.coordinator.install(for: view)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        context.coordinator.onScroll = onScroll
+        context.coordinator.windowNumber = view.window?.windowNumber
+        context.coordinator.hitRectInWindow = view.convert(view.bounds, to: nil)
+    }
+
+    static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
+        coordinator.uninstall()
+    }
+
+    final class Coordinator {
+        var onScroll: (Double, UnitPoint) -> Void
+        private weak var view: NSView?
+        private var monitor: Any?
+        var windowNumber: Int?
+        var hitRectInWindow = CGRect.zero
+
+        init(onScroll: @escaping (Double, UnitPoint) -> Void) {
+            self.onScroll = onScroll
+        }
+
+        func install(for view: NSView) {
+            self.view = view
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) {
+                [weak self] event in
+                guard let self,
+                      event.modifierFlags.contains(.option)
+                        || event.modifierFlags.contains(.shift),
+                      self.windowNumber == event.windowNumber,
+                      self.hitRectInWindow.contains(event.locationInWindow)
+                else { return event }
+                let delta = abs(event.scrollingDeltaY)
+                    >= abs(event.scrollingDeltaX)
+                    ? event.scrollingDeltaY
+                    : event.scrollingDeltaX
+                let physicalDelta = event.isDirectionInvertedFromDevice
+                    ? -delta
+                    : delta
+                let anchor = UnitPoint(
+                    x: min(max(
+                        (event.locationInWindow.x - self.hitRectInWindow.minX)
+                            / max(self.hitRectInWindow.width, 1), 0
+                    ), 1),
+                    y: min(max(
+                        1 - (event.locationInWindow.y - self.hitRectInWindow.minY)
+                            / max(self.hitRectInWindow.height, 1), 0
+                    ), 1)
+                )
+                guard abs(delta) > 0.01 else { return nil }
+                self.onScroll(physicalDelta, anchor)
+                return nil
+            }
+        }
+
+        func uninstall() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+
+        deinit { uninstall() }
     }
 }
 

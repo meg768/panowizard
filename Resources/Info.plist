@@ -12,6 +12,8 @@
     <string>se.egelberg.PanoWizard</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
+    <key>CFBundleIconFile</key>
+    <string>PanoWizardApp.icns</string>
     <key>CFBundleName</key>
     <string>PanoWizard</string>
     <key>CFBundlePackageType</key>
@@ -19,7 +21,7 @@
     <key>CFBundleShortVersionString</key>
     <string>0.1.0</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>4</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>
@@ -27,8 +29,8 @@
             <array>
                 <string>pw</string>
             </array>
-            <key>CFBundleTypeIconSystemGenerated</key>
-            <true/>
+            <key>CFBundleTypeIconFile</key>
+            <string>PanoWizardProject.icns</string>
             <key>CFBundleTypeName</key>
             <string>PanoWizard-projekt</string>
             <key>CFBundleTypeRole</key>

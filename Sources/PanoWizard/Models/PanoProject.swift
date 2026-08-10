@@ -68,10 +68,10 @@ struct PanoProject: Codable, Equatable, Sendable {
     mutating func replaceImages(_ images: [SourceImage]) {
         let oldImages = self.images
         let oldControlPoints = controlPoints
-        let oldGeometry = oldImages.map { ($0.id, $0.direction, $0.role) }
-        let newGeometry = images.map { ($0.id, $0.direction, $0.role) }
+        let oldGeometry = oldImages.map { ($0.id, $0.role) }
+        let newGeometry = images.map { ($0.id, $0.role) }
         if oldGeometry.elementsEqual(newGeometry, by: { left, right in
-            left.0 == right.0 && left.1 == right.1 && left.2 == right.2
+            left.0 == right.0 && left.1 == right.1
         }) == false {
             invalidateRigCache()
             nadirRepairPlacement = nil
@@ -148,6 +148,9 @@ struct PanoProject: Codable, Equatable, Sendable {
             return
         }
         images[index].role = role
+        if role == .fillOnly && images[index].direction == .horizontal {
+            images[index].direction = .nadir
+        }
         removeUnsupportedControlPoints()
         invalidateRigCache()
         nadirRepairPlacement = nil
@@ -158,10 +161,16 @@ struct PanoProject: Codable, Equatable, Sendable {
         guard let index = images.firstIndex(where: { $0.id == imageID }) else {
             return
         }
-        images[index].direction = direction
+        let role = images[index].role
+        images[index].direction = role == .fillOnly && direction == .horizontal
+            ? .nadir : direction
+        guard role == .fillOnly else {
+            modifiedAt = Self.secondPrecision(.now)
+            return
+        }
         removeUnsupportedControlPoints()
-        invalidateRigCache()
         nadirRepairPlacement = nil
+        zenithRepairPlacement = nil
         modifiedAt = Self.secondPrecision(.now)
     }
 
@@ -179,7 +188,7 @@ struct PanoProject: Codable, Equatable, Sendable {
         let imagePart = images
             .filter { $0.role == .alignment }
             .map {
-                "\($0.id.uuidString):\($0.direction.rawValue):\($0.isEnabled)"
+                "\($0.id.uuidString):\($0.isEnabled)"
             }
             .joined(separator: "|")
         return [
@@ -198,13 +207,18 @@ struct PanoProject: Codable, Equatable, Sendable {
     }
 
     mutating func removeUnsupportedControlPoints() {
+        for index in images.indices where images[index].role == .fillOnly
+            && images[index].direction == .horizontal {
+            images[index].direction = .nadir
+        }
         controlPoints = controlPoints?.filter { point in
-            images.indices.contains(point.firstImage)
-                && images.indices.contains(point.secondImage)
-                && images[point.firstImage].role == .alignment
-                && images[point.firstImage].direction == .horizontal
-                && images[point.secondImage].role == .alignment
-                && images[point.secondImage].direction == .horizontal
+            guard images.indices.contains(point.firstImage),
+                  images.indices.contains(point.secondImage) else {
+                return false
+            }
+            let first = images[point.firstImage]
+            let second = images[point.secondImage]
+            return first.role == .alignment || second.role == .alignment
         }
         if controlPoints?.isEmpty == true {
             controlPoints = nil

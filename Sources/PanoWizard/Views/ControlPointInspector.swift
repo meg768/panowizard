@@ -1248,25 +1248,27 @@ private final class ControlPointNSScrollView: NSScrollView {
     weak var viewportController: ControlPointViewportController?
 
     override func scrollWheel(with event: NSEvent) {
-        guard abs(event.scrollingDeltaY) > 0.01,
+        let zoomDelta = abs(event.scrollingDeltaY) >= abs(event.scrollingDeltaX)
+            ? event.scrollingDeltaY
+            : event.scrollingDeltaX
+        guard event.modifierFlags.contains(.option)
+                || event.modifierFlags.contains(.shift),
+              abs(zoomDelta) > 0.01,
               let documentView else {
             super.scrollWheel(with: event)
             return
         }
         let anchor = documentView.convert(event.locationInWindow, from: nil)
+        let physicalDelta = event.isDirectionInvertedFromDevice
+            ? -zoomDelta
+            : zoomDelta
         let proposedTarget = magnification
-            * exp(event.scrollingDeltaY * 0.008)
+            * exp(-physicalDelta * 0.008)
         let target = min(max(
             proposedTarget,
             minMagnification
         ), maxMagnification)
-        if abs(target - magnification) < 0.000_001,
-           abs(proposedTarget - magnification) > 0.000_001 {
-            // At a zoom boundary, do not swallow continued trackpad/mouse
-            // movement. Let NSScrollView use it for panning instead.
-            super.scrollWheel(with: event)
-            return
-        }
+        guard abs(target - magnification) > 0.000_001 else { return }
         setMagnification(target, centeredAt: anchor)
         viewportController?.updateMagnification(magnification)
     }

@@ -13,6 +13,8 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
             case .nadir: "Nadir"
             }
         }
+
+        static let repairCases: [Self] = [.zenith, .nadir]
     }
 
     enum Role: String, Codable, Sendable {

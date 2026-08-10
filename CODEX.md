@@ -1,5 +1,146 @@
 # PanoWizard – aktuell projektkontext
 
+## Aktiv kontext 2026-08-09 – breda kontrollpunkter för fyrbildsring
+
+Panorama H:s fyrbildsring isolerade ett konkret fel i CP-generatorn.
+Autogenererade `B.pw` hade 54 punkter med cirka 0,12 px medelfel, men nästan
+alla låg i ett smalt horisontellt band. PTGui-projektet `PTGui.pts` hade 86
+punkter över nästan hela fisheyeytan och gav rena skarvar. Ett separat
+kontrollprov finns i `H/C.pw`: PTGuis punkter kördes genom PanoWizards egen
+linsoptimering och rendering och bekräftade att felet låg i punktgeneratorn,
+inte i renderaren.
+
+Fyrbilders Sigma-vägen använder nu kalibrerade fisheye-strålar och robust
+3D-rotationsanpassning i stället för en plan homografi. Det är rätt modell för
+stativmaterial och behåller matchningar mot både zenit och nadir. Urvalet
+balanserar varje bildände separat; det gamla medelvärdet av två motstående
+bildkoordinater koncentrerade falskt punkterna till mitten. En ny spärr
+underkänner fyrbildsringar där någon ringskarv har färre än tio punkter eller
+mindre än 20 procent separat 6×4-ruttäckning.
+
+Den nya rena H-körningen finns i `H/D.pw`. Generatorn valde 87 punkter före
+Hugins robusta rensning och sparade 79 slutpunkter, jämfört med PTGuis 86.
+De slutliga punkterna når ungefär y=600–3384; B låg huvudsakligen kring
+y=1750–2892. Medelfelet är cirka 0,74 px, maxfelet cirka 4,77 px och den
+renderade ringen är visuellt i nivå med PTGui-kontrollprovet.
+
+PTGuis uppgift 174,18° och PanoWizards visade 165,38° är inte direkt
+jämförbara. Sigma-optimeringen använder i verkligheten cirka 113,4° över den
+stående TIFF-bildens korta sida och optimerar därefter FOV, a/b/c och d/e;
+PTGui redovisar den logiska långa bildaxeln med sin generella fisheye-modell.
+Det visade 165,38° är ett matchningspreset och bör senare göras tydligare i UI.
+
+Efter ändringen passerar 40 tester och `git diff --check` är ren. Ny
+ad hoc-signerad app finns i `build/PanoWizard.app`; Finder/provenance-xattrs
+rensades och den slutliga strikta signaturverifieringen passerade.
+
+## Aktiv kontext 2026-08-08 – Panorama H och skarvar
+
+Aktuellt verkligt test är `/Users/magnus/Desktop/Panorama/H`. Referensen
+`PTGui.pts` från PTGui 13.9 ger enligt användaren ett helt perfekt panorama.
+PanoWizard-projektet är `A.pw`; det har inte skrivits över under analysen.
+
+PTGui-referensen använder sex bilder: de fyra ringbilderna `14.46.16`–`.42`,
+den verkliga zenitbilden `14.47.04` samt den kompletterande, uppåtriktade
+`14.53.38`. PTGui placerar den sistnämnda ungefär vid yaw 78°, pitch +11°;
+den är alltså inte en femte jämnt fördelad ringriktning. PTGui-projektet har
+231 kontrollpunkter totalt, varav 136 mellan de fem bilder som PanoWizard för
+närvarande behandlar som ringbilder.
+
+`A.pw` har åtta importerade bilder men bara fem aktiva: fyra vanliga
+ringbilder plus `14.53.38`. Zenit och båda nadirbilderna är avstängda. A har
+49 ringkontrollpunkter med medelfel cirka 2,29 px, p90 cirka 5,46 px och max
+cirka 7,73 px. Den stora svarta öppningen upptill är därför väntad och inte
+en Enblend-skarv: zenitbilden är avstängd.
+
+Diagnosen isolerades med flera reproducerbara prov:
+
+- PanoWizard hittar trots den ovanliga femte bilden nästan exakt PTGuis
+  yaw/pitch/roll, så grundfelet är inte primärt kamerans slutpose.
+- Samma PanoWizard/Hugin/Enblend-kedja blir renare när den diagnostiskt får
+  PTGuis 136 ringpunkter. PTGui-punkterna användes endast för att isolera
+  orsaken och har inte sparats i A eller i produktkoden.
+- Den gamla automatiska OpenCV-selekteringen behöll bara 5–17 punkter per
+  användbart överlapp, 78 totalt, och koncentrerade dem i texturrika fläckar.
+  Det gav för svag rumslig låsning av distortion och optiskt centrum.
+- `Sources/OpenCVBridge/OpenCVBridge.cpp` använder nu den befintliga
+  rutbalanserade selekteringen även för ringar med fler än fyra bilder.
+  H genererar därefter 105 egna punkter utan PTGui-data och behåller rättvänd,
+  rimlig geometri. Ett försök att höja minimiantalet ytterligare till 20 gav
+  en numeriskt giltig men upp-och-ned-vänd lösning; gränsen 15–25 ska därför
+  ligga kvar tills plausibilitetskontrollen kan avvisa globala 180°-lösningar.
+- Enblend `--fine-mask` provades men gav tydliga hårda cirkelskarvar och är
+  åter borttaget. Coarse multibandmask är bättre för detta handhållna material.
+
+Zenit är ännu inte färdig. Om `14.47.04` aktiveras som vanligt
+positioneringslager fyller den hålet, men Enblend kan lägga sömmen genom
+byggnaden eftersom bilden innehåller stor parallax. A har den i rollen
+Reparation med en kraftig exkluderingsmask, men den är avstängd. Nästa steg är
+att först bedöma den nya 105-punktsringen i en kopia av A via
+`Börja om automatiskt`, därefter aktivera och verifiera zenitreparationen
+separat. `Skapa panorama` på befintliga A återanvänder de gamla 49 punkterna
+och testar alltså inte fixen.
+
+Efter ändringen passerar `swift test` med 38 tester och `git diff --check` är
+ren. Ny ad hoc-signerad app finns i
+`/Users/magnus/Documents/GitHub/panowizard/build/PanoWizard.app`. Byggscriptet
+passerade sin signaturkontroll; eftersom repot ligger under Documents kan
+File Provider senare återlägga Finder/provenance-xattr, så appen signerades
+och verifierades även en sista gång efter xattr-rensning.
+
+## Aktiv kontext 2026-08-08 – editorer, masker och polkontrollpunkter
+
+Arbetskopian är fortsatt avsiktligt smutsig på `codex/restart`; återställ inga
+befintliga ändringar. Senast byggda signerade app finns i
+`build/PanoWizard.app`. Testsviten passerar med 38 tester och
+`git diff --check` är ren.
+
+### Gemensamma musgester
+
+CP-editorn och maskeditorn ska följa samma Mac-mönster:
+
+- två fingrar panorerar bilden horisontellt och vertikalt,
+- Shift + två fingrar zoomar kring pekaren,
+- fysisk fingerriktning normaliseras mot macOS-inställningen Naturlig
+  rullning: två fingrar ned zoomar in och två fingrar upp zoomar ut,
+- pinch-zoom finns kvar.
+
+Maskeditorns särskilda hand-/panläge är borttaget. I verktygsfältet finns bara
+pensel och fylld rektangel; cirkelverktyget är borttaget från gränssnittet.
+Penseln är alltid 48 skärmpunkter bred. Zoom ändrar därför hur många
+källbildspixlar den täcker: inzoomning ger finare målning och utzoomning
+grövre målning. Reglaget för penselstorlek är borttaget.
+
+### Masker och lagerprioritet
+
+Pågående ocommittat arbete lägger till en grön skyddsmask utöver röd
+exkluderingsmask och orange CP-mask. Skyddade områden projiceras per lager och
+ska prioriteras framför konkurrerande lager vid Enblend. Projektpaketet sparar
+gröna masker i `protected-masks`. Den nya tjänsten
+`ProjectedLayerMaskService.swift` är ännu ospårad i Git.
+
+### Kontrollpunkter för zenit, nadir och reparationer
+
+Senaste produktbeslutet ersätter den äldre regeln att pol-/reparationsbilder
+inte får ha CP. Följande gäller nu:
+
+- horisontell positioneringsbild ↔ positionerande zenit/nadir får dela CP,
+- horisontell positioneringsbild ↔ zenit/nadir med rollen Reparation får dela
+  CP,
+- pol ↔ pol tillåts inte,
+- en horisontell reparationsbild tillåts inte,
+- lokala automatiska punktförslag fungerar för tillåtna polpar,
+- projektets automatiska ringgenerering arbetar fortfarande enbart på de
+  horisontella positioneringsbilderna.
+
+Stitchningen löser och fryser först den horisontella ringen. CP mot en
+positionerande polbild optimerar därefter endast polbildens yaw/pitch/roll och
+får aldrig flytta ringen. För en bild med rollen Reparation används minst fyra
+CP mot ringen för sfärisk Hugin-placering av reparationslagret; om tillräckliga
+CP saknas används den tidigare OpenCV-registreringen som reserv. Detta behöver
+fortfarande verifieras visuellt på verkliga zenit-/nadirmaterial, inte bara
+med enhetstester.
+
 ## Produktordning efter Panorama F
 
 Användaren skrev ursprungliga PanoWizard för Windows 2006; den nuvarande
@@ -1430,3 +1571,207 @@ ren generalisering till polreparationer, inte bara duplicera nadirknapparna.
 Senaste färdiga relaterade GUI-funktion är `Invertera mask` (`⇧⌘I`), som
 fungerar för röd panoramamask och orange CP-mask, använder ett ångrasteg och
 är med i den signerade appen. Full testsvit hade då 17 godkända tester.
+
+### Kontext sparad 2026-08-09 18: riktning borttagen från positionering
+
+Bildriktning används inte längre för bilder med rollen `alignment`. Alla
+aktiva positionerande bilder skickas tillsammans till samma CP-generering och
+globala bundle adjustment; motorn avgör själv yaw, pitch och roll. Det gamla
+`direction`-fältet ligger kvar i JSON för bakåtkompatibilitet men ingår inte i
+riggsignaturen och påverkar inte positioneringsgeometrin.
+
+Zenit/Nadir visas endast för rollen `fillOnly`, där valet betyder
+reparationsområde. Äldre projekt med `fillOnly + horizontal` normaliseras till
+nadir. Kontrollpunkter får delas mellan alla positionerande bilder och mellan
+en positionerande bild och en reparationsbild, men inte mellan två rena
+reparationsbilder.
+
+Verifiering mot `/Users/magnus/Desktop/Panorama/H/A.pw` gjordes genom att
+tvinga den femte positionerande bilden till det gamla värdet `zenith`. Samtliga
+fem bilder gick ändå genom samma globala matchning/optimering och den femte
+bilden löstes automatiskt till pitch `89.67°`. Resultatet var visuellt likvärdigt
+med användarens perfekta körning där samma bild råkade vara `horizontal`.
+Efter ändringen passerade 41 tester.
+
+### Kontext sparad 2026-08-09 19: sfärisk CP-matchning med zenit
+
+När en positionerande zenitbild lades till ökade alignment-mängden från fyra
+till fem bilder. OpenCV-bryggan använde då åter plan homografi eftersom den
+sfäriska Sigma-vägen felaktigt krävde exakt fyra bilder. Det gav åter smala
+CP-band trots ett visuellt bra panorama; exempelvis täckte par 1–2 bara
+`59.8–68.9 %` av bildhöjden.
+
+Den kalibrerade 3D-rotations-RANSAC-vägen används nu för alla breda
+Sigma-bildpar (`HFOV >= 110°`) oavsett antal positionerande bilder. Det gäller
+även ring–zenit. Varje endpoints punkturval balanseras separat. Extrapar med
+färre än tio valda punkter eller spatial täckning under `0.2` tas bort; ett
+sådant redundant par i H/A hade sex punkter och täckning `0.125`.
+
+Verifieringsprojektet
+`/Users/magnus/Desktop/Panorama/H/A-spherical-test-2.pw` skapades från nya
+H/A utan att skriva över originalet. Det har 148 slutliga CP på sju bildpar.
+Ringparen täcker nu typiskt 31–87 procent av bildhöjden och ring–zenit-paren
+har bred spridning över sina verkliga överlapp. Medelfelet är `1.166 px` och
+maxfelet `6.657 px`; panorama och nadirreparation renderades klart. Den första
+ofilterade diagnoskopian flyttades till Papperskorgen. Full testsiffra före
+releasebygget är 42 godkända tester.
+
+### Kontext sparad 2026-08-09 21: falska CP vid Sigma-cirkeln
+
+Ett helt nytt fyrbildsprojekt, Panorama F/C, reproducerade att bara tre
+riktningar syntes. Alla fyra bilder var aktiva. Efter Hugins rensning fanns
+23 CP för bild 1–2, 23 för 2–3 och fem falska CP för 2–4. De fem falska
+punkterna låg på den identiska svarta Sigma-cirkelkanten och hade nästan
+samma koordinater i två bilder som egentligen var tagna cirka 90° isär.
+Bild 4 placerades därför ovanpå bild 2.
+
+Den råa SIFT-detekteringen maskar nu bort en 2,5-procentig säkerhetsmarginal
+innanför den kalibrerade Sigma-bildcirkeln. På C gick de två falska paren
+därefter från 14–15 geometriska träffar till noll, medan de fyra verkliga
+grannparen behöll 25 punkter vardera. De lösta yaw-vinklarna blev 112,88°,
+-154,43°, -64,41° och 23,87°, alltså fyra riktningar med cirka 90° steg.
+Resultatet finns i
+`/Users/magnus/Desktop/Panorama/F/C-circle-test.pw` och innehåller alla fyra
+bilder utan Enblend-specialfall.
+
+Efter optimeringen finns dessutom en fyrbildsspärr: varje Sigma-bild måste ha
+minst två tillförlitliga grannar med minst åtta kvarvarande CP per par. Ett
+svagt stjärnnät av den typ som förstörde C avbryts nu med ett konkret fel i
+stället för att renderas som tre riktningar.
+
+Panorama H verifierades separat i
+`/Users/magnus/Desktop/Panorama/H/A-circle-regression.pw`. Dess fem
+positioneringsbilder, zenit (pitch 89,69°), nadirreparation och slutrendering
+fungerar fortfarande. Originalprojekten C och H skrevs inte över.
+
+### Kontext sparad 2026-08-09 22: Enblend-söm runt automatisk polbild
+
+Panorama H/A var geometriskt korrekt men standardgeneratorn `graph-cut`
+valde en lång synlig söm mellan den automatiskt lösta zenitbilden och
+ringbilderna. Fler multibandsnivåer hjälpte inte; Enblend använde redan de nio
+nivåer som lagergeometrin tillät. Separat vinjetteringsoptimering ändrade
+ljusfallet men lämnade kanten på exakt samma plats.
+
+När den lösta geometrin innehåller en positioneringsbild med minst 60 graders
+absolut pitch använder den enda ordinarie Enblend-körningen nu
+`nearest-feature-transform`, samma robusta sömgenerator som redan användes vid
+källmasker. Bildriktning i projektet används fortfarande inte. Enblend får
+i stället den automatiskt optimerade pitchen från Hugin.
+
+Verifieringsprojektet
+`/Users/magnus/Desktop/Panorama/H/A-seam-fix.pw` skapades med helt nya CP.
+Zenit löstes till pitch 89,69°, den vertikala himmelskanten försvann och
+nadirreparationen lyckades. Originalet skrevs inte över. Alla 44 tester
+passerar och releaseappen är byggd i `build/PanoWizard.app`.
+
+Samma relativa CP-geometri kan av Hugin representeras i två globala lägen:
+rättvänd med ringbildernas roll nära 0° eller upp-och-ned med roll nära 180°.
+Det senare inträffade när den sparade CP-mängden i H/A återanvändes, trots att
+punkterna i praktiken var identiska med den rättvända körningen. Efter
+optimeringen normaliseras därför ett läge där majoriteten av icke-polära
+positioneringsbilder har mer än 90° absolut roll genom en global 180° rotation.
+Det bygger enbart på löst geometri, inte bildens manuella riktning.
+
+Regressionen `/Users/magnus/Desktop/Panorama/H/A-upright-test.pw` använder
+exakt de 148 sparade punkterna från den upp-och-nedvända A-körningen. Den blev
+rättvänd, sömfri och fick lyckad nadirreparation. Testsviten omfattar nu 46
+tester.
+
+### Kontext sparad 2026-08-09 22: synliga bildnummer i CP-varningar
+
+I Panorama F/A är projektbilderna 2 och 3 avmarkerade, så matcharen arbetar
+med projektbilderna 1, 4, 5 och 6. Den interna fyrbildslistan numrerades ändå
+1–4 i varningen och sade felaktigt att den svaga överlappningen var mellan
+bild 1 och 2. Både trollstaven och stitchmotorn skickar nu med de synliga
+projektbildnumren till matcharen. Direkt verifiering mot F/A ger korrekt text:
+`mellan bild 1 och 4`. Avmarkerade bilder deltar fortfarande inte. Alla 47
+tester passerar.
+
+### Kontext sparad 2026-08-09 22: tätt men smalt verkligt överlapp i F/B
+
+Panorama F/B består av bilderna 20.23.55, 20.24.02, 20.24.18 och 20.24.28.
+Matcharen hittade 25 geometriskt verifierade CP mellan B:s bild 2 och 3 men
+kastade bort hela paret eftersom punkterna täckte 12,5 procent av bildytan och
+den generella gränsen var 20 procent. Detta var inte Sigma-cirkelns gamla
+falska kantträffar: de hade bara fem punkter och själva kanten maskas numera
+bort före SIFT.
+
+Ett brett fisheyepar underkänns nu om det har färre än tio punkter eller mindre
+än tio procents täckning. Därmed accepteras B:s täta smala verkliga överlapp,
+medan den tidigare 18-punktsregressionen vid åtta procent och glesa falska par
+fortfarande stoppas. `/Users/magnus/Desktop/Panorama/F/B-cp-upright-test.pw`
+har 25 CP på vart och ett av de fyra grannparen, cirka 90 graders yaw-steg och
+ett visuellt korrekt panorama. Flickan upprepas naturligt eftersom hon flyttat
+sig mellan exponeringarna.
+
+Under B-verifieringen korrigerades även rättvändningskontrollen: små negativa
+rollvärden som -4° får inte normaliseras till 356° och misstolkas som ett
+upp-och-nedvänt panorama. Alla 48 tester passerar.
+
+### Kontext sparad 2026-08-09 23: batchverifiering Panorama C–H
+
+Mapparna `/Users/magnus/Desktop/Panorama/C`, `D`, `F`, `G` och `H` har nu ett
+visuellt verifierat `Panorama.pw`. Tomma A, B och E lämnades orörda. C använder
+sex ringbilder samt separata zenit- och nadirreparationer. D använder fyra
+ringbilder och en nadirreparation. F:s stabila ring är projektbilderna 2, 4,
+5 och 6. G använder projektbilderna 1, 3, 5, 7, 8, 9, 10 och 11 med en
+handkuraterad grannring; övriga exponeringar är sparade men avmarkerade. H
+använder bilderna 1–5 för geometri och bild 6 som nadirreparation.
+
+D:s fyra horisontella bilder ger bara fem råa CP mot ena grannen och fyra mot
+den andra. En tillfällig reserv accepterade därför en öppen CP-kedja, men den
+gav en dåligt låst 360°-skarv och har tagits bort. Den femte, nedåtriktade
+bilden ska i stället delta i den vanliga geometrin: den ger 25 verifierade
+punkter mot båda sidor av skarven och löses automatiskt till pitch −85,6°.
+Slutprojektet D använder därför alla fem bilder som positioneringsbilder och
+har 143 rensade CP i ett slutet, redundant nät.
+
+Enblends `nearest-feature-transform` används nu för alla Sigma 8 mm-projekt,
+inte bara när masker eller polära positioneringsbilder finns. Graph-cut
+skapade breda vertikala tonkanter i jämn himmel i C och D och ett svart
+sömområde när G:s många vidvinkellager sammanföll. Den avståndsbaserade sömmen
+tog bort dessa artefakter utan att ändra geometrin. Samtliga fem slutprojekt
+renderades om efter ändringen.
+
+Det miljöstyrda integrationstestet
+`stitchesImageFolderWhenRequested` kan skapa ett projekt från en hel bildmapp
+och stöder avmarkerade bilder, sista bild som nadirreparation, valfri
+zenitreparation och en explicit lista av manuellt verifierade bildpar. Utan
+miljövariabler är testet ett snabbt no-op och påverkar inte den ordinarie
+testsviten.
+
+### Kontext sparad 2026-08-10 02: projektmapp vid export och separata ikoner
+
+JPEG- och HTML-exporternas `NSSavePanel` öppnas nu alltid i samma mapp som
+den öppna `.pw`-projektfilen. `PanoWizardApp` skickar projektfilens
+föräldramapp via `ContentView` till `PanoramaExportView`; ett osparat dokument
+utan känd URL använder fortfarande systemets normala standardmapp.
+
+App- och dokumentikoner är avsiktligt separata:
+
+- `Resources/Icons/PanoWizardApp.png` och `PanoWizardApp.icns` är appikonen:
+  en blå panoramavy med en stor orange trollstav och två stjärnor, utan papper,
+  dokumentblad eller vikt hörn.
+- `Resources/Icons/PanoWizardProject.png` och `PanoWizardProject.icns` är
+  `.pw`-projektikonen: motsvarande motiv på ett vitt dokumentblad.
+- `CFBundleIconFile` pekar på `PanoWizardApp.icns`.
+- dokumenttypen `se.egelberg.panowizard.project` har
+  `CFBundleTypeIconFile = PanoWizardProject.icns`.
+- `Scripts/build-app.sh` kopierar båda `.icns`-filerna till appaketets
+  `Contents/Resources`.
+
+Bundle-buildnumret är 4 för att tvinga LaunchServices att läsa om ikonerna.
+Releaseappen är byggd i
+`/Users/magnus/Documents/GitHub/panowizard/build/PanoWizard.app` och registrerad
+med `lsregister`. Kontroll via `NSWorkspace.icon(forFile:)` visar den separata
+appikonen för appaketet och dokumentikonen för verkliga `Panorama.pw`-projekt.
+LaunchServices visar projekt-UTI:n som aktiv, exporterad och betrodd med rätt
+relativa ikonfil. Finder visade ändå först sin cachelagrade vita standardikon;
+Finder-processen startades om utan att projektfilerna ändrades. Om ikonen ändå
+är gammal är nästa diagnostiska steg att ladda om macOS ikonservice, inte att
+ändra projektformat eller projektpaket.
+
+Senaste fulla testkörningen passerade 49 tester. Ikonarbetet ändrade bara
+resurser, plist och byggscript; efteråt byggdes releaseappen framgångsrikt.
+Arbetskopian är fortsatt avsiktligt smutsig med många tidigare ändringar och
+ska inte återställas eller rensas brett.

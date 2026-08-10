@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @Bindable var model: AppModel
     let projectName: String?
+    let projectDirectoryURL: URL?
     @State private var isDropTargeted = false
     @AppStorage("PanoWizard.ProjectWindow.sidebarWidth")
     private var savedSidebarWidth = 300.0
@@ -34,6 +35,7 @@ struct ContentView: View {
                     PanoramaExportView(
                         model: model,
                         projectName: projectName,
+                        projectDirectoryURL: projectDirectoryURL,
                         viewpoint: model.panoramaViewpoint
                     )
                 } else if model.selection == .controlPoints {
@@ -103,15 +105,17 @@ struct ContentView: View {
                         zenithOverlayURL: model.zenithOverlayURL,
                         selectedSource: model.selectedSourceImage,
                         maskData: model.selectedSourceImage.flatMap {
-                            model.maskData(for: $0.id)
+                            model.maskDataByImageID[$0.id]
                         },
-                        brushDiameter: model.brushDiameter,
-                        maskTool: model.selectedImageSupportsCircleMask
-                            ? model.sourceMaskTool
-                            : .brush,
+                        protectedMaskData: model.selectedSourceImage.flatMap {
+                            model.protectedMaskDataByImageID[$0.id]
+                        },
+                        controlPointMaskData: model.selectedSourceImage.flatMap {
+                            model.controlPointMaskDataByImageID[$0.id]
+                        },
+                        maskTool: model.sourceMaskTool,
                         zoom: model.sourceImageZoom,
-                        isErasing: model.isErasingMask,
-                        isControlPointMask: model.activeMaskKind == .controlPoints,
+                        maskIntent: model.sourceMaskIntent,
                         isAdjustingNadir: model.isAdjustingNadir,
                         adjustedPole: model.activeRepairPole,
                         nadirAdjustment: model.displayedNadirAdjustment,
@@ -119,9 +123,13 @@ struct ContentView: View {
                         initialViewpoint: model.panoramaViewpoint,
                         onNadirAdjustmentChange: model.setNadirAdjustment,
                         onViewpointChange: model.setPanoramaViewpoint,
-                        onMaskChange: { data in
+                        onSourceZoomChange: { model.sourceImageZoom = $0 },
+                        onMasksChange: { red, green, orange in
                             guard let image = model.selectedSourceImage else { return }
-                            model.setMaskData(data, for: image.id)
+                            model.setSourceMasks(
+                                red: red, green: green, orange: orange,
+                                for: image.id
+                            )
                         }
                     )
                 }
@@ -172,17 +180,19 @@ struct ContentView: View {
                 if model.selectedSourceImage != nil {
                     Menu {
                         if let image = model.selectedSourceImage {
-                            Picker("Riktning", selection: Binding(
-                                get: { image.direction },
-                                set: { direction in
-                                    model.setDirection(direction, for: image.id)
+                            if image.role == .fillOnly {
+                                Picker("Reparationsområde", selection: Binding(
+                                    get: { image.direction },
+                                    set: { direction in
+                                        model.setDirection(direction, for: image.id)
+                                    }
+                                )) {
+                                    ForEach(SourceImage.Direction.repairCases, id: \.self) {
+                                        Text($0.displayName).tag($0)
+                                    }
                                 }
-                            )) {
-                                ForEach(SourceImage.Direction.allCases, id: \.self) {
-                                    Text($0.displayName).tag($0)
-                                }
+                                Divider()
                             }
-                            Divider()
                             Picker("Bildroll", selection: Binding(
                                 get: { image.role },
                                 set: { role in
@@ -205,81 +215,28 @@ struct ContentView: View {
                         Label(
                             "Bildegenskaper",
                             systemImage: model.selectedSourceImage?.role == .fillOnly
-                                ? "paintbrush.pointed.fill"
-                                : directionSymbol
+                                ? repairAreaSymbol
+                                : "scope"
                         )
                     }
-                    .help("Ange bildens riktning och roll")
+                    .help("Ange bildens roll och reparationsområde")
 
-                    Button {
-                        model.zoomSourceImageOut()
-                    } label: {
-                        Label("Zooma ut", systemImage: "minus.magnifyingglass")
-                    }
-                    .disabled(model.sourceImageZoom <= 1)
-                    .keyboardShortcut("-", modifiers: .command)
-
-                    Button {
-                        model.zoomSourceImageIn()
-                    } label: {
-                        Label("Zooma in", systemImage: "plus.magnifyingglass")
-                    }
-                    .disabled(model.sourceImageZoom >= 8)
-                    .keyboardShortcut("+", modifiers: .command)
-
-                    if model.selectedImageSupportsControlPoints {
-                        Picker("Masktyp", selection: $model.maskKind) {
-                            Label("Göm i panorama", systemImage: "eye.slash")
-                                .tag(AppModel.MaskKind.panorama)
-                            Label(
-                                "Ignorera för kontrollpunkter",
-                                systemImage: "scope"
-                            )
-                            .tag(AppModel.MaskKind.controlPoints)
-                        }
-                        .pickerStyle(.menu)
-                        .help(
-                            model.maskKind == .controlPoints
-                                ? "Orange mask: motivet syns i resultatet men används inte för bildmatchning"
-                                : "Röd mask: området döljs i det färdiga panoramat"
-                        )
-                    }
-
-                    Picker("Maskverktyg", selection: $model.isErasingMask) {
-                        Label(
-                            model.activeMaskKind == .controlPoints
-                                ? "Ignorera"
-                                : "Maskera",
-                            systemImage: "paintbrush"
-                        )
-                            .tag(false)
-                        Label(
-                            "Återställ",
-                            systemImage: "eraser"
-                        )
-                            .tag(true)
+                    Picker("Verktyg", selection: $model.sourceMaskTool) {
+                        Label("Pensel", systemImage: "paintbrush.pointed").tag(SourceMaskTool.brush)
+                        Label("Rektangel", systemImage: "rectangle").tag(SourceMaskTool.rectangle)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 190)
+                    .frame(width: 160)
 
-                    if model.selectedImageSupportsCircleMask {
-                        Picker("Maskform", selection: $model.sourceMaskTool) {
-                            Label("Frihand", systemImage: "paintbrush.pointed")
-                                .tag(SourceMaskTool.brush)
-                            Label("Cirkel", systemImage: "circle")
-                                .tag(SourceMaskTool.circle)
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(width: 170)
-                        .help("Välj frihandsmask eller en perfekt cirkel")
-                    }
-
-                    if !model.selectedImageSupportsCircleMask
-                        || model.sourceMaskTool == .brush {
-                        Slider(value: $model.brushDiameter, in: 8...240) {
-                            Text("Penselstorlek")
-                        }
-                        .frame(width: 120)
+                    HStack(spacing: 6) {
+                        maskColorButton(.exclude, color: .red, name: "Röd")
+                        maskColorButton(.protect, color: .green, name: "Grön")
+                        maskColorButton(
+                            .controlPoints,
+                            color: .orange,
+                            name: "Orange"
+                        )
+                        maskColorButton(.erase, color: .white, name: "Sudda")
                     }
 
                     Button {
@@ -417,12 +374,36 @@ struct ContentView: View {
         }
     }
 
-    private var directionSymbol: String {
+    private var repairAreaSymbol: String {
         switch model.selectedSourceImage?.direction {
         case .zenith: "arrow.up.circle"
         case .nadir: "arrow.down.circle"
         case .horizontal, nil: "scope"
         }
+    }
+
+    private func maskColorButton(
+        _ intent: AppModel.SourceMaskIntent,
+        color: Color,
+        name: String
+    ) -> some View {
+        Button {
+            model.sourceMaskIntent = intent
+        } label: {
+            Circle()
+                .fill(color)
+                .stroke(.primary.opacity(0.35), lineWidth: 1)
+                .frame(width: 18, height: 18)
+                .padding(5)
+                .background(
+                    model.sourceMaskIntent == intent
+                        ? Color.accentColor.opacity(0.35)
+                        : Color.clear,
+                    in: Circle()
+                )
+        }
+        .buttonStyle(.plain)
+        .help(name)
     }
 
 }
@@ -490,20 +471,22 @@ private struct SourceImagesView: View {
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
-                            Picker(
-                                "Riktning",
-                                selection: Binding(
-                                    get: { image.direction },
-                                    set: {
-                                        model.setDirection($0, for: image.id)
-                                    }
-                                )
-                            ) {
-                                ForEach(
-                                    SourceImage.Direction.allCases,
-                                    id: \.self
+                            if image.role == .fillOnly {
+                                Picker(
+                                    "Reparationsområde",
+                                    selection: Binding(
+                                        get: { image.direction },
+                                        set: {
+                                            model.setDirection($0, for: image.id)
+                                        }
+                                    )
                                 ) {
-                                    Text($0.displayName).tag($0)
+                                    ForEach(
+                                        SourceImage.Direction.repairCases,
+                                        id: \.self
+                                    ) {
+                                        Text($0.displayName).tag($0)
+                                    }
                                 }
                             }
                         }
@@ -575,8 +558,8 @@ private struct PanoramaSettingsView: View {
 
             Section {
                 Text(
-                    "Riktning, roll och masker anges för varje enskild "
-                        + "källbild."
+                    "Roll och masker anges för varje källbild. För en "
+                        + "reparationsbild väljer du även zenit eller nadir."
                 )
                 .foregroundStyle(.secondary)
             }

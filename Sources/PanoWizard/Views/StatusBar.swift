@@ -53,9 +53,9 @@ struct StatusBar: View {
                     .frame(width: 620, height: 360)
                 }
             } else {
-                Text(model.phase.message)
+                Text(statusMessage)
                     .lineLimit(1)
-                    .help(model.phase.message)
+                    .help(statusMessage)
             }
 
             Spacer()
@@ -87,5 +87,27 @@ struct StatusBar: View {
     private var statusColor: Color {
         if case .failed = model.phase { return .orange }
         return .green
+    }
+
+    private var statusMessage: String {
+        guard model.selectedSourceImage != nil,
+              !model.isShowingStitchedPanorama else {
+            return model.phase.message
+        }
+        let action: String
+        if model.sourceMaskTool == .rectangle {
+            action = "Dra över det rektangulära området"
+        } else if model.sourceMaskIntent == .erase {
+            action = "Måla för att sudda masken"
+        } else if model.sourceMaskIntent == .controlPoints {
+            action = "Måla orange över sådant som ska ignoreras vid matchning"
+        } else if model.sourceMaskIntent == .protect {
+            action = "Måla grönt över sådant som måste hämtas från bilden"
+        } else if model.sourceMaskIntent == .erase {
+            action = "Måla vitt för att sudda masken"
+        } else {
+            action = "Måla rött över sådant som inte ska användas"
+        }
+        return "\(action) · två fingrar för att flytta · ⇧ + två fingrar för att zooma"
     }
 }

@@ -16,6 +16,7 @@ struct PanoProjectDocument: FileDocument {
     var project: PanoProject
     var masks: [UUID: Data]
     var controlPointMasks: [UUID: Data]
+    var protectedMasks: [UUID: Data]
     var panoramaData: Data?
     var nadirOverlayData: Data?
     var zenithOverlayData: Data?
@@ -24,6 +25,7 @@ struct PanoProjectDocument: FileDocument {
         project: PanoProject = PanoProject(),
         masks: [UUID: Data] = [:],
         controlPointMasks: [UUID: Data] = [:],
+        protectedMasks: [UUID: Data] = [:],
         panoramaData: Data? = nil,
         nadirOverlayData: Data? = nil,
         zenithOverlayData: Data? = nil
@@ -31,6 +33,7 @@ struct PanoProjectDocument: FileDocument {
         self.project = project
         self.masks = masks
         self.controlPointMasks = controlPointMasks
+        self.protectedMasks = protectedMasks
         self.panoramaData = panoramaData
         self.nadirOverlayData = nadirOverlayData
         self.zenithOverlayData = zenithOverlayData
@@ -79,6 +82,15 @@ struct PanoProjectDocument: FileDocument {
                 controlPointMasks[id] = data
             }
         }
+        protectedMasks = [:]
+        if let maskWrappers = wrappers["protected-masks"]?.fileWrappers {
+            for (filename, wrapper) in maskWrappers {
+                guard filename.hasSuffix(".png"),
+                      let id = UUID(uuidString: String(filename.dropLast(4))),
+                      let data = wrapper.regularFileContents else { continue }
+                protectedMasks[id] = data
+            }
+        }
         panoramaData = wrappers["panorama"]?
             .fileWrappers?["result.jpg"]?
             .regularFileContents
@@ -112,6 +124,11 @@ struct PanoProjectDocument: FileDocument {
         )
         children["control-point-masks"] = FileWrapper(
             directoryWithFileWrappers: controlPointMaskChildren
+        )
+        children["protected-masks"] = FileWrapper(directoryWithFileWrappers:
+            Dictionary(uniqueKeysWithValues: protectedMasks.map { id, data in
+                ("\(id.uuidString).png", FileWrapper(regularFileWithContents: data))
+            })
         )
 
         var panoramaChildren: [String: FileWrapper] = [:]

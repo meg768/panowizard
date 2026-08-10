@@ -110,7 +110,8 @@ enum OpenCVControlPointMatcher {
         images: [SourceImage],
         horizontalFieldOfView: Double,
         nominalYaws: [Double]? = nil,
-        controlPointMasks: [UUID: Data] = [:]
+        controlPointMasks: [UUID: Data] = [:],
+        displayImageNumbers: [Int]? = nil
     ) throws -> [PanoramaControlPoint] {
         precondition(nominalYaws == nil || nominalYaws?.count == images.count)
         let temporaryDirectory = FileManager.default.temporaryDirectory
@@ -160,15 +161,94 @@ enum OpenCVControlPointMatcher {
                 &pointCount,
                 &errorMessage
             )
+            // The bridge also records diagnostics when it cannot connect the
+            // image graph. Preserve those details before propagating the
+            // failure so callers can explain which overlap was missing.
+            lastPairDiagnostics = copyLastPairDiagnostics()
             let points = try result(
                 succeeded: succeeded,
                 rawPoints: rawPoints,
                 pointCount: pointCount,
                 errorMessage: errorMessage
             )
-            lastPairDiagnostics = copyLastPairDiagnostics()
-            return points
+            let weakPairs = nominalYaws == nil
+                && horizontalFieldOfView >= 110
+                ? weakWideFisheyePairs(in: lastPairDiagnostics) : []
+            let broadlyDistributedPoints = points.filter { point in
+                !weakPairs.contains {
+                    $0.0 == point.firstImage && $0.1 == point.secondImage
+                }
+            }
+            if nominalYaws == nil,
+               images.count == 4,
+               horizontalFieldOfView >= 110,
+               let weakPair = weakFourImageRingPairs(
+                   in: lastPairDiagnostics
+               ).first {
+                for diagnostic in lastPairDiagnostics {
+                    print(
+                        "[PanoWizard] CP failure pair "
+                            + "\(diagnostic.firstImage)-"
+                            + "\(diagnostic.secondImage): selected="
+                            + "\(diagnostic.selectedControlPointCount) coverage="
+                            + String(format: "%.3f", diagnostic.spatialCoverage)
+                    )
+                }
+                let firstNumber = displayedImageNumber(
+                    for: weakPair.0,
+                    displayImageNumbers: displayImageNumbers
+                )
+                let secondNumber = displayedImageNumber(
+                    for: weakPair.1,
+                    displayImageNumbers: displayImageNumbers
+                )
+                throw PanoramaEngineError.stitchingFailed(
+                    "Kontrollpunkterna täcker för liten del av överlappet "
+                        + "mellan bild \(firstNumber) och \(secondNumber)."
+                )
+            }
+            return broadlyDistributedPoints
         }
+    }
+
+    static func weakWideFisheyePairs(
+        in diagnostics: [ControlPointPairGenerationDiagnostic]
+    ) -> [(Int, Int)] {
+        diagnostics.compactMap { diagnostic in
+            // A narrow but feature-rich overlap is valid (Panorama F/B has
+            // 25 geometrically verified points at 12.5% coverage). Reject
+            // sparse links and only the most extremely concentrated bands.
+            guard diagnostic.selectedControlPointCount > 0,
+                  diagnostic.selectedControlPointCount < 10
+                    || diagnostic.spatialCoverage < 0.1 else {
+                return nil
+            }
+            return (diagnostic.firstImage, diagnostic.secondImage)
+        }
+    }
+
+    static func weakFourImageRingPairs(
+        in diagnostics: [ControlPointPairGenerationDiagnostic]
+    ) -> [(Int, Int)] {
+        let requiredPairs = [(0, 1), (1, 2), (2, 3), (0, 3)]
+        return requiredPairs.filter { first, second in
+            guard let diagnostic = diagnostics.first(where: {
+                $0.firstImage == first && $0.secondImage == second
+            }) else { return true }
+            return diagnostic.selectedControlPointCount < 10
+                || diagnostic.spatialCoverage < 0.1
+        }
+    }
+
+    static func displayedImageNumber(
+        for matchingIndex: Int,
+        displayImageNumbers: [Int]?
+    ) -> Int {
+        guard let displayImageNumbers,
+              displayImageNumbers.indices.contains(matchingIndex) else {
+            return matchingIndex + 1
+        }
+        return displayImageNumbers[matchingIndex]
     }
 
     private static func replacingURL(

@@ -10,7 +10,7 @@ struct MaskPoint: Equatable, Sendable {
 
 enum SourceMaskTool: Hashable, Sendable {
     case brush
-    case circle
+    case rectangle
 }
 
 enum SourceMaskRasterizer {
@@ -86,11 +86,13 @@ enum SourceMaskRasterizer {
         radius: CGFloat,
         erasing: Bool,
         controlPointExclusion: Bool = false,
+        protectedArea: Bool = false,
         to existingData: Data?,
         width: Int,
         height: Int
     ) -> Data? {
         guard width > 0, height > 0, !stroke.isEmpty else { return existingData }
+        if erasing, existingData == nil { return nil }
 
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         guard let context = CGContext(
@@ -113,9 +115,11 @@ enum SourceMaskRasterizer {
         }
 
         context.setBlendMode(erasing ? .clear : .normal)
-        let color = controlPointExclusion
-            ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
-            : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
+        let color = protectedArea
+            ? CGColor(red: 0.08, green: 0.9, blue: 0.22, alpha: 1)
+            : controlPointExclusion
+                ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
+                : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
         context.setStrokeColor(color)
         context.setFillColor(color)
         context.setLineWidth(radius * 2)
@@ -143,6 +147,7 @@ enum SourceMaskRasterizer {
         }
 
         guard let image = context.makeImage() else { return existingData }
+        if erasing, !hasVisibleAlpha(image) { return nil }
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(
             data,
@@ -162,11 +167,13 @@ enum SourceMaskRasterizer {
         radius: CGFloat,
         erasing: Bool,
         controlPointExclusion: Bool = false,
+        protectedArea: Bool = false,
         to existingData: Data?,
         width: Int,
         height: Int
     ) -> Data? {
         guard width > 0, height > 0, radius > 0 else { return existingData }
+        if erasing, existingData == nil { return nil }
 
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         guard let context = CGContext(
@@ -190,9 +197,11 @@ enum SourceMaskRasterizer {
         }
 
         context.setBlendMode(erasing ? .clear : .normal)
-        let color = controlPointExclusion
-            ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
-            : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
+        let color = protectedArea
+            ? CGColor(red: 0.08, green: 0.9, blue: 0.22, alpha: 1)
+            : controlPointExclusion
+                ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
+                : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
         context.setFillColor(color)
         let sourceCenter = CGPoint(
             x: center.x * CGFloat(width),
@@ -206,6 +215,7 @@ enum SourceMaskRasterizer {
         ))
 
         guard let image = context.makeImage() else { return existingData }
+        if erasing, !hasVisibleAlpha(image) { return nil }
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(
             data,
@@ -220,11 +230,89 @@ enum SourceMaskRasterizer {
         return data as Data
     }
 
+    static func applyingRectangle(
+        from start: MaskPoint,
+        to end: MaskPoint,
+        erasing: Bool,
+        controlPointExclusion: Bool = false,
+        protectedArea: Bool = false,
+        to existingData: Data?,
+        width: Int,
+        height: Int
+    ) -> Data? {
+        guard width > 0, height > 0 else { return existingData }
+        if erasing, existingData == nil { return nil }
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return existingData }
+        let canvas = CGRect(x: 0, y: 0, width: width, height: height)
+        context.clear(canvas)
+        if let existingData,
+           let source = CGImageSourceCreateWithData(existingData as CFData, nil),
+           let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+            context.draw(image, in: canvas)
+        }
+        context.setBlendMode(erasing ? .clear : .normal)
+        let color = protectedArea
+            ? CGColor(red: 0.08, green: 0.9, blue: 0.22, alpha: 1)
+            : controlPointExclusion
+                ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
+                : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
+        context.setFillColor(color)
+        let x1 = start.x * CGFloat(width)
+        let x2 = end.x * CGFloat(width)
+        let y1 = (1 - start.y) * CGFloat(height)
+        let y2 = (1 - end.y) * CGFloat(height)
+        context.fill(CGRect(
+            x: min(x1, x2), y: min(y1, y2),
+            width: abs(x2 - x1), height: abs(y2 - y1)
+        ))
+        guard let image = context.makeImage() else { return existingData }
+        if erasing, !hasVisibleAlpha(image) { return nil }
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data, UTType.png.identifier as CFString, 1, nil
+        ) else { return existingData }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { return existingData }
+        return data as Data
+    }
+
+    private static func hasVisibleAlpha(_ image: CGImage) -> Bool {
+        let width = image.width
+        let height = image.height
+        guard width > 0, height > 0 else { return false }
+        var alpha = [UInt8](repeating: 0, count: width * height)
+        let rendered = alpha.withUnsafeMutableBytes { bytes in
+            guard let address = bytes.baseAddress,
+                  let context = CGContext(
+                    data: address,
+                    width: width,
+                    height: height,
+                    bitsPerComponent: 8,
+                    bytesPerRow: width,
+                    space: CGColorSpaceCreateDeviceGray(),
+                    bitmapInfo: CGImageAlphaInfo.none.rawValue
+                  ) else { return false }
+            context.draw(
+                image,
+                in: CGRect(x: 0, y: 0, width: width, height: height)
+            )
+            return true
+        }
+        return rendered && alpha.contains { $0 > 0 }
+    }
+
     static func inverted(
         _ existingData: Data?,
         width: Int,
         height: Int,
-        controlPointExclusion: Bool = false
+        controlPointExclusion: Bool = false,
+        protectedArea: Bool = false
     ) -> Data? {
         var outputWidth = width
         var outputHeight = height
@@ -255,9 +343,11 @@ enum SourceMaskRasterizer {
             width: outputWidth,
             height: outputHeight
         )
-        let color = controlPointExclusion
-            ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
-            : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
+        let color = protectedArea
+            ? CGColor(red: 0.08, green: 0.9, blue: 0.22, alpha: 1)
+            : controlPointExclusion
+                ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
+                : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
         context.setFillColor(color)
         context.fill(bounds)
         if let existingImage {

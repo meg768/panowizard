@@ -222,7 +222,7 @@ struct PanoProjectTests {
     }
 
     @Test @MainActor
-    func controlPointMasksInvalidateExistingPointSolution() throws {
+    func controlPointMasksPreserveExistingPointSolution() throws {
         let images = (0..<2).map { index in
             SourceImage(
                 url: URL(fileURLWithPath: "/Pictures/\(index).jpg"),
@@ -263,8 +263,55 @@ struct PanoProjectTests {
             controlPointMasks: [images[0].id: mask]
         )
 
-        #expect(model.editableControlPoints.isEmpty)
-        #expect(model.project.controlPoints?.isEmpty == true)
+        #expect(model.editableControlPoints == [covered, retained])
+        #expect(model.project.controlPoints == [covered, retained])
+    }
+
+    @Test @MainActor
+    func addingAnyMaskPreservesExistingControlPoints() throws {
+        let images = (0..<2).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/green-\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: 100,
+                pixelHeight: 100,
+                cameraModel: "Camera",
+                lens: LensDescription(
+                    model: "Fisheye", focalLengthIn35mm: 16, kind: .fisheye
+                )
+            )
+        }
+        let point = DiagnosticControlPoint(
+            firstImage: 0, secondImage: 1,
+            firstX: 50, firstY: 50, secondX: 50, secondY: 50
+        )
+        let green = try #require(SourceMaskRasterizer.applying(
+            stroke: [MaskPoint(x: 0.5, y: 0.5)], radius: 8,
+            erasing: false, protectedArea: true,
+            to: nil, width: 100, height: 100
+        ))
+        let model = AppModel.live(project: PanoProject(
+            images: images, controlPoints: [point]
+        ))
+
+        model.setSourceMasks(
+            red: nil, green: green, orange: nil, for: images[0].id
+        )
+
+        #expect(model.editableControlPoints.count == 1)
+        #expect(model.project.controlPoints?.count == 1)
+
+        let orange = try #require(SourceMaskRasterizer.applying(
+            stroke: [MaskPoint(x: 0.5, y: 0.5)], radius: 8,
+            erasing: false, controlPointExclusion: true,
+            to: nil, width: 100, height: 100
+        ))
+        model.setSourceMasks(
+            red: nil, green: green, orange: orange, for: images[0].id
+        )
+
+        #expect(model.editableControlPoints.count == 1)
+        #expect(model.project.controlPoints?.count == 1)
     }
 
     @Test
@@ -450,7 +497,7 @@ struct PanoProjectTests {
     }
 
     @Test @MainActor
-    func poleImagesCannotUseTheControlPointEditor() {
+    func allAlignmentImagesCanShareControlPointsRegardlessOfDirection() {
         let lens = LensDescription(
             model: "Fisheye",
             focalLengthIn35mm: 16,
@@ -473,20 +520,40 @@ struct PanoProjectTests {
         }
         let model = AppModel.live(project: PanoProject(images: images))
 
+        #expect(model.canStitch)
+
         model.selectSourceImage(images[1].id, asRightImage: false)
         model.selectSourceImage(images[2].id, asRightImage: true)
-        #expect(model.selection == .source(images[1].id))
+        #expect(model.selection == .controlPoints)
         #expect(model.mainSourceImageID == images[1].id)
-        #expect(model.rightSourceImageID == nil)
+        #expect(model.rightSourceImageID == images[2].id)
 
+        model.selectSourceImage(images[1].id, asRightImage: false)
         model.selectSourceImage(images[3].id, asRightImage: true)
+        #expect(model.selection == .controlPoints)
         #expect(model.mainSourceImageID == images[1].id)
-        #expect(model.editableControlPoints.isEmpty)
-        #expect(model.project.controlPoints == nil)
+        #expect(model.rightSourceImageID == images[3].id)
+
+        model.selectSourceImage(images[2].id, asRightImage: false)
+        model.selectSourceImage(images[3].id, asRightImage: true)
+        #expect(model.selection == .controlPoints)
+        #expect(model.mainSourceImageID == images[2].id)
+        #expect(model.rightSourceImageID == images[3].id)
+
+        let pointID = model.addPredictedControlPoint(
+            to: ControlPointPair.ID(firstImage: 1, secondImage: 3),
+            point: CGPoint(x: 120, y: 240),
+            in: 1
+        )
+        #expect(model.project.controlPoints?.contains { point in
+            point.id == pointID && point.pair == ControlPointPair.ID(
+                firstImage: 1, secondImage: 3
+            )
+        } == true)
     }
 
     @Test @MainActor
-    func fillOnlyRepairsCannotUseTheControlPointEditor() {
+    func fillOnlyRepairsCanShareControlPointsWithHorizontalImages() {
         let lens = LensDescription(
             model: "Fisheye",
             focalLengthIn35mm: 16,
@@ -509,13 +576,13 @@ struct PanoProjectTests {
         model.selectSourceImage(images[4].id, asRightImage: false)
         model.selectSourceImage(images[6].id, asRightImage: true)
 
-        #expect(model.selection == .source(images[4].id))
+        #expect(model.selection == .controlPoints)
         #expect(model.mainSourceImageID == images[4].id)
-        #expect(model.rightSourceImageID == nil)
+        #expect(model.rightSourceImageID == images[6].id)
     }
 
     @Test @MainActor
-    func projectDropsControlPointsThatTouchPoleImages() {
+    func projectKeepsControlPointsFromRingToFillOnlyPoleImages() {
         let lens = LensDescription(
             model: "Fisheye", focalLengthIn35mm: 16, kind: .fisheye
         )
@@ -544,8 +611,8 @@ struct PanoProjectTests {
             controlPoints: [ringPoint, polePoint]
         ))
 
-        #expect(model.project.controlPoints == [ringPoint])
-        #expect(model.editableControlPoints == [ringPoint])
+        #expect(model.project.controlPoints == [ringPoint, polePoint])
+        #expect(model.editableControlPoints == [ringPoint, polePoint])
     }
 
     @Test @MainActor
@@ -833,7 +900,7 @@ struct PanoProjectTests {
     }
 
     @Test
-    func changingImageDirectionInvalidatesRigCache() {
+    func changingAlignmentDirectionDoesNotChangeRigGeometry() {
         let image = SourceImage(
             url: URL(fileURLWithPath: "/Pictures/panorama/zenith.tif"),
             captureDate: nil,
@@ -864,8 +931,45 @@ struct PanoProjectTests {
 
         project.setDirection(.zenith, for: image.id)
 
-        #expect(project.cachedRigImageLines == nil)
-        #expect(project.cachedRigSignature == nil)
+        #expect(project.cachedRigImageLines == [image.id.uuidString: "i cached"])
+        #expect(project.cachedRigSignature == "old")
+        #expect(project.nadirRepairPlacement?.imageID == image.id)
+        #expect(project.rigSignature.contains("zenith") == false)
+    }
+
+    @Test
+    func changingRepairAreaPreservesGlobalRigCache() {
+        let image = SourceImage(
+            url: URL(fileURLWithPath: "/Pictures/panorama/repair.tif"),
+            captureDate: nil,
+            pixelWidth: 2_592,
+            pixelHeight: 3_872,
+            cameraModel: nil,
+            lens: LensDescription(
+                model: "Sigma 8mm",
+                focalLengthIn35mm: 12,
+                kind: .fisheye
+            ),
+            direction: .nadir,
+            role: .fillOnly
+        )
+        var project = PanoProject(
+            images: [image],
+            cachedRigImageLines: ["ring": "i cached"],
+            cachedRigSignature: "old",
+            nadirRepairPlacement: NadirRepairPlacement(
+                imageID: image.id,
+                localHomography: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                matchedFeatureCount: 20,
+                localViewFieldOfView: 120
+            )
+        )
+
+        project.setDirection(.zenith, for: image.id)
+
+        #expect(project.cachedRigImageLines == ["ring": "i cached"])
+        #expect(project.cachedRigSignature == "old")
         #expect(project.nadirRepairPlacement == nil)
+        #expect(project.zenithRepairPlacement == nil)
     }
 }

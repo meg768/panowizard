@@ -108,6 +108,7 @@ private struct ProjectDocumentView: View {
             project: document.wrappedValue.project,
             masks: document.wrappedValue.masks,
             controlPointMasks: document.wrappedValue.controlPointMasks,
+            protectedMasks: document.wrappedValue.protectedMasks,
             panoramaData: document.wrappedValue.panoramaData,
             nadirOverlayData: document.wrappedValue.nadirOverlayData,
             zenithOverlayData: document.wrappedValue.zenithOverlayData
@@ -119,7 +120,8 @@ private struct ProjectDocumentView: View {
             model: model,
             projectName: documentURL?
                 .deletingPathExtension()
-                .lastPathComponent
+                .lastPathComponent,
+            projectDirectoryURL: documentURL?.deletingLastPathComponent()
         )
             .onChange(of: model.project) { _, project in
                 document.project = project
@@ -127,6 +129,7 @@ private struct ProjectDocumentView: View {
             .onChange(of: model.maskRevision) {
                 document.masks = model.maskDataByImageID
                 document.controlPointMasks = model.controlPointMaskDataByImageID
+                document.protectedMasks = model.protectedMaskDataByImageID
             }
             .onChange(of: model.panoramaRevision) {
                 document.panoramaData = model.panoramaData

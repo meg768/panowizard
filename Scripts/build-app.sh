@@ -27,6 +27,12 @@ install -m 755 \
 install -m 644 \
     "$project_directory/Resources/Info.plist" \
     "$contents_directory/Info.plist"
+install -m 644 \
+    "$project_directory/Resources/Icons/PanoWizardProject.icns" \
+    "$resources_directory/PanoWizardProject.icns"
+install -m 644 \
+    "$project_directory/Resources/Icons/PanoWizardApp.icns" \
+    "$resources_directory/PanoWizardApp.icns"
 
 for library in "$project_directory"/Vendor/OpenCV/lib/*.500.dylib; do
     install -m 755 "$library" "$frameworks_directory/${library:t}"

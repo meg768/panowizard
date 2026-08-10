@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct PanoramaExportView: View {
     @Bindable var model: AppModel
     let projectName: String?
+    let projectDirectoryURL: URL?
     let viewpoint: PanoramaViewpoint
 
     @State private var jpegQuality = 0.92
@@ -111,6 +112,7 @@ struct PanoramaExportView: View {
         panel.allowedContentTypes = [.html]
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
+        panel.directoryURL = projectDirectoryURL
         panel.nameFieldStringValue = "\(defaultName).html"
         panel.title = "Exportera interaktivt panorama"
         panel.prompt = "Exportera"
@@ -147,6 +149,7 @@ struct PanoramaExportView: View {
         panel.allowedContentTypes = [.jpeg]
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
+        panel.directoryURL = projectDirectoryURL
         panel.nameFieldStringValue = "\(defaultName).jpg"
         panel.title = "Exportera panoramabild"
         panel.prompt = "Exportera"

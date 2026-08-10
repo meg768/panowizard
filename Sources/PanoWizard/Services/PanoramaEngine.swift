@@ -5,6 +5,7 @@ protocol PanoramaEngine: Sendable {
     func stitch(
         _ panorama: PanoramaSet,
         masks: [UUID: Data],
+        protectedMasks: [UUID: Data],
         controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint]?,
         configuration: StitchingConfiguration,
@@ -52,6 +53,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
     func stitch(
         _ panorama: PanoramaSet,
         masks: [UUID: Data],
+        protectedMasks: [UUID: Data],
         controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint]?,
         configuration: StitchingConfiguration,
@@ -61,6 +63,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             try Self.stitchSynchronously(
                 panorama,
                 masks: masks,
+                protectedMasks: protectedMasks,
                 controlPointMasks: controlPointMasks,
                 controlPoints: controlPoints,
                 configuration: configuration,
@@ -79,6 +82,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             let result = try Self.stitchSynchronously(
                 panorama,
                 masks: [:],
+                protectedMasks: [:],
                 controlPointMasks: controlPointMasks,
                 controlPoints: controlPoints,
                 configuration: configuration,
@@ -96,6 +100,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
     private static func stitchSynchronously(
         _ panorama: PanoramaSet,
         masks: [UUID: Data],
+        protectedMasks: [UUID: Data],
         controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint]?,
         configuration: StitchingConfiguration,
@@ -104,35 +109,16 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let enabledImages = panorama.images.filter(\.isEnabled)
         let alignmentImages = enabledImages.filter { $0.role == .alignment }
         let fillOnlyImages = enabledImages.filter { $0.role == .fillOnly }
-        let ringImages = alignmentImages.filter { $0.direction == .horizontal }
-        // A hand-held zenith marked as Reparation still uses the frozen-ring
-        // zenith registrar. Only its own pose is optimized; the ring is
-        // checked below and rejected if any ring orientation changes.
-        let zenithImages = alignmentImages.filter { $0.direction == .zenith }
-        let unsupported = alignmentImages.filter { $0.direction == .nadir }
-        let nadirRepairImages = fillOnlyImages.filter { $0.direction == .nadir }
-        let zenithRepairImages = fillOnlyImages.filter { $0.direction == .zenith }
-        let unsupportedRepairImages = fillOnlyImages.filter {
-            $0.direction == .horizontal
+        // Every positioning image belongs to the same globally optimized rig.
+        // Direction is retained only as a repair target for old project files.
+        let ringImages = alignmentImages
+        let nadirRepairImages = fillOnlyImages.filter {
+            $0.direction != .zenith
         }
+        let zenithRepairImages = fillOnlyImages.filter { $0.direction == .zenith }
 
         guard ringImages.count >= 2 else {
             throw PanoramaEngineError.insufficientImages
-        }
-        guard zenithImages.count <= 1 else {
-            throw PanoramaEngineError.stitchingFailed(
-                "Den här första stitchmotorn stöder en zenitbild."
-            )
-        }
-        guard unsupported.isEmpty else {
-            throw PanoramaEngineError.stitchingFailed(
-                "En nadirbild måste ha bildrollen Reparation."
-            )
-        }
-        guard unsupportedRepairImages.isEmpty else {
-            throw PanoramaEngineError.stitchingFailed(
-                "En horisontell bild kan inte användas som polreparation."
-            )
         }
         guard nadirRepairImages.count <= 1 else {
             throw PanoramaEngineError.stitchingFailed(
@@ -162,7 +148,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             at: geometryDirectory,
             withIntermediateDirectories: true
         )
-        let geometryInputs = ringImages + zenithImages
+        let geometryInputs = ringImages
         let geometryImages = try geometryInputs.enumerated().map { index, image in
             let destination = geometryDirectory.appending(
                 path: "source-\(index).tif"
@@ -181,7 +167,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             uniqueKeysWithValues: geometryImages.map { ($0.id, $0) }
         )
         let geometryRingImages = ringImages.map { geometryByID[$0.id] ?? $0 }
-        let geometryZenithImages = zenithImages.map { geometryByID[$0.id] ?? $0 }
 
         let horizontalFieldOfView = initialFieldOfView(
             configuration,
@@ -284,12 +269,19 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let editedRingPoints = editedRingEntries?.map(\.point)
         let editedRingPointIDs = editedRingEntries?.map(\.id) ?? []
         let usesEditedControlPoints = editedRingPoints?.isEmpty == false
+        let panoramaImageNumberByID = Dictionary(uniqueKeysWithValues:
+            panorama.images.enumerated().map { ($0.element.id, $0.offset + 1) }
+        )
+        let ringDisplayImageNumbers = ringImages.compactMap {
+            panoramaImageNumberByID[$0.id]
+        }
         let ringControlPoints = try usesEditedControlPoints
             ? editedRingPoints! : OpenCVControlPointMatcher.ring(
-            images: geometryRingImages,
-            horizontalFieldOfView: matchingFieldOfView,
-            controlPointMasks: controlPointMasks
-        )
+                images: geometryRingImages,
+                horizontalFieldOfView: matchingFieldOfView,
+                controlPointMasks: controlPointMasks,
+                displayImageNumbers: ringDisplayImageNumbers
+            )
         if !usesEditedControlPoints {
             for diagnostic in OpenCVControlPointMatcher.lastPairDiagnostics {
                 print(
@@ -617,10 +609,30 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             )
         }
 
-        let ringGeometryProject = finalOptimizedRingProject
-        let ringOrientations = try HuginProjectFile.orientations(
+        var ringGeometryProject = finalOptimizedRingProject
+        var ringOrientations = try HuginProjectFile.orientations(
             in: ringGeometryProject
         )
+        if Self.needsUprightCanonicalization(
+            orientations: ringOrientations
+        ) {
+            let uprightProject = workDirectory.appending(
+                path: "05-ring-upright.pto"
+            )
+            try toolchain.run(
+                "pano_modify",
+                arguments: [
+                    "-o", uprightProject.path(percentEncoded: false),
+                    "--rotate=0,0,180",
+                    ringGeometryProject.path(percentEncoded: false)
+                ],
+                in: workDirectory
+            )
+            ringGeometryProject = uprightProject
+            ringOrientations = try HuginProjectFile.orientations(
+                in: ringGeometryProject
+            )
+        }
         print("[PanoWizard] Ring orientations: " + ringOrientations
             .enumerated().map { index, orientation in
                 "\(index):y=\(String(format: "%.2f", orientation.yaw)) "
@@ -645,67 +657,25 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     + "kontrollpunkter mellan två bilder som faktiskt överlappar."
             )
         }
-        var finalGeometryProject = ringGeometryProject
-        var orderedImages = ringImages
-        if let zenith = geometryZenithImages.first {
-            log("Frozen-ring zenith registration", images: [zenith])
-            let ringOrientations = try HuginProjectFile.orientations(
-                in: ringGeometryProject
+        if isCircularFisheye,
+           ringImages.count == 4,
+           let weakImage = Self.weakFourImageRingImages(
+               controlPoints: cleanedDiagnosticPoints
+           ).first {
+            let projectNumber = Self.projectImageNumbers(
+                for: [weakImage],
+                ringImages: ringImages,
+                panoramaImages: panorama.images
+            ).first ?? weakImage + 1
+            throw PanoramaEngineError.stitchingFailed(
+                "Bild \(projectNumber) har inte tillförlitliga "
+                    + "kontrollpunkter mot båda sina grannbilder. "
+                    + "Den automatiska geometrin avbröts i stället för "
+                    + "att placera två olika kamerariktningar ovanpå varandra."
             )
-            let optimizedFieldOfView = try HuginProjectFile
-                .horizontalFieldOfView(in: ringGeometryProject)
-            let placement = try OpenCVControlPointMatcher.zenith(
-                ringImages: geometryRingImages,
-                ringOrientations: ringOrientations,
-                zenithImage: zenith,
-                horizontalFieldOfView: optimizedFieldOfView
-            )
-            let zenithProject = workDirectory.appending(path: "06-zenith.pto")
-            let cleanedZenithProject = workDirectory.appending(
-                path: "07-zenith-cleaned.pto"
-            )
-            let optimizedZenithProject = workDirectory.appending(
-                path: "08-geometry.pto"
-            )
-            try HuginProjectFile.addingZenith(
-                image: zenith,
-                orientation: placement.orientation,
-                controlPoints: placement.controlPoints,
-                ringProject: ringGeometryProject,
-                destination: zenithProject
-            )
-            try toolchain.run(
-                "cpclean",
-                arguments: [
-                    "-o", cleanedZenithProject.path(percentEncoded: false),
-                    zenithProject.path(percentEncoded: false)
-                ],
-                in: workDirectory
-            )
-            try toolchain.run(
-                "autooptimiser",
-                arguments: [
-                    "-n",
-                    "-o", optimizedZenithProject.path(percentEncoded: false),
-                    cleanedZenithProject.path(percentEncoded: false)
-                ],
-                in: workDirectory
-            )
-            let frozenRing = try HuginProjectFile.orientations(
-                in: ringGeometryProject
-            )
-            let resultingRing = Array(
-                try HuginProjectFile.orientations(in: optimizedZenithProject)
-                    .prefix(ringImages.count)
-            )
-            guard frozenRing == resultingRing else {
-                throw PanoramaEngineError.stitchingFailed(
-                    "Zenitsteget försökte ändra den frysta ringgeometrin."
-                )
-            }
-            finalGeometryProject = optimizedZenithProject
-            orderedImages.append(zenith)
         }
+        let finalGeometryProject = ringGeometryProject
+        let orderedImages = ringImages
 
         log("Warp and blend", images: orderedImages)
         let preparedDirectory = workDirectory.appending(
@@ -811,8 +781,101 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 "Hugin skapade inga bildlager."
             )
         }
+        var blendLayers = layers
+        let protectedIndices = orderedImages.indices.filter {
+            protectedMasks[orderedImages[$0].id] != nil
+        }
+        if !protectedIndices.isEmpty {
+            var protectedPreparedImages = preparedImages
+            for index in protectedIndices {
+                let image = orderedImages[index]
+                guard let protectedMask = protectedMasks[image.id],
+                      let outsideProtected = SourceMaskRasterizer.inverted(
+                        protectedMask,
+                        width: image.pixelWidth,
+                        height: image.pixelHeight,
+                        protectedArea: true
+                      ) else { continue }
+                let destination = preparedDirectory.appending(
+                    path: "protected-source-\(index).tif"
+                )
+                try MaskedSourceImageWriter.write(
+                    sourceURL: image.url,
+                    maskData: outsideProtected,
+                    clipsToFisheyeCircle: clipsToCircle,
+                    sourceFisheyeFactor: isCircularFisheye ? -0.526971 : nil,
+                    destinationURL: destination
+                )
+                protectedPreparedImages[index] = destination
+            }
+
+            let protectedProject = workDirectory.appending(
+                path: "10-protected-render.pto"
+            )
+            try HuginProjectFile.replacingImagePaths(
+                in: renderProject,
+                with: protectedPreparedImages,
+                destination: protectedProject
+            )
+            let protectedPrefix = workDirectory.appending(path: "protected-layer")
+            try toolchain.run(
+                "nona",
+                arguments: protectedIndices.flatMap { ["-i", "\($0)"] } + [
+                    "-r", "ldr", "-m", "TIFF_m",
+                    "-o", protectedPrefix.path(percentEncoded: false),
+                    protectedProject.path(percentEncoded: false)
+                ],
+                in: workDirectory
+            )
+
+            var projectedProtection: [Int: Data] = [:]
+            for index in protectedIndices {
+                let projectedLayer = workDirectory.appending(
+                    path: String(format: "protected-layer%04d.tif", index)
+                )
+                guard FileManager.default.fileExists(atPath: projectedLayer.path)
+                else { continue }
+                let normalized = workDirectory.appending(
+                    path: "protected-normalized-\(index).tif"
+                )
+                try ProjectedLayerMaskService.normalize(
+                    projectedLayer,
+                    to: normalized
+                )
+                projectedProtection[index] = try ProjectedLayerMaskService
+                    .alphaMask(from: normalized)
+            }
+
+            blendLayers = try layers.enumerated().map { index, layer in
+                let masksFromOtherImages = projectedProtection.compactMap {
+                    owner, mask in owner == index ? nil : mask
+                }
+                guard let exclusion = try ProjectedLayerMaskService.merged(
+                    masksFromOtherImages
+                ) else { return layer }
+                let destination = workDirectory.appending(
+                    path: "protected-blend-layer-\(index).tif"
+                )
+                try ProjectedLayerMaskService.normalize(
+                    layer,
+                    exclusionMask: exclusion,
+                    to: destination
+                )
+                return destination
+            }
+        }
         let result = workDirectory.appending(path: "panorama.jpg")
         let usesSourceMasks = orderedImages.contains { masks[$0.id] != nil }
+        let usesPolarAlignmentImage = ringOrientations.contains {
+            abs($0.pitch) >= 60
+        }
+        // Circular fisheye layers overlap across most of the canvas. Enblend's
+        // graph-cut seam can then wander through smooth sky and leave broad,
+        // visible exposure bands. The distance transform keeps transitions
+        // near the middle of the real lens overlap, as it already does for
+        // masks and polar images.
+        let usesDistanceBasedSeams = isCircularFisheye
+            || usesSourceMasks || usesPolarAlignmentImage
         func blend(
             _ inputLayers: [URL],
             to output: URL
@@ -824,7 +887,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     "--compression=92",
                     "--output=\(output.path(percentEncoded: false))"
                 ]
-                    + (usesSourceMasks ? [
+                    + (usesDistanceBasedSeams ? [
                         "--primary-seam-generator=nearest-feature-transform"
                     ] : [])
                     + inputLayers.map { $0.path(percentEncoded: false) },
@@ -849,7 +912,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             )
         }
 
-        try blendCyclically(layers, to: result)
+        try blendCyclically(blendLayers, to: result)
 
         var nadirRepair: NadirRepairRegistrationResult?
         let repairHorizontalFieldOfView = try HuginProjectFile
@@ -858,9 +921,18 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             log("Local nadir repair registration", images: [repairImage])
             let overlay = workDirectory.appending(path: "nadir-overlay.png")
             do {
-                nadirRepair = try OpenCVNadirRepairRegistrar.register(
-                    panoramaURL: result,
-                    repairImage: repairImage,
+                nadirRepair = try controlPoints.flatMap {
+                    try sphericalRepairRegistration(
+                        pole: .nadir, repairImage: repairImage,
+                        panoramaImages: panorama.images,
+                        ringImages: geometryRingImages,
+                        ringProject: ringGeometryProject,
+                        mask: masks[repairImage.id], controlPoints: $0,
+                        outputURL: overlay, workDirectory: workDirectory,
+                        toolchain: toolchain
+                    )
+                } ?? OpenCVNadirRepairRegistrar.register(
+                    panoramaURL: result, repairImage: repairImage,
                     exclusionMaskData: masks[repairImage.id],
                     horizontalFieldOfView: repairHorizontalFieldOfView,
                     outputURL: overlay
@@ -877,13 +949,21 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             log("Local zenith repair registration", images: [repairImage])
             let overlay = workDirectory.appending(path: "zenith-overlay.png")
             do {
-                zenithRepair = try OpenCVNadirRepairRegistrar.register(
-                    panoramaURL: result,
-                    repairImage: repairImage,
+                zenithRepair = try controlPoints.flatMap {
+                    try sphericalRepairRegistration(
+                        pole: .zenith, repairImage: repairImage,
+                        panoramaImages: panorama.images,
+                        ringImages: geometryRingImages,
+                        ringProject: ringGeometryProject,
+                        mask: masks[repairImage.id], controlPoints: $0,
+                        outputURL: overlay, workDirectory: workDirectory,
+                        toolchain: toolchain
+                    )
+                } ?? OpenCVNadirRepairRegistrar.register(
+                    panoramaURL: result, repairImage: repairImage,
                     exclusionMaskData: masks[repairImage.id],
                     horizontalFieldOfView: repairHorizontalFieldOfView,
-                    pole: .zenith,
-                    outputURL: overlay
+                    pole: .zenith, outputURL: overlay
                 )
             } catch {
                 log(
@@ -921,9 +1001,17 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             )
         }
 
+        let optimizedImageLines = try HuginProjectFile.imageLines(
+            in: finalGeometryProject
+        )
+        let rigImageLines = Dictionary(uniqueKeysWithValues:
+            zip(ringImages, optimizedImageLines).map { image, line in
+                (image.id, line)
+            }
+        )
         return PanoramaStitchResult(
             url: persistedResult,
-            rigImageLines: [:],
+            rigImageLines: rigImageLines,
             nadirRepair: try persistedRepair(
                 nadirRepair,
                 filename: "nadir-overlay.png"
@@ -1570,6 +1658,39 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             components.append(component.sorted())
         }
         return components.sorted { ($0.first ?? 0) < ($1.first ?? 0) }
+    }
+
+    static func weakFourImageRingImages(
+        controlPoints: [DiagnosticControlPoint]
+    ) -> [Int] {
+        var countsByPair: [ControlPointPair.ID: Int] = [:]
+        for point in controlPoints {
+            countsByPair[point.pair, default: 0] += 1
+        }
+        var reliableNeighbors = Array(repeating: Set<Int>(), count: 4)
+        for (pair, count) in countsByPair where count >= 8 {
+            guard (0..<4).contains(pair.firstImage),
+                  (0..<4).contains(pair.secondImage) else { continue }
+            reliableNeighbors[pair.firstImage].insert(pair.secondImage)
+            reliableNeighbors[pair.secondImage].insert(pair.firstImage)
+        }
+        return reliableNeighbors.indices.filter {
+            reliableNeighbors[$0].count < 2
+        }
+    }
+
+    static func needsUprightCanonicalization(
+        orientations: [PanoramaOrientation]
+    ) -> Bool {
+        let nonPolar = orientations.filter { abs($0.pitch) < 60 }
+        guard nonPolar.count >= 2 else { return false }
+        let invertedCount = nonPolar.count {
+            var signedRoll = $0.roll.truncatingRemainder(dividingBy: 360)
+            if signedRoll <= -180 { signedRoll += 360 }
+            if signedRoll > 180 { signedRoll -= 360 }
+            return abs(signedRoll) > 90
+        }
+        return invertedCount * 2 > nonPolar.count
     }
 
     static func projectImageNumbers(
