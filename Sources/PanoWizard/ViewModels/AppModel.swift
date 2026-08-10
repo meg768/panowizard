@@ -127,11 +127,21 @@ final class AppModel {
             != currentMaskSignature {
             normalizedProject.controlPointMaskSignature = currentMaskSignature
         }
-        if !StitchingConfiguration.LensProfile.selectableProfiles.contains(
+        if let detectedProfile = Self.detectedLensProfile(
+            in: normalizedProject.images
+        ) {
+            if normalizedProject.stitching.lensProfile != detectedProfile {
+                normalizedProject.cachedRigImageLines = nil
+                normalizedProject.cachedRigSignature = nil
+                normalizedProject.nadirRepairPlacement = nil
+                normalizedProject.zenithRepairPlacement = nil
+            }
+            normalizedProject.stitching.lensProfile = detectedProfile
+        } else if !StitchingConfiguration.LensProfile.selectableProfiles.contains(
             normalizedProject.stitching.lensProfile
         ) {
             normalizedProject.stitching.lensProfile =
-                Self.detectedLensProfile(in: project.images) ?? .sigma8DX
+                .sigma8DX
         }
         normalizedProject.stitching.inputHorizontalFieldOfView =
             normalizedProject.stitching.lensProfile.defaultHorizontalFieldOfView
@@ -353,8 +363,7 @@ final class AppModel {
             let sortedImages = grouper.group(uniqueImages).flatMap(\.images)
 
             project.replaceImages(sortedImages)
-            if project.stitching.lensProfile == .automatic,
-               let detectedProfile = Self.detectedLensProfile(in: sortedImages) {
+            if let detectedProfile = Self.detectedLensProfile(in: sortedImages) {
                 project.stitching.lensProfile = detectedProfile
                 project.stitching.inputHorizontalFieldOfView =
                     detectedProfile.defaultHorizontalFieldOfView
@@ -383,28 +392,45 @@ final class AppModel {
         }
     }
 
+    var imageMetadataLensProfile: StitchingConfiguration.LensProfile? {
+        Self.detectedLensProfile(in: project.images)
+    }
+
     private static func detectedLensProfile(
         in images: [SourceImage]
     ) -> StitchingConfiguration.LensProfile? {
-        let models = images.compactMap(\.lens.model).map { $0.lowercased() }
-        if models.contains(where: {
-            $0.contains("sigma") && $0.contains("8")
-        }) {
+        let alignmentImages = images.filter { $0.role == .alignment }
+        let profiles = Set(alignmentImages.compactMap { image in
+            detectedLensProfile(for: image)
+        })
+        return profiles.count == 1 ? profiles.first : nil
+    }
+
+    private static func detectedLensProfile(
+        for image: SourceImage
+    ) -> StitchingConfiguration.LensProfile? {
+        let model = image.lens.model?.lowercased() ?? ""
+        if model.contains("sigma") && model.contains("8") {
             return .sigma8DX
         }
-        if models.contains(where: {
-            ($0.contains("nikon") || $0.contains("nikkor"))
-                && ($0.contains("10.5") || $0.contains("10,5"))
-        }) {
+        if (model.contains("nikon") || model.contains("nikkor"))
+            && (model.contains("10.5") || model.contains("10,5")) {
             return .nikon105DX
         }
-        if images.contains(where: {
-            $0.lens.kind == .fisheye
-                && ($0.lens.focalLengthIn35mm.map {
-                    (11...13).contains($0)
-                } ?? false)
-        }) {
+        guard image.lens.kind == .fisheye,
+              let focalLength = image.lens.focalLengthIn35mm else {
+            return nil
+        }
+        // New imports store physical focal length here. The two larger
+        // ranges keep older projects working when ImageIO supplied a 35 mm
+        // equivalent instead.
+        if (7...9).contains(focalLength)
+            || (11.25...13).contains(focalLength) {
             return .sigma8DX
+        }
+        if (9.5...11).contains(focalLength)
+            || (15...17.5).contains(focalLength) {
+            return .nikon105DX
         }
         return nil
     }

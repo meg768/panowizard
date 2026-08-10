@@ -4,6 +4,59 @@ import Testing
 
 struct PanoProjectTests {
     @Test @MainActor
+    func jpegExifLensModelOverridesIncorrectSavedProfile() {
+        let image = SourceImage(
+            url: URL(fileURLWithPath: "/Pictures/panorama/nikon.jpg"),
+            captureDate: nil,
+            pixelWidth: 2_000,
+            pixelHeight: 3_008,
+            cameraModel: "NIKON D70",
+            lens: LensDescription(
+                model: "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED",
+                focalLengthIn35mm: 10.5,
+                kind: .fisheye
+            )
+        )
+        let model = AppModel.live(project: PanoProject(
+            images: [image],
+            stitching: StitchingConfiguration(
+                engine: .automatic,
+                projection: .automatic,
+                lensProfile: .sigma8DX,
+                inputHorizontalFieldOfView: 165.38
+            ),
+            cachedRigImageLines: [image.id.uuidString: "i cached"],
+            cachedRigSignature: "sigma-rig"
+        ))
+
+        #expect(model.project.stitching.lensProfile == .nikon105DX)
+        #expect(model.project.stitching.inputHorizontalFieldOfView == 87.44)
+        #expect(model.project.cachedRigImageLines == nil)
+        #expect(model.project.cachedRigSignature == nil)
+        #expect(model.imageMetadataLensProfile == .nikon105DX)
+    }
+
+    @Test @MainActor
+    func legacyJPEGFocalLengthSelectsNikonProfileWithoutLensName() {
+        let image = SourceImage(
+            url: URL(fileURLWithPath: "/Pictures/panorama/nikon.jpg"),
+            captureDate: nil,
+            pixelWidth: 2_000,
+            pixelHeight: 3_008,
+            cameraModel: "NIKON D70",
+            lens: LensDescription(
+                model: "Fisheye (identifierat från bilden)",
+                focalLengthIn35mm: 10.5,
+                kind: .fisheye
+            )
+        )
+        let model = AppModel.live(project: PanoProject(images: [image]))
+
+        #expect(model.project.stitching.lensProfile == .nikon105DX)
+        #expect(model.project.stitching.inputHorizontalFieldOfView == 87.44)
+    }
+
+    @Test @MainActor
     func optimizationDiagnosticsNeverDeleteEditedControlPoints() {
         let lens = LensDescription(
             model: "Fisheye", focalLengthIn35mm: 16, kind: .fisheye

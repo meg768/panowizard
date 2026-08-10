@@ -26,12 +26,18 @@ struct ImageMetadataReader: ImageMetadataReading {
             }
 
             let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any]
+            let exifAux = properties[kCGImagePropertyExifAuxDictionary]
+                as? [CFString: Any]
             let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
             let width = properties[kCGImagePropertyPixelWidth] as? Int ?? 0
             let height = properties[kCGImagePropertyPixelHeight] as? Int ?? 0
-            let lensModel = exif?[kCGImagePropertyExifLensModel] as? String
-            let focalLength = Self.doubleValue(exif?[kCGImagePropertyExifFocalLenIn35mmFilm])
-                ?? Self.doubleValue(exif?[kCGImagePropertyExifFocalLength])
+            let lensModel = exifAux?[kCGImagePropertyExifAuxLensModel] as? String
+                ?? exif?[kCGImagePropertyExifLensModel] as? String
+            // Prefer the physical focal length. The 35 mm equivalent is only
+            // a fallback because calibrated profiles describe the actual lens,
+            // not the crop-factor-adjusted field of view.
+            let focalLength = Self.doubleValue(exif?[kCGImagePropertyExifFocalLength])
+                ?? Self.doubleValue(exif?[kCGImagePropertyExifFocalLenIn35mmFilm])
             let captureDate = Self.captureDate(exif: exif, tiff: tiff)
             let lensKind = Self.lensKind(
                 model: lensModel,

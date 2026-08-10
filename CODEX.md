@@ -1,5 +1,31 @@
 # PanoWizard – aktuell projektkontext
 
+## Aktiv kontext 2026-08-10 – EXIF styr objektivprofilen
+
+Det nya verkliga provet `/Users/magnus/Desktop/Panorama/A` består av tio
+stående JPEG-bilder från Nikon D70 med AF DX Fisheye-Nikkor 10,5 mm. Den
+automatiska kontrollpunktsgenereringen gav 411 brett spridda punkter och ett
+mycket bra panorama, enligt användaren möjligen bättre än PTGui i detta fall.
+
+Projektet hade dock felaktigt sparats med profilen Sigma 8 mm. JPEG-filerna
+innehåller det fullständiga objektivnamnet i ImageIO:s auxiliary EXIF-del,
+medan PanoWizard bara läste den vanliga EXIF-delen och därför föll tillbaka
+till Sigma. Metadataläsaren hämtar nu även
+`kCGImagePropertyExifAuxLensModel` och föredrar fysisk brännvidd framför
+35-mm-ekvivalenten. När bildmetadata entydigt identifierar en profil skriver
+den alltid över en felaktigt sparad eller manuellt vald profil. Det gamla
+riggcachet rensas men befintliga kontrollpunkter bevaras. Äldre A-projekt utan
+sparat objektivnamn känns igen som Nikon genom brännvidden 10,5 mm.
+
+Inställningsvyn visar en EXIF-styrd profil som låst metadata i stället för ett
+manuellt val. Manuell profil finns kvar endast när bilderna saknar tillräcklig
+metadata. Idén att generellt prioritera kontrollpunkter nära kameran är
+avskriven: nära motiv ger mer parallax och ska inte tillåtas dominera den
+globala geometrin. Den nuvarande breda rumsliga fördelningen behålls.
+
+Efter ändringen passerar 52 tester och `git diff --check` är ren. Ny signerad
+app finns i `build/PanoWizard.app`.
+
 ## Aktiv kontext 2026-08-09 – breda kontrollpunkter för fyrbildsring
 
 Panorama H:s fyrbildsring isolerade ett konkret fel i CP-generatorn.

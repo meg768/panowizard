@@ -537,13 +537,28 @@ private struct PanoramaSettingsView: View {
     var body: some View {
         Form {
             Section("Objektiv") {
-                Picker("Objektivprofil", selection: lensProfile) {
-                    ForEach(
-                        StitchingConfiguration.LensProfile.selectableProfiles,
-                        id: \.self
-                    ) { profile in
-                        Text(profile.displayName).tag(profile)
+                if let detectedProfile = model.imageMetadataLensProfile {
+                    LabeledContent("Objektivprofil") {
+                        Text(detectedProfile.displayName)
                     }
+                    LabeledContent("Källa") {
+                        Text("Bildmetadata (EXIF)")
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Picker("Objektivprofil", selection: lensProfile) {
+                        ForEach(
+                            StitchingConfiguration.LensProfile.selectableProfiles,
+                            id: \.self
+                        ) { profile in
+                            Text(profile.displayName).tag(profile)
+                        }
+                    }
+                    Text(
+                        "Bildmetadata saknar ett identifierbart objektiv. "
+                            + "Välj profil manuellt."
+                    )
+                    .foregroundStyle(.secondary)
                 }
 
                 LabeledContent("Horisontellt synfält") {
