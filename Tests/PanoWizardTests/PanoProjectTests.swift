@@ -755,31 +755,6 @@ struct PanoProjectTests {
         )
     }
 
-    @Test
-    func detectsBroadlyCatastrophicControlPointSet() {
-        var project = PanoProject()
-        project.controlPoints = (0..<20).map { index in
-            DiagnosticControlPoint(
-                firstImage: 0,
-                secondImage: 1,
-                firstX: Double(index),
-                firstY: 0,
-                secondX: Double(index),
-                secondY: 0,
-                error: index < 2 ? 4 : 120
-            )
-        }
-        #expect(project.hasCatastrophicControlPointErrors)
-
-        project.controlPoints = project.controlPoints?.enumerated().map {
-            index, point in
-            var point = point
-            point.error = index == 0 ? 120 : 4
-            return point
-        }
-        #expect(!project.hasCatastrophicControlPointErrors)
-    }
-
     @Test @MainActor
     func emptyControlPointsAllowAutomaticRegenerationWhenProjectIsRestored() {
         let images = (0..<2).map { index in
@@ -950,44 +925,6 @@ struct PanoProjectTests {
         project.replaceImages([image])
 
         #expect(project.title == captureDate.formatted(date: .abbreviated, time: .omitted))
-    }
-
-    @Test
-    func changingAlignmentDirectionDoesNotChangeRigGeometry() {
-        let image = SourceImage(
-            url: URL(fileURLWithPath: "/Pictures/panorama/zenith.tif"),
-            captureDate: nil,
-            pixelWidth: 2_592,
-            pixelHeight: 3_872,
-            cameraModel: nil,
-            lens: LensDescription(
-                model: "Sigma 8mm",
-                focalLengthIn35mm: 12,
-                kind: .fisheye
-            )
-        )
-        var project = PanoProject(
-            images: [image],
-            cachedRigImageLines: [image.id.uuidString: "i cached"],
-            cachedRigSignature: "old",
-            nadirRepairPlacement: NadirRepairPlacement(
-                imageID: image.id,
-                localHomography: [
-                    1, 0, 0,
-                    0, 1, 0,
-                    0, 0, 1
-                ],
-                matchedFeatureCount: 20,
-                localViewFieldOfView: 120
-            )
-        )
-
-        project.setDirection(.zenith, for: image.id)
-
-        #expect(project.cachedRigImageLines == [image.id.uuidString: "i cached"])
-        #expect(project.cachedRigSignature == "old")
-        #expect(project.nadirRepairPlacement?.imageID == image.id)
-        #expect(project.rigSignature.contains("zenith") == false)
     }
 
     @Test

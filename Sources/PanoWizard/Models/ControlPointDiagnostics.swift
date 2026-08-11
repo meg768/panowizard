@@ -79,8 +79,6 @@ struct ControlPointPair: Identifiable, Hashable, Comparable, Sendable {
         ID(firstImage: firstImage, secondImage: secondImage)
     }
 
-    var removedCount: Int { rawCount - cleanedCount }
-
     static func < (lhs: ControlPointPair, rhs: ControlPointPair) -> Bool {
         lhs.id < rhs.id
     }

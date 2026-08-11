@@ -105,38 +105,6 @@ int PWRegisterNadirRepair(
     char **errorMessage
 );
 
-int PWRefineNadirRepair(
-    const char *panoramaPath,
-    const char *repairImagePath,
-    const char *repairExclusionMaskPath,
-    double horizontalFieldOfView,
-    double polePitchDegrees,
-    const PWNadirRegistration *initialRegistration,
-    const char *overlayOutputPath,
-    PWNadirRegistration *registration,
-    char **errorMessage
-);
-
-int PWGeneratePoleControlPoints(
-    const char *panoramaPath,
-    const char *repairImagePath,
-    double horizontalFieldOfView,
-    double polePitchDegrees,
-    const char *baseOutputPath,
-    const char *repairOutputPath,
-    PWControlPoint **controlPoints,
-    int *controlPointCount,
-    char **errorMessage
-);
-
-int PWSolvePoleControlPoints(
-    const PWControlPoint *controlPoints,
-    int controlPointCount,
-    PWNadirRegistration *registration,
-    double *errors,
-    char **errorMessage
-);
-
 int PWSolvePoleSimilarity(
     const PWControlPoint *controlPoints,
     int controlPointCount,

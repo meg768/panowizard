@@ -55,16 +55,6 @@ struct PanoProject: Codable, Equatable, Sendable {
         PanoramaSet(id: id, images: images)
     }
 
-    var hasCatastrophicControlPointErrors: Bool {
-        let errors = (controlPoints ?? [])
-            .compactMap(\.error)
-            .filter(\.isFinite)
-            .sorted()
-        guard errors.count >= 10 else { return false }
-        let percentile90 = errors[min(errors.count - 1, errors.count * 9 / 10)]
-        return percentile90 > 50
-    }
-
     mutating func replaceImages(_ images: [SourceImage]) {
         let oldImages = self.images
         let oldControlPoints = controlPoints
@@ -172,23 +162,6 @@ struct PanoProject: Codable, Equatable, Sendable {
         if changesGeometry {
             invalidateRigCache()
         }
-        nadirRepairPlacement = nil
-        zenithRepairPlacement = nil
-        modifiedAt = Self.secondPrecision(.now)
-    }
-
-    mutating func setDirection(_ direction: SourceImage.Direction, for imageID: UUID) {
-        guard let index = images.firstIndex(where: { $0.id == imageID }) else {
-            return
-        }
-        let role = images[index].role
-        images[index].direction = role == .fillOnly && direction == .horizontal
-            ? .nadir : direction
-        guard role == .fillOnly else {
-            modifiedAt = Self.secondPrecision(.now)
-            return
-        }
-        removeUnsupportedControlPoints()
         nadirRepairPlacement = nil
         zenithRepairPlacement = nil
         modifiedAt = Self.secondPrecision(.now)

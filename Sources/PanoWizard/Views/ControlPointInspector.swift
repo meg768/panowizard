@@ -988,10 +988,6 @@ private struct ControlPointImage: View {
         }
     }
 
-    private var shouldAddPoint: Bool {
-        commandAddsPoint || (isAddingPoint && allowsAdding)
-    }
-
     private func coordinates(for point: DiagnosticControlPoint) -> CGPoint {
         if point.firstImage == imageIndex {
             return CGPoint(x: point.firstX, y: point.firstY)
@@ -1045,39 +1041,6 @@ private struct ControlPointImage: View {
         .cacheIntermediates: true
     ])
 
-    private func drawMarker(
-        number: Int,
-        at point: CGPoint,
-        selected: Bool,
-        in context: inout GraphicsContext
-    ) {
-        let label = Text("\(number)")
-            .font(.caption2.bold())
-            .foregroundStyle(.black)
-        let resolved = context.resolve(label)
-        let size = resolved.measure(in: CGSize(width: 60, height: 30))
-        let diameter = max(size.width, size.height) + 12
-        let box = CGRect(
-            x: point.x - diameter / 2,
-            y: point.y - diameter / 2,
-            width: diameter,
-            height: diameter
-        )
-        context.fill(
-            Path(ellipseIn: box),
-            with: .color(
-                ControlPointMarkerPalette.color(number - 1)
-                    .opacity(selected ? 0.82 : 0.62)
-            )
-        )
-        context.stroke(
-            Path(ellipseIn: box),
-            with: .color(selected ? .white : .black),
-            lineWidth: selected ? 2 : 1
-        )
-        context.draw(resolved, at: point)
-    }
-
     private func displayedPosition(
         for point: CGPoint,
         coordinateSize: CGSize,
@@ -1106,32 +1069,6 @@ private struct ControlPointImage: View {
                 0
             ), coordinateSize.height)
         )
-    }
-
-    private func closestPoint(
-        to location: CGPoint,
-        coordinateSize: CGSize,
-        fittedSize: CGSize,
-        origin: CGPoint
-    ) -> DiagnosticControlPoint.ID? {
-        points.compactMap { point -> (DiagnosticControlPoint.ID, CGFloat)? in
-            let position = displayedPosition(
-                for: displayCoordinate(
-                    for: coordinates(for: point),
-                    in: quarterTurns.isMultiple(of: 2)
-                        ? coordinateSize
-                        : CGSize(width: coordinateSize.height, height: coordinateSize.width)
-                ),
-                coordinateSize: coordinateSize,
-                fittedSize: fittedSize,
-                origin: origin
-            )
-            let distance = hypot(position.x - location.x, position.y - location.y)
-            let hitRadius = 22 / max(viewport.actualMagnification, 0.001)
-            return distance <= hitRadius ? (point.id, distance) : nil
-        }
-        .min { $0.1 < $1.1 }?
-        .0
     }
 
     private func loupePosition(
@@ -1268,13 +1205,8 @@ private final class ControlPointViewportController: ObservableObject {
     private var panOrigin: CGPoint?
     private var fitMagnification = 1.0
 
-    var isPanning: Bool { panOrigin != nil }
     var actualMagnification: Double {
         magnification * fitMagnification
-    }
-
-    var visibleOrigin: CGPoint {
-        scrollView?.contentView.bounds.origin ?? .zero
     }
 
     var visibleDocumentRect: CGRect {
@@ -1697,30 +1629,6 @@ private struct ControlPointLoupe: View {
         .clipShape(Circle())
         .overlay {
             Circle().stroke(.black.opacity(0.7), lineWidth: 1)
-        }
-    }
-}
-
-struct ControlPointPickerThumbnail: View {
-    let url: URL
-    @State private var image: CGImage?
-
-    var body: some View {
-        Group {
-            if let image {
-                Image(decorative: image, scale: 1)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Color.secondary.opacity(0.15)
-                    .overlay { ProgressView().controlSize(.small) }
-            }
-        }
-        .task(id: url) {
-            image = await ControlPointThumbnailCache.shared.image(
-                at: url,
-                maximumPixelSize: 240
-            )
         }
     }
 }

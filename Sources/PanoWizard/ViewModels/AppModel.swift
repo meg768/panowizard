@@ -316,13 +316,6 @@ final class AppModel {
         return bounds
     }
 
-    var nadirRepairImage: SourceImage? {
-        guard let imageID = project.nadirRepairPlacement?.imageID else {
-            return nil
-        }
-        return project.images.first { $0.id == imageID }
-    }
-
     var hasNadirRepairMask: Bool {
         guard let imageID = project.nadirRepairPlacement?.imageID else {
             return false
@@ -920,8 +913,7 @@ final class AppModel {
                         images: matchingImages,
                         horizontalFieldOfView: horizontalFieldOfView,
                         lensProfile: lensProfile,
-                        controlPointMasks: controlPointMasks,
-                        displayImageNumbers: projectIndices.map { $0 + 1 }
+                        controlPointMasks: controlPointMasks
                     )
                 }.value
                 let exclusionMaps = Dictionary(
@@ -1148,15 +1140,6 @@ final class AppModel {
         _ second: SourceImage
     ) -> Bool {
         first.role == .alignment || second.role == .alignment
-    }
-
-    var selectedImageSupportsControlPoints: Bool {
-        selectedSourceImage != nil
-    }
-
-    var selectedImageSupportsCircleMask: Bool {
-        guard let image = selectedSourceImage else { return false }
-        return image.role == .fillOnly
     }
 
     @discardableResult
@@ -1528,21 +1511,6 @@ final class AppModel {
         zenithAdjustment = .identity
         isAdjustingNadir = false
         phase = .ready
-        panoramaRevision += 1
-    }
-
-    func setDirection(_ direction: SourceImage.Direction, for imageID: UUID) {
-        repairRenderRevision += 1
-        project.setDirection(direction, for: imageID)
-        editableControlPoints = project.controlPoints ?? []
-        controlPointDiagnostics = nil
-        selectedControlPointPairID = nil
-        stitchedResultURL = nil
-        nadirOverlayURL = nil
-        zenithOverlayURL = nil
-        nadirAdjustment = .identity
-        zenithAdjustment = .identity
-        isAdjustingNadir = false
         panoramaRevision += 1
     }
 

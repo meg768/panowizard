@@ -1,5 +1,15 @@
 # PanoWizard – aktuell projektkontext
 
+## Aktivt läge 2026-08-11 – konservativ dödkodsrensning
+
+Kod utan produktionsreferenser har tagits bort efter Swift- och C-bryggeaudit:
+den övergivna Hugin-analysatorn, äldre dubblettvyer, oanvända
+kontrollpunkts-/polregistreringsspår samt deras tre exporterade OpenCV-API:er.
+Avsiktliga automatiska reservvägar är kvar. `swift build` och samtliga 52
+tester passerar; en ny huvudlös körning av Panorama D passerar hela kedjan
+inklusive lokal nadirreparation. Release-appen bygger och dess ad hoc-signatur
+är strikt verifierad.
+
 ## Aktivt läge 2026-08-11 – ren automatisk polblandning i Panorama C
 
 Panorama C består av åtta Sigma 8-JPEG-bilder: sex ringbilder, en zenit och

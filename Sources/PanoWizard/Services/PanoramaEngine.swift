@@ -282,12 +282,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let editedRingPoints = editedRingEntries?.map(\.point)
         let editedRingPointIDs = editedRingEntries?.map(\.id) ?? []
         let usesEditedControlPoints = editedRingPoints?.isEmpty == false
-        let panoramaImageNumberByID = Dictionary(uniqueKeysWithValues:
-            panorama.images.enumerated().map { ($0.element.id, $0.offset + 1) }
-        )
-        let ringDisplayImageNumbers = ringImages.compactMap {
-            panoramaImageNumberByID[$0.id]
-        }
         let ringControlPoints: [PanoramaControlPoint]
         if usesEditedControlPoints {
             ringControlPoints = editedRingPoints!
@@ -296,8 +290,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 images: ringImages,
                 horizontalFieldOfView: matchingFieldOfView,
                 lensProfile: configuration.lensProfile,
-                controlPointMasks: controlPointMasks,
-                displayImageNumbers: ringDisplayImageNumbers
+                controlPointMasks: controlPointMasks
             )
             ringControlPoints = isCircularFisheye
                 ? generatedPoints.map { point in
@@ -1088,110 +1081,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             + "(bild \(numbers)). Välj rätt reparationsområde för varje bild."
     }
 
-    private static func optimizedRepairControlPoints(
-        images: [SourceImage],
-        panoramaImages: [SourceImage],
-        ringImages: [SourceImage],
-        ringProject: URL,
-        controlPoints: [DiagnosticControlPoint],
-        masks: [UUID: Data],
-        workDirectory: URL,
-        toolchain: HuginToolchain
-    ) throws -> [DiagnosticControlPoint] {
-        let ringIndexByID = Dictionary(uniqueKeysWithValues:
-            ringImages.enumerated().map { ($0.element.id, $0.offset) }
-        )
-        var result: [DiagnosticControlPoint] = []
-        for image in images {
-            guard let repairIndex = panoramaImages.firstIndex(where: {
-                $0.id == image.id
-            }) else { continue }
-            var originals: [DiagnosticControlPoint] = []
-            var remapped: [PanoramaControlPoint] = []
-            for point in controlPoints {
-                let otherIndex: Int
-                let repairPoint: CGPoint
-                let ringPoint: CGPoint
-                if point.firstImage == repairIndex {
-                    otherIndex = point.secondImage
-                    repairPoint = CGPoint(x: point.firstX, y: point.firstY)
-                    ringPoint = CGPoint(x: point.secondX, y: point.secondY)
-                } else if point.secondImage == repairIndex {
-                    otherIndex = point.firstImage
-                    repairPoint = CGPoint(x: point.secondX, y: point.secondY)
-                    ringPoint = CGPoint(x: point.firstX, y: point.firstY)
-                } else { continue }
-                guard panoramaImages.indices.contains(otherIndex),
-                      let ring = ringIndexByID[panoramaImages[otherIndex].id]
-                else { continue }
-                originals.append(point)
-                remapped.append(PanoramaControlPoint(
-                    firstImage: ring,
-                    secondImage: ringImages.count,
-                    firstX: ringPoint.x,
-                    firstY: ringPoint.y,
-                    secondX: repairPoint.x,
-                    secondY: repairPoint.y
-                ))
-            }
-            guard remapped.count >= 4 else {
-                result.append(contentsOf: originals)
-                continue
-            }
-            let prepared = workDirectory.appending(
-                path: "diagnostic-\(image.direction.rawValue)-source.png"
-            )
-            try MaskedSourceImageWriter.write(
-                sourceURL: image.url,
-                maskData: masks[image.id],
-                clipsToFisheyeCircle: true,
-                destinationURL: prepared
-            )
-            guard let source = CGImageSourceCreateWithURL(prepared as CFURL, nil),
-                  let properties = CGImageSourceCopyPropertiesAtIndex(
-                    source, 0, nil
-                  ) as? [CFString: Any],
-                  let width = properties[kCGImagePropertyPixelWidth] as? Int,
-                  let height = properties[kCGImagePropertyPixelHeight] as? Int
-            else { continue }
-            let seeded = workDirectory.appending(
-                path: "diagnostic-\(image.direction.rawValue)-seed.pto"
-            )
-            let optimized = workDirectory.appending(
-                path: "diagnostic-\(image.direction.rawValue)-optimized.pto"
-            )
-            let pitch = image.direction == .zenith ? 90.0 : -90.0
-            try HuginProjectFile.addingZenith(
-                image: image,
-                renderedImageURL: prepared,
-                pixelWidth: width,
-                pixelHeight: height,
-                orientation: PanoramaOrientation(yaw: 0, pitch: pitch, roll: 0),
-                controlPoints: remapped,
-                ringProject: ringProject,
-                destination: seeded
-            )
-            try toolchain.run(
-                "autooptimiser",
-                arguments: ["-n", "-o", optimized.path(), seeded.path()],
-                in: workDirectory
-            )
-            let optimizedPoints = try HuginProjectFile.controlPoints(in: optimized)
-            let errors = try toolchain.controlPointErrors(
-                in: optimized,
-                points: optimizedPoints
-            )
-            guard errors.count >= originals.count else { continue }
-            let repairErrors = errors.suffix(originals.count)
-            result.append(contentsOf: zip(originals, repairErrors).map { point, error in
-                var point = point
-                point.error = error
-                return point
-            })
-        }
-        return result
-    }
-
     private static func sphericalRepairRegistration(
         pole: PanoramaPole,
         repairImage: SourceImage,
@@ -1410,165 +1299,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         )
     }
 
-    private static func repairRegistrationUsingSourceControlPoints(
-        automatic: NadirRepairRegistrationResult,
-        pole: PanoramaPole,
-        repairImage: SourceImage,
-        panoramaImages: [SourceImage],
-        ringImages: [SourceImage],
-        ringProject: URL,
-        panoramaURL: URL,
-        mask: Data?,
-        controlPoints: [DiagnosticControlPoint],
-        horizontalFieldOfView: Double,
-        toolchain: HuginToolchain
-    ) throws -> NadirRepairRegistrationResult {
-        guard let repairIndex = panoramaImages.firstIndex(where: {
-            $0.id == repairImage.id
-        }) else { return automatic }
-        let ringIndexByID = Dictionary(uniqueKeysWithValues:
-            ringImages.enumerated().map { ($0.element.id, $0.offset) }
-        )
-        var candidates: [(repair: CGPoint, ringImage: Int, ring: CGPoint)] = []
-        for point in controlPoints {
-            let otherIndex: Int
-            let repairPoint: CGPoint
-            let ringPoint: CGPoint
-            if point.firstImage == repairIndex {
-                otherIndex = point.secondImage
-                repairPoint = CGPoint(x: point.firstX, y: point.firstY)
-                ringPoint = CGPoint(x: point.secondX, y: point.secondY)
-            } else if point.secondImage == repairIndex {
-                otherIndex = point.firstImage
-                repairPoint = CGPoint(x: point.secondX, y: point.secondY)
-                ringPoint = CGPoint(x: point.firstX, y: point.firstY)
-            } else {
-                continue
-            }
-            guard panoramaImages.indices.contains(otherIndex),
-                  let ringIndex = ringIndexByID[panoramaImages[otherIndex].id]
-            else { continue }
-            candidates.append((repairPoint, ringIndex, ringPoint))
-        }
-        guard candidates.count >= 4 else { return automatic }
-        let panoramaPoints = try toolchain.panoramaCoordinates(
-            in: ringProject,
-            points: candidates.map { ($0.ringImage, $0.ring) }
-        )
-        let localPoints = zip(candidates, panoramaPoints).compactMap {
-            candidate, panoramaPoint -> DiagnosticControlPoint? in
-            guard let repairLocal = OpenCVNadirRepairRegistrar
-                .localRepairCoordinate(
-                    candidate.repair,
-                    image: repairImage,
-                    horizontalFieldOfView: horizontalFieldOfView
-                ),
-                  let ringLocal = OpenCVNadirRepairRegistrar
-                    .localPoleCoordinate(
-                        panoramaPoint: panoramaPoint,
-                        panoramaSize: CGSize(width: 4_000, height: 2_000),
-                        pole: pole
-                    ),
-                  (0...1_600).contains(repairLocal.x),
-                  (0...1_600).contains(repairLocal.y),
-                  (0...1_600).contains(ringLocal.x),
-                  (0...1_600).contains(ringLocal.y) else { return nil }
-            return DiagnosticControlPoint(
-                firstImage: 0,
-                secondImage: 1,
-                firstX: repairLocal.x,
-                firstY: repairLocal.y,
-                secondX: ringLocal.x,
-                secondY: ringLocal.y
-            )
-        }
-        guard localPoints.count >= 6 else { return automatic }
-
-        func projected(_ point: CGPoint, by h: [Double]) -> CGPoint? {
-            let w = h[6] * point.x + h[7] * point.y + h[8]
-            guard abs(w) > 1e-8 else { return nil }
-            return CGPoint(
-                x: (h[0] * point.x + h[1] * point.y + h[2]) / w,
-                y: (h[3] * point.x + h[4] * point.y + h[5]) / w
-            )
-        }
-        func median(_ values: [Double]) -> Double {
-            let sorted = values.filter(\.isFinite).sorted()
-            guard !sorted.isEmpty else { return .infinity }
-            return sorted[sorted.count / 2]
-        }
-
-        let baselineH = automatic.placement.localHomography
-        let residualPoints = localPoints.compactMap { point
-            -> DiagnosticControlPoint? in
-            guard let baseline = projected(
-                CGPoint(x: point.firstX, y: point.firstY), by: baselineH
-            ) else { return nil }
-            return DiagnosticControlPoint(
-                id: point.id,
-                firstImage: 0, secondImage: 1,
-                firstX: baseline.x, firstY: baseline.y,
-                secondX: point.secondX, secondY: point.secondY
-            )
-        }
-        guard residualPoints.count >= 6 else { return automatic }
-        let baselineErrors = residualPoints.map {
-            hypot($0.firstX - $0.secondX, $0.firstY - $0.secondY)
-        }
-        let identity = NadirRepairPlacement(
-            imageID: repairImage.id,
-            localHomography: [1, 0, 0, 0, 1, 0, 0, 0, 1],
-            matchedFeatureCount: residualPoints.count,
-            localViewFieldOfView: 120
-        )
-        guard let solved = try? OpenCVNadirRepairRegistrar
-            .coarseSimilarityPlacement(bySolving: residualPoints, from: identity)
-        else { return automatic }
-        let delta = solved.0.localHomography
-        let deltaScale = hypot(delta[0], delta[3])
-        let deltaTranslation = hypot(delta[2], delta[5])
-        let improvedEnough = median(solved.1.compactMap(\.error))
-            < median(baselineErrors) * 0.85
-        guard (0.75...1.33).contains(deltaScale),
-              deltaTranslation <= 320,
-              improvedEnough else { return automatic }
-
-        func multiply(_ a: [Double], _ b: [Double]) -> [Double] {
-            var result = [Double](repeating: 0, count: 9)
-            for row in 0..<3 {
-                for column in 0..<3 {
-                    for index in 0..<3 {
-                        result[row * 3 + column] +=
-                            a[row * 3 + index] * b[index * 3 + column]
-                    }
-                }
-            }
-            return result
-        }
-        var placement = automatic.placement
-        placement.localHomography = multiply(delta, baselineH)
-        placement.controlPoints = zip(localPoints, solved.1).map { point, solved in
-            var point = point
-            point.error = solved.error
-            return point
-        }
-        let correctedURL = automatic.overlayURL.deletingLastPathComponent()
-            .appending(path: "\(pole.rawValue)-cp-corrected.png")
-        do {
-            try OpenCVNadirRepairRegistrar.warpPoleOverlay(
-                at: automatic.overlayURL,
-                using: solved.0,
-                outputURL: correctedURL
-            )
-            return NadirRepairRegistrationResult(
-                overlayURL: correctedURL,
-                placement: placement
-            )
-        } catch {
-            return automatic
-        }
-    }
-
     private static func robustControlPoints(
         _ points: [DiagnosticControlPoint],
         errors: [Double]
@@ -1598,101 +1328,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         return points.indices.compactMap {
             acceptedIndices.contains($0) ? points[$0] : nil
         }
-    }
-
-    private static func bestBackgroundLayerIndices(
-        orientations: [PanoramaOrientation],
-        controlPoints: [DiagnosticControlPoint]
-    ) -> Set<Int> {
-        var groups: [[Int]] = []
-        for index in orientations.indices {
-            if let groupIndex = groups.firstIndex(where: { group in
-                group.contains {
-                    representsSameView(
-                        orientations[$0],
-                        orientations[index]
-                    )
-                }
-            }) {
-                groups[groupIndex].append(index)
-            } else {
-                groups.append([index])
-            }
-        }
-        guard groups.contains(where: { $0.count > 1 }) else {
-            return Set(orientations.indices)
-        }
-
-        let orderedGroups = groups.sorted {
-            normalizedYaw(orientations[$0[0]].yaw)
-                < normalizedYaw(orientations[$1[0]].yaw)
-        }
-        var bestSelection = orderedGroups.map { $0[0] }
-        var bestScore = Double.infinity
-        var selection: [Int] = []
-        let verticalPositions = controlPoints.flatMap {
-            [$0.firstY, $0.secondY]
-        }.sorted()
-        let groundBoundary = verticalPositions.isEmpty
-            ? 0
-            : verticalPositions[verticalPositions.count / 2]
-
-        func evaluate(_ candidate: [Int]) -> Double {
-            guard candidate.count > 1 else { return 0 }
-            var score = 0.0
-            for index in candidate.indices {
-                let first = candidate[index]
-                let second = candidate[(index + 1) % candidate.count]
-                let matchingPoints = controlPoints.filter { point in
-                    let matches = point.firstImage == first
-                        && point.secondImage == second
-                        || point.firstImage == second
-                        && point.secondImage == first
-                    return matches && point.error != nil
-                }
-                let errors = matchingPoints.compactMap(\.error)
-                guard !errors.isEmpty else {
-                    score += 1_000
-                    continue
-                }
-                let mean = errors.reduce(0, +) / Double(errors.count)
-                let maximum = errors.max() ?? mean
-                let groundErrors = matchingPoints.compactMap {
-                    ($0.firstY + $0.secondY) / 2 >= groundBoundary
-                        ? $0.error
-                        : nil
-                }
-                let groundMean = groundErrors.isEmpty
-                    ? mean
-                    : groundErrors.reduce(0, +) / Double(groundErrors.count)
-                let groundMaximum = groundErrors.max() ?? maximum
-                // The nadir-facing half contains the paving and exposes small
-                // parallax errors much more clearly than sky or foliage.
-                score += mean + maximum * 0.15
-                score += groundMean * 2 + groundMaximum * 0.5
-                score += 8 / Double(errors.count)
-            }
-            return score
-        }
-
-        func search(groupIndex: Int) {
-            if groupIndex == orderedGroups.count {
-                let score = evaluate(selection)
-                if score < bestScore {
-                    bestScore = score
-                    bestSelection = selection
-                }
-                return
-            }
-            for imageIndex in orderedGroups[groupIndex] {
-                selection.append(imageIndex)
-                search(groupIndex: groupIndex + 1)
-                selection.removeLast()
-            }
-        }
-
-        search(groupIndex: 0)
-        return Set(bestSelection)
     }
 
     static func controlPointComponents(
@@ -1779,11 +1414,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         }
     }
 
-    private static func normalizedYaw(_ yaw: Double) -> Double {
-        let normalized = yaw.truncatingRemainder(dividingBy: 360)
-        return normalized < 0 ? normalized + 360 : normalized
-    }
-
     static func remappingFisheyePoint(
         x: Double,
         y: Double,
@@ -1812,21 +1442,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             / destinationEdge
         let scale = normalizedDestinationRadius * circleRadius / sourceRadius
         return (centerX + dx * scale, centerY + dy * scale)
-    }
-
-    private static func representsSameView(
-        _ lhs: PanoramaOrientation,
-        _ rhs: PanoramaOrientation
-    ) -> Bool {
-        func wrappedDifference(_ first: Double, _ second: Double) -> Double {
-            let difference = abs(first - second).truncatingRemainder(
-                dividingBy: 360
-            )
-            return min(difference, 360 - difference)
-        }
-        return wrappedDifference(lhs.yaw, rhs.yaw) < 8
-            && abs(lhs.pitch - rhs.pitch) < 8
-            && wrappedDifference(lhs.roll, rhs.roll) < 8
     }
 
     private static func replacingURL(

@@ -211,24 +211,6 @@ struct PanoramaEngineIntegrationTests {
     }
 
     @Test
-    func controlPointWarningsUseVisibleProjectImageNumbers() {
-        let numbers = [1, 4, 5, 6]
-
-        #expect(
-            OpenCVControlPointMatcher.displayedImageNumber(
-                for: 0,
-                displayImageNumbers: numbers
-            ) == 1
-        )
-        #expect(
-            OpenCVControlPointMatcher.displayedImageNumber(
-                for: 1,
-                displayImageNumbers: numbers
-            ) == 4
-        )
-    }
-
-    @Test
     func canonicalizesGloballyInvertedRing() {
         let orientations = [
             PanoramaOrientation(yaw: -151, pitch: 20, roll: -179.8),

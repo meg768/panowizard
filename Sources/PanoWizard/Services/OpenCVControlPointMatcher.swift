@@ -118,8 +118,7 @@ enum OpenCVControlPointMatcher {
         horizontalFieldOfView: Double,
         lensProfile: StitchingConfiguration.LensProfile? = nil,
         nominalYaws: [Double]? = nil,
-        controlPointMasks: [UUID: Data] = [:],
-        displayImageNumbers: [Int]? = nil
+        controlPointMasks: [UUID: Data] = [:]
     ) throws -> [PanoramaControlPoint] {
         precondition(nominalYaws == nil || nominalYaws?.count == images.count)
         let temporaryDirectory = FileManager.default.temporaryDirectory
@@ -267,17 +266,6 @@ enum OpenCVControlPointMatcher {
             return diagnostic.selectedControlPointCount < 10
                 || diagnostic.spatialCoverage < 0.1
         }
-    }
-
-    static func displayedImageNumber(
-        for matchingIndex: Int,
-        displayImageNumbers: [Int]?
-    ) -> Int {
-        guard let displayImageNumbers,
-              displayImageNumbers.indices.contains(matchingIndex) else {
-            return matchingIndex + 1
-        }
-        return displayImageNumbers[matchingIndex]
     }
 
     private static func replacingURL(
