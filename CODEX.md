@@ -1,5 +1,55 @@
 # PanoWizard – aktuell projektkontext
 
+## Aktivt läge 2026-08-11 – ren automatisk polblandning i Panorama C
+
+Panorama C består av åtta Sigma 8-JPEG-bilder: sex ringbilder, en zenit och
+en nadir. Ett helt nytt integrationsprojekt skapades från exakt dessa åtta
+kamerafiler, utan PTGui-resultat, tidigare `.pw`, masker eller manuella
+justeringar. Ringen fick 109 slutliga CP med medianfel 0,60 px, medelfel
+0,83 px och maxfel 3,06 px. Den automatiska zenitplaceringen hade 102
+matchningar och nadirplaceringen 2 431.
+
+Den gamla lokala Enblend-kedjan gjorde baslagret transparent över nästan hela
+polbildens 1600×1600-yta. Därmed tvingades zenit eller nadir ersätta fullt
+giltiga ringpixlar långt utanför själva polen. I C gav detta en tydlig rak söm
+genom zenitens skidstavar och en diagonal söm genom nadirens snö.
+
+Automatisk polblandning begränsar nu reparationslagret till det sammanhängande
+mörka täckningshålet vid den exakta polen plus 160 px överlapp. Gränsen för
+JPEG-komprimerade hålpixlar är luma 48; endast den komponent som innehåller
+polens centrum används, så andra mörka motivdelar räknas inte som hål. Om
+ringen redan täcker själva polen tvingas endast en central cirkel med 96 px
+radie in, varefter Enblend får välja en lågkostnadssöm i resten av överlappet.
+Så snart användaren gjort en geometrisk poljustering bevaras det tidigare
+bredare reparationsbeteendet, så manuellt arbete ändrar inte innebörd.
+
+Den nya rena C-körningen är visuellt ren vid både zenit och nadir i Codex
+granskning. Samma automatiska nadirblandning har kontrollerats på de sparade
+D- och H-placeringarna utan synliga nya sömmar. C ska ändå inte märkas som en
+slutlig PTGui-fullträff förrän Magnus själv har granskat den sfäriska vyn.
+Alla 52 tester passerar efter ändringen.
+
+## Sparat slutläge 2026-08-11 – automatisk fullträff i Panorama B
+
+Commit `a5d520c` (`Improve automatic control points and editor workflow`) är
+pushad till `origin/codex/restart` och utgör aktuell baseline. Den innehåller
+den bredare CP-spridningen, rörelsekonsistensfiltret, GUI-utrensningen och den
+dokumenterade CP-strategin. Alla 52 tester passerade före committen.
+
+Panorama B består nu av fem Sigma 8 DX-TIFF-bilder. Både PTGui och PanoWizard
+kördes helt från originalbilderna utan manuella kontrollpunkter, masker eller
+korrigeringar. PanoWizard skapade 162 CP med medianfel 1,03 px och medelfel
+1,27 px. Användarens noggranna visuella jämförelse bedömer resultaten som
+identiska; båda väljer dessutom samma skarv på exakt samma ställe. B är därför
+den första tydliga automatiska fullträffen och ska betraktas som ett godkänt
+regressionsfall. Enstaka högre CP-fel ska inte trimmas bort enbart för att
+förbättra statistiken när slutresultatet redan är korrekt.
+
+PanoWizards sparade resultat är fortfarande fast 4000×2000 medan PTGui B är
+8602×4301. Det är en separat framtida export-/upplösningsfråga, inte ett fel i
+B:s geometri eller skarvning. Den automatiska A–H-testlöparen är uttryckligen
+uppskjuten; tills vidare görs kontrollerna manuellt mot alla fyllda mappar.
+
 ## Överordnat mål 2026-08-11 – A–H är regressionskorpuset
 
 PanoWizards produktmål är att från endast originalbilder och bildmetadata ge
@@ -10,7 +60,7 @@ ett diagnostik-/reservverktyg och ingår inte i godkännandeflödet.
 `/Users/magnus/Desktop/Panorama/A`–`H` är det permanenta lokala
 regressionskorpuset för kluriga panorama: handhållet, monopod eller stativ,
 med zenit/nadir tagna med eller utan stativ. Aktuell inventering är A=10,
-B=0, C=8, D=5, E=0, F=6, G=13 och H=6 originalbilder. Tomma mappar hoppas
+B=5, C=8, D=5, E=0, F=6, G=13 och H=6 originalbilder. Tomma mappar hoppas
 över. Varje kontroll ska börja från originalbilderna; befintliga `.pw`,
 PTGui-filer, masker och sparade CP är endast facit/diagnostik och får inte
 användas som indata. En algoritmändring måste kontrolleras mot samtliga

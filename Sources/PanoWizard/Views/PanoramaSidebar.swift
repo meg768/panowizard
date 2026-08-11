@@ -28,8 +28,8 @@ struct PanoramaSidebar: View {
                             onSetRole: {
                                 model.setRole($0, for: image.id)
                             },
-                            onSetDirection: {
-                                model.setDirection($0, for: image.id)
+                            onSetRepairArea: {
+                                model.setRepairArea($0, for: image.id)
                             },
                             onToggleEnabled: {
                                 model.toggleSourceImageEnabled(image.id)
@@ -91,7 +91,7 @@ private struct SourceImageRow: View {
     let hasMask: Bool
     let onSelect: (Bool) -> Void
     let onSetRole: (SourceImage.Role) -> Void
-    let onSetDirection: (SourceImage.Direction) -> Void
+    let onSetRepairArea: (SourceImage.Direction) -> Void
     let onToggleEnabled: () -> Void
 
     var body: some View {
@@ -143,31 +143,32 @@ private struct SourceImageRow: View {
         }
         .help(image.filename)
         .contextMenu {
-            if image.role == .fillOnly {
-                Picker("Reparationsområde", selection: Binding(
-                    get: { image.direction },
-                    set: { direction in onSetDirection(direction) }
-                )) {
-                    ForEach(SourceImage.Direction.repairCases, id: \.self) { direction in
-                        Text(direction.displayName).tag(direction)
-                    }
-                }
-                Divider()
-            }
-            Picker("Bildroll", selection: Binding(
-                get: { image.role },
-                set: { role in onSetRole(role) }
-            )) {
+            sourceImageRoleMenu
+        }
+    }
+
+    @ViewBuilder
+    private var sourceImageRoleMenu: some View {
+        Button {
+            onSetRole(.alignment)
+        } label: {
+            Label(
+                "Ingår i positionering",
+                systemImage: image.role == .alignment ? "checkmark" : "scope"
+            )
+        }
+        Divider()
+        ForEach(SourceImage.Direction.repairCases, id: \.self) { direction in
+            Button {
+                onSetRepairArea(direction)
+            } label: {
                 Label(
-                    "Ingår i positionering",
-                    systemImage: "scope"
+                    "\(direction.displayName) · Reparation",
+                    systemImage: image.role == .fillOnly
+                        && image.direction == direction
+                        ? "checkmark"
+                        : "square.2.layers.3d.bottom.filled"
                 )
-                .tag(SourceImage.Role.alignment)
-                Label(
-                    "Reparation · påverkar inte geometrin",
-                    systemImage: "square.2.layers.3d.bottom.filled"
-                )
-                .tag(SourceImage.Role.fillOnly)
             }
         }
     }

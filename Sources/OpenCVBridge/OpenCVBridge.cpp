@@ -1624,11 +1624,51 @@ cv::Mat colorMatchedRepair(
     return matched;
 }
 
+cv::Mat centeredPoleHoleMask(const cv::Mat &baseLocal) {
+    cv::Mat gray;
+    cv::cvtColor(baseLocal, gray, cv::COLOR_BGR2GRAY);
+
+    // The stitched ring has no alpha channel. Pixels outside its coverage are
+    // consequently black in result.jpg. Keep only the dark component that
+    // actually contains the pole; naturally black objects elsewhere must not
+    // enlarge the repair area.
+    cv::Mat dark;
+    // JPEG compression and interpolation turn nominally empty black coverage
+    // into dark blue/gray edge pixels (C reaches roughly luma 35 at nadir).
+    // A connected-component check at the exact pole keeps the more generous
+    // threshold from mistaking unrelated dark objects for the coverage hole.
+    cv::threshold(gray, dark, 48, 255, cv::THRESH_BINARY_INV);
+    cv::morphologyEx(
+        dark,
+        dark,
+        cv::MORPH_CLOSE,
+        cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5))
+    );
+    const cv::Point center(
+        baseLocal.cols / 2,
+        baseLocal.rows / 2
+    );
+    if (dark.at<unsigned char>(center) == 0) {
+        return cv::Mat::zeros(baseLocal.size(), CV_8U);
+    }
+
+    cv::Mat labels;
+    cv::connectedComponents(dark, labels, 8, CV_32S);
+    const int poleLabel = labels.at<int>(center);
+    cv::Mat hole;
+    cv::compare(labels, poleLabel, hole, cv::CMP_EQ);
+    if (cv::countNonZero(hole) < 256) {
+        return cv::Mat::zeros(baseLocal.size(), CV_8U);
+    }
+    return hole;
+}
+
 void writeNadirBlendInputs(
     const cv::Mat &baseLocal,
     const cv::Mat &repairLocal,
     const cv::Mat &repairMask,
     const cv::Mat &homography,
+    bool automaticPoleBlend,
     double translationX,
     double translationY,
     double rotationDegrees,
@@ -1674,40 +1714,103 @@ void writeNadirBlendInputs(
         alignedAlpha
     );
 
-    cv::Mat repairVisibility;
-    cv::compare(
-        alignedAlpha,
-        8,
-        repairVisibility,
-        cv::CMP_GT
-    );
-    cv::Mat distanceInsideRepair;
-    cv::distanceTransform(
-        repairVisibility,
-        distanceInsideRepair,
-        cv::DIST_L2,
-        cv::DIST_MASK_PRECISE
-    );
-    double maximumDistance = 0.0;
-    cv::minMaxLoc(
-        distanceInsideRepair,
-        nullptr,
-        &maximumDistance
-    );
-    const double overlapWidth = std::min(16.0, maximumDistance * 0.2);
-    cv::Mat forcedRepairCore;
-    cv::compare(
-        distanceInsideRepair,
-        overlapWidth,
-        forcedRepairCore,
-        cv::CMP_GT
-    );
     cv::Mat baseAlpha(
         baseLocal.size(),
         CV_8U,
         cv::Scalar(255)
     );
-    baseAlpha.setTo(cv::Scalar(0), forcedRepairCore);
+    const cv::Mat poleHole = automaticPoleBlend
+        ? centeredPoleHoleMask(baseLocal)
+        : cv::Mat::zeros(baseLocal.size(), CV_8U);
+    if (automaticPoleBlend) {
+        if (cv::countNonZero(poleHole) >= 256) {
+            // Fill the actual uncovered cap and give Enblend a broad ring of
+            // valid overlap in which to hide the seam. Do not let a pole image
+            // replace the entire otherwise valid ring view merely because its
+            // projection happens to cover all 1600x1600 local pixels.
+            cv::Mat outsideHole;
+            cv::bitwise_not(poleHole, outsideHole);
+            cv::Mat distanceFromHole;
+            cv::distanceTransform(
+                outsideHole,
+                distanceFromHole,
+                cv::DIST_L2,
+                cv::DIST_MASK_PRECISE
+            );
+            cv::Mat repairRegion;
+            cv::compare(distanceFromHole, 160.0, repairRegion, cv::CMP_LE);
+            cv::Mat outsideRepairRegion;
+            cv::bitwise_not(repairRegion, outsideRepairRegion);
+            alignedAlpha.setTo(cv::Scalar(0), outsideRepairRegion);
+            baseAlpha.setTo(cv::Scalar(0), poleHole);
+        } else {
+            // When the ring already covers the pole (typically with the
+            // photographer or tripod), require only a small central repair.
+            // Enblend can then choose a low-energy seam through the remaining
+            // overlap instead of being forced to use the repair almost all the
+            // way to the square projection boundary.
+            cv::Mat repairVisibility;
+            cv::compare(
+                alignedAlpha,
+                8,
+                repairVisibility,
+                cv::CMP_GT
+            );
+            cv::Mat centralRepair = cv::Mat::zeros(
+                baseLocal.size(),
+                CV_8U
+            );
+            cv::circle(
+                centralRepair,
+                cv::Point(baseLocal.cols / 2, baseLocal.rows / 2),
+                96,
+                cv::Scalar(255),
+                cv::FILLED
+            );
+            cv::bitwise_and(
+                centralRepair,
+                repairVisibility,
+                centralRepair
+            );
+            baseAlpha.setTo(cv::Scalar(0), centralRepair);
+        }
+    } else {
+        // A fully covered pole can still be an intentional repair (for
+        // example to remove a tripod). Preserve the established behaviour in
+        // that case and force the selected repair except for a narrow overlap.
+        cv::Mat repairVisibility;
+        cv::compare(
+            alignedAlpha,
+            8,
+            repairVisibility,
+            cv::CMP_GT
+        );
+        cv::Mat distanceInsideRepair;
+        cv::distanceTransform(
+            repairVisibility,
+            distanceInsideRepair,
+            cv::DIST_L2,
+            cv::DIST_MASK_PRECISE
+        );
+        double maximumDistance = 0.0;
+        cv::minMaxLoc(
+            distanceInsideRepair,
+            nullptr,
+            &maximumDistance
+        );
+        const double overlapWidth = std::min(
+            16.0,
+            maximumDistance * 0.2
+        );
+        cv::Mat forcedRepairCore;
+        cv::compare(
+            distanceInsideRepair,
+            overlapWidth,
+            forcedRepairCore,
+            cv::CMP_GT
+        );
+        baseAlpha.setTo(cv::Scalar(0), forcedRepairCore);
+    }
     if (!cv::imwrite(
         baseOutputPath,
         imageWithAlpha(baseLocal, baseAlpha)
@@ -3191,11 +3294,22 @@ int PWPrepareNadirRepairBlend(
             repairSource.size(),
             repairExclusionMaskPath
         );
+        bool hasManualGeometry = std::abs(translationX) > 1e-6
+            || std::abs(translationY) > 1e-6
+            || std::abs(rotationDegrees) > 1e-6
+            || std::abs(scale - 1.0) > 1e-6;
+        if (cornerOffsets != nullptr) {
+            for (int index = 0; index < 8; ++index) {
+                hasManualGeometry = hasManualGeometry
+                    || std::abs(cornerOffsets[index]) > 1e-6;
+            }
+        }
         writeNadirBlendInputs(
             baseLocal,
             repairLocal,
             outputMask,
             registrationHomography(*registration),
+            !hasManualGeometry,
             translationX,
             translationY,
             rotationDegrees,

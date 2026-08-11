@@ -122,7 +122,20 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         }
         guard nadirRepairImages.count <= 1 else {
             throw PanoramaEngineError.stitchingFailed(
-                "I den här etappen stöds en nadirreparation."
+                duplicateRepairMessage(
+                    direction: .nadir,
+                    repairs: nadirRepairImages,
+                    allImages: panorama.images
+                )
+            )
+        }
+        guard zenithRepairImages.count <= 1 else {
+            throw PanoramaEngineError.stitchingFailed(
+                duplicateRepairMessage(
+                    direction: .zenith,
+                    repairs: zenithRepairImages,
+                    allImages: panorama.images
+                )
             )
         }
 
@@ -275,14 +288,47 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let ringDisplayImageNumbers = ringImages.compactMap {
             panoramaImageNumberByID[$0.id]
         }
-        let ringControlPoints = try usesEditedControlPoints
-            ? editedRingPoints! : OpenCVControlPointMatcher.ring(
-                images: geometryRingImages,
+        let ringControlPoints: [PanoramaControlPoint]
+        if usesEditedControlPoints {
+            ringControlPoints = editedRingPoints!
+        } else {
+            let generatedPoints = try OpenCVControlPointMatcher.ring(
+                images: ringImages,
                 horizontalFieldOfView: matchingFieldOfView,
                 lensProfile: configuration.lensProfile,
                 controlPointMasks: controlPointMasks,
                 displayImageNumbers: ringDisplayImageNumbers
             )
+            ringControlPoints = isCircularFisheye
+                ? generatedPoints.map { point in
+                    let first = Self.remappingFisheyePoint(
+                        x: point.firstX, y: point.firstY,
+                        width: ringImages[point.firstImage].pixelWidth,
+                        height: ringImages[point.firstImage].pixelHeight,
+                        sourceFactor: -0.526971, destinationFactor: -0.5
+                    )
+                    let second = Self.remappingFisheyePoint(
+                        x: point.secondX, y: point.secondY,
+                        width: ringImages[point.secondImage].pixelWidth,
+                        height: ringImages[point.secondImage].pixelHeight,
+                        sourceFactor: -0.526971, destinationFactor: -0.5
+                    )
+                    return PanoramaControlPoint(
+                        firstImage: point.firstImage,
+                        secondImage: point.secondImage,
+                        firstX: first.0,
+                        firstY: first.1,
+                        secondX: second.0,
+                        secondY: second.1
+                    )
+                } : generatedPoints
+        }
+        let usesSparseFourImageRing = !usesEditedControlPoints
+            && isCircularFisheye
+            && ringImages.count == 4
+            && OpenCVControlPointMatcher.weakFourImageRingPairs(
+                in: OpenCVControlPointMatcher.lastPairDiagnostics
+            ).isEmpty == false
         if !usesEditedControlPoints {
             for diagnostic in OpenCVControlPointMatcher.lastPairDiagnostics {
                 print(
@@ -382,7 +428,11 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         }
 
         log("Ring bundle adjustment", images: ringImages)
-        if usesEditedControlPoints {
+        if usesEditedControlPoints || usesSparseFourImageRing {
+            // cpclean drops a valid transition when a narrow four-shot
+            // closing overlap has only four to seven points. Preserve the
+            // globally matched set here; the residual-based cleanup and the
+            // two-neighbour validation below still reject inconsistent links.
             try FileManager.default.copyItem(
                 at: poseProject,
                 to: cleanedRingProject
@@ -436,6 +486,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             errors: initiallyOptimizedErrors
         )
         if !usesEditedControlPoints,
+           !usesSparseFourImageRing,
            acceptedPoints.count < initiallyOptimizedPoints.count {
             let filteredProject = workDirectory.appending(
                 path: "05-ring-outliers-removed.pto"
@@ -1023,6 +1074,18 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             ),
             controlPointDiagnostics: controlPointDiagnostics
         )
+    }
+
+    private static func duplicateRepairMessage(
+        direction: SourceImage.Direction,
+        repairs: [SourceImage],
+        allImages: [SourceImage]
+    ) -> String {
+        let numbers = repairs.compactMap { repair in
+            allImages.firstIndex(where: { $0.id == repair.id }).map { $0 + 1 }
+        }.map(String.init).joined(separator: ", ")
+        return "Flera bilder är märkta \(direction.displayName) · Reparation "
+            + "(bild \(numbers)). Välj rätt reparationsområde för varje bild."
     }
 
     private static func optimizedRepairControlPoints(
@@ -1664,14 +1727,20 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
     static func weakFourImageRingImages(
         controlPoints: [DiagnosticControlPoint]
     ) -> [Int] {
-        var countsByPair: [ControlPointPair.ID: Int] = [:]
-        for point in controlPoints {
-            countsByPair[point.pair, default: 0] += 1
-        }
+        let pointsByPair = Dictionary(grouping: controlPoints, by: \.pair)
         var reliableNeighbors = Array(repeating: Set<Int>(), count: 4)
-        for (pair, count) in countsByPair where count >= 8 {
+        for (pair, points) in pointsByPair {
             guard (0..<4).contains(pair.firstImage),
                   (0..<4).contains(pair.secondImage) else { continue }
+            let errors = points.compactMap(\.error)
+            let hasReliableResiduals: Bool
+            if points.count >= 4, errors.count == points.count {
+                let mean = errors.reduce(0, +) / Double(errors.count)
+                hasReliableResiduals = mean <= 2 && (errors.max() ?? 0) <= 5
+            } else {
+                hasReliableResiduals = false
+            }
+            guard points.count >= 8 || hasReliableResiduals else { continue }
             reliableNeighbors[pair.firstImage].insert(pair.secondImage)
             reliableNeighbors[pair.secondImage].insert(pair.firstImage)
         }

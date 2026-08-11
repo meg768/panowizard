@@ -154,6 +154,26 @@ struct PanoProject: Codable, Equatable, Sendable {
         removeUnsupportedControlPoints()
         invalidateRigCache()
         nadirRepairPlacement = nil
+        zenithRepairPlacement = nil
+        modifiedAt = Self.secondPrecision(.now)
+    }
+
+    mutating func setRepairArea(
+        _ direction: SourceImage.Direction,
+        for imageID: UUID
+    ) {
+        guard let index = images.firstIndex(where: { $0.id == imageID }) else {
+            return
+        }
+        let changesGeometry = images[index].role != .fillOnly
+        images[index].role = .fillOnly
+        images[index].direction = direction == .horizontal ? .nadir : direction
+        removeUnsupportedControlPoints()
+        if changesGeometry {
+            invalidateRigCache()
+        }
+        nadirRepairPlacement = nil
+        zenithRepairPlacement = nil
         modifiedAt = Self.secondPrecision(.now)
     }
 

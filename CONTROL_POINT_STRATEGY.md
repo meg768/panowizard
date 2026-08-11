@@ -45,8 +45,11 @@ Det lokala regressionskorpuset ligger i `/Users/magnus/Desktop/Panorama` och
 består av mapparna A–H. I augusti 2026 innehåller det:
 
 - A: 10 originalbilder
-- B: tom
-- C: 8 originalbilder; ring, zenit och nadir
+- B: 5 originalbilder; automatisk Sigma-ring, visuellt identisk med den
+  helt automatiska PTGui-referensen och med samma skarvval
+- C: 8 originalbilder; sexbildsring, zenit och nadir. En ren automatisk
+  körning ger 109 ring-CP; polblandningen är tekniskt och visuellt verifierad
+  av Codex men väntar på Magnus slutliga jämförelse mot PTGui
 - D: 5 originalbilder; ring och nadir
 - E: tom
 - F: 6 originalbilder

@@ -991,6 +991,43 @@ struct PanoProjectTests {
     }
 
     @Test
+    func assigningRepairAreaSetsRoleAndDirectionAtomically() {
+        let zenith = SourceImage(
+            url: URL(fileURLWithPath: "/Pictures/panorama/zenith.jpg"),
+            captureDate: nil,
+            pixelWidth: 2_000,
+            pixelHeight: 3_008,
+            cameraModel: nil,
+            lens: LensDescription(
+                model: nil,
+                focalLengthIn35mm: nil,
+                kind: .unknown
+            )
+        )
+        let nadir = SourceImage(
+            url: URL(fileURLWithPath: "/Pictures/panorama/nadir.jpg"),
+            captureDate: nil,
+            pixelWidth: 2_000,
+            pixelHeight: 3_008,
+            cameraModel: nil,
+            lens: LensDescription(
+                model: nil,
+                focalLengthIn35mm: nil,
+                kind: .unknown
+            )
+        )
+        var project = PanoProject(images: [zenith, nadir])
+
+        project.setRepairArea(.zenith, for: zenith.id)
+        project.setRepairArea(.nadir, for: nadir.id)
+
+        #expect(project.images[0].role == .fillOnly)
+        #expect(project.images[0].direction == .zenith)
+        #expect(project.images[1].role == .fillOnly)
+        #expect(project.images[1].direction == .nadir)
+    }
+
+    @Test
     func changingRepairAreaPreservesGlobalRigCache() {
         let image = SourceImage(
             url: URL(fileURLWithPath: "/Pictures/panorama/repair.tif"),
@@ -1018,10 +1055,12 @@ struct PanoProjectTests {
             )
         )
 
-        project.setDirection(.zenith, for: image.id)
+        project.setRepairArea(.zenith, for: image.id)
 
         #expect(project.cachedRigImageLines == ["ring": "i cached"])
         #expect(project.cachedRigSignature == "old")
+        #expect(project.images[0].role == .fillOnly)
+        #expect(project.images[0].direction == .zenith)
         #expect(project.nadirRepairPlacement == nil)
         #expect(project.zenithRepairPlacement == nil)
     }

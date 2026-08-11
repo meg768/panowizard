@@ -1493,6 +1493,30 @@ final class AppModel {
         panoramaRevision += 1
     }
 
+    func setRepairArea(
+        _ direction: SourceImage.Direction,
+        for imageID: UUID
+    ) {
+        repairRenderRevision += 1
+        let changesGeometry = project.images.first(where: { $0.id == imageID })?
+            .role != .fillOnly
+        project.setRepairArea(direction, for: imageID)
+        if changesGeometry {
+            clearEditableControlPointsAfterGeometryChange()
+        } else {
+            editableControlPoints = project.controlPoints ?? []
+            controlPointDiagnostics = nil
+            selectedControlPointPairID = nil
+        }
+        stitchedResultURL = nil
+        nadirOverlayURL = nil
+        zenithOverlayURL = nil
+        nadirAdjustment = .identity
+        zenithAdjustment = .identity
+        isAdjustingNadir = false
+        panoramaRevision += 1
+    }
+
     func toggleSourceImageEnabled(_ imageID: UUID) {
         stitchOperationID = UUID()
         repairRenderRevision += 1

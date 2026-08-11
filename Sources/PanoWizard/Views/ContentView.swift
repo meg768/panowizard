@@ -198,35 +198,31 @@ struct ContentView: View {
                 if model.selectedSourceImage != nil {
                     Menu {
                         if let image = model.selectedSourceImage {
-                            if image.role == .fillOnly {
-                                Picker("Reparationsområde", selection: Binding(
-                                    get: { image.direction },
-                                    set: { direction in
-                                        model.setDirection(direction, for: image.id)
-                                    }
-                                )) {
-                                    ForEach(SourceImage.Direction.repairCases, id: \.self) {
-                                        Text($0.displayName).tag($0)
-                                    }
-                                }
-                                Divider()
-                            }
-                            Picker("Bildroll", selection: Binding(
-                                get: { image.role },
-                                set: { role in
-                                    model.setRole(role, for: image.id)
-                                }
-                            )) {
+                            Button {
+                                model.setRole(.alignment, for: image.id)
+                            } label: {
                                 Label(
                                     "Ingår i positionering",
-                                    systemImage: "scope"
+                                    systemImage: image.role == .alignment
+                                        ? "checkmark" : "scope"
                                 )
-                                .tag(SourceImage.Role.alignment)
-                                Label(
-                                    "Reparation · påverkar inte geometrin",
-                                    systemImage: "square.2.layers.3d.bottom.filled"
-                                )
-                                .tag(SourceImage.Role.fillOnly)
+                            }
+                            Divider()
+                            ForEach(
+                                SourceImage.Direction.repairCases,
+                                id: \.self
+                            ) { direction in
+                                Button {
+                                    model.setRepairArea(direction, for: image.id)
+                                } label: {
+                                    Label(
+                                        "\(direction.displayName) · Reparation",
+                                        systemImage: image.role == .fillOnly
+                                            && image.direction == direction
+                                            ? "checkmark"
+                                            : "square.2.layers.3d.bottom.filled"
+                                    )
+                                }
                             }
                         }
                     } label: {
@@ -489,22 +485,30 @@ private struct SourceImagesView: View {
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
-                            if image.role == .fillOnly {
-                                Picker(
-                                    "Reparationsområde",
-                                    selection: Binding(
-                                        get: { image.direction },
-                                        set: {
-                                            model.setDirection($0, for: image.id)
-                                        }
+                            Button {
+                                model.setRole(.alignment, for: image.id)
+                            } label: {
+                                Label(
+                                    "Ingår i positionering",
+                                    systemImage: image.role == .alignment
+                                        ? "checkmark" : "scope"
+                                )
+                            }
+                            Divider()
+                            ForEach(
+                                SourceImage.Direction.repairCases,
+                                id: \.self
+                            ) { direction in
+                                Button {
+                                    model.setRepairArea(direction, for: image.id)
+                                } label: {
+                                    Label(
+                                        "\(direction.displayName) · Reparation",
+                                        systemImage: image.role == .fillOnly
+                                            && image.direction == direction
+                                            ? "checkmark"
+                                            : "square.2.layers.3d.bottom.filled"
                                     )
-                                ) {
-                                    ForEach(
-                                        SourceImage.Direction.repairCases,
-                                        id: \.self
-                                    ) {
-                                        Text($0.displayName).tag($0)
-                                    }
                                 }
                             }
                         }

@@ -197,9 +197,9 @@ enum OpenCVControlPointMatcher {
             if nominalYaws == nil,
                images.count == 4,
                horizontalFieldOfView >= 110,
-               let weakPair = weakFourImageRingPairs(
+               weakFourImageRingPairs(
                    in: lastPairDiagnostics
-               ).first {
+               ).isEmpty == false {
                 for diagnostic in lastPairDiagnostics {
                     print(
                         "[PanoWizard] CP failure pair "
@@ -209,18 +209,12 @@ enum OpenCVControlPointMatcher {
                             + String(format: "%.3f", diagnostic.spatialCoverage)
                     )
                 }
-                let firstNumber = displayedImageNumber(
-                    for: weakPair.0,
-                    displayImageNumbers: displayImageNumbers
-                )
-                let secondNumber = displayedImageNumber(
-                    for: weakPair.1,
-                    displayImageNumbers: displayImageNumbers
-                )
-                throw PanoramaEngineError.stitchingFailed(
-                    "Kontrollpunkterna täcker för liten del av överlappet "
-                        + "mellan bild \(firstNumber) och \(secondNumber)."
-                )
+                // Four-shot circular-fisheye rings can have a very narrow
+                // textured closing overlap. Keep those points until the
+                // global bundle adjustment can judge their actual residuals;
+                // the engine still rejects sparse transitions that do not
+                // become geometrically consistent.
+                return points
             }
             return broadlyDistributedPoints
         }

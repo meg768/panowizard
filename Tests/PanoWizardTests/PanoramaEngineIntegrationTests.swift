@@ -291,10 +291,41 @@ struct PanoramaEngineIntegrationTests {
         )
     }
 
+    @Test
+    func acceptsSparseFourImageTransitionWithLowGlobalResiduals() {
+        let points =
+            Self.points(first: 0, second: 1, count: 6, error: 0.75)
+            + Self.points(first: 1, second: 2, count: 20, error: 0.8)
+            + Self.points(first: 2, second: 3, count: 20, error: 0.9)
+            + Self.points(first: 0, second: 3, count: 4, error: 1.1)
+
+        #expect(
+            HuginOpenCVPanoramaEngine.weakFourImageRingImages(
+                controlPoints: points
+            ).isEmpty
+        )
+    }
+
+    @Test
+    func rejectsSparseFourImageTransitionWithHighGlobalResiduals() {
+        let points =
+            Self.points(first: 0, second: 1, count: 6, error: 8)
+            + Self.points(first: 1, second: 2, count: 20, error: 0.8)
+            + Self.points(first: 2, second: 3, count: 20, error: 0.9)
+            + Self.points(first: 0, second: 3, count: 4, error: 7)
+
+        #expect(
+            HuginOpenCVPanoramaEngine.weakFourImageRingImages(
+                controlPoints: points
+            ) == [0, 1, 3]
+        )
+    }
+
     private static func points(
         first: Int,
         second: Int,
-        count: Int
+        count: Int,
+        error: Double? = nil
     ) -> [DiagnosticControlPoint] {
         (0..<count).map { index in
             DiagnosticControlPoint(
@@ -303,7 +334,8 @@ struct PanoramaEngineIntegrationTests {
                 firstX: Double(index),
                 firstY: Double(index),
                 secondX: Double(index),
-                secondY: Double(index)
+                secondY: Double(index),
+                error: error
             )
         }
     }
