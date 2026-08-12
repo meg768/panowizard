@@ -6,6 +6,37 @@ import Testing
 
 struct ImageMetadataReaderTests {
     @Test
+    func imageImportDoesNotSearchDirectories() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let nestedDirectory = directory.appendingPathComponent(
+            "PTGui",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(
+            at: nestedDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let rootImage = directory.appendingPathComponent("original.jpg")
+        let referenceImage = nestedDirectory.appendingPathComponent("Panorama.jpg")
+        let importer = ImageImportService(metadataReader: StubImageMetadataReader())
+
+        let directoryResult = await importer.load(from: [directory])
+        #expect(directoryResult.images.isEmpty)
+        #expect(directoryResult.skippedFiles == 0)
+
+        let explicitResult = await importer.load(
+            from: [rootImage, referenceImage]
+        )
+        #expect(
+            Set(explicitResult.images.map(\.url))
+                == Set([rootImage, referenceImage])
+        )
+    }
+
+    @Test
     func readsLensModelFromJPEGExifAuxiliaryMetadata() async throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
@@ -62,5 +93,22 @@ struct ImageMetadataReaderTests {
         )
         #expect(result.lens.focalLengthIn35mm == 10.5)
         #expect(result.lens.kind == .fisheye)
+    }
+}
+
+private struct StubImageMetadataReader: ImageMetadataReading {
+    func readImage(at url: URL) async throws -> SourceImage {
+        SourceImage(
+            url: url,
+            captureDate: nil,
+            pixelWidth: 1,
+            pixelHeight: 1,
+            cameraModel: nil,
+            lens: LensDescription(
+                model: nil,
+                focalLengthIn35mm: nil,
+                kind: .rectilinear
+            )
+        )
     }
 }

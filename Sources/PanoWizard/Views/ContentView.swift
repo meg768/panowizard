@@ -196,45 +196,6 @@ struct ContentView: View {
                 }
 
                 if model.selectedSourceImage != nil {
-                    Menu {
-                        if let image = model.selectedSourceImage {
-                            Button {
-                                model.setRole(.alignment, for: image.id)
-                            } label: {
-                                Label(
-                                    "Ingår i positionering",
-                                    systemImage: image.role == .alignment
-                                        ? "checkmark" : "scope"
-                                )
-                            }
-                            Divider()
-                            ForEach(
-                                SourceImage.Direction.repairCases,
-                                id: \.self
-                            ) { direction in
-                                Button {
-                                    model.setRepairArea(direction, for: image.id)
-                                } label: {
-                                    Label(
-                                        "\(direction.displayName) · Reparation",
-                                        systemImage: image.role == .fillOnly
-                                            && image.direction == direction
-                                            ? "checkmark"
-                                            : "square.2.layers.3d.bottom.filled"
-                                    )
-                                }
-                            }
-                        }
-                    } label: {
-                        Label(
-                            "Bildegenskaper",
-                            systemImage: model.selectedSourceImage?.role == .fillOnly
-                                ? repairAreaSymbol
-                                : "scope"
-                        )
-                    }
-                    .help("Ange bildens roll och reparationsområde")
-
                     Picker("Verktyg", selection: $model.sourceMaskTool) {
                         Label("Pensel", systemImage: "paintbrush.pointed").tag(SourceMaskTool.brush)
                         Label("Rektangel", systemImage: "rectangle").tag(SourceMaskTool.rectangle)
@@ -373,7 +334,7 @@ struct ContentView: View {
         }
         .fileImporter(
             isPresented: $model.isImporterPresented,
-            allowedContentTypes: [.image, .folder],
+            allowedContentTypes: [.image],
             allowsMultipleSelection: true
         ) { result in
             if case .success(let urls) = result {
@@ -385,14 +346,6 @@ struct ContentView: View {
             return !urls.isEmpty
         } isTargeted: { targeted in
             isDropTargeted = targeted
-        }
-    }
-
-    private var repairAreaSymbol: String {
-        switch model.selectedSourceImage?.direction {
-        case .zenith: "arrow.up.circle"
-        case .nadir: "arrow.down.circle"
-        case .horizontal, nil: "scope"
         }
     }
 

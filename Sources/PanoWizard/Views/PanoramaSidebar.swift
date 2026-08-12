@@ -47,6 +47,31 @@ struct PanoramaSidebar: View {
                     SidebarTitle("Källbilder")
                 }
 
+                Section {
+                    PanoramaNavigationRow(
+                        title: "Inställningar",
+                        systemImage: "slider.horizontal.3",
+                        isSelected: model.selection == .settings
+                    ) {
+                        model.selection = .settings
+                    }
+                    PanoramaNavigationRow(
+                        title: "Förhandsvisa",
+                        systemImage: "eye",
+                        isSelected: model.selection == .panorama
+                    ) {
+                        model.selection = .panorama
+                    }
+                    PanoramaNavigationRow(
+                        title: "Exportera",
+                        systemImage: "square.and.arrow.up",
+                        isSelected: model.selection == .export
+                    ) {
+                        model.selection = .export
+                    }
+                } header: {
+                    SidebarTitle("Panorama")
+                }
             }
         }
         .contentMargins(.horizontal, 16, for: .scrollContent)
@@ -70,6 +95,26 @@ struct PanoramaSidebar: View {
 
 }
 
+private struct PanoramaNavigationRow: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 5)
+        .listRowBackground(
+            isSelected ? Color.accentColor.opacity(0.24) : Color.clear
+        )
+    }
+}
+
 private struct SidebarTitle: View {
     let title: String
 
@@ -82,6 +127,7 @@ private struct SidebarTitle: View {
             .font(.headline)
             .foregroundStyle(.primary)
             .textCase(nil)
+            .padding(.bottom, 6)
     }
 }
 
@@ -120,6 +166,7 @@ private struct SourceImageRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(image.filename)
                     .lineLimit(1)
+                    .help(image.filename)
                 HStack(spacing: 4) {
                     Text(image.role == .alignment
                         ? image.role.displayName
@@ -134,14 +181,30 @@ private struct SourceImageRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
+
+            Spacer(minLength: 16)
+
+            SourceImageSettingsButton(
+                role: image.role,
+                direction: image.direction,
+                onSetAlignment: {
+                    onSelect(false)
+                    onSetRole(.alignment)
+                },
+                onSetRepairArea: { direction in
+                    onSelect(false)
+                    onSetRepairArea(direction)
+                }
+            )
+            .frame(width: 32, height: 32)
         }
-        .padding(.vertical, 2)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+        .padding(.trailing, 8)
         .contentShape(Rectangle())
         .onTapGesture {
             onSelect(NSEvent.modifierFlags.contains(.shift))
         }
-        .help(image.filename)
         .contextMenu {
             sourceImageRoleMenu
         }
@@ -150,6 +213,7 @@ private struct SourceImageRow: View {
     @ViewBuilder
     private var sourceImageRoleMenu: some View {
         Button {
+            onSelect(false)
             onSetRole(.alignment)
         } label: {
             Label(
@@ -160,6 +224,7 @@ private struct SourceImageRow: View {
         Divider()
         ForEach(SourceImage.Direction.repairCases, id: \.self) { direction in
             Button {
+                onSelect(false)
                 onSetRepairArea(direction)
             } label: {
                 Label(
@@ -171,6 +236,180 @@ private struct SourceImageRow: View {
                 )
             }
         }
+    }
+}
+
+private struct SourceImageSettingsButton: NSViewRepresentable {
+    let role: SourceImage.Role
+    let direction: SourceImage.Direction
+    let onSetAlignment: () -> Void
+    let onSetRepairArea: (SourceImage.Direction) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeNSView(context: Context) -> HoverPopUpButton {
+        let button = HoverPopUpButton(frame: .zero, pullsDown: true)
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.chooseRole(_:))
+        button.usesItemFromMenu = true
+        button.autoenablesItems = false
+        button.preferredEdge = .minY
+        button.bezelStyle = .circular
+        button.isBordered = false
+        button.controlSize = .regular
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleProportionallyDown
+        button.toolTip = "Bildinställningar"
+        button.setAccessibilityLabel("Bildinställningar")
+        (button.cell as? NSPopUpButtonCell)?.arrowPosition = .noArrow
+
+        let menu = NSMenu()
+        let buttonFace = NSMenuItem(
+            title: "",
+            action: nil,
+            keyEquivalent: ""
+        )
+        buttonFace.image = NSImage(
+            systemSymbolName: "ellipsis",
+            accessibilityDescription: "Bildinställningar"
+        )
+        buttonFace.tag = Coordinator.buttonFaceTag
+        menu.addItem(buttonFace)
+
+        let alignment = NSMenuItem(
+            title: "Ingår i positionering",
+            action: nil,
+            keyEquivalent: ""
+        )
+        alignment.tag = Coordinator.alignmentTag
+        menu.addItem(alignment)
+        menu.addItem(.separator())
+
+        let zenith = NSMenuItem(
+            title: "Zenit · Reparation",
+            action: nil,
+            keyEquivalent: ""
+        )
+        zenith.tag = Coordinator.zenithTag
+        menu.addItem(zenith)
+
+        let nadir = NSMenuItem(
+            title: "Nadir · Reparation",
+            action: nil,
+            keyEquivalent: ""
+        )
+        nadir.tag = Coordinator.nadirTag
+        menu.addItem(nadir)
+        button.menu = menu
+        button.selectItem(at: 0)
+        button.synchronizeTitleAndSelectedItem()
+        updateMenu(in: button)
+        return button
+    }
+
+    func updateNSView(_ button: HoverPopUpButton, context: Context) {
+        context.coordinator.parent = self
+        updateMenu(in: button)
+    }
+
+    private func updateMenu(in button: NSPopUpButton) {
+        button.itemArray.first { $0.tag == Coordinator.alignmentTag }?.state =
+            role == .alignment
+            ? NSControl.StateValue.on : NSControl.StateValue.off
+        button.itemArray.first { $0.tag == Coordinator.zenithTag }?.state =
+            role == .fillOnly && direction == .zenith
+                ? NSControl.StateValue.on : NSControl.StateValue.off
+        button.itemArray.first { $0.tag == Coordinator.nadirTag }?.state =
+            role == .fillOnly && direction == .nadir
+                ? NSControl.StateValue.on : NSControl.StateValue.off
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        static let buttonFaceTag = 100
+        static let alignmentTag = 101
+        static let zenithTag = 102
+        static let nadirTag = 103
+
+        var parent: SourceImageSettingsButton
+
+        init(parent: SourceImageSettingsButton) {
+            self.parent = parent
+        }
+
+        @objc func chooseRole(_ sender: NSPopUpButton) {
+            switch sender.selectedTag() {
+            case Self.alignmentTag:
+                parent.onSetAlignment()
+            case Self.zenithTag:
+                parent.onSetRepairArea(.zenith)
+            case Self.nadirTag:
+                parent.onSetRepairArea(.nadir)
+            default:
+                break
+            }
+        }
+    }
+}
+
+private final class HoverPopUpButton: NSPopUpButton {
+    private var hoverTrackingArea: NSTrackingArea?
+    private var isHovered = false
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateAppearance()
+    }
+
+    override func layout() {
+        super.layout()
+        layer?.cornerRadius = min(bounds.width, bounds.height) / 2
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTrackingArea {
+            removeTrackingArea(hoverTrackingArea)
+        }
+        let trackingArea = NSTrackingArea(
+            rect: .zero,
+            options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(trackingArea)
+        hoverTrackingArea = trackingArea
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        isHovered = true
+        updateAppearance()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        isHovered = false
+        updateAppearance()
+    }
+
+    private func updateAppearance() {
+        wantsLayer = true
+        contentTintColor = isHovered ? .white : .labelColor
+        layer?.backgroundColor = (
+            isHovered ? NSColor.controlAccentColor : NSColor.controlColor
+        ).cgColor
+        layer?.borderColor = (
+            isHovered ? NSColor.controlAccentColor : NSColor.separatorColor
+        ).cgColor
+        layer?.borderWidth = isHovered ? 2 : 1
+        layer?.cornerRadius = min(bounds.width, bounds.height) / 2
+        layer?.shadowColor = NSColor.black.cgColor
+        layer?.shadowOpacity = isHovered ? 0.22 : 0
+        layer?.shadowRadius = 3
+        layer?.shadowOffset = CGSize(width: 0, height: -1)
+        needsDisplay = true
     }
 }
 

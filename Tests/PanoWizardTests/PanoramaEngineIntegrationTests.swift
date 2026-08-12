@@ -15,9 +15,17 @@ struct PanoramaEngineIntegrationTests {
         ] else { return }
 
         let source = URL(fileURLWithPath: sourcePath)
+        let sourceImages = try FileManager.default.contentsOfDirectory(
+            at: source,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ).filter { url in
+            let supportedExtensions = ["jpg", "jpeg", "tif", "tiff"]
+            return supportedExtensions.contains(url.pathExtension.lowercased())
+        }
         let imported = await ImageImportService(
             metadataReader: ImageMetadataReader()
-        ).load(from: [source])
+        ).load(from: sourceImages)
         var images = imported.images.sorted {
             $0.filename.localizedStandardCompare($1.filename) == .orderedAscending
         }

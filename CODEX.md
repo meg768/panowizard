@@ -1,5 +1,49 @@
 # PanoWizard – aktuell projektkontext
 
+## Sparat slutläge 2026-08-12 – kompakt automatisk nadirreparation i H
+
+Detta checkpoint innehåller dagens import-, GUI-, test- och nadirändringar.
+Huvudmålet är fortsatt att alla Panorama A–H ska kunna genereras automatiskt
+utan större skarvar; GUI:t är sekundärt.
+
+Panorama H avslöjade ett särskilt Enblend-fall. Ringpanoramat hade inget
+verkligt svart hål vid nadircentrum. PanoWizard tvingade därför korrekt bara
+en central reparationskärna med 96 px radie, men lät samtidigt hela den
+registrerade nadirbilden vara valbar för Enblend. Enblend valde då en mycket
+stor lågkostnadssöm genom de mörka kläderna och reparationspatchen blev för
+stor.
+
+I den automatiska grenen utan verkligt täckningshål begränsas nu även det
+valbara reparationslagret till en cirkel med 224 px radie runt nadircentrum.
+Det lämnar 128 px överlapp utanför den tvingade 96-pixelskärnan men hindrar
+sömmen från att vandra genom hela den lokala 1600×1600-vyn. Logiken för ett
+verkligt svart hål är oförändrad: hålet plus 160 px överlapp används, så de
+tidigare godkända resultaten i bland annat C och D påverkas inte.
+
+H återskapades huvudlöst från originalbilderna med fyra ringbilder, bild 5
+som zenitreparation och bild 6 som nadirreparation. Före ändringen omfattade
+pixlar med mer än 16 nivåers färgskillnad cirka 294 569 pixlar och nådde 655
+px från centrum. Efter ändringen var motsvarande siffror 45 719 pixlar och
+170 px, alltså drygt 80 procent mindre bildpåverkan. Användaren provade den
+nya versionen och bedömde resultatet som perfekt. Tillfällig diagnostikkod och
+diagnostikbilder är borttagna.
+
+Samtliga 53 tester passerar. Releaseappen är ombyggd och ad hoc-signerad i
+`/Users/magnus/Documents/GitHub/panowizard/build/PanoWizard.app`. Codex har
+inte startat appen eller styrt musen.
+
+Bildmenyn i vänsterpanelen är numera godkänd: varje källbildsrad har en tydlig,
+rund och högerjusterad `…`-knapp med hover och en meny för `Ingår i
+positionering`, `Zenit · Reparation` och `Nadir · Reparation`. Valet är
+borttaget från toolbaren. Den separata `Panorama`-sektionen är också
+implementerad med `Inställningar`, `Förhandsvisa` (ögonikon) och `Exportera`.
+
+Produktimporten accepterar endast bildfiler som användaren uttryckligen väljer
+eller drar in; mappar genomsöks inte och filväljaren erbjuder inte mappar.
+Det huvudlösa A–H-testet listar endast bildfiler direkt i panoramamappens rot.
+PTGui-facit ligger konsekvent i respektive `PTGui/`-undermapp och importeras
+inte av PanoWizard.
+
 ## Aktivt läge 2026-08-11 – konservativ dödkodsrensning
 
 Kod utan produktionsreferenser har tagits bort efter Swift- och C-bryggeaudit:
@@ -77,6 +121,12 @@ användas som indata. En algoritmändring måste kontrolleras mot samtliga
 icke-tomma mappar och får inte godkännas enbart på lägre RMS eller förbättring
 av ett enda panorama. Det fullständiga kontraktet står i
 `CONTROL_POINT_STRATEGY.md`.
+
+PTGui-facit är nu isolerat i `PTGui/` under varje icke-tom A–H-mapp. Varje
+sådan undermapp innehåller `Panorama.pts` och `Panorama.jpg`; originalbilderna ligger
+ensamma kvar i panoramamappens rot. De 53 relativa bildreferenserna i
+projekten har ändrats till `../filnamn`, och D:s absoluta utfil pekar på
+`D/PTGui/Panorama.jpg`. E är fortfarande tom.
 
 ## Aktiv kontext 2026-08-10 – bredare CP-spridning för Nikkor
 
@@ -185,7 +235,7 @@ app finns i `build/PanoWizard.app`.
 
 Panorama H:s fyrbildsring isolerade ett konkret fel i CP-generatorn.
 Autogenererade `B.pw` hade 54 punkter med cirka 0,12 px medelfel, men nästan
-alla låg i ett smalt horisontellt band. PTGui-projektet `PTGui.pts` hade 86
+alla låg i ett smalt horisontellt band. PTGui-projektet `Panorama.pts` hade 86
 punkter över nästan hela fisheyeytan och gav rena skarvar. Ett separat
 kontrollprov finns i `H/C.pw`: PTGuis punkter kördes genom PanoWizards egen
 linsoptimering och rendering och bekräftade att felet låg i punktgeneratorn,
@@ -218,7 +268,7 @@ rensades och den slutliga strikta signaturverifieringen passerade.
 ## Aktiv kontext 2026-08-08 – Panorama H och skarvar
 
 Aktuellt verkligt test är `/Users/magnus/Desktop/Panorama/H`. Referensen
-`PTGui.pts` från PTGui 13.9 ger enligt användaren ett helt perfekt panorama.
+`Panorama.pts` från PTGui 13.9 ger enligt användaren ett helt perfekt panorama.
 PanoWizard-projektet är `A.pw`; det har inte skrivits över under analysen.
 
 PTGui-referensen använder sex bilder: de fyra ringbilderna `14.46.16`–`.42`,
@@ -751,8 +801,8 @@ Det senaste arbetspasset gällde extremfallet:
 
 - `/Users/magnus/Desktop/Panorama/F/Panorama 2.pw`
 - nio porträttorienterade TIFF-bilder från Sigma 8 mm på Nikon D80
-- `/Users/magnus/Desktop/Panorama/F/PTGui.pts`
-- `/Users/magnus/Desktop/Panorama/F/PTGui.jpg`
+- `/Users/magnus/Desktop/Panorama/F/PTGui/Panorama.pts`
+- `/Users/magnus/Desktop/Panorama/F/PTGui/Panorama.jpg`
 
 PTGui ger med samma nio källbilder ett geometriskt mycket bra panorama där
 stenläggningens rutnät är sammanhängande. Olika personer får synas i olika
@@ -785,10 +835,10 @@ en vald lokal vy får därför användas som kvalitetsbevis.
 
 Ett tillfälligt läge som körde en separat installerad PTGui via dess
 kommandorad implementerades och fungerade, men var produktmässigt meningslöst:
-det krävde en redan skapad och optimerad `PTGui.pts`. Integrationen har tagits
+det krävde en redan skapad och optimerad `Panorama.pts`. Integrationen har tagits
 bort ur användarflödet och gamla dokument med `engine: "ptGui"` normaliseras
 till PanoWizards egen motor när de öppnas. Ingen PTGui-kod eller binärfil har
-kopierats in i appen. `PTGui.pts` och `PTGui.jpg` används bara som diagnostiskt
+kopierats in i appen. `Panorama.pts` och `Panorama.jpg` används bara som diagnostiskt
 facit.
 
 ### Kontrollpunkter och diagnostik
@@ -816,7 +866,7 @@ gissning:
 3. Logga varje grafkant med punkter, residual och uppskattad relativ rotation.
 4. Avvisa poser som viker/kollapsar sfären eller lämnar stora täckningshål.
 5. Jämför alla nio bilders relativa yaw/pitch/roll och linsmodell numeriskt
-   mot `PTGui.pts`.
+   mot `Panorama.pts`.
 6. Rendera och jämför flera fasta kubsidor plus nadir, inte bara en vald vy.
 7. Kör samma pipeline minst två gånger och kräv identisk geometri.
 
@@ -1459,8 +1509,8 @@ kontrollpunktseditorn.
 Panorama F är det aktiva referensprojektet:
 
 - PanoWizard: `/Users/magnus/Desktop/Panorama/F/Panorama.pw`
-- PTGui-projekt: `/Users/magnus/Desktop/Panorama/F/Panorama.pts`
-- PTGui-resultat: `/Users/magnus/Desktop/Panorama/F/PTGui.jpg`
+- PTGui-projekt: `/Users/magnus/Desktop/Panorama/F/PTGui/Panorama.pts`
+- PTGui-resultat: `/Users/magnus/Desktop/Panorama/F/PTGui/Panorama.jpg`
 - installerad PTGui: `/Applications/PTGui.app`
 
 PTGui-binären har ingen användbar publik kommandoradsoptimerare; `--help`
@@ -1617,9 +1667,9 @@ facit:
 5. skillnaden mellan geometrifel, parallax och seam/blending.
 
 Målet är att hitta den fundamentala modellskillnaden mot
-`/Users/magnus/Desktop/Panorama/F/Panorama.pts`, inte att optimera vidare mot
+`/Users/magnus/Desktop/Panorama/F/PTGui/Panorama.pts`, inte att optimera vidare mot
 ett missvisande globalt RMS. PTGui-resultatet
-`/Users/magnus/Desktop/Panorama/F/PTGui.jpg` är det visuella facit.
+`/Users/magnus/Desktop/Panorama/F/PTGui/Panorama.jpg` är det visuella facit.
 
 Senast verifierat:
 
@@ -1634,7 +1684,7 @@ Ett kontrollerat experiment har nu gjorts med **exakt alla kontrollpunkter
 från PTGui**, men med PanoWizards egen Hugin-baserade linsmodell, optimering,
 projektion och rendering:
 
-- facitprojekt: `/Users/magnus/Desktop/Panorama/F/Panorama.pts`,
+- facitprojekt: `/Users/magnus/Desktop/Panorama/F/PTGui/Panorama.pts`,
 - testprojekt: `/Users/magnus/Desktop/Panorama/F/A.pw`,
 - 565 PTGui-CP av typ `t=0`,
 - 26 bildpar,
@@ -1682,7 +1732,7 @@ användas eftersom Enblend vägrar nästan fullständigt överlappande dubletter
 En tidigare felaktig mellanåtgärd kopierade PTGui:s färdiga rendering till
 A.pw. Den återställdes och ska inte förväxlas med det riktiga experimentet.
 Original-PTGui-renderingen finns separat som
-`/Users/magnus/Desktop/Panorama/F/PTGui.jpg`.
+`/Users/magnus/Desktop/Panorama/F/PTGui/Panorama.jpg`.
 
 Senast verifierat efter experimentändringarna:
 

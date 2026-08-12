@@ -1773,6 +1773,30 @@ void writeNadirBlendInputs(
                 centralRepair
             );
             baseAlpha.setTo(cv::Scalar(0), centralRepair);
+
+            // Keep Enblend close to the requested pole repair. Without a real
+            // coverage hole its seam is otherwise free to wander through the
+            // entire aligned image, which can replace large valid subjects
+            // merely because their dark clothing offers a cheap seam.
+            cv::Mat repairRegion = cv::Mat::zeros(
+                baseLocal.size(),
+                CV_8U
+            );
+            cv::circle(
+                repairRegion,
+                cv::Point(baseLocal.cols / 2, baseLocal.rows / 2),
+                224,
+                cv::Scalar(255),
+                cv::FILLED
+            );
+            cv::bitwise_and(
+                repairRegion,
+                repairVisibility,
+                repairRegion
+            );
+            cv::Mat outsideRepairRegion;
+            cv::bitwise_not(repairRegion, outsideRepairRegion);
+            alignedAlpha.setTo(cv::Scalar(0), outsideRepairRegion);
         }
     } else {
         // A fully covered pole can still be an intentional repair (for
