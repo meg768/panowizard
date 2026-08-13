@@ -169,11 +169,6 @@ struct ControlPointEditor: View {
                 \.controlPointCommandActions,
                 commandActions
             )
-            .toolbar {
-                ToolbarItemGroup(placement: .principal) {
-                    controlPointToolbar
-                }
-            }
             .confirmationDialog(
                 "Ersätt alla kontrollpunkter?",
                 isPresented: $isRegenerateDialogPresented,
@@ -332,78 +327,6 @@ struct ControlPointEditor: View {
             },
             optimize: onOptimize
         )
-    }
-
-    @ViewBuilder
-    private var controlPointToolbar: some View {
-        Button(action: toggleAddingPoint) {
-            Label(
-                isAddingPoint ? "Avbryt ny punkt" : "Lägg till punkt",
-                systemImage: isAddingPoint ? "xmark" : "plus"
-            )
-        }
-        .help(isAddingPoint ? "Avbryt ny punkt (⌥A)" : "Lägg till punkt (⌥A)")
-
-        Menu {
-            Button(
-                "Föreslå för aktuellt bildpar",
-                action: onSuggestPoints
-            )
-            if !isPoleAlignment {
-                Button(
-                    "Föreslå för hela projektet",
-                    action: onSuggestProjectPoints
-                )
-                Divider()
-                Button("Generera om alla kontrollpunkter…") {
-                    isRegenerateDialogPresented = true
-                }
-            }
-        } label: {
-            Label(
-                isPoleAlignment ? "Föreslå om" : "Föreslå punkter",
-                systemImage: "sparkles"
-            )
-        }
-        .disabled(isSuggestingPoints)
-        .help("Föreslå kontrollpunkter (⌥F)")
-
-        Menu {
-            Button("Radera markerad punkt", role: .destructive) {
-                removeSelectedPoint()
-            }
-            .disabled(selectedPointID == nil)
-            Button(
-                "Radera alla mellan bild \(leftImageIndex + 1) och "
-                    + "\(rightImageIndex + 1)…",
-                role: .destructive
-            ) {
-                bulkDeletionRequest = .pair
-            }
-            .disabled(displayedPoints.isEmpty)
-            if !isPoleAlignment {
-                Button(
-                    "Radera alla kontrollpunkter i projektet…",
-                    role: .destructive
-                ) {
-                    bulkDeletionRequest = .project
-                }
-            }
-        } label: {
-            Label("Radera kontrollpunkter", systemImage: "trash")
-        }
-        .disabled(diagnostics.cleanedPoints.isEmpty)
-        .help("Radera markerad punkt med Delete")
-
-        Button(action: onOptimize) {
-            Label(
-                isPoleAlignment ? "Anpassa" : "Optimera",
-                systemImage: "arrow.triangle.2.circlepath"
-            )
-        }
-        .disabled(displayedPoints.count < 3)
-        .help(isPoleAlignment ? "Anpassa" : "Optimera (⌥O)")
-
     }
 
     private func toggleAddingPoint() {

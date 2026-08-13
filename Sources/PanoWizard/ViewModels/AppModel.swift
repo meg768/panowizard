@@ -1432,10 +1432,13 @@ final class AppModel {
     }
 
     func removeSelectedSourceImage() {
-        guard case .source(let id) = selection,
-              let index = project.images.firstIndex(where: { $0.id == id }) else {
-            return
-        }
+        guard case .source(let id) = selection else { return }
+        removeSourceImage(id)
+    }
+
+    func removeSourceImage(_ id: SourceImage.ID) {
+        guard let index = project.images.firstIndex(where: { $0.id == id })
+        else { return }
 
         stitchOperationID = UUID()
         project.removeImage(at: index)

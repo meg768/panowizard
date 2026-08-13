@@ -3,41 +3,33 @@ import ImageIO
 import SwiftUI
 import UniformTypeIdentifiers
 
+@MainActor
+@Observable
+final class PanoramaExportController {
+    var jpegQuality = 0.92
+    var maximumWidth = 0
+    var errorMessage: String?
+    var isPreparingHTMLShare = false
+}
+
 struct PanoramaExportView: View {
     @Bindable var model: AppModel
-    let projectName: String?
-    let projectDirectoryURL: URL?
-    let viewpoint: PanoramaViewpoint
-
-    @State private var jpegQuality = 0.92
-    @State private var maximumWidth = 0
-    @State private var errorMessage: String?
-    @State private var isPreparingHTMLShare = false
+    @Bindable var controller: PanoramaExportController
 
     var body: some View {
-        if let panoramaURL = model.stitchedResultURL {
+        if model.stitchedResultURL != nil {
             Form {
                 Section("Panoramabild") {
                     LabeledContent("Format", value: "Equirektangulär JPEG · 2:1")
-                    Picker("Storlek", selection: $maximumWidth) {
+                    Picker("Storlek", selection: $controller.maximumWidth) {
                         Text("Original").tag(0)
                         Text("4096 px").tag(4_096)
                         Text("2048 px").tag(2_048)
                     }
-                    Picker("Kvalitet", selection: $jpegQuality) {
+                    Picker("Kvalitet", selection: $controller.jpegQuality) {
                         Text("Normal").tag(0.82)
                         Text("Hög").tag(0.92)
                         Text("Maximal").tag(0.98)
-                    }
-                    HStack {
-                        Button {
-                            exportJPEG(from: panoramaURL)
-                        } label: {
-                            Label("Spara JPEG…", systemImage: "photo")
-                        }
-                        ShareLink(item: panoramaURL) {
-                            Label("Dela…", systemImage: "square.and.arrow.up")
-                        }
                     }
                 }
 
@@ -47,25 +39,6 @@ struct PanoramaExportView: View {
                             + "webbläsare utan andra tillhörande filer."
                     )
                     .foregroundStyle(.secondary)
-                    HStack {
-                        Button {
-                            exportHTML()
-                        } label: {
-                            Label("Spara HTML…", systemImage: "safari")
-                        }
-                        Button {
-                            shareHTML()
-                        } label: {
-                            Label(
-                                isPreparingHTMLShare
-                                    ? "Förbereder…"
-                                    : "Dela HTML (.zip)…",
-                                systemImage: "square.and.arrow.up"
-                            )
-                        }
-                        .disabled(isPreparingHTMLShare)
-                    }
-                    .disabled(!model.canExportHTML)
                 }
 
                 if model.project.nadirRepairPlacement != nil,
@@ -81,46 +54,72 @@ struct PanoramaExportView: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("Exportera")
             .alert("Exporten misslyckades", isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
+                get: { controller.errorMessage != nil },
+                set: { if !$0 { controller.errorMessage = nil } }
             )) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(errorMessage ?? "Okänt fel")
+                Text(controller.errorMessage ?? "Okänt fel")
             }
         } else {
-            ContentUnavailableView(
-                "Inget panorama att exportera",
-                systemImage: "square.and.arrow.up",
-                description: Text("Generera panoramat först.")
-            )
+            ContentUnavailableView {
+                Label(
+                    "Inget panorama att exportera",
+                    systemImage: "square.and.arrow.up"
+                )
+            } description: {
+                Text("Generera panoramat för att fortsätta.")
+            } actions: {
+                Button {
+                    model.stitch()
+                } label: {
+                    Text("Generera")
+                }
+                .buttonStyle(WorkspaceToolbarPillStyle())
+                .disabled(!model.canStitch)
+                .help("Skapa panorama med nuvarande kontrollpunkter och masker")
+            }
         }
     }
 
-    private var defaultName: String {
+}
+
+extension PanoramaExportController {
+    private func defaultName(
+        projectName: String?,
+        projectTitle: String
+    ) -> String {
         let candidate = projectName?.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
         return candidate.flatMap { $0.isEmpty ? nil : $0 }
-            ?? model.project.title
+            ?? projectTitle
     }
 
-    private func exportHTML() {
+    func exportHTML(
+        model: AppModel,
+        projectName: String?,
+        projectDirectoryURL: URL?,
+        viewpoint: PanoramaViewpoint
+    ) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.html]
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
         panel.directoryURL = projectDirectoryURL
-        panel.nameFieldStringValue = "\(defaultName).html"
+        let name = defaultName(
+            projectName: projectName,
+            projectTitle: model.project.title
+        )
+        panel.nameFieldStringValue = "\(name).html"
         panel.title = "Exportera interaktivt panorama"
         panel.prompt = "Exportera"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         model.exportHTML(to: url, initialViewpoint: viewpoint)
     }
 
-    private func shareHTML() {
+    func shareHTML(model: AppModel, viewpoint: PanoramaViewpoint) {
         isPreparingHTMLShare = true
         Task {
             do {
@@ -144,13 +143,31 @@ struct PanoramaExportView: View {
         }
     }
 
-    private func exportJPEG(from sourceURL: URL) {
+    func share(_ url: URL) {
+        guard let view = NSApp.keyWindow?.contentView else { return }
+        NSSharingServicePicker(items: [url as NSURL]).show(
+            relativeTo: view.bounds,
+            of: view,
+            preferredEdge: .minY
+        )
+    }
+
+    func exportJPEG(
+        from sourceURL: URL,
+        projectName: String?,
+        projectTitle: String,
+        projectDirectoryURL: URL?
+    ) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.jpeg]
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
         panel.directoryURL = projectDirectoryURL
-        panel.nameFieldStringValue = "\(defaultName).jpg"
+        let name = defaultName(
+            projectName: projectName,
+            projectTitle: projectTitle
+        )
+        panel.nameFieldStringValue = "\(name).jpg"
         panel.title = "Exportera panoramabild"
         panel.prompt = "Exportera"
         guard panel.runModal() == .OK, let destinationURL = panel.url else {

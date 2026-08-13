@@ -6,93 +6,164 @@ struct PanoramaSidebar: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        List {
-            if !model.project.images.isEmpty {
-                Section {
-                    ForEach(
-                        Array(model.project.images.enumerated()),
-                        id: \.element.id
-                    ) { index, image in
-                        SourceImageRow(
-                            index: index,
-                            image: image,
-                            hasMask: model.maskDataByImageID[image.id] != nil
-                                || model.protectedMaskDataByImageID[image.id] != nil
-                                || model.controlPointMaskDataByImageID[image.id] != nil,
-                            onSelect: { asRightImage in
-                                model.selectSourceImage(
-                                    image.id,
-                                    asRightImage: asRightImage
-                                )
-                            },
-                            onSetRole: {
-                                model.setRole($0, for: image.id)
-                            },
-                            onSetRepairArea: {
-                                model.setRepairArea($0, for: image.id)
-                            },
-                            onToggleEnabled: {
-                                model.toggleSourceImageEnabled(image.id)
-                            }
-                        )
-                        .listRowBackground(
-                            model.mainSourceImageID == image.id
-                                ? Color.accentColor.opacity(0.24)
-                                : model.rightSourceImageID == image.id
-                                    ? Color.orange.opacity(0.22)
-                                    : Color.clear
-                        )
-                    }
-                } header: {
-                    SidebarTitle("Källbilder")
-                }
+        VStack(spacing: 0) {
+            sourceToolbarRow
 
-                Section {
-                    PanoramaNavigationRow(
-                        title: "Inställningar",
-                        systemImage: "slider.horizontal.3",
-                        isSelected: model.selection == .settings
-                    ) {
-                        model.selection = .settings
+            ZStack {
+                List {
+                    Section {
+                        if !model.project.images.isEmpty {
+                            ForEach(
+                                Array(model.project.images.enumerated()),
+                                id: \.element.id
+                            ) { index, image in
+                                sourceImageRow(index: index, image: image)
+                            }
+                        }
                     }
-                    PanoramaNavigationRow(
-                        title: "Förhandsvisa",
-                        systemImage: "eye",
-                        isSelected: model.selection == .panorama
-                    ) {
-                        model.selection = .panorama
+
+                    if !model.project.images.isEmpty {
+                        Section {
+                            PanoramaNavigationRow(
+                                title: "Inställningar",
+                                systemImage: "slider.horizontal.3",
+                                isSelected: model.selection == .settings
+                            ) {
+                                model.selection = .settings
+                            }
+                            PanoramaNavigationRow(
+                                title: "Förhandsvisa",
+                                systemImage: "eye",
+                                isSelected: model.selection == .panorama
+                            ) {
+                                model.selection = .panorama
+                            }
+                            PanoramaNavigationRow(
+                                title: "Exportera",
+                                systemImage: "square.and.arrow.up",
+                                isSelected: model.selection == .export
+                            ) {
+                                model.selection = .export
+                            }
+                        } header: {
+                            SidebarSectionHeader("Panorama")
+                        }
                     }
-                    PanoramaNavigationRow(
-                        title: "Exportera",
-                        systemImage: "square.and.arrow.up",
-                        isSelected: model.selection == .export
-                    ) {
-                        model.selection = .export
-                    }
-                } header: {
-                    SidebarTitle("Panorama")
+                }
+                .contentMargins(.horizontal, 16, for: .scrollContent)
+                .contentMargins(.top, 8, for: .scrollContent)
+                .scrollContentBackground(.hidden)
+                .background(Color(nsColor: .windowBackgroundColor))
+
+                if model.project.images.isEmpty {
+                    ContentUnavailableView(
+                        "Inga bilder",
+                        systemImage: "photo.on.rectangle.angled",
+                        description: Text("Dra in bilder för att börja.")
+                    )
+                    .allowsHitTesting(false)
                 }
             }
         }
-        .contentMargins(.horizontal, 16, for: .scrollContent)
-        .contentMargins(.top, 8, for: .scrollContent)
-        .scrollContentBackground(.hidden)
         .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
-        .overlay {
-            if model.project.images.isEmpty {
-                ContentUnavailableView(
-                    "Inga bilder",
-                    systemImage: "photo.on.rectangle.angled",
-                    description: Text("Dra in bilder för att börja.")
-                )
-            }
-        }
-        .navigationTitle(model.project.title)
         .onDeleteCommand {
             model.removeSelectedSourceImage()
         }
     }
 
+    private var sourceToolbarRow: some View {
+        HStack(spacing: 12) {
+            Text("Källbilder")
+                .font(.headline)
+
+            Spacer(minLength: 12)
+
+            Button {
+                model.isImporterPresented = true
+            } label: {
+                Label("Lägg till", systemImage: "plus")
+            }
+            .buttonStyle(WorkspaceToolbarPillStyle())
+            .help("Lägg till källbilder")
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 44)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.bar)
+    }
+
+    private func sourceImageRow(
+        index: Int,
+        image: SourceImage
+    ) -> some View {
+        SourceImageRow(
+            index: index,
+            image: image,
+            hasMask: model.maskDataByImageID[image.id] != nil
+                || model.protectedMaskDataByImageID[image.id] != nil
+                || model.controlPointMaskDataByImageID[image.id] != nil,
+            onSelect: { asRightImage in
+                model.selectSourceImage(
+                    image.id,
+                    asRightImage: asRightImage
+                )
+            },
+            onSetRole: {
+                model.setRole($0, for: image.id)
+            },
+            onSetRepairArea: {
+                model.setRepairArea($0, for: image.id)
+            },
+            onToggleEnabled: {
+                model.toggleSourceImageEnabled(image.id)
+            },
+            onDelete: {
+                model.removeSourceImage(image.id)
+            }
+        )
+        .listRowBackground(
+            model.mainSourceImageID == image.id
+                ? Color.accentColor.opacity(0.24)
+                : model.rightSourceImageID == image.id
+                    ? Color.orange.opacity(0.22)
+                    : Color.clear
+        )
+    }
+
+}
+
+private struct SidebarSectionHeader<Trailing: View>: View {
+    let title: String
+    @ViewBuilder let trailing: Trailing
+
+    init(
+        _ title: String,
+        @ViewBuilder trailing: () -> Trailing
+    ) {
+        self.title = title
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .textCase(nil)
+            Spacer(minLength: 12)
+            trailing
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
+    }
+}
+
+private extension SidebarSectionHeader where Trailing == EmptyView {
+    init(_ title: String) {
+        self.init(title) { EmptyView() }
+    }
 }
 
 private struct PanoramaNavigationRow: View {
@@ -115,22 +186,6 @@ private struct PanoramaNavigationRow: View {
     }
 }
 
-private struct SidebarTitle: View {
-    let title: String
-
-    init(_ title: String) {
-        self.title = title
-    }
-
-    var body: some View {
-        Text(title)
-            .font(.headline)
-            .foregroundStyle(.primary)
-            .textCase(nil)
-            .padding(.bottom, 6)
-    }
-}
-
 private struct SourceImageRow: View {
     let index: Int
     let image: SourceImage
@@ -139,6 +194,7 @@ private struct SourceImageRow: View {
     let onSetRole: (SourceImage.Role) -> Void
     let onSetRepairArea: (SourceImage.Direction) -> Void
     let onToggleEnabled: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -194,7 +250,8 @@ private struct SourceImageRow: View {
                 onSetRepairArea: { direction in
                     onSelect(false)
                     onSetRepairArea(direction)
-                }
+                },
+                onDelete: onDelete
             )
             .frame(width: 32, height: 32)
         }
@@ -236,6 +293,8 @@ private struct SourceImageRow: View {
                 )
             }
         }
+        Divider()
+        Button("Ta bort bild…", role: .destructive, action: onDelete)
     }
 }
 
@@ -244,6 +303,7 @@ private struct SourceImageSettingsButton: NSViewRepresentable {
     let direction: SourceImage.Direction
     let onSetAlignment: () -> Void
     let onSetRepairArea: (SourceImage.Direction) -> Void
+    let onDelete: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -302,6 +362,15 @@ private struct SourceImageSettingsButton: NSViewRepresentable {
         )
         nadir.tag = Coordinator.nadirTag
         menu.addItem(nadir)
+        menu.addItem(.separator())
+
+        let delete = NSMenuItem(
+            title: "Ta bort bild…",
+            action: nil,
+            keyEquivalent: ""
+        )
+        delete.tag = Coordinator.deleteTag
+        menu.addItem(delete)
         button.menu = menu
         button.selectItem(at: 0)
         button.synchronizeTitleAndSelectedItem()
@@ -332,6 +401,7 @@ private struct SourceImageSettingsButton: NSViewRepresentable {
         static let alignmentTag = 101
         static let zenithTag = 102
         static let nadirTag = 103
+        static let deleteTag = 104
 
         var parent: SourceImageSettingsButton
 
@@ -347,6 +417,8 @@ private struct SourceImageSettingsButton: NSViewRepresentable {
                 parent.onSetRepairArea(.zenith)
             case Self.nadirTag:
                 parent.onSetRepairArea(.nadir)
+            case Self.deleteTag:
+                parent.onDelete()
             default:
                 break
             }

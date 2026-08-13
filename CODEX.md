@@ -1,5 +1,76 @@
 # PanoWizard – aktuell projektkontext
 
+## Sparat GUI-läge 2026-08-13 – Mac-standardskal och kontextuella pills
+
+Det här är nästa sessions utgångspunkt. Användaren är nöjd med GUI-riktningen.
+Fönsterskal, trafikljus, dokumenttitel, sidopanelknapp, avdelare och resize ska
+fortsätta vara macOS-standard; bygg inte ett eget fönster- eller toolbarskal.
+PanoWizards egen form börjar i innehållet under systemets titelområde.
+
+Alla arbetsytor använder nu samma vänsterställda toolbarstruktur. macOS visar
+projektfilens riktiga dokumenttitel och dokumentikon på en separat övre rad.
+Under den ligger en egen ren verktygsrad utan omslutande kapsel, med
+kontextuella textförsedda pills och vid behov en helt rund `•••`-knapp.
+Punkterna är mindre än den vanliga knapptexten. Knappen betyder meny för hela
+den aktuella vyn; `…` används också för lokala åtgärder på en enskild bild.
+Alla pills har samma höjd och
+neutrala grå utseende; det aktiva valet framgår av text och ikon i stället för
+en avvikande blå knapp. Vid hover blir ytan och kanten diskret tydligare utan
+att storlek eller position ändras. Pillmått, tillståndsfärger och animation är
+samlade i `WorkspaceToolbarTheme`, så ett framtida apptema kan byta uttrycket
+centralt. Kontrollpunktseditorn skapar inte längre en egen
+konkurrerande toolbar; dess lokala läge och kommandon levereras genom det
+befintliga fokuserade kommandoobjektet till det gemensamma skalet.
+
+Maskningen visar två kompakta pill-menyer för verktyg och maskens innebörd samt
+`Ångra`. Därmed är `Pensel`, `Rektangel`, `Uteslut`, `Skydda`, `Matchning` och
+`Sudda` fortfarande utskrivna utan att högerzonen pressas in i macOS egen
+overflow. Kontrollpunktsläget visar `Lägg till punkt`, `Föreslå` och
+`Optimera`; regenerering och all radering ligger under `…`. Bildmaskens
+invertering och nollställning ligger också under arbetsytans `…`. Renderingen
+heter `Skapa panorama` innan ett resultat finns och därefter `Uppdatera
+panorama`; den bevarar kontrollpunkter, positionering, masker och reparationer.
+`Generera om från början…` skapar i stället om kontrollpunkter och positionering
+efter en bekräftelse. Båda ligger under samma meny och visas även i
+kontrollpunktsläget.
+
+Exportvyn följer samma grammatik som övriga vyer. Format, storlek och kvalitet
+väljs i innehållet. `Spara JPEG…` är den direkta pill-åtgärden i verktygsraden,
+medan delning samt HTML-export ligger i den runda `•••`-vymenyn. Formuläret har
+inga egna konkurrerande åtgärdsknappar.
+Om resultat saknas visar exportvyn en centrerad `Generera`-pill som skapar
+panoramat med den befintliga lösningen. När renderingen är klar ersätts
+tomläget automatiskt av exportinställningarna.
+
+`Lägg till` tillhör nu `Källbilder` och ligger som en pill direkt till höger om
+panelrubriken, även när projektet är tomt. Alla vänsterpanelens sektionsrubriker
+använder samma inre marginaler och luft mot sitt innehåll. `Ta bort bild…`
+tillhör respektive
+bild och ligger i bildradens `…`-meny och snabbmeny, inte i arbetsytans toolbar.
+
+En första bred masktoolbar avslöjade vid riktig app-rendering att macOS dolde
+högerzonen bakom `»`. Den kompakta varianten har därefter visuellt verifierats
+i både enbilds- och tvåbildsläge. Efter användarens återkoppling är hela raden
+vänsterställd och fönstret använder AppKits kompakta, enhetliga titelstil.
+Dokumentnamnet ligger kvar i titelraden utan att systemet reserverar en tom
+toolbar under den. Verktygsraden är en vanlig innehållsrad direkt därunder för
+att undvika macOS extra ram runt en toolbargrupp. Releaseappen är ombyggd och
+ad hoc-signerad i `build/PanoWizard.app`.
+
+Fönsterskalet använder macOS standardkomponenter: SwiftUI:s
+`NavigationSplitView`, dokumentfönstrets systemtitel och systemets egen
+sidopanelknapp, avdelare och resize. Ingen egen titelrad, toolbar-delegat,
+tracking-separator eller vyhistorik läggs ovanpå systemet. Den separata raden
+med arbets-pills ligger direkt under titelområdet. `Källbilder / Lägg till`
+och arbetsverktygen är båda 44 punkter höga. De egna nederkanterna togs bort
+för att undvika dubbla horisontella grå linjer; systemets titelavdelare lämnas
+orörd.
+
+Produktprincipen framåt är att primära och relevanta åtgärder ska vara synliga
+som pills när de behövs. Menyer reserveras för sällsynta eller destruktiva
+kommandon. Ambitionen är därför att minska innehållet i `•••` över tid, inte
+att gömma vanliga arbetssteg där.
+
 ## Sparat slutläge 2026-08-12 – kompakt automatisk nadirreparation i H
 
 Detta checkpoint innehåller dagens import-, GUI-, test- och nadirändringar.

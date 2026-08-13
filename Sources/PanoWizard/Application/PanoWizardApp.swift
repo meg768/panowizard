@@ -5,8 +5,9 @@ struct PanoramaCommandActions {
     let canOpenProjectViews: Bool
     let canShowPanorama: Bool
     let canStitch: Bool
+    let renderPanoramaTitle: String
     let createPanorama: () -> Void
-    let restartAutomatically: () -> Void
+    let requestRegenerateFromScratch: () -> Void
     let showSettings: () -> Void
     let showPreview: () -> Void
     let showExport: () -> Void
@@ -48,14 +49,14 @@ private struct PanoramaMenuCommands: Commands {
 
     var body: some Commands {
         CommandMenu("Panorama") {
-            Button("Skapa panorama") {
+            Button(actions?.renderPanoramaTitle ?? "Skapa panorama") {
                 actions?.createPanorama()
             }
             .keyboardShortcut("r", modifiers: .option)
             .disabled(actions?.canStitch != true)
 
-            Button("Börja om automatiskt…") {
-                actions?.restartAutomatically()
+            Button("Generera om från början…") {
+                actions?.requestRegenerateFromScratch()
             }
             .disabled(actions?.canStitch != true)
 
@@ -143,6 +144,7 @@ private struct ControlPointMenuCommands: Commands {
 }
 
 private struct WindowStateRestorer: NSViewRepresentable {
+    @MainActor
     final class Coordinator {
         private static let frameName = "PanoWizard.ProjectWindow"
         private static let zoomedKey = "PanoWizard.ProjectWindow.isZoomed"
