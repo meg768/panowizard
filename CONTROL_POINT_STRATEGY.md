@@ -51,7 +51,9 @@ består av mapparna A–H. I augusti 2026 innehåller det:
   körning ger 109 ring-CP; polblandningen är tekniskt och visuellt verifierad
   av Codex men väntar på Magnus slutliga jämförelse mot PTGui
 - D: 5 originalbilder; ring och nadir
-- E: tom
+- E: 8 originalbilder; automatisk Sigma-ring. En extern kartbild används
+  endast i det separata manuella nadirretuschflödet och räknas inte som
+  indata till den automatiska regressionen
 - F: 6 originalbilder
 - G: 13 originalbilder
 - H: 6 originalbilder; ring och nadir

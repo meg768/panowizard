@@ -143,17 +143,62 @@ extension PanoramaExportController {
         }
     }
 
-    func share(_ url: URL) {
-        guard let view = NSApp.keyWindow?.contentView else { return }
-        NSSharingServicePicker(items: [url as NSURL]).show(
-            relativeTo: view.bounds,
-            of: view,
-            preferredEdge: .minY
-        )
+    func shareJPEG(
+        sourceURL: URL,
+        nadirRetouchURL: URL?,
+        zenithRetouchURL: URL?
+    ) {
+        Task {
+            do {
+                let directory = FileManager.default.temporaryDirectory
+                    .appending(path: "PanoWizard/Exports", directoryHint: .isDirectory)
+                try FileManager.default.createDirectory(
+                    at: directory,
+                    withIntermediateDirectories: true
+                )
+                let intermediateURL = directory.appending(
+                    path: "\(UUID().uuidString)-retouched-panorama.png"
+                )
+                let shareURL = directory.appending(
+                    path: "\(UUID().uuidString)-panorama.jpg"
+                )
+                let exportSourceURL: URL
+                if nadirRetouchURL != nil || zenithRetouchURL != nil {
+                    try await Task.detached(priority: .userInitiated) {
+                        try PoleRetouchService().flattenRetouches(
+                            panoramaURL: sourceURL,
+                            nadirRetouchURL: nadirRetouchURL,
+                            zenithRetouchURL: zenithRetouchURL,
+                            to: intermediateURL
+                        )
+                    }.value
+                    exportSourceURL = intermediateURL
+                } else {
+                    exportSourceURL = sourceURL
+                }
+                try Self.writeJPEG(
+                    from: exportSourceURL,
+                    to: shareURL,
+                    maximumWidth: maximumWidth,
+                    quality: jpegQuality
+                )
+                try? FileManager.default.removeItem(at: intermediateURL)
+                guard let view = NSApp.keyWindow?.contentView else { return }
+                NSSharingServicePicker(items: [shareURL as NSURL]).show(
+                    relativeTo: view.bounds,
+                    of: view,
+                    preferredEdge: .minY
+                )
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
     }
 
     func exportJPEG(
         from sourceURL: URL,
+        nadirRetouchURL: URL?,
+        zenithRetouchURL: URL?,
         projectName: String?,
         projectTitle: String,
         projectDirectoryURL: URL?
@@ -173,15 +218,40 @@ extension PanoramaExportController {
         guard panel.runModal() == .OK, let destinationURL = panel.url else {
             return
         }
-        do {
-            try Self.writeJPEG(
-                from: sourceURL,
-                to: destinationURL,
-                maximumWidth: maximumWidth,
-                quality: jpegQuality
-            )
-        } catch {
-            errorMessage = error.localizedDescription
+        let maximumWidth = maximumWidth
+        let quality = jpegQuality
+        Task {
+            do {
+                let exportSourceURL: URL
+                if nadirRetouchURL != nil || zenithRetouchURL != nil {
+                    let temporaryURL = FileManager.default.temporaryDirectory
+                        .appending(path: "\(UUID().uuidString)-retouched-panorama.png")
+                    try await Task.detached(priority: .userInitiated) {
+                        try PoleRetouchService().flattenRetouches(
+                            panoramaURL: sourceURL,
+                            nadirRetouchURL: nadirRetouchURL,
+                            zenithRetouchURL: zenithRetouchURL,
+                            to: temporaryURL
+                        )
+                    }.value
+                    exportSourceURL = temporaryURL
+                } else {
+                    exportSourceURL = sourceURL
+                }
+                defer {
+                    if exportSourceURL != sourceURL {
+                        try? FileManager.default.removeItem(at: exportSourceURL)
+                    }
+                }
+                try Self.writeJPEG(
+                    from: exportSourceURL,
+                    to: destinationURL,
+                    maximumWidth: maximumWidth,
+                    quality: quality
+                )
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 

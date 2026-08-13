@@ -48,6 +48,25 @@ struct PanoramaSidebar: View {
                         } header: {
                             SidebarSectionHeader("Panorama")
                         }
+
+                        Section {
+                            PanoramaNavigationRow(
+                                title: "Nadir",
+                                systemImage: "arrow.down.to.line",
+                                isSelected: model.selection == .retouch(.nadir)
+                            ) {
+                                model.selection = .retouch(.nadir)
+                            }
+                            PanoramaNavigationRow(
+                                title: "Zenit",
+                                systemImage: "arrow.up.to.line",
+                                isSelected: model.selection == .retouch(.zenith)
+                            ) {
+                                model.selection = .retouch(.zenith)
+                            }
+                        } header: {
+                            SidebarSectionHeader("Retuschering")
+                        }
                     }
                 }
                 .contentMargins(.horizontal, 16, for: .scrollContent)

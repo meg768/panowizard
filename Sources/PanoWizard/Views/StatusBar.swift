@@ -71,9 +71,16 @@ struct StatusBar: View {
             }
         }
         .font(.caption)
+        .lineLimit(1)
         .padding(.horizontal, 12)
-        .frame(height: 30)
-        .background(.bar)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: 30,
+            idealHeight: 30,
+            maxHeight: 30
+        )
+        .clipped()
+        .background(.bar, ignoresSafeAreaEdges: [])
         .overlay(alignment: .top) {
             Divider()
         }

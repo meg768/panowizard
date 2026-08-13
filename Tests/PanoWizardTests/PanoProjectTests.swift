@@ -4,6 +4,69 @@ import Testing
 
 struct PanoProjectTests {
     @Test @MainActor
+    func sourceDirectoryUsesTheImportedImageFolder() {
+        let image = SourceImage(
+            url: URL(fileURLWithPath: "/Pictures/Lissabon/one.jpg"),
+            captureDate: nil,
+            pixelWidth: 100,
+            pixelHeight: 100,
+            cameraModel: nil,
+            lens: LensDescription(
+                model: "Fisheye",
+                focalLengthIn35mm: 16,
+                kind: .fisheye
+            )
+        )
+        let model = AppModel.live(project: PanoProject(images: [image]))
+
+        #expect(
+            model.sourceDirectoryURL?.path
+                == URL(fileURLWithPath: "/Pictures/Lissabon").path
+        )
+    }
+
+    @Test @MainActor
+    func panoramaPreviewDoesNotFallBackToASourceImage() {
+        let image = SourceImage(
+            url: URL(fileURLWithPath: "/Pictures/source.jpg"),
+            captureDate: nil,
+            pixelWidth: 100,
+            pixelHeight: 100,
+            cameraModel: nil,
+            lens: LensDescription(
+                model: "Fisheye",
+                focalLengthIn35mm: 16,
+                kind: .fisheye
+            )
+        )
+        let model = AppModel.live(project: PanoProject(images: [image]))
+
+        model.selection = .panorama
+
+        #expect(model.selectedPreviewURL == nil)
+    }
+
+    @Test
+    func documentStoresPoleRetouchesInsidePanoramaDirectory() throws {
+        let nadirRetouch = Data([1, 2, 3, 4])
+        let zenithRetouch = Data([5, 6, 7, 8])
+        let document = PanoProjectDocument(
+            nadirRetouchData: nadirRetouch,
+            zenithRetouchData: zenithRetouch
+        )
+        let wrapper = try document.packageFileWrapper()
+
+        let stored = wrapper.fileWrappers?["panorama"]?
+            .fileWrappers?["nadir-retouch.png"]?
+            .regularFileContents
+        let storedZenith = wrapper.fileWrappers?["panorama"]?
+            .fileWrappers?["zenith-retouch.png"]?
+            .regularFileContents
+        #expect(stored == nadirRetouch)
+        #expect(storedZenith == zenithRetouch)
+    }
+
+    @Test @MainActor
     func jpegExifLensModelOverridesIncorrectSavedProfile() {
         let image = SourceImage(
             url: URL(fileURLWithPath: "/Pictures/panorama/nikon.jpg"),

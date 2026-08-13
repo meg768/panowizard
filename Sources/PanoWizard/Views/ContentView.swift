@@ -9,26 +9,38 @@ struct ContentView: View {
     @State private var isDropTargeted = false
     @State private var isRegenerateFromScratchPresented = false
     @State private var exportController = PanoramaExportController()
+    @State private var retouchController = PanoramaRetouchController()
     @FocusedValue(\.controlPointCommandActions)
     private var controlPointActions
     @AppStorage("PanoWizard.ProjectWindow.sidebarWidth")
     private var savedSidebarWidth = 300.0
 
     var body: some View {
-        NavigationSplitView {
-            PanoramaSidebar(model: model)
-                .onGeometryChange(for: CGFloat.self) { geometry in
-                    geometry.size.width
-                } action: { width in
-                    persistSidebarWidth(width)
+        Group {
+            if model.project.images.isEmpty {
+                PanoramaWelcomeView(
+                    isImporting: model.phase == .importing,
+                    isDropTargeted: isDropTargeted
+                ) {
+                    model.isImporterPresented = true
                 }
-                .navigationSplitViewColumnWidth(
-                    min: 220,
-                    ideal: min(max(savedSidebarWidth, 220), 520),
-                    max: 520
-                )
-        } detail: {
-            detailWorkspace
+            } else {
+                NavigationSplitView {
+                    PanoramaSidebar(model: model)
+                        .onGeometryChange(for: CGFloat.self) { geometry in
+                            geometry.size.width
+                        } action: { width in
+                            persistSidebarWidth(width)
+                        }
+                        .navigationSplitViewColumnWidth(
+                            min: 220,
+                            ideal: min(max(savedSidebarWidth, 220), 520),
+                            max: 520
+                        )
+                } detail: {
+                    detailWorkspace
+                }
+            }
         }
         .focusedSceneValue(
             \.panoramaCommandActions,
@@ -55,6 +67,7 @@ struct ContentView: View {
                 model.importURLs(urls)
             }
         }
+        .fileDialogDefaultDirectory(model.sourceDirectoryURL)
         .dropDestination(for: URL.self) { urls, _ in
             model.importURLs(urls)
             return !urls.isEmpty
@@ -87,6 +100,8 @@ struct ContentView: View {
                         model: model,
                         controller: exportController
                     )
+                } else if case .retouch(let pole) = model.selection {
+                    PanoramaRetouchView(model: model, pole: pole)
                 } else if model.selection == .controlPoints {
                     if let diagnostics = model.controlPointEditorDiagnostics,
                        diagnostics.images.count >= 2 {
@@ -152,6 +167,8 @@ struct ContentView: View {
                             ? model.nadirOverlayURL
                             : nil,
                         zenithOverlayURL: model.zenithOverlayURL,
+                        nadirRetouchURL: model.nadirRetouchURL,
+                        zenithRetouchURL: model.zenithRetouchURL,
                         selectedSource: model.selectedSourceImage,
                         maskData: model.selectedSourceImage.flatMap {
                             model.maskDataByImageID[$0.id]
@@ -223,6 +240,11 @@ struct ContentView: View {
         HStack(spacing: 6) {
             if model.selection == .export {
                 exportToolbarCenter
+            } else if case .retouch(let pole) = model.selection {
+                retouchToolbarCenter(pole)
+            } else if model.selection == .panorama,
+                      model.stitchedResultURL == nil {
+                previewToolbarCenter
             } else if model.selection == .controlPoints {
                 controlPointToolbarCenter
             } else if model.isShowingNadirRepair {
@@ -233,12 +255,25 @@ struct ContentView: View {
         }
     }
 
+    private var previewToolbarCenter: some View {
+        Button {
+            model.stitch()
+        } label: {
+            Label("Skapa panorama", systemImage: "panorama")
+        }
+        .buttonStyle(WorkspaceToolbarPillStyle())
+        .disabled(!model.canStitch)
+        .help("Skapa panorama med nuvarande kontrollpunkter och masker")
+    }
+
     @ViewBuilder
     private var exportToolbarCenter: some View {
         if let panoramaURL = model.stitchedResultURL {
             Button {
                 exportController.exportJPEG(
                     from: panoramaURL,
+                    nadirRetouchURL: model.nadirRetouchURL,
+                    zenithRetouchURL: model.zenithRetouchURL,
                     projectName: projectName,
                     projectTitle: model.project.title,
                     projectDirectoryURL: projectDirectoryURL
@@ -248,6 +283,31 @@ struct ContentView: View {
             }
             .buttonStyle(WorkspaceToolbarPillStyle())
             .help("Spara panoramabilden med valda inställningar")
+        }
+    }
+
+    @ViewBuilder
+    private func retouchToolbarCenter(_ pole: PanoramaPole) -> some View {
+        if model.stitchedResultURL != nil {
+            Button {
+                retouchController.exportPlate(
+                    model: model,
+                    pole: pole,
+                    projectDirectoryURL: projectDirectoryURL
+                )
+            } label: {
+                Label("Exportera 90°-platta…", systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(WorkspaceToolbarPillStyle())
+            .disabled(model.phase != .ready)
+
+            Button {
+                retouchController.importPlate(model: model, pole: pole)
+            } label: {
+                Label("Importera retusch…", systemImage: "square.and.arrow.down")
+            }
+            .buttonStyle(WorkspaceToolbarPillStyle())
+            .disabled(model.phase != .ready)
         }
     }
 
@@ -425,7 +485,11 @@ struct ContentView: View {
             if model.selection == .export,
                let panoramaURL = model.stitchedResultURL {
                 Button("Dela JPEG…") {
-                    exportController.share(panoramaURL)
+                    exportController.shareJPEG(
+                        sourceURL: panoramaURL,
+                        nadirRetouchURL: model.nadirRetouchURL,
+                        zenithRetouchURL: model.zenithRetouchURL
+                    )
                 }
 
                 Divider()
@@ -453,6 +517,14 @@ struct ContentView: View {
                     !model.canExportHTML
                         || exportController.isPreparingHTMLShare
                 )
+            } else if case .retouch(let pole) = model.selection {
+                Button(
+                    "Ta bort \(pole.displayName.lowercased())retusch",
+                    role: .destructive
+                ) {
+                    model.removeRetouch(for: pole)
+                }
+                .disabled(model.retouchURL(for: pole) == nil)
             } else if model.selection == .controlPoints,
                let actions = controlPointActions {
                 Button("Generera om alla kontrollpunkter…") {
@@ -527,6 +599,9 @@ struct ContentView: View {
     private var showsToolbarOverflow: Bool {
         if model.selection == .export {
             return model.stitchedResultURL != nil
+        }
+        if case .retouch(let pole) = model.selection {
+            return model.retouchURL(for: pole) != nil || hasStitchableSources
         }
         if model.selection == .controlPoints {
             return controlPointActions != nil || hasStitchableSources

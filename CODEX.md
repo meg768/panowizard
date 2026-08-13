@@ -1,5 +1,86 @@
 # PanoWizard – aktuell projektkontext
 
+## Sparat slutläge 2026-08-13 – A–I, välkomststart och produktmognad
+
+Panorama I har lagts till som nytt verkligt provfall. Det var tidigare
+svårstitchat men blev nu bra med helt automatiskt skapade kontrollpunkter och
+endast en efterföljande nadirpatch. Inga manuella kontrollpunkter behövdes.
+Tillsammans med resultaten i A–H är detta ett tydligt tecken på att
+PanoWizards automatiska CP-kedja blivit mycket stark och att produkten börjar
+vara en praktisk PTGui-utmanare, inte bara ett experiment. Användarens aktuella
+bedömning är att GUI:t är klart bättre och att CP-resultaten är "otroligt
+bra".
+
+Appstarten är nu visuellt färdig för denna fas. Vid vanlig start visas ingen
+macOS-dialog för nytt dokument utan en egen välkomstvy med en perspektivvy ur
+panorama A, rubriken `Skapa ett panorama`, en kort förklaring och knappen
+`Skapa ditt panorama`. Bildval och drag/släpp importerar källbilder men startar
+inte renderingen. Ett osparat `.pw`-projekt skapas först efter lyckad import.
+Välkomstfönstret öppnas zoomat till skärmens tillgängliga arbetsyta men inte i
+helskärmsläge; menyrad, titelrad och trafikljus är kvar. Detta har verifierats
+i den riktiga appen med fönsterstorlek 1470×923 och `AXFullScreen = false`.
+
+När inga källbilder finns visas varken sidopanel eller statusrad. I ett projekt
+utan renderat panorama visar Förhandsvisa ett relevant tomläge och en synlig
+`Skapa panorama`-pill i toolbaren i stället för första källbilden. Statusraden
+är alltid exakt en rad/30 punkter hög. Den första källbildens mapp används som
+standardmapp för fortsatta filval och exporter tills projektet sparas.
+
+Little Planet, Tiny Planet och andra kreativa projektioner är ett naturligt
+framtida steg, men är uttryckligen inte nästa prioritet. Först ska den nuvarande
+kärnan med import, automatisk stitching, polretusch och export fortsätta vara
+stabil. Den senast byggda releaseappen ligger i `build/PanoWizard.app`, är
+strikt ad hoc-signaturverifierad och samtliga 61 tester passerar. Alla aktuella
+produktändringar är fortfarande ocommittade.
+
+## Sparat läge 2026-08-13 – separat retuschering av nadir och zenit
+
+Panorama E är inte längre tomt. Mappen innehåller åtta stående Sigma 8
+mm/D80-TIFF-bilder, ett renderat `Panorama.pw` och den externa bilden
+`nadir.png`. Ringlösningen har 382 kontrollpunkter och ger en användbar
+360×180-bas, men har ett svart hål rakt under kameran. Den externa bilden är
+inte en verklig kamerabild och ska därför inte registreras som `fillOnly` med
+OpenCV/Hugin.
+
+Sidopanelen har nu en egen sektion `Retuschering` med separata arbetsytor för
+`Nadir` och `Zenit`. Funktionen blandas inte längre ihop med leveransvyn
+`Exportera`. Båda polerna kan exporteras som exakta 90° rektlinjära kubsidor
+på 2048×2048 px, redigeras externt utan ändrat pixelmått och importeras igen.
+Save-panelen föreslår de enkla filnamnen `nadir.png` respektive `zenit.png`,
+eftersom varje panorama redan har en egen mapp.
+Importen lägger en mjuk sexprocentig alfakant runt plattan för att undvika en
+fyrkantig söm. Retuscherna sparas som `panorama/nadir-retouch.png` respektive
+`panorama/zenith-retouch.png` i `.pw`-paketet, ligger ovanpå vanliga
+polreparationer i sfär- och HTML-vyn och bakas in vid JPEG-export och
+JPEG-delning. Borttagning återgår icke-destruktivt till baspanoramat utan att
+röra källor, kontrollpunkter eller geometri.
+
+Den verkliga 90°-exporten från E har verifierats visuellt: den visar
+Eiffeltornet rakt uppifrån med det svarta hålet centrerat och är därmed en
+praktisk Photoshop-yta för inpassning av den externa kartbilden. Användarens
+första manuella montage täckte hålet övertygande och bekräftade arbetsflödet.
+Bildtester verifierar båda polernas riktning, importens alfakant och att
+återprojektionen inte påverkar horisonten. Dokumenttestet verifierar båda
+plattorna i projektpaketet. Samtliga 59 tester passerar.
+Releaseappen är ombyggd och strikt ad hoc-signaturverifierad i
+`build/PanoWizard.app`.
+
+Förhandsvisningen visar inte längre en godtycklig källbild innan ett panorama
+har skapats. I stället visas ett tydligt tomläge och en direkt
+`Skapa panorama`-pill i arbetsytans toolbar. Den gemensamma statusraden längst
+ned är hårt begränsad till en enda 30-punktersrad oavsett arbetsytans innehåll.
+
+Vid vanlig appstart öppnas ett separat välkomstfönster i stället för macOS
+mellanfönster för nytt dokument. Det visar panorama A som nedtonad bakgrund
+och knappen `Skapa ditt panorama`. Bildval och metadataimport sker först;
+därefter skapas ett osparat `.pw`-projekt och välkomstfönstret stängs.
+Rendering startas inte automatiskt. Ett tomt projekt som skapats via Arkiv >
+Nytt använder samma helskärmsvälkomst, utan sidopanel eller statusrad. Den
+första källbildens mapp används som standardmapp för senare filval och
+exporter tills projektet har sparats.
+Välkomstfönstret öppnas zoomat till skärmens tillgängliga arbetsyta, inte i
+macOS helskärmsläge, så menyraden, titelraden och trafikljusen finns kvar.
+
 ## Sparat GUI-läge 2026-08-13 – Mac-standardskal och kontextuella pills
 
 Det här är nästa sessions utgångspunkt. Användaren är nöjd med GUI-riktningen.

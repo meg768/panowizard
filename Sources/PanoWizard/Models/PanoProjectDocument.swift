@@ -20,6 +20,8 @@ struct PanoProjectDocument: FileDocument {
     var panoramaData: Data?
     var nadirOverlayData: Data?
     var zenithOverlayData: Data?
+    var nadirRetouchData: Data?
+    var zenithRetouchData: Data?
 
     init(
         project: PanoProject = PanoProject(),
@@ -28,7 +30,9 @@ struct PanoProjectDocument: FileDocument {
         protectedMasks: [UUID: Data] = [:],
         panoramaData: Data? = nil,
         nadirOverlayData: Data? = nil,
-        zenithOverlayData: Data? = nil
+        zenithOverlayData: Data? = nil,
+        nadirRetouchData: Data? = nil,
+        zenithRetouchData: Data? = nil
     ) {
         self.project = project
         self.masks = masks
@@ -37,6 +41,8 @@ struct PanoProjectDocument: FileDocument {
         self.panoramaData = panoramaData
         self.nadirOverlayData = nadirOverlayData
         self.zenithOverlayData = zenithOverlayData
+        self.nadirRetouchData = nadirRetouchData
+        self.zenithRetouchData = zenithRetouchData
     }
 
     init(configuration: ReadConfiguration) throws {
@@ -100,9 +106,19 @@ struct PanoProjectDocument: FileDocument {
         zenithOverlayData = wrappers["panorama"]?
             .fileWrappers?["zenith-overlay.png"]?
             .regularFileContents
+        nadirRetouchData = wrappers["panorama"]?
+            .fileWrappers?["nadir-retouch.png"]?
+            .regularFileContents
+        zenithRetouchData = wrappers["panorama"]?
+            .fileWrappers?["zenith-retouch.png"]?
+            .regularFileContents
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        try packageFileWrapper()
+    }
+
+    func packageFileWrapper() throws -> FileWrapper {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
@@ -145,6 +161,16 @@ struct PanoProjectDocument: FileDocument {
         if let zenithOverlayData {
             panoramaChildren["zenith-overlay.png"] = FileWrapper(
                 regularFileWithContents: zenithOverlayData
+            )
+        }
+        if let nadirRetouchData {
+            panoramaChildren["nadir-retouch.png"] = FileWrapper(
+                regularFileWithContents: nadirRetouchData
+            )
+        }
+        if let zenithRetouchData {
+            panoramaChildren["zenith-retouch.png"] = FileWrapper(
+                regularFileWithContents: zenithRetouchData
             )
         }
         if !panoramaChildren.isEmpty {

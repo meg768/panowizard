@@ -41,7 +41,10 @@ let package = Package(
         .executableTarget(
             name: "PanoWizard",
             dependencies: ["OpenCVBridge"],
-            path: "Sources/PanoWizard"
+            path: "Sources/PanoWizard",
+            resources: [
+                .process("Resources")
+            ]
         ),
         .testTarget(
             name: "PanoWizardTests",

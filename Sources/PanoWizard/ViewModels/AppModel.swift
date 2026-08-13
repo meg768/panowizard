@@ -6,6 +6,7 @@ import CryptoKit
 enum ProjectSelection: Hashable {
     case panorama
     case settings
+    case retouch(PanoramaPole)
     case export
     case source(SourceImage.ID)
     case controlPoints
@@ -34,6 +35,7 @@ final class AppModel {
         case optimizingControlPoints
         case updatingRepair
         case blendingRepair
+        case retouching
         case exporting
         case failed(String)
 
@@ -53,8 +55,10 @@ final class AppModel {
                 "Uppdaterar nadirreparation…"
             case .blendingRepair:
                 "Blandar nadirreparation med Enblend…"
+            case .retouching:
+                "Förbereder polretusch…"
             case .exporting:
-                "Skapar interaktiv HTML…"
+                "Exporterar…"
             case .failed(let message):
                 message
             }
@@ -80,6 +84,8 @@ final class AppModel {
     var panoramaViewpoint = PanoramaViewpoint()
     var nadirOverlayURL: URL?
     var zenithOverlayURL: URL?
+    var nadirRetouchURL: URL?
+    var zenithRetouchURL: URL?
     var controlPointDiagnostics: ControlPointDiagnostics?
     var editableControlPoints: [DiagnosticControlPoint] = []
     var isSuggestingControlPoints = false
@@ -116,7 +122,9 @@ final class AppModel {
         protectedMasks: [UUID: Data] = [:],
         panoramaData: Data? = nil,
         nadirOverlayData: Data? = nil,
-        zenithOverlayData: Data? = nil
+        zenithOverlayData: Data? = nil,
+        nadirRetouchData: Data? = nil,
+        zenithRetouchData: Data? = nil
     ) {
         var normalizedProject = project
         normalizedProject.removeUnsupportedControlPoints()
@@ -193,6 +201,18 @@ final class AppModel {
                 filename: "\(project.id.uuidString)-zenith-overlay.png"
             )
         }
+        if let nadirRetouchData {
+            nadirRetouchURL = Self.restoreData(
+                nadirRetouchData,
+                filename: "\(project.id.uuidString)-nadir-retouch.png"
+            )
+        }
+        if let zenithRetouchData {
+            zenithRetouchURL = Self.restoreData(
+                zenithRetouchData,
+                filename: "\(project.id.uuidString)-zenith-retouch.png"
+            )
+        }
         synchronizeControlPointMaskSignature()
     }
 
@@ -203,7 +223,9 @@ final class AppModel {
         protectedMasks: [UUID: Data] = [:],
         panoramaData: Data? = nil,
         nadirOverlayData: Data? = nil,
-        zenithOverlayData: Data? = nil
+        zenithOverlayData: Data? = nil,
+        nadirRetouchData: Data? = nil,
+        zenithRetouchData: Data? = nil
     ) -> AppModel {
         AppModel(
             project: project,
@@ -216,7 +238,9 @@ final class AppModel {
             protectedMasks: protectedMasks,
             panoramaData: panoramaData,
             nadirOverlayData: nadirOverlayData,
-            zenithOverlayData: zenithOverlayData
+            zenithOverlayData: zenithOverlayData,
+            nadirRetouchData: nadirRetouchData,
+            zenithRetouchData: zenithRetouchData
         )
     }
 
@@ -224,16 +248,23 @@ final class AppModel {
         project.images.isEmpty ? nil : project.panorama
     }
 
+    var sourceDirectoryURL: URL? {
+        let directories = project.images.map {
+            $0.url.deletingLastPathComponent().standardizedFileURL
+        }
+        return directories.first
+    }
+
     var selectedPreviewURL: URL? {
         switch selection {
         case .panorama:
-            return stitchedResultURL ?? project.images.first?.url
+            return stitchedResultURL
         case .source(let id):
             return project.images.first { $0.id == id }?.url
                 ?? project.images.first?.url
         case .controlPoints:
             return nil
-        case .settings, .export:
+        case .settings, .retouch, .export:
             return nil
         case nil:
             return stitchedResultURL ?? project.images.first?.url
@@ -1773,6 +1804,88 @@ final class AppModel {
             )
     }
 
+    func retouchURL(for pole: PanoramaPole) -> URL? {
+        pole == .nadir ? nadirRetouchURL : zenithRetouchURL
+    }
+
+    func exportRetouchPlate(
+        for pole: PanoramaPole,
+        to destinationURL: URL
+    ) {
+        guard let panoramaURL = stitchedResultURL, phase == .ready else { return }
+        let repairOverlayURL = pole == .nadir
+            ? (project.nadirRepairPlacement == nil ? nil : nadirOverlayURL)
+            : (project.zenithRepairPlacement == nil ? nil : zenithOverlayURL)
+        let existingRetouchURL = retouchURL(for: pole)
+        phase = .retouching
+        Task {
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try PoleRetouchService().exportPlate(
+                        panoramaURL: panoramaURL,
+                        repairOverlayURL: repairOverlayURL,
+                        existingRetouchURL: existingRetouchURL,
+                        pole: pole,
+                        to: destinationURL
+                    )
+                }.value
+                phase = .ready
+            } catch {
+                phase = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    func importRetouchPlate(
+        for pole: PanoramaPole,
+        from sourceURL: URL
+    ) {
+        guard stitchedResultURL != nil, phase == .ready else { return }
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizard/Retouch/\(project.id.uuidString)",
+            directoryHint: .isDirectory
+        )
+        let destinationURL = directory.appending(
+            path: "\(pole.rawValue)-retouch.png"
+        )
+        phase = .retouching
+        Task {
+            do {
+                try FileManager.default.createDirectory(
+                    at: directory,
+                    withIntermediateDirectories: true
+                )
+                try await Task.detached(priority: .userInitiated) {
+                    try PoleRetouchService().prepareImportedPlate(
+                        from: sourceURL,
+                        pole: pole,
+                        to: destinationURL
+                    )
+                }.value
+                if pole == .nadir {
+                    nadirRetouchURL = destinationURL
+                } else {
+                    zenithRetouchURL = destinationURL
+                }
+                selection = .panorama
+                panoramaRevision += 1
+                phase = .ready
+            } catch {
+                phase = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    func removeRetouch(for pole: PanoramaPole) {
+        guard retouchURL(for: pole) != nil else { return }
+        if pole == .nadir {
+            nadirRetouchURL = nil
+        } else {
+            zenithRetouchURL = nil
+        }
+        panoramaRevision += 1
+    }
+
     func exportHTML(
         to destinationURL: URL,
         initialViewpoint: PanoramaViewpoint
@@ -1789,6 +1902,8 @@ final class AppModel {
                     zenithOverlayURL: project.zenithRepairPlacement == nil
                         ? nil
                         : zenithOverlayURL,
+                    nadirRetouchURL: nadirRetouchURL,
+                    zenithRetouchURL: zenithRetouchURL,
                     title: project.title,
                     initialViewpoint: initialViewpoint,
                     to: destinationURL
@@ -1832,6 +1947,8 @@ final class AppModel {
                 zenithOverlayURL: project.zenithRepairPlacement == nil
                     ? nil
                     : zenithOverlayURL,
+                nadirRetouchURL: nadirRetouchURL,
+                zenithRetouchURL: zenithRetouchURL,
                 title: project.title,
                 initialViewpoint: initialViewpoint,
                 to: destinationURL
@@ -1884,6 +2001,16 @@ final class AppModel {
     var zenithOverlayData: Data? {
         guard let zenithOverlayURL else { return nil }
         return try? Data(contentsOf: zenithOverlayURL)
+    }
+
+    var nadirRetouchData: Data? {
+        guard let nadirRetouchURL else { return nil }
+        return try? Data(contentsOf: nadirRetouchURL)
+    }
+
+    var zenithRetouchData: Data? {
+        guard let zenithRetouchURL else { return nil }
+        return try? Data(contentsOf: zenithRetouchURL)
     }
 
     private static func restoreData(_ data: Data, filename: String) -> URL? {

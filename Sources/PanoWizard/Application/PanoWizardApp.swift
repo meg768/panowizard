@@ -1,6 +1,30 @@
 import AppKit
 import SwiftUI
 
+@MainActor
+private final class PanoWizardApplicationDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        openWelcomeWindowWhenReady(attempt: 0)
+    }
+
+    private func openWelcomeWindowWhenReady(attempt: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            guard NSApp.windows.allSatisfy({ !$0.isVisible }) else { return }
+            if let item = NSApp.windowsMenu?.items.first(where: {
+                $0.title == "PanoWizard" && $0.action != nil
+            }), let action = item.action {
+                NSApp.sendAction(action, to: item.target, from: item)
+            } else if attempt < 20 {
+                self.openWelcomeWindowWhenReady(attempt: attempt + 1)
+            }
+        }
+    }
+}
+
 struct PanoramaCommandActions {
     let canOpenProjectViews: Bool
     let canShowPanorama: Bool
@@ -26,7 +50,18 @@ extension FocusedValues {
 
 @main
 struct PanoWizardApp: App {
+    @NSApplicationDelegateAdaptor(PanoWizardApplicationDelegate.self)
+    private var applicationDelegate
+
     var body: some Scene {
+        Window("PanoWizard", id: "welcome") {
+            PanoramaLaunchView()
+        }
+        .defaultSize(width: 1_080, height: 680)
+        .windowResizability(.contentMinSize)
+        .defaultLaunchBehavior(.presented)
+        .restorationBehavior(.disabled)
+
         DocumentGroup(newDocument: PanoProjectDocument()) { file in
             ProjectDocumentView(
                 document: file.$document,
@@ -225,6 +260,7 @@ private struct WindowStateRestorer: NSViewRepresentable {
 }
 
 private struct ProjectDocumentView: View {
+    @Environment(\.dismissWindow) private var dismissWindow
     @Binding var document: PanoProjectDocument
     @State private var model: AppModel
     let documentURL: URL?
@@ -239,7 +275,9 @@ private struct ProjectDocumentView: View {
             protectedMasks: document.wrappedValue.protectedMasks,
             panoramaData: document.wrappedValue.panoramaData,
             nadirOverlayData: document.wrappedValue.nadirOverlayData,
-            zenithOverlayData: document.wrappedValue.zenithOverlayData
+            zenithOverlayData: document.wrappedValue.zenithOverlayData,
+            nadirRetouchData: document.wrappedValue.nadirRetouchData,
+            zenithRetouchData: document.wrappedValue.zenithRetouchData
         ))
     }
 
@@ -250,6 +288,7 @@ private struct ProjectDocumentView: View {
                 .deletingPathExtension()
                 .lastPathComponent,
             projectDirectoryURL: documentURL?.deletingLastPathComponent()
+                ?? model.sourceDirectoryURL
         )
             .onChange(of: model.project) { _, project in
                 document.project = project
@@ -263,6 +302,11 @@ private struct ProjectDocumentView: View {
                 document.panoramaData = model.panoramaData
                 document.nadirOverlayData = model.nadirOverlayData
                 document.zenithOverlayData = model.zenithOverlayData
+                document.nadirRetouchData = model.nadirRetouchData
+                document.zenithRetouchData = model.zenithRetouchData
+            }
+            .onAppear {
+                dismissWindow(id: "welcome")
             }
     }
 }

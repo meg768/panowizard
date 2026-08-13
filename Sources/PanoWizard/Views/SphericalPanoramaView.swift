@@ -6,6 +6,8 @@ struct SphericalPanoramaView: View {
     let url: URL
     let overlayURL: URL?
     let zenithOverlayURL: URL?
+    let nadirRetouchURL: URL?
+    let zenithRetouchURL: URL?
     let isAdjustingNadir: Bool
     let adjustedPole: PanoramaPole
     let nadirAdjustment: NadirRepairAdjustment
@@ -19,6 +21,8 @@ struct SphericalPanoramaView: View {
             url: url,
             overlayURL: overlayURL,
             zenithOverlayURL: zenithOverlayURL,
+            nadirRetouchURL: nadirRetouchURL,
+            zenithRetouchURL: zenithRetouchURL,
             isAdjustingNadir: isAdjustingNadir,
             adjustedPole: adjustedPole,
             nadirAdjustment: nadirAdjustment,
@@ -36,11 +40,15 @@ struct SphericalPanoramaView: View {
                             : "Förhandsvisning · dra för att se dig omkring · rulla för att zooma",
                         systemImage: isAdjustingNadir ? "scope" : "move.3d"
                     )
-                    if overlayURL != nil || zenithOverlayURL != nil {
+                    if overlayURL != nil || zenithOverlayURL != nil
+                        || nadirRetouchURL != nil
+                        || zenithRetouchURL != nil {
                         Label(
                             isAdjustingNadir
                                 ? adjustmentDescription
-                                : "Polreparationer",
+                                : nadirRetouchURL == nil
+                                    && zenithRetouchURL == nil
+                                    ? "Polreparationer" : "Polretuscher",
                             systemImage: "square.2.layers.3d.bottom.filled"
                         )
                     }
@@ -74,6 +82,8 @@ private struct SphericalMetalView: NSViewRepresentable {
     let url: URL
     let overlayURL: URL?
     let zenithOverlayURL: URL?
+    let nadirRetouchURL: URL?
+    let zenithRetouchURL: URL?
     let isAdjustingNadir: Bool
     let adjustedPole: PanoramaPole
     let nadirAdjustment: NadirRepairAdjustment
@@ -91,11 +101,15 @@ private struct SphericalMetalView: NSViewRepresentable {
         context.coordinator.url = url
         context.coordinator.overlayURL = overlayURL
         context.coordinator.zenithOverlayURL = zenithOverlayURL
+        context.coordinator.nadirRetouchURL = nadirRetouchURL
+        context.coordinator.zenithRetouchURL = zenithRetouchURL
         context.coordinator.renderer = try? SphericalPanoramaRenderer(
             view: view,
             imageURL: url,
             overlayURL: overlayURL,
             zenithOverlayURL: zenithOverlayURL,
+            nadirRetouchURL: nadirRetouchURL,
+            zenithRetouchURL: zenithRetouchURL,
             nadirAdjustment: nadirAdjustment,
             contentBounds: nadirContentBounds,
             isAdjustingNadir: isAdjustingNadir,
@@ -124,14 +138,20 @@ private struct SphericalMetalView: NSViewRepresentable {
         )
         if context.coordinator.url != url
             || context.coordinator.overlayURL != overlayURL
-            || context.coordinator.zenithOverlayURL != zenithOverlayURL {
+            || context.coordinator.zenithOverlayURL != zenithOverlayURL
+            || context.coordinator.nadirRetouchURL != nadirRetouchURL
+            || context.coordinator.zenithRetouchURL != zenithRetouchURL {
             context.coordinator.url = url
             context.coordinator.overlayURL = overlayURL
             context.coordinator.zenithOverlayURL = zenithOverlayURL
+            context.coordinator.nadirRetouchURL = nadirRetouchURL
+            context.coordinator.zenithRetouchURL = zenithRetouchURL
             context.coordinator.renderer?.loadTextures(
                 panoramaURL: url,
                 overlayURL: overlayURL,
-                zenithOverlayURL: zenithOverlayURL
+                zenithOverlayURL: zenithOverlayURL,
+                nadirRetouchURL: nadirRetouchURL,
+                zenithRetouchURL: zenithRetouchURL
             )
         }
     }
@@ -141,6 +161,8 @@ private struct SphericalMetalView: NSViewRepresentable {
         var url: URL?
         var overlayURL: URL?
         var zenithOverlayURL: URL?
+        var nadirRetouchURL: URL?
+        var zenithRetouchURL: URL?
     }
 }
 
@@ -381,6 +403,8 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         var aspectRatio: Float
         var hasOverlay: UInt32
         var hasZenithOverlay: UInt32
+        var hasNadirRetouch: UInt32
+        var hasZenithRetouch: UInt32
         var adjustedPole: UInt32
         var overlayTranslationX: Float
         var overlayTranslationY: Float
@@ -399,6 +423,8 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     private var texture: MTLTexture?
     private var overlayTexture: MTLTexture?
     private var zenithOverlayTexture: MTLTexture?
+    private var nadirRetouchTexture: MTLTexture?
+    private var zenithRetouchTexture: MTLTexture?
     private var yaw: Float = 0
     private var pitch: Float = 0
     private var verticalFieldOfView: Float = 75 * .pi / 180
@@ -413,6 +439,8 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         imageURL: URL,
         overlayURL: URL?,
         zenithOverlayURL: URL?,
+        nadirRetouchURL: URL?,
+        zenithRetouchURL: URL?,
         nadirAdjustment: NadirRepairAdjustment,
         contentBounds: [Double],
         isAdjustingNadir: Bool,
@@ -446,14 +474,18 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         loadTextures(
             panoramaURL: imageURL,
             overlayURL: overlayURL,
-            zenithOverlayURL: zenithOverlayURL
+            zenithOverlayURL: zenithOverlayURL,
+            nadirRetouchURL: nadirRetouchURL,
+            zenithRetouchURL: zenithRetouchURL
         )
     }
 
     func loadTextures(
         panoramaURL: URL,
         overlayURL: URL?,
-        zenithOverlayURL: URL?
+        zenithOverlayURL: URL?,
+        nadirRetouchURL: URL?,
+        zenithRetouchURL: URL?
     ) {
         let loader = MTKTextureLoader(device: device)
         texture = try? loader.newTexture(
@@ -489,6 +521,30 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             )
         } else {
             zenithOverlayTexture = nil
+        }
+        if let nadirRetouchURL {
+            nadirRetouchTexture = try? loader.newTexture(
+                URL: nadirRetouchURL,
+                options: [
+                    .SRGB: true,
+                    .origin: MTKTextureLoader.Origin.topLeft,
+                    .textureUsage: MTLTextureUsage.shaderRead.rawValue
+                ]
+            )
+        } else {
+            nadirRetouchTexture = nil
+        }
+        if let zenithRetouchURL {
+            zenithRetouchTexture = try? loader.newTexture(
+                URL: zenithRetouchURL,
+                options: [
+                    .SRGB: true,
+                    .origin: MTKTextureLoader.Origin.topLeft,
+                    .textureUsage: MTLTextureUsage.shaderRead.rawValue
+                ]
+            )
+        } else {
+            zenithRetouchTexture = nil
         }
         view?.setNeedsDisplay(view?.bounds ?? .zero)
     }
@@ -587,6 +643,8 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             aspectRatio: Float(view.drawableSize.width / max(view.drawableSize.height, 1)),
             hasOverlay: overlayTexture == nil ? 0 : 1,
             hasZenithOverlay: zenithOverlayTexture == nil ? 0 : 1,
+            hasNadirRetouch: nadirRetouchTexture == nil ? 0 : 1,
+            hasZenithRetouch: zenithRetouchTexture == nil ? 0 : 1,
             adjustedPole: adjustedPole == .zenith ? 1 : 2,
             overlayTranslationX: Float(nadirAdjustment.translationX / 1_600),
             overlayTranslationY: Float(nadirAdjustment.translationY / 1_600),
@@ -604,6 +662,8 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         encoder.setFragmentTexture(texture, index: 0)
         encoder.setFragmentTexture(overlayTexture, index: 1)
         encoder.setFragmentTexture(zenithOverlayTexture, index: 2)
+        encoder.setFragmentTexture(nadirRetouchTexture, index: 3)
+        encoder.setFragmentTexture(zenithRetouchTexture, index: 4)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
@@ -736,6 +796,8 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         float aspectRatio;
         uint hasOverlay;
         uint hasZenithOverlay;
+        uint hasNadirRetouch;
+        uint hasZenithRetouch;
         uint adjustedPole;
         float overlayTranslationX;
         float overlayTranslationY;
@@ -764,6 +826,8 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         texture2d<float> panorama [[texture(0)]],
         texture2d<float> nadirOverlay [[texture(1)]],
         texture2d<float> zenithOverlay [[texture(2)]],
+        texture2d<float> nadirRetouch [[texture(3)]],
+        texture2d<float> zenithRetouch [[texture(4)]],
         constant Uniforms &uniforms [[buffer(0)]]
     ) {
         constexpr sampler panoramaSampler(
@@ -845,7 +909,23 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
                 base.rgb = mix(base.rgb, zenith.rgb, zenithOpacity);
             }
         }
-        if (uniforms.hasOverlay == 0) {
+        if (uniforms.hasZenithRetouch != 0) {
+            float3 zenithRay = float3(
+                direction.x,
+                direction.z,
+                direction.y
+            );
+            if (zenithRay.z > 0.0001) {
+                float2 retouchCoordinate = float2(0.5)
+                    + 0.5 * zenithRay.xy / zenithRay.z;
+                float4 retouch = zenithRetouch.sample(
+                    overlaySampler,
+                    retouchCoordinate
+                );
+                base.rgb = mix(base.rgb, retouch.rgb, retouch.a);
+            }
+        }
+        if (uniforms.hasOverlay == 0 && uniforms.hasNadirRetouch == 0) {
             return float4(base.rgb, 1.0);
         }
         float3 localRay = float3(
@@ -856,42 +936,51 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         if (localRay.z <= 0.0001) {
             return base;
         }
-        constexpr float localProjectionScale = 0.2886751346;
-        float2 localCoordinate = float2(0.5)
-            + localProjectionScale * localRay.xy / localRay.z;
-        float3 perspectiveCoordinate = float3(localCoordinate, 1.0);
-        float2 repairCoordinate = localCoordinate;
-        if (uniforms.adjustedPole == 2) {
-        perspectiveCoordinate = float3(
-            dot(uniforms.perspective0, perspectiveCoordinate),
-            dot(uniforms.perspective1, perspectiveCoordinate),
-            dot(uniforms.perspective2, perspectiveCoordinate)
-        );
-        localCoordinate = perspectiveCoordinate.xy
-            / max(perspectiveCoordinate.z, 0.0001);
-        float2 centered = localCoordinate
-            - float2(0.5)
-            - float2(
-                uniforms.overlayTranslationX,
-                uniforms.overlayTranslationY
+        if (uniforms.hasOverlay != 0) {
+            constexpr float localProjectionScale = 0.2886751346;
+            float2 localCoordinate = float2(0.5)
+                + localProjectionScale * localRay.xy / localRay.z;
+            float3 perspectiveCoordinate = float3(localCoordinate, 1.0);
+            float2 repairCoordinate = localCoordinate;
+            if (uniforms.adjustedPole == 2) {
+                perspectiveCoordinate = float3(
+                    dot(uniforms.perspective0, perspectiveCoordinate),
+                    dot(uniforms.perspective1, perspectiveCoordinate),
+                    dot(uniforms.perspective2, perspectiveCoordinate)
+                );
+                localCoordinate = perspectiveCoordinate.xy
+                    / max(perspectiveCoordinate.z, 0.0001);
+                float2 centered = localCoordinate
+                    - float2(0.5)
+                    - float2(
+                        uniforms.overlayTranslationX,
+                        uniforms.overlayTranslationY
+                    );
+                float cosine = cos(-uniforms.overlayRotation);
+                float sine = sin(-uniforms.overlayRotation);
+                centered = float2(
+                    centered.x * cosine - centered.y * sine,
+                    centered.x * sine + centered.y * cosine
+                ) / max(uniforms.overlayScale, 0.01);
+                repairCoordinate = centered + float2(0.5);
+            }
+            float4 repair = nadirOverlay.sample(
+                overlaySampler,
+                repairCoordinate
             );
-        float cosine = cos(-uniforms.overlayRotation);
-        float sine = sin(-uniforms.overlayRotation);
-        centered = float2(
-            centered.x * cosine - centered.y * sine,
-            centered.x * sine + centered.y * cosine
-        ) / max(uniforms.overlayScale, 0.01);
-        repairCoordinate = centered + float2(0.5);
+            float repairOpacity = repair.a * uniforms.overlayOpacity;
+            base.rgb = mix(base.rgb, repair.rgb, repairOpacity);
         }
-        float4 repair = nadirOverlay.sample(
-            overlaySampler,
-            repairCoordinate
-        );
-        float repairOpacity = repair.a * uniforms.overlayOpacity;
-        return float4(
-            mix(base.rgb, repair.rgb, repairOpacity),
-            1.0
-        );
+        if (uniforms.hasNadirRetouch != 0) {
+            float2 retouchCoordinate = float2(0.5)
+                + 0.5 * localRay.xy / localRay.z;
+            float4 retouch = nadirRetouch.sample(
+                overlaySampler,
+                retouchCoordinate
+            );
+            base.rgb = mix(base.rgb, retouch.rgb, retouch.a);
+        }
+        return float4(base.rgb, 1.0);
     }
     """
 

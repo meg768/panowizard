@@ -515,6 +515,8 @@ struct PanoramaEngineIntegrationTests {
             zenithOverlayURL: FileManager.default.fileExists(
                 atPath: zenithOverlayURL.path
             ) ? zenithOverlayURL : nil,
+            nadirRetouchURL: nil,
+            zenithRetouchURL: nil,
             title: "Pano <Wizard>",
             initialViewpoint: PanoramaViewpoint(
                 yawRadians: 0.42,
@@ -529,6 +531,8 @@ struct PanoramaEngineIntegrationTests {
         #expect(html.contains("data:image/jpeg;base64,"))
         #expect(html.contains("getContext(\"webgl\")"))
         #expect(html.contains("zenithRepair"))
+        #expect(html.contains("nadirRetouch"))
+        #expect(html.contains("zenithRetouch"))
         #expect(html.contains("let y=0.42,"))
         #expect(html.contains("p=-0.17,"))
         #expect(html.contains("f=61.0*PI/180"))

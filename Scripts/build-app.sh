@@ -34,6 +34,11 @@ install -m 644 \
     "$project_directory/Resources/Icons/PanoWizardApp.icns" \
     "$resources_directory/PanoWizardApp.icns"
 
+resource_bundle="$project_directory/.build/arm64-apple-macosx/release/PanoWizard_PanoWizard.bundle"
+if [[ -d "$resource_bundle" ]]; then
+    ditto "$resource_bundle" "$resources_directory/PanoWizard_PanoWizard.bundle"
+fi
+
 for library in "$project_directory"/Vendor/OpenCV/lib/*.500.dylib; do
     install -m 755 "$library" "$frameworks_directory/${library:t}"
 done
@@ -53,7 +58,7 @@ mkdir -p "${app_bundle:h}"
 ditto --norsrc --noextattr "$staging_app_bundle" "$app_bundle"
 
 verified=false
-for attempt in {1..5}; do
+for attempt in {1..40}; do
     xattr -cr "$app_bundle"
     xattr -d com.apple.FinderInfo "$app_bundle" 2>/dev/null || true
     if codesign --verify --deep --strict "$app_bundle"; then

@@ -8,6 +8,8 @@ struct PanoramaPreview: View {
     let isStitched: Bool
     let nadirOverlayURL: URL?
     let zenithOverlayURL: URL?
+    let nadirRetouchURL: URL?
+    let zenithRetouchURL: URL?
     let selectedSource: SourceImage?
     let maskData: Data?
     let protectedMaskData: Data?
@@ -27,12 +29,14 @@ struct PanoramaPreview: View {
 
     var body: some View {
         Group {
-            if let panorama, let imageURL {
-                if isStitched {
+            if let panorama {
+                if isStitched, let imageURL {
                     SphericalPanoramaView(
                         url: imageURL,
                         overlayURL: nadirOverlayURL,
                         zenithOverlayURL: zenithOverlayURL,
+                        nadirRetouchURL: nadirRetouchURL,
+                        zenithRetouchURL: zenithRetouchURL,
                         isAdjustingNadir: isAdjustingNadir,
                         adjustedPole: adjustedPole,
                         nadirAdjustment: nadirAdjustment,
@@ -53,12 +57,20 @@ struct PanoramaPreview: View {
                         onZoomChange: onSourceZoomChange,
                         onMasksChange: onMasksChange
                     )
-                } else {
+                } else if let imageURL {
                     VStack(spacing: 12) {
                         ZoomableImageView(url: imageURL)
                         Text("\(panorama.images.count) källbilder väntar på sammanfogning")
                             .font(.callout)
                             .foregroundStyle(.secondary)
+                    }
+                } else {
+                    ContentUnavailableView {
+                        Label("Inget panorama skapat", systemImage: "panorama")
+                    } description: {
+                        Text(
+                            "Skapa panoramat för att förhandsvisa det i 360°."
+                        )
                     }
                 }
             } else {

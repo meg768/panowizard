@@ -97,6 +97,15 @@ registered afterwards and cannot move the base panorama. Image roles and a
 successful alignment are stored in the project. PanoWizard does not assume a
 special role from an image's position in the source list.
 
+## External pole retouch
+
+A stitched panorama can export its nadir and zenith as 90-degree cube faces
+at 2048×2048 pixels for editing in an external image editor. Importing an
+edited PNG stores it non-destructively in the `.pw` package and previews it
+in the spherical viewer. Each plate keeps a soft transparent perimeter and
+is baked into JPEG and HTML exports; no source-image registration or control
+points are used.
+
 ## Architecture
 
 The application uses MVVM with small services and protocol-based dependencies:
