@@ -43,7 +43,7 @@ let package = Package(
             dependencies: ["OpenCVBridge"],
             path: "Sources/PanoWizard",
             resources: [
-                .process("Resources")
+                .copy("Resources/Backgrounds")
             ]
         ),
         .testTarget(

@@ -428,6 +428,17 @@ struct PanoProjectTests {
 
         #expect(model.editableControlPoints.count == 1)
         #expect(model.project.controlPoints?.count == 1)
+
+        model.sourceMaskIntent = .controlPoints
+        model.setMaskData(nil, for: images[0].id)
+
+        #expect(model.editableControlPoints == [point])
+        #expect(model.project.controlPoints == [point])
+
+        model.undoMask()
+
+        #expect(model.editableControlPoints == [point])
+        #expect(model.project.controlPoints == [point])
     }
 
     @Test
@@ -844,6 +855,143 @@ struct PanoProjectTests {
         #expect(model.canStitch)
     }
 
+    @Test @MainActor
+    func createPanoramaPreservesEditedControlPointsAndUsesCurrentMasks() async {
+        let lens = LensDescription(
+            model: "Sigma 8mm",
+            focalLengthIn35mm: 8,
+            kind: .fisheye
+        )
+        let images = (0..<2).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/panorama/\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: 2_000,
+                pixelHeight: 3_008,
+                cameraModel: "Camera",
+                lens: lens
+            )
+        }
+        let editedPoint = DiagnosticControlPoint(
+            firstImage: 0,
+            secondImage: 1,
+            firstX: 123,
+            firstY: 456,
+            secondX: 789,
+            secondY: 321
+        )
+        let panoramaMask = Data([1])
+        let protectedMask = Data([2])
+        let controlPointMask = Data([3])
+        let engine = RecordingPanoramaEngine()
+        let model = AppModel(
+            project: PanoProject(
+                images: images,
+                controlPoints: [editedPoint]
+            ),
+            importer: ImageImportService(metadataReader: ImageMetadataReader()),
+            grouper: PanoramaGroupingService(),
+            panoramaEngine: engine,
+            exporter: FilePanoramaExporter(),
+            masks: [images[0].id: panoramaMask],
+            controlPointMasks: [images[0].id: controlPointMask],
+            protectedMasks: [images[1].id: protectedMask]
+        )
+
+        model.stitch()
+
+        for _ in 0..<100 where await engine.stitchCallCount == 0 {
+            await Task.yield()
+        }
+
+        #expect(await engine.receivedControlPoints == [editedPoint])
+        #expect(await engine.receivedControlPointsAreAuthoritative)
+        #expect(await engine.receivedMasks == [images[0].id: panoramaMask])
+        #expect(
+            await engine.receivedProtectedMasks
+                == [images[1].id: protectedMask]
+        )
+        #expect(
+            await engine.receivedControlPointMasks
+                == [images[0].id: controlPointMask]
+        )
+    }
+
+    @Test @MainActor
+    func repeatedPairSuggestionsAddTenWidelySeparatedPointsAtATime() {
+        let lens = LensDescription(
+            model: "Fisheye",
+            focalLengthIn35mm: 16,
+            kind: .fisheye
+        )
+        let images = (0..<2).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/grid-\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: 1_000,
+                pixelHeight: 1_000,
+                cameraModel: "Camera",
+                lens: lens
+            )
+        }
+        let existing = DiagnosticControlPoint(
+            firstImage: 0,
+            secondImage: 1,
+            firstX: 500,
+            firstY: 500,
+            secondX: 500,
+            secondY: 500
+        )
+        var grid: [DiagnosticControlPoint] = []
+        for row in 0..<5 {
+            for column in 0..<5 {
+                grid.append(DiagnosticControlPoint(
+                    firstImage: 0,
+                    secondImage: 1,
+                    firstX: Double(column * 200),
+                    firstY: Double(row * 200),
+                    secondX: Double(column * 200),
+                    secondY: Double(row * 200)
+                ))
+            }
+        }
+        let clustered = DiagnosticControlPoint(
+            firstImage: 0,
+            secondImage: 1,
+            firstX: 505,
+            firstY: 505,
+            secondX: 505,
+            secondY: 505
+        )
+        let candidates = grid + [clustered]
+
+        let first = AppModel.spatiallyDistributedControlPoints(
+            from: candidates,
+            existing: [existing],
+            images: images,
+            maximumCount: AppModel.suggestedControlPointBatchSize
+        )
+        let second = AppModel.spatiallyDistributedControlPoints(
+            from: candidates,
+            existing: [existing] + first,
+            images: images,
+            maximumCount: AppModel.suggestedControlPointBatchSize
+        )
+        let third = AppModel.spatiallyDistributedControlPoints(
+            from: candidates,
+            existing: [existing] + first + second,
+            images: images,
+            maximumCount: AppModel.suggestedControlPointBatchSize
+        )
+        let selectedIDs = Set<UUID>((first + second + third).map { $0.id })
+
+        #expect(first.count == 10)
+        #expect(second.count == 10)
+        #expect(third.count == 5)
+        #expect(selectedIDs == Set<UUID>(grid.map { $0.id }))
+        #expect(!selectedIDs.contains(clustered.id))
+    }
+
     @Test
     func projectRoundTripsThroughJSON() throws {
         let image = SourceImage(
@@ -1063,5 +1211,53 @@ struct PanoProjectTests {
         #expect(project.images[0].direction == .zenith)
         #expect(project.nadirRepairPlacement == nil)
         #expect(project.zenithRepairPlacement == nil)
+    }
+}
+
+private actor RecordingPanoramaEngine: PanoramaEngine {
+    private(set) var stitchCallCount = 0
+    private(set) var receivedControlPoints: [DiagnosticControlPoint]?
+    private(set) var receivedControlPointsAreAuthoritative = false
+    private(set) var receivedMasks: [UUID: Data] = [:]
+    private(set) var receivedProtectedMasks: [UUID: Data] = [:]
+    private(set) var receivedControlPointMasks: [UUID: Data] = [:]
+
+    func stitch(
+        _ panorama: PanoramaSet,
+        masks: [UUID: Data],
+        protectedMasks: [UUID: Data],
+        controlPointMasks: [UUID: Data],
+        controlPoints: [DiagnosticControlPoint]?,
+        controlPointsAreAuthoritative: Bool,
+        configuration: StitchingConfiguration,
+        cachedRigImageLines: [UUID: String]
+    ) async throws -> PanoramaStitchResult {
+        stitchCallCount += 1
+        receivedControlPoints = controlPoints
+        receivedControlPointsAreAuthoritative = controlPointsAreAuthoritative
+        receivedMasks = masks
+        receivedProtectedMasks = protectedMasks
+        receivedControlPointMasks = controlPointMasks
+        return PanoramaStitchResult(
+            url: URL(fileURLWithPath: "/tmp/recorded-panorama.jpg"),
+            rigImageLines: [:],
+            nadirRepair: nil,
+            zenithRepair: nil,
+            controlPointDiagnostics: nil
+        )
+    }
+
+    func optimizeControlPoints(
+        _ panorama: PanoramaSet,
+        controlPointMasks: [UUID: Data],
+        controlPoints: [DiagnosticControlPoint],
+        controlPointsAreAuthoritative: Bool,
+        configuration: StitchingConfiguration
+    ) async throws -> ControlPointOptimizationResult {
+        ControlPointOptimizationResult(diagnostics: ControlPointDiagnostics(
+            images: panorama.images,
+            rawPoints: controlPoints,
+            cleanedPoints: controlPoints
+        ))
     }
 }

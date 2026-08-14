@@ -28,6 +28,7 @@ struct StatusBar: View {
                         Text(details.components(separatedBy: .newlines).first
                             ?? details)
                             .lineLimit(1)
+                            .truncationMode(.tail)
                         Text("Visa orsak")
                             .foregroundStyle(.tint)
                     }
@@ -55,6 +56,7 @@ struct StatusBar: View {
             } else {
                 Text(statusMessage)
                     .lineLimit(1)
+                    .truncationMode(.tail)
                     .help(statusMessage)
             }
 
@@ -73,12 +75,8 @@ struct StatusBar: View {
         .font(.caption)
         .lineLimit(1)
         .padding(.horizontal, 12)
-        .frame(
-            maxWidth: .infinity,
-            minHeight: 30,
-            idealHeight: 30,
-            maxHeight: 30
-        )
+        .frame(maxWidth: .infinity)
+        .frame(height: 30)
         .clipped()
         .background(.bar, ignoresSafeAreaEdges: [])
         .overlay(alignment: .top) {
@@ -97,6 +95,13 @@ struct StatusBar: View {
     }
 
     private var statusMessage: String {
+        if model.selection == .controlPoints,
+           model.phase == .ready,
+           let count = model.lastControlPointSuggestionCount {
+            return count == 1
+                ? "1 ny kontrollpunkt tillagd"
+                : "\(count) nya kontrollpunkter tillagda"
+        }
         guard model.selectedSourceImage != nil,
               !model.isShowingStitchedPanorama else {
             return model.phase.message

@@ -15,6 +15,8 @@ enum ProjectSelection: Hashable {
 @MainActor
 @Observable
 final class AppModel {
+    static let suggestedControlPointBatchSize = 10
+
     enum SourceMaskIntent: Hashable {
         case exclude
         case protect
@@ -89,6 +91,7 @@ final class AppModel {
     var controlPointDiagnostics: ControlPointDiagnostics?
     var editableControlPoints: [DiagnosticControlPoint] = []
     var isSuggestingControlPoints = false
+    var lastControlPointSuggestionCount: Int?
     var selectedControlPointPairID: ControlPointPair.ID?
     var controlPointLeftImageIndex = 0
     var controlPointRightImageIndex = 1
@@ -461,16 +464,24 @@ final class AppModel {
 
     func stitch() {
         synchronizeControlPointMaskSignature()
+        // Once a control-point network exists it is the project's authoritative
+        // geometry, including every manual add, move, or deletion. Rendering
+        // may apply new masks, but only an explicit regeneration command may
+        // replace these points.
+        guard !editableControlPoints.isEmpty else {
+            runWizard()
+            return
+        }
         stitch(
-            controlPoints: editableControlPoints.isEmpty
-                ? nil
-                : editableControlPoints
+            controlPoints: editableControlPoints,
+            controlPointsAreAuthoritative: true
         )
     }
 
     func optimizeEditedControlPoints() {
         synchronizeControlPointMaskSignature()
         guard !editableControlPoints.isEmpty, let panorama else { return }
+        lastControlPointSuggestionCount = nil
         phase = .optimizingControlPoints
         let points = editableControlPoints
         Task {
@@ -479,6 +490,7 @@ final class AppModel {
                     panorama,
                     controlPointMasks: effectiveControlPointMasks,
                     controlPoints: points,
+                    controlPointsAreAuthoritative: true,
                     configuration: project.stitching
                 )
                 applyOptimizationDiagnostics(
@@ -557,7 +569,10 @@ final class AppModel {
             + hypot(lhs.secondX - rhs.secondX, lhs.secondY - rhs.secondY)
     }
 
-    private func stitch(controlPoints: [DiagnosticControlPoint]?) {
+    private func stitch(
+        controlPoints: [DiagnosticControlPoint]?,
+        controlPointsAreAuthoritative: Bool = true
+    ) {
         guard let panorama, canStitch else { return }
         let operationID = UUID()
         stitchOperationID = operationID
@@ -574,6 +589,8 @@ final class AppModel {
                     protectedMasks: protectedMaskDataByImageID,
                     controlPointMasks: effectiveControlPointMasks,
                     controlPoints: controlPoints,
+                    controlPointsAreAuthoritative:
+                        controlPointsAreAuthoritative,
                     configuration: project.stitching,
                     cachedRigImageLines: Dictionary(uniqueKeysWithValues:
                         (project.cachedRigSignature == project.rigSignature
@@ -753,6 +770,7 @@ final class AppModel {
         in imageIndex: Int,
         to point: CGPoint
     ) {
+        lastControlPointSuggestionCount = nil
         guard let index = editableControlPoints.firstIndex(where: {
             $0.id == id
         }) else {
@@ -773,16 +791,19 @@ final class AppModel {
     }
 
     func removeControlPoint(_ id: DiagnosticControlPoint.ID) {
+        lastControlPointSuggestionCount = nil
         editableControlPoints.removeAll { $0.id == id }
         saveEditableControlPoints()
     }
 
     func removeAllControlPoints(in pair: ControlPointPair.ID) {
+        lastControlPointSuggestionCount = nil
         editableControlPoints.removeAll { $0.pair == pair }
         saveEditableControlPoints()
     }
 
     func removeAllControlPoints() {
+        lastControlPointSuggestionCount = nil
         editableControlPoints = []
         saveEditableControlPoints()
     }
@@ -798,6 +819,7 @@ final class AppModel {
             return
         }
         isSuggestingControlPoints = true
+        lastControlPointSuggestionCount = nil
         phase = .suggestingControlPoints
         let horizontalFieldOfView = project.stitching.inputHorizontalFieldOfView
         let lensProfile = project.stitching.lensProfile
@@ -881,15 +903,16 @@ final class AppModel {
                         try geometryPrior.filtering(unfilteredCandidates)
                     }.value
                 }
-                let suggestions = spatiallyDistributedControlPoints(
+                let suggestions = Self.spatiallyDistributedControlPoints(
                     from: candidates,
                     existing: existingPoints.filter { $0.pair == pair },
                     images: images,
-                    maximumCount: 10
+                    maximumCount: Self.suggestedControlPointBatchSize
                 )
                 editableControlPoints.append(contentsOf: suggestions)
                 saveEditableControlPoints()
                 isSuggestingControlPoints = false
+                lastControlPointSuggestionCount = suggestions.count
                 phase = .ready
             } catch {
                 isSuggestingControlPoints = false
@@ -898,30 +921,20 @@ final class AppModel {
         }
     }
 
-    func suggestControlPointsForProject() {
-        suggestControlPointsForProject(replacingExisting: false)
-    }
-
     func regenerateControlPointsForProject() {
-        suggestControlPointsForProject(
-            replacingExisting: true,
-            stitchesAfterGeneration: false
-        )
+        generateControlPointsForProject(stitchesAfterGeneration: false)
     }
 
     func runWizard() {
-        suggestControlPointsForProject(
-            replacingExisting: true,
-            stitchesAfterGeneration: true
-        )
+        generateControlPointsForProject(stitchesAfterGeneration: true)
     }
 
-    private func suggestControlPointsForProject(
-        replacingExisting: Bool,
+    private func generateControlPointsForProject(
         stitchesAfterGeneration: Bool = false
     ) {
         guard !isSuggestingControlPoints,
-              let images = controlPointEditorDiagnostics?.images else {
+              let images = controlPointEditorDiagnostics?.images,
+              let panorama else {
             return
         }
         let eligible = images.enumerated().filter {
@@ -931,10 +944,10 @@ final class AppModel {
         let matchingImages = eligible.map(\.element)
         let projectIndices = eligible.map(\.offset)
         isSuggestingControlPoints = true
+        lastControlPointSuggestionCount = nil
         phase = .suggestingControlPoints
         let horizontalFieldOfView = project.stitching.inputHorizontalFieldOfView
         let lensProfile = project.stitching.lensProfile
-        let existingPoints = replacingExisting ? [] : editableControlPoints
         let controlPointMasks = effectiveControlPointMasks
 
         Task {
@@ -947,18 +960,10 @@ final class AppModel {
                         controlPointMasks: controlPointMasks
                     )
                 }.value
-                let exclusionMaps = Dictionary(
-                    uniqueKeysWithValues: images.enumerated().compactMap {
-                        index,
-                        image in
-                        SourceMaskRasterizer.exclusionMap(
-                            from: controlPointMasks[image.id],
-                            width: image.pixelWidth,
-                            height: image.pixelHeight
-                        ).map { (index, $0) }
-                    }
-                )
-                let mappedPoints: [DiagnosticControlPoint] = matches.map {
+                // The ring matcher has already applied the exclusion masks and
+                // performed geometric and spatial selection. Preserve its full
+                // connected network rather than reselecting per pair here.
+                let generatedPoints: [DiagnosticControlPoint] = matches.map {
                     DiagnosticControlPoint(
                         firstImage: projectIndices[$0.firstImage],
                         secondImage: projectIndices[$0.secondImage],
@@ -968,81 +973,32 @@ final class AppModel {
                         secondY: $0.secondY
                     )
                 }
-                let candidates = mappedPoints.filter { candidate in
-                    // Automatic regeneration matches against temporary source
-                    // images with the exclusion masks already applied. Running
-                    // the points through SourceMaskRasterizer a second time can
-                    // disagree about the image coordinate origin and remove a
-                    // complete, otherwise valid transition from the ring.
-                    let firstIsMasked = !replacingExisting
-                        && exclusionMaps[candidate.firstImage]?.contains(CGPoint(
-                            x: candidate.firstX,
-                            y: candidate.firstY
-                        )) == true
-                    let secondIsMasked = !replacingExisting
-                        && exclusionMaps[candidate.secondImage]?.contains(CGPoint(
-                            x: candidate.secondX,
-                            y: candidate.secondY
-                        )) == true
-                    let duplicatesExisting = existingPoints.contains { point in
-                        guard point.pair == candidate.pair else { return false }
-                        let firstDistance = hypot(
-                            point.firstX - candidate.firstX,
-                            point.firstY - candidate.firstY
-                        )
-                        let secondDistance = hypot(
-                            point.secondX - candidate.secondX,
-                            point.secondY - candidate.secondY
-                        )
-                        return firstDistance < 30 || secondDistance < 30
-                    }
-                    return !firstIsMasked
-                        && !secondIsMasked
-                        && !duplicatesExisting
-                }
-                let suggestions: [DiagnosticControlPoint]
-                if replacingExisting {
-                    // The ring matcher has already performed geometric and
-                    // spatial selection. Re-selecting ten points per pair
-                    // here can erase an entire masked transition and makes
-                    // the wizard differ from the engine integration path.
-                    suggestions = candidates
-                } else {
-                    let groupedCandidates = Dictionary(
-                        grouping: candidates,
-                        by: \.pair
-                    )
-                    suggestions = groupedCandidates.keys.sorted()
-                        .flatMap { pair in
-                            spatiallyDistributedControlPoints(
-                                from: groupedCandidates[pair, default: []],
-                                existing: existingPoints.filter {
-                                    $0.pair == pair
-                                },
-                                images: images,
-                                maximumCount: 10
-                            )
-                        }
-                }
-                if replacingExisting {
-                    editableControlPoints = suggestions
-                } else {
-                    editableControlPoints.append(contentsOf: suggestions)
-                }
+                editableControlPoints = generatedPoints
                 saveEditableControlPoints()
                 isSuggestingControlPoints = false
-                phase = .ready
                 if stitchesAfterGeneration {
-                    // The wizard's points are automatic input. Let the engine
-                    // run its automatic CP cleanup and robust Sigma pose
-                    // restart instead of treating them as a manually edited
-                    // set, which can leave the otherwise equivalent solution
-                    // in the 180-degree inverted orientation.
-                    stitch(controlPoints: replacingExisting ? nil : (
-                        editableControlPoints.isEmpty
+                    phase = .ready
+                    // Reuse this exact generated network. Running a second
+                    // automatic match here can produce a different graph and
+                    // discard a valid bridge that the wizard just saved.
+                    stitch(
+                        controlPoints: editableControlPoints.isEmpty
                             ? nil
-                            : editableControlPoints
-                    ))
+                            : editableControlPoints,
+                        controlPointsAreAuthoritative: false
+                    )
+                } else {
+                    phase = .optimizingControlPoints
+                    let optimized = try await panoramaEngine
+                        .optimizeControlPoints(
+                            panorama,
+                            controlPointMasks: controlPointMasks,
+                            controlPoints: generatedPoints,
+                            controlPointsAreAuthoritative: false,
+                            configuration: project.stitching
+                        )
+                    applyControlPointDiagnostics(optimized.diagnostics)
+                    phase = .ready
                 }
             } catch {
                 isSuggestingControlPoints = false
@@ -1051,7 +1007,7 @@ final class AppModel {
         }
     }
 
-    private func spatiallyDistributedControlPoints(
+    static func spatiallyDistributedControlPoints(
         from candidates: [DiagnosticControlPoint],
         existing: [DiagnosticControlPoint],
         images: [SourceImage],
@@ -1098,7 +1054,7 @@ final class AppModel {
         return selected
     }
 
-    private func minimumNormalizedDistance(
+    private static func minimumNormalizedDistance(
         from candidate: DiagnosticControlPoint,
         to anchors: [DiagnosticControlPoint],
         images: [SourceImage]
@@ -1136,6 +1092,7 @@ final class AppModel {
               ) else { return }
         controlPointLeftImageIndex = first
         controlPointRightImageIndex = second
+        lastControlPointSuggestionCount = nil
         selectedControlPointPairID = ControlPointPair.ID(
             firstImage: min(first, second),
             secondImage: max(first, second)
@@ -1179,6 +1136,7 @@ final class AppModel {
         point: CGPoint,
         in imageIndex: Int
     ) -> DiagnosticControlPoint.ID {
+        lastControlPointSuggestionCount = nil
         let clickedFirstImage = imageIndex == pair.firstImage
         let firstPoint = clickedFirstImage
             ? point
@@ -1594,7 +1552,8 @@ final class AppModel {
         maskRevision += 1
         if kind == .controlPoints {
             synchronizeControlPointMaskSignature()
-            project.invalidateRigCache()
+            project.cachedRigImageLines = nil
+            project.cachedRigSignature = nil
             stitchedResultURL = nil
             nadirOverlayURL = nil
             project.nadirRepairPlacement = nil
@@ -1691,7 +1650,9 @@ final class AppModel {
         }
         maskRevision += 1
         if kind == .controlPoints {
-            project.invalidateRigCache()
+            synchronizeControlPointMaskSignature()
+            project.cachedRigImageLines = nil
+            project.cachedRigSignature = nil
             stitchedResultURL = nil
             nadirOverlayURL = nil
             project.nadirRepairPlacement = nil

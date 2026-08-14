@@ -1,5 +1,263 @@
 # PanoWizard – aktuell projektkontext
 
+## Arbetsregel 2026-08-15 – manuell A–J-regression efter källkodsändringar
+
+Efter varje ändring i källkoden går användaren manuellt igenom panoramamappen
+A–J från nya projekt. Acceptanskriteriet är att automatgenereringen ger ett
+korrekt panorama med ett enda klick på `Skapa panorama`; befintliga eller
+manuellt ändrade CP ska fortsatt vara heliga. Efter den senaste geometriska
+ändringen verifierades D, H och J som perfekta och I som i det närmaste
+perfekt. Den efterföljande titeländringen är isolerad till AppKit-fönstret och
+rör inte panorama-, CP- eller stitchmotorn.
+
+## Sparat slutläge 2026-08-15 – kompakt redigerad projekttitel
+
+Dokumentets ändringsstatus visas nu på samma rad som projektnamnet, exempelvis
+`A (redigerad)`, i stället för som den separata underraden `Redigerad`. När
+projektet är sparat visas åter bara `A`. Ändringen ligger enbart i AppKit-
+fönstrets titelhantering; panorama-, kontrollpunkts- och stitchkod är orörd.
+Den sparade enradstiteln verifierades i den byggda appen, samtliga 66 tester
+passerar och releaseappen är ombyggd.
+
+## Sparat slutläge 2026-08-14 – svart Panorama D och gles Sigma-fyrbildsring
+
+En verklig från-noll-körning av `D/A.pw` renderade ett nästan helt svart
+4000×2000-panorama med fyra små fisheyeöar. Bilderna och användarens val var
+korrekta. Den PTGui-inspirerade nedre polarprioriteringen gav de två glesa
+sidöverlappen flera djupa nadirpunkter. De var var för sig rotationsplausibla,
+men fick hela fyrbildsringen att konvergera till ett annat lokalt minimum där
+samtliga ringbilder låg runt +62° pitch. Det gamla fungerande D-projektet låg
+runt +10°.
+
+Sigma-ringar med exakt fyra justeringsbilder använder nu inte den lösa
+polarbeskrivarpoolen. Om ett av ringens bildpar fortfarande är glest får det
+högst en djup polarpunkt; starka överlapp och större Sigma-riggar behåller den
+nya, bredare PTGui-inspirerade fördelningen. En verklig D-regression gav 66 CP
+mot gamla projektets 65, +10° pitch och 0,48 px medelresidual mot gamla
+0,42 px. Renderingen är visuellt normal. Om motorns interna automatiska
+stabiliseringspass trots allt fortfarande har dåliga residualer avbryts
+skapandet nu med ett tydligt fel i stället för att en felplacerad eller svart
+bild renderas och sparas. `D/A.pw` ändrades inte. Samtliga 66 tester passerar
+och releaseappen är ombyggd.
+
+## Sparat slutläge 2026-08-14 – Panorama C ska inte kräva två klick
+
+`C/A.pw` reproducerade ett deterministiskt tvåklicksfel. Första
+`Skapa panorama` sparade 244 CP men renderade med 13,75 px medelresidual;
+andra klicket med exakt de sparade punkterna gav 1,78 px och raka liftvajrar.
+Användaren hade inte gjort något fel. Ett svagt falskt par fanns med när
+Sigma-ringens ursprungliga kamerariktningar grupperades. Paret togs bort av
+residualrensningen, men omstarten återanvände fortfarande de gamla felaktiga
+riktningarna. Andra klicket räknade av en slump om dem från det rengjorda
+nätet.
+
+Sigma-omstarten infererar nu alltid kamerariktningarna på nytt från de
+punkter som faktiskt överlevde rensningen. Den första renderingen ska därför
+nå samma optimeringsbassäng som den tidigare andra renderingen. Eftersom C:s
+kollapsade linslösning trots detta kunde ligga kvar i fel lokalt minimum gör
+motorn dessutom ett internt stabiliseringspass när ett automatiskt rengjort
+nät fortfarande har medianresidual över 4 px eller p90 över 8 px. Passet
+startar om från de rengjorda punkterna med samma policy som det tidigare andra
+klicket. Redan bra första lösningar betalar ingen extra körtid.
+Den verkliga en-klicksregressionen av C gav exakt den tidigare andra
+lösningens 244 CP, 1,78 px medel, 1,00 px median och 2,55 px p90. B
+regressionstestades samtidigt till 160 CP, 1,25 px medel och 5,57 px max.
+Samtliga 66 tester passerar och releaseappen är ombyggd.
+
+## Sparat slutläge 2026-08-14 – maximerat standardfönster utan drag/drop
+
+Bildimport via drag/drop och dess markeringar/text är borttagna från både
+startvyn och tomma projektvyer. Bilder väljs med `Skapa ditt panorama` och
+befintliga projekt med `Öppna panorama…`. Ett projektfönster maximeras nu som
+standard första gången; därefter sparas och respekteras användarens val att ha
+det maximerat eller i normal storlek. Samtliga 65 tester passerar och
+releaseappen är ombyggd.
+
+## Sparat slutläge 2026-08-14 – öppna projekt från introt
+
+Startvyn har nu den sekundära knappen `Öppna panorama…` direkt under den
+primära `Skapa ditt panorama`. Den använder en vanlig macOS-öppningspanel som
+endast visar PanoWizards `.pw`-projekt, öppnar valet i ett projektfönster och
+stänger därefter välkomstfönstret. Knappen är visuellt nedtonad med mörk
+transparent kapsel och tunn ljus kant, så introts enkla hierarki behålls.
+Samtliga 65 tester passerar och releaseappen är ombyggd.
+
+## Sparat slutläge 2026-08-14 – synlig primär panoramaåtgärd
+
+`Skapa panorama` ligger inte längre gömd i arbetsvyns `…`-meny. Den visas som
+en egen pillknapp efter alla kontextuella knappar, med den giltiga SF-symbolen
+`pano`. `…`-menyn ligger alltid allra sist i verktygsraden. Samma knapp visas i
+panorama-, bild-, mask-,
+kontrollpunkts- och retuschvyer när minst två aktiva justeringsbilder finns;
+exportvyn är fortsatt undantagen. Tomma `…`-menyer i panorama- och
+inställningsvyer visas inte längre. Samtliga 65 tester passerar och
+releaseappen är ombyggd.
+
+## Sparat slutläge 2026-08-14 – Sigma B och falskt litet extraparsnät
+
+En ny från-noll-körning av `B/A.pw` blev visuellt kraftigt fel trots att samma
+bildserie tidigare låg nära PTGui. Projektet avslöjade fyra CP mellan bild 2
+och 4 med residualer på 1 200–1 443 px. Det gamla fungerande projektet saknade
+helt detta par och hade 1,14 px i medelresidual. Den robusta rensningen behöll
+tidigare alltid de fyra bästa punkterna i varje par, även när samtliga var
+katastrofalt fel, för att skydda små bryggpar.
+
+Små par behåller nu högst fyra extra punkter endast inom en robust begränsad
+residualnivå; ett helt falskt par kan därför försvinna medan ett rimligt
+brusigt bryggpar finns kvar. Efter att den första rensningen har återställt en
+tidigare kollapsad lösning körs ett andra residualpass i den korrigerade
+geometrin. En verklig ny B-körning gick från 179 kandidater till 160 CP med
+1,25 px i medelresidual och 5,57 px max. Det gamla projektet har 1,14/5,48 px,
+och den nya renderingen är visuellt i princip identisk med det gamla goda
+PanoWizard-resultatet och mycket nära PTGui.
+Samtliga 65 tester passerar och releaseappen är ombyggd.
+
+## Sparat slutläge 2026-08-14 – stabil statusrad vid Skapa panorama
+
+Statusraden kunde sporadiskt få en flerradig idealhöjd när SwiftUI bytte
+arbetsvy under `Skapa panorama`. Den ligger inte längre som ett dynamiskt
+nedre `safeAreaInset` i `NavigationSplitView`, utan som en permanent rad under
+arbetsytan. Både behållaren och StatusBar har exakt 30 punkters höjd och all
+status- och feltext trunkeras till en rad; fullständiga feldetaljer finns kvar
+bakom `Visa orsak`. Samtliga 64 tester passerar och releaseappen är ombyggd.
+
+## Sparat slutläge 2026-08-14 – Panorama A:s frånkopplade första körning
+
+Panorama `A/A.pw` reproducerade ett deterministiskt första-körningsfel: den
+automatiska matcharen skapade 496 CP i 25 bildpar och det sparade nätet var
+fullt anslutet, men Nikon-optimeringen rapporterade senare grupperna
+`1–7, 10 | 8, 9`. Orsaken var inte saknade bryggpunkter. Wizardens redan
+skapade nät tolkades en andra gång som kamerariktningar och reducerades till
+en ringryggrad; de starkt pitchade handhållna bilderna 8 och 9 tappade då sina
+bryggor.
+
+Ett CP-nät som wizarden redan har genererat och skickat in bevaras nu intakt
+fram till bundle adjustment, på samma sätt som det täta Sigma-nätet. Det är
+fortfarande automatiskt material och rensas därför av `cpclean` och den robusta
+residualrensningen; detta ändrar inte policyn att befintliga/manuellt ändrade
+CP är auktoritativa. En verklig från-noll-körning av A lyckades nu direkt:
+496 kandidater blev 457 rengjorda CP, medelresidualen blev 3,03 px och
+90-percentilen 6,23 px. En policyregression skyddar skillnaden mellan ett
+redan levererat wizardnät och motorns interna Nikon-matchning. Samtliga 64
+tester passerar och releaseappen är ombyggd.
+
+## Sparat slutläge 2026-08-14 – PTGui-inspirerat nadirstöd för handhållen Sigma
+
+Panorama F jämfördes punkt för punkt med PTGui-projektet i `F/PTGui`.
+PanoWizards tidigare nät hade 154 CP i åtta bildpar och endast sex punkter där
+båda källkoordinaterna låg under `y=3000`; PTGui hade 263 CP i elva par och
+114 sådana djupa nadirpunkter. Matcharen hittade användbara kandidater men den
+strikta rotations- och descriptor-gallringen tog bort den repetitiva,
+parallaxutsatta marken innan det spatiala urvalet. Swift-lagret tog dessutom
+bort exakt de tre extra par som PTGui behöll.
+
+Sigma-matcharen gör nu ett separat andra pass i den nedersta 23 procenten av
+båda stående källbilderna. Passet använder ömsesidiga SIFT-matchningar från en
+vidare descriptorpool, kräver att en strikt global rotationslösning redan har
+etablerat bildparet och reserverar högst tio väl separerade polar-CP inom det
+vanliga taket på 25 punkter per par. Det skapar därför inte nya par på egen
+hand. Smala Sigma-par sparas fram till bundle adjustment och hela det täta
+Sigma-nätet når lins- och centrumförskjutningslösningen även när flera bilder
+har samma kamerariktning.
+
+Automatiskt nygenererade CP och användarens befintliga CP har nu uttryckligen
+olika policy. Både wizardens nät och `Generera om alla kontrollpunkter…` går
+igenom linslösning och robust residualrensning innan de sparas, utan att en
+andra matchning körs. Befintliga eller manuellt ändrade CP är fortsatt
+auktoritativa och tas aldrig bort.
+Sigma-CP körs inte genom `cpclean` före linslösningen, eftersom det steget
+annars felklassar nadirpunkter innan optiskt centrum och radialmodell har
+kalibrerats.
+
+En verklig maskfri från-noll-rendering av F gav 230 kandidater och 216
+rengjorda CP, varav 37 djupa nadirpunkter. Slutlig medelresidual var 1,19 px,
+max 7,10 px. Nadirens gatstensnät är synligt rakare och stabilare än i A.pw,
+även om PTGui fortfarande är något rakare. Snabba nätregressioner gav B=179,
+C=270, D=72, E=398, G=857 och H=98 anslutna CP; Nikon A/I/J berörs inte av
+det nya polarpasset. Samtliga 63 tester passerar.
+Releaseappen är ombyggd. Byggscriptets slutkontroll tar nu bort FinderInfo
+rekursivt ur apppaketet, eftersom File Provider även kan lägga attributet på
+det inbäddade Swift-resurspaketet, och strikt ad hoc-verifiering passerade.
+
+## Sparat slutläge 2026-08-14 – inkrementella CP-förslag per bildpar
+
+Kontrollpunktsverktygsraden har nu en direkt knapp `Föreslå punkter` i
+stället för menyn med aktuellt bildpar och hela projektet. Varje klick
+kompletterar endast det aktiva bildparet med högst tio nya punkter. Befintliga
+punkter ändras inte och ingen optimering startas automatiskt. Urvalet maximerar
+avståndet till befintliga och samtidigt nytillagda punkter i båda bilderna och
+stannar hellre under tio än fyller ut ett lokalt kluster. Statusraden visar hur
+många punkter som faktiskt lades till. Helprojektets additiva förslag är
+borttaget från GUI och appmeny; explicit destruktiv omgenerering finns kvar.
+
+## Sparat slutläge 2026-08-14 – befintliga kontrollpunkter är heliga
+
+`Skapa panorama` frågar inte längre om befintliga eller nya
+kontrollpunkter. Om projektet har kontrollpunkter används exakt dessa vid
+renderingen, inklusive alla manuella tillägg, flyttar och borttagningar.
+Aktuella panorama-, skydds- och matchningsmasker skickas samtidigt till
+renderingen utan att punktnätet ersätts. Endast ett uttryckligt kommando för
+omgenerering får skapa nya punkter. Om projektet helt saknar kontrollpunkter
+startar `Skapa panorama` fortfarande wizardflödet och renderar med det
+nygenererade nätet.
+
+## Sparat slutläge 2026-08-14 – J och en enda Skapa panorama
+
+Det slutliga omtaget av panorama J sparades först som `J/D.pw` och ligger nu
+som `~/Desktop/Panorama/J/Panorama.pw`. Det innehåller nio Nikon 10,5 mm/D70-
+TIFF-bilder, 312 helt automatiskt skapade kontrollpunkter och ett korrekt
+4000×2000-panorama. Användaren behövde inte arbeta med kontrollpunkterna alls;
+den enda efterbearbetningen var en liten nadirretusch, sparad som
+`panorama/nadir-retouch.png`. Detta är det önskade produktflödet: användaren
+väljer `Skapa panorama`, PanoWizard hanterar CP i bakgrunden och användaren
+retuscherar endast en pol om motivet kräver det.
+
+GUI:t har nu en enda panoramaåtgärd med det konstanta namnet
+`Skapa panorama`. Om projektet saknar ett panorama genereras CP vid behov och
+panoramat skapas direkt. Om ett panorama redan finns visas den korta dialogen
+`Kontrollpunkter` med frågan `Vilka vill du använda?` och valen
+`Använd befintliga`, `Skapa nya` och `Avbryt`. De tidigare separata begreppen
+`Uppdatera panorama` och `Generera om från början` exponeras inte längre.
+Dialogen har verifierats visuellt i den riktiga appen med projekt J/B.
+
+Den verkliga från-noll-regressionen på J genererade 312 CP en enda gång och
+renderade korrekt panorama på första försöket på cirka 93 sekunder. Samtliga
+61 tester passerar och releaseappen i `build/PanoWizard.app` är strikt ad hoc-
+signaturverifierad. Alla ändringar efter commit `e648449` är fortfarande
+ocommittade och inkluderar även den generella uppstartsbildsmappen.
+
+## Panorama J – wizardens CP-nät återanvänds direkt
+
+Panorama J finns i `~/Desktop/Panorama/J/A.pw` och består av nio Nikon 10,5
+mm/D70-TIFF-bilder. Första försöket med `Skapa panorama` misslyckades med för
+få kontrollpunkter. `Generera om från början` visade därefter ett frånkopplat
+nät `1–8 | 9`, trots att kommandot hade sparat 312 nya automatiska CP där bild
+9 var kopplad till bilderna 3, 5 och 6. Ett senare `Uppdatera panorama` lyckades
+med exakt detta sparade nät och gav ett perfekt 4000×2000-panorama.
+
+Orsaken var att wizardflödet genererade och sparade CP en gång men sedan
+startade renderingen med `nil`, vilket fick motorn att generera ett andra,
+annorlunda nät. Det andra nätet kunde förlora bryggan till bild 9. Flödet
+skickar nu det nyss genererade nätet direkt till renderingen. Det undviker både
+den dubbla, dyra matchningen och motsägelsen mellan sparade CP och felmeddelande.
+Ett verkligt från-noll-test på J genererade 312 CP en gång och skapade rätt
+panorama på första försöket på cirka 93 sekunder. Inga manuella CP eller masker
+behövdes.
+
+Ett nytt projekt `J/B.pw` visade dessutom att första `Skapa panorama` fortfarande
+gick via motorns äldre tomma-CP-väg och kunde misslyckas, medan efterföljande
+`Generera om från början` lyckades. `Skapa panorama` startar därför nu
+automatiskt samma wizardflöde när projektet ännu saknar CP. Första klicket ska
+alltså både generera punkterna och rendera; räddningssteget ska inte behövas.
+När projektet redan har CP används de som tidigare av `Uppdatera panorama`.
+
+GUI:t exponerar nu bara målet `Skapa panorama`; namnet ändras inte till
+`Uppdatera panorama` och den separata funktionen `Generera om från början` är
+borttagen ur panorama- och vymenyerna. Om inget panorama finns körs kommandot
+direkt. Om ett panorama redan finns visas den korta dialogen
+`Kontrollpunkter` / `Vilka vill du använda?` med valen `Använd befintliga`,
+`Skapa nya` och `Avbryt`. Det enda metodvalet visas alltså först när det behövs.
+
 ## Sparat slutläge 2026-08-13 – A–I, välkomststart och produktmognad
 
 Panorama I har lagts till som nytt verkligt provfall. Det var tidigare
@@ -14,8 +272,15 @@ bra".
 Appstarten är nu visuellt färdig för denna fas. Vid vanlig start visas ingen
 macOS-dialog för nytt dokument utan en egen välkomstvy med en perspektivvy ur
 panorama A, rubriken `Skapa ett panorama`, en kort förklaring och knappen
-`Skapa ditt panorama`. Bildval och drag/släpp importerar källbilder men startar
-inte renderingen. Ett osparat `.pw`-projekt skapas först efter lyckad import.
+`Skapa ditt panorama`. Fasta perspektivbilder för uppstart ligger i
+`Sources/PanoWizard/Resources/Backgrounds`. Alla `.jpg`, `.jpeg` och `.png` i
+mappen upptäcks automatiskt i det byggda apppaketet, så nya bilder kräver ingen
+ändring i Swift-koden. `Panorama-A.jpg` och `Lisbon.jpg` är de två första.
+Välkomstvyn väljer slumpmässigt mellan de inbyggda uppstartsbilderna och
+undviker bilden från föregående visning; med de första två bilderna innebär det
+att de alternerar. Bilden ligger stilla under hela den aktuella välkomstvyn.
+Bildval och drag/släpp importerar källbilder men startar inte renderingen. Ett
+osparat `.pw`-projekt skapas först efter lyckad import.
 Välkomstfönstret öppnas zoomat till skärmens tillgängliga arbetsyta men inte i
 helskärmsläge; menyrad, titelrad och trafikljus är kvar. Detta har verifierats
 i den riktiga appen med fönsterstorlek 1470×923 och `AXFullScreen = false`.

@@ -29,9 +29,7 @@ struct PanoramaCommandActions {
     let canOpenProjectViews: Bool
     let canShowPanorama: Bool
     let canStitch: Bool
-    let renderPanoramaTitle: String
     let createPanorama: () -> Void
-    let requestRegenerateFromScratch: () -> Void
     let showSettings: () -> Void
     let showPreview: () -> Void
     let showExport: () -> Void
@@ -68,7 +66,12 @@ struct PanoWizardApp: App {
                 documentURL: file.fileURL
             )
                 .frame(minWidth: 900, minHeight: 600)
-                .background(WindowStateRestorer())
+                .background(WindowStateRestorer(
+                    documentName: file.fileURL?
+                        .deletingPathExtension()
+                        .lastPathComponent
+                        ?? file.document.project.title
+                ))
         }
         .defaultSize(width: 1_240, height: 780)
         .commands {
@@ -84,15 +87,10 @@ private struct PanoramaMenuCommands: Commands {
 
     var body: some Commands {
         CommandMenu("Panorama") {
-            Button(actions?.renderPanoramaTitle ?? "Skapa panorama") {
+            Button("Skapa panorama") {
                 actions?.createPanorama()
             }
             .keyboardShortcut("r", modifiers: .option)
-            .disabled(actions?.canStitch != true)
-
-            Button("Generera om från början…") {
-                actions?.requestRegenerateFromScratch()
-            }
             .disabled(actions?.canStitch != true)
 
             Divider()
@@ -132,17 +130,11 @@ private struct ControlPointMenuCommands: Commands {
 
             Divider()
 
-            Button("Föreslå för aktuellt bildpar") {
+            Button("Föreslå punkter") {
                 actions?.suggestPairPoints()
             }
             .keyboardShortcut("f", modifiers: .option)
             .disabled(actions?.canSuggest != true)
-
-            Button("Föreslå för hela projektet") {
-                actions?.suggestProjectPoints()
-            }
-            .keyboardShortcut("f", modifiers: [.option, .shift])
-            .disabled(actions?.canSuggestProject != true)
 
             Button("Generera om alla kontrollpunkter…") {
                 actions?.requestRegenerateProjectPoints()
@@ -179,19 +171,60 @@ private struct ControlPointMenuCommands: Commands {
 }
 
 private struct WindowStateRestorer: NSViewRepresentable {
+    let documentName: String
+
     @MainActor
     final class Coordinator {
         private static let frameName = "PanoWizard.ProjectWindow"
         private static let zoomedKey = "PanoWizard.ProjectWindow.isZoomed"
         weak var window: NSWindow?
         var observers: [NSObjectProtocol] = []
+        var documentEditedObservation: NSKeyValueObservation?
+        var windowTitleObservation: NSKeyValueObservation?
+        var windowSubtitleObservation: NSKeyValueObservation?
+        var documentName = ""
 
         @MainActor
-        func attach(to window: NSWindow) {
-            guard self.window !== window else { return }
+        func attach(to window: NSWindow, documentName: String) {
+            self.documentName = documentName
+            guard self.window !== window else {
+                applyDocumentTitle()
+                return
+            }
             detach()
             self.window = window
+            self.documentName = documentName
             window.setFrameAutosaveName(Self.frameName)
+
+            documentEditedObservation = window.observe(
+                \.isDocumentEdited,
+                options: [.initial, .new]
+            ) { [weak self] _, _ in
+                Task { @MainActor in
+                    // SwiftUI first updates the ordinary document subtitle.
+                    // Apply our compact one-line form immediately afterwards.
+                    await Task.yield()
+                    self?.applyDocumentTitle()
+                }
+            }
+            windowTitleObservation = window.observe(
+                \.title,
+                options: [.new]
+            ) { [weak self] _, _ in
+                Task { @MainActor in
+                    await Task.yield()
+                    self?.applyDocumentTitle()
+                }
+            }
+            windowSubtitleObservation = window.observe(
+                \.subtitle,
+                options: [.new]
+            ) { [weak self] _, _ in
+                Task { @MainActor in
+                    await Task.yield()
+                    self?.applyDocumentTitle()
+                }
+            }
 
             let center = NotificationCenter.default
             for name in [
@@ -214,7 +247,10 @@ private struct WindowStateRestorer: NSViewRepresentable {
                 })
             }
 
-            if UserDefaults.standard.bool(forKey: Self.zoomedKey) {
+            let savedZoomState = UserDefaults.standard.object(
+                forKey: Self.zoomedKey
+            ) as? Bool
+            if savedZoomState ?? true {
                 DispatchQueue.main.async {
                     guard !window.isZoomed else { return }
                     window.zoom(nil)
@@ -223,7 +259,24 @@ private struct WindowStateRestorer: NSViewRepresentable {
         }
 
         @MainActor
+        private func applyDocumentTitle() {
+            guard let window else { return }
+            let title = window.isDocumentEdited
+                ? "\(documentName) (redigerad)"
+                : documentName
+            if window.title != title {
+                window.title = title
+            }
+            if !window.subtitle.isEmpty {
+                window.subtitle = ""
+            }
+        }
+
+        @MainActor
         func detach() {
+            documentEditedObservation = nil
+            windowTitleObservation = nil
+            windowSubtitleObservation = nil
             observers.forEach(NotificationCenter.default.removeObserver)
             observers = []
             window = nil
@@ -239,7 +292,10 @@ private struct WindowStateRestorer: NSViewRepresentable {
         let view = NSView()
         DispatchQueue.main.async {
             guard let window = view.window else { return }
-            context.coordinator.attach(to: window)
+            context.coordinator.attach(
+                to: window,
+                documentName: documentName
+            )
         }
         return view
     }
@@ -247,7 +303,10 @@ private struct WindowStateRestorer: NSViewRepresentable {
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async {
             guard let window = view.window else { return }
-            context.coordinator.attach(to: window)
+            context.coordinator.attach(
+                to: window,
+                documentName: documentName
+            )
         }
     }
 

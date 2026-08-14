@@ -237,7 +237,8 @@ NormalizedFeatures normalizedFeatures(
 std::vector<cv::DMatch> mutualRatioMatches(
     const cv::Mat &descriptorsA,
     const cv::Mat &descriptorsB,
-    MatchCounts *counts = nullptr
+    MatchCounts *counts = nullptr,
+    float ratioThreshold = 0.88f
 ) {
     cv::BFMatcher matcher(cv::NORM_L2);
     std::vector<std::vector<cv::DMatch>> forward;
@@ -250,7 +251,7 @@ std::vector<cv::DMatch> mutualRatioMatches(
     for (const auto &matches : forward) {
         if (
             matches.size() == 2
-            && matches[0].distance < 0.88f * matches[1].distance
+            && matches[0].distance < ratioThreshold * matches[1].distance
         ) {
             acceptedForward[matches[0].queryIdx] = matches[0];
         }
@@ -258,7 +259,7 @@ std::vector<cv::DMatch> mutualRatioMatches(
     for (const auto &matches : backward) {
         if (
             matches.size() == 2
-            && matches[0].distance < 0.88f * matches[1].distance
+            && matches[0].distance < ratioThreshold * matches[1].distance
         ) {
             acceptedBackward[matches[0].queryIdx] = matches[0];
         }
@@ -419,12 +420,34 @@ double normalizedImageDistance(
     return cv::norm(first - second) / shortSide;
 }
 
+bool isLowerPolarSupportMatch(
+    const cv::DMatch &match,
+    const std::vector<cv::KeyPoint> &keypointsA,
+    const std::vector<cv::KeyPoint> &keypointsB,
+    const cv::Size &sizeA,
+    const cv::Size &sizeB
+) {
+    // Ring images are normalized to their upright EXIF orientation before
+    // matching. In a horizontal portrait ring the lower part of both frames
+    // therefore supplies the near-field nadir constraints. Keep the test
+    // deliberately broad: the later rotation check and bundle adjustment are
+    // responsible for deciding whether an individual match is geometrically
+    // useful.
+    constexpr double polarBandStart = 0.77;
+    const cv::Point2f first = keypointsA[match.queryIdx].pt;
+    const cv::Point2f second = keypointsB[match.trainIdx].pt;
+    return first.y >= sizeA.height * polarBandStart
+        && second.y >= sizeB.height * polarBandStart;
+}
+
 std::vector<cv::DMatch> spatiallyBalancedSelection(
     const std::vector<cv::DMatch> &inliers,
     const std::vector<cv::KeyPoint> &keypointsA,
     const std::vector<cv::KeyPoint> &keypointsB,
     const cv::Size &sizeA,
-    const cv::Size &sizeB
+    const cv::Size &sizeB,
+    bool preferLowerPolarSupport,
+    int maximumLowerPolarSupport = -1
 ) {
     if (inliers.empty()) return {};
     std::vector<cv::DMatch> remaining = inliers;
@@ -447,72 +470,110 @@ std::vector<cv::DMatch> spatiallyBalancedSelection(
         inliers, keypointsB, false
     );
     std::vector<cv::DMatch> selected;
+    int selectedLowerPolarCount = 0;
     std::set<std::pair<int, int>> selectedFirstCells;
     std::set<std::pair<int, int>> selectedSecondCells;
-    while (!remaining.empty() && int(selected.size()) < target) {
-        int bestIndex = -1;
-        int bestNovelCells = -1;
-        double bestSeparation = -1.0;
-        float bestDescriptorDistance = std::numeric_limits<float>::max();
-        for (int index = 0; index < int(remaining.size()); ++index) {
-            const cv::DMatch &candidate = remaining[index];
-            const cv::Point2f a = keypointsA[candidate.queryIdx].pt;
-            const cv::Point2f b = keypointsB[candidate.trainIdx].pt;
-            const bool sufficientlySeparated = std::all_of(
-                selected.begin(),
-                selected.end(),
-                [&](const cv::DMatch &existing) {
-                    return normalizedImageDistance(
-                        a, keypointsA[existing.queryIdx].pt, sizeA
-                    ) >= minimumImageSeparation
-                        && normalizedImageDistance(
-                            b, keypointsB[existing.trainIdx].pt, sizeB
-                        ) >= minimumImageSeparation;
-                }
-            );
-            if (!sufficientlySeparated) continue;
-            double separation = std::numeric_limits<double>::max();
-            for (const cv::DMatch &existing : selected) {
-                separation = std::min(separation, std::min(
-                    normalizedSourceDistance(
-                        a, keypointsA[existing.queryIdx].pt, firstBounds
-                    ),
-                    normalizedSourceDistance(
-                        b, keypointsB[existing.trainIdx].pt, secondBounds
+    auto appendBalanced = [&](std::vector<cv::DMatch> candidates,
+                              int selectionTarget) {
+        while (!candidates.empty()
+               && int(selected.size()) < selectionTarget) {
+            int bestIndex = -1;
+            int bestNovelCells = -1;
+            double bestSeparation = -1.0;
+            float bestDescriptorDistance =
+                std::numeric_limits<float>::max();
+            for (int index = 0; index < int(candidates.size()); ++index) {
+                const cv::DMatch &candidate = candidates[index];
+                if (maximumLowerPolarSupport >= 0
+                    && isLowerPolarSupportMatch(
+                        candidate, keypointsA, keypointsB, sizeA, sizeB
                     )
-                ));
+                    && selectedLowerPolarCount
+                        >= maximumLowerPolarSupport) {
+                    continue;
+                }
+                const cv::Point2f a = keypointsA[candidate.queryIdx].pt;
+                const cv::Point2f b = keypointsB[candidate.trainIdx].pt;
+                const bool sufficientlySeparated = std::all_of(
+                    selected.begin(),
+                    selected.end(),
+                    [&](const cv::DMatch &existing) {
+                        return normalizedImageDistance(
+                            a, keypointsA[existing.queryIdx].pt, sizeA
+                        ) >= minimumImageSeparation
+                            && normalizedImageDistance(
+                                b, keypointsB[existing.trainIdx].pt, sizeB
+                            ) >= minimumImageSeparation;
+                    }
+                );
+                if (!sufficientlySeparated) continue;
+                double separation = std::numeric_limits<double>::max();
+                for (const cv::DMatch &existing : selected) {
+                    separation = std::min(separation, std::min(
+                        normalizedSourceDistance(
+                            a, keypointsA[existing.queryIdx].pt, firstBounds
+                        ),
+                        normalizedSourceDistance(
+                            b, keypointsB[existing.trainIdx].pt, secondBounds
+                        )
+                    ));
+                }
+                const int novelCells =
+                    (selectedFirstCells.find(overlapCell(a, firstBounds))
+                        == selectedFirstCells.end())
+                    + (selectedSecondCells.find(overlapCell(b, secondBounds))
+                        == selectedSecondCells.end());
+                if (
+                    novelCells > bestNovelCells
+                    || (novelCells == bestNovelCells
+                        && separation > bestSeparation)
+                    || (
+                        novelCells == bestNovelCells
+                        && separation == bestSeparation
+                        && candidate.distance < bestDescriptorDistance
+                    )
+                ) {
+                    bestIndex = index;
+                    bestNovelCells = novelCells;
+                    bestSeparation = separation;
+                    bestDescriptorDistance = candidate.distance;
+                }
             }
-            const int novelCells =
-                (selectedFirstCells.find(overlapCell(a, firstBounds))
-                    == selectedFirstCells.end())
-                + (selectedSecondCells.find(overlapCell(b, secondBounds))
-                    == selectedSecondCells.end());
-            if (
-                novelCells > bestNovelCells
-                || (novelCells == bestNovelCells && separation > bestSeparation)
-                || (
-                    novelCells == bestNovelCells
-                    && separation == bestSeparation
-                    && candidate.distance < bestDescriptorDistance
-                )
-            ) {
-                bestIndex = index;
-                bestNovelCells = novelCells;
-                bestSeparation = separation;
-                bestDescriptorDistance = candidate.distance;
+            if (bestIndex < 0) break;
+            const cv::DMatch chosen = candidates[bestIndex];
+            selected.push_back(chosen);
+            if (isLowerPolarSupportMatch(
+                chosen, keypointsA, keypointsB, sizeA, sizeB
+            )) {
+                ++selectedLowerPolarCount;
             }
+            selectedFirstCells.insert(overlapCell(
+                keypointsA[chosen.queryIdx].pt, firstBounds
+            ));
+            selectedSecondCells.insert(overlapCell(
+                keypointsB[chosen.trainIdx].pt, secondBounds
+            ));
+            candidates.erase(candidates.begin() + bestIndex);
         }
-        if (bestIndex < 0) break;
-        const cv::DMatch chosen = remaining[bestIndex];
-        selected.push_back(chosen);
-        selectedFirstCells.insert(overlapCell(
-            keypointsA[chosen.queryIdx].pt, firstBounds
-        ));
-        selectedSecondCells.insert(overlapCell(
-            keypointsB[chosen.trainIdx].pt, secondBounds
-        ));
-        remaining.erase(remaining.begin() + bestIndex);
+    };
+    if (preferLowerPolarSupport) {
+        std::vector<cv::DMatch> polarCandidates;
+        std::copy_if(
+            remaining.begin(), remaining.end(),
+            std::back_inserter(polarCandidates),
+            [&](const cv::DMatch &match) {
+                return isLowerPolarSupportMatch(
+                    match, keypointsA, keypointsB, sizeA, sizeB
+                );
+            }
+        );
+        constexpr int polarTarget = 10;
+        appendBalanced(
+            std::move(polarCandidates),
+            std::min(target, polarTarget)
+        );
     }
+    appendBalanced(std::move(remaining), target);
     return selected;
 }
 
@@ -677,6 +738,7 @@ int occupiedSourceCells(
 
 std::vector<cv::DMatch> fisheyeRotationConsistentMatches(
     const std::vector<cv::DMatch> &matches,
+    const std::vector<cv::DMatch> &polarCandidates,
     const std::vector<cv::KeyPoint> &keypointsA,
     const std::vector<cv::KeyPoint> &keypointsB,
     const cv::Size &sizeA,
@@ -779,13 +841,37 @@ std::vector<cv::DMatch> fisheyeRotationConsistentMatches(
         horizontalFieldOfView, lensModel
     );
     std::vector<cv::DMatch> result;
+    std::set<std::pair<int, int>> resultIndices;
     for (const cv::DMatch &match : matches) {
-        if (sourceRotationError(
+        const double error = sourceRotationError(
             match, keypointsA, keypointsB, sizeA, sizeB,
             refinedRotation, horizontalFieldOfView, lensModel
-            ) <= consistencyThreshold) {
+        );
+        if (error <= consistencyThreshold) {
             result.push_back(match);
+            resultIndices.insert({match.queryIdx, match.trainIdx});
         }
+    }
+    // Repetitive paving is often rejected by the ordinary descriptor-ratio
+    // test even when the reciprocal match is useful. Revisit only the lower
+    // polar band with a looser descriptor pool and the already established
+    // camera rotation. This cannot create a new pair by itself: the strict
+    // global solve above must have succeeded first.
+    constexpr double polarSupportThreshold = 10.0 * pi / 180.0;
+    for (const cv::DMatch &match : polarCandidates) {
+        if (resultIndices.find({match.queryIdx, match.trainIdx})
+                != resultIndices.end()
+            || !isLowerPolarSupportMatch(
+                match, keypointsA, keypointsB, sizeA, sizeB
+            )
+            || sourceRotationError(
+                match, keypointsA, keypointsB, sizeA, sizeB,
+                refinedRotation, horizontalFieldOfView, lensModel
+            ) > polarSupportThreshold) {
+            continue;
+        }
+        result.push_back(match);
+        resultIndices.insert({match.queryIdx, match.trainIdx});
     }
     return result;
 }
@@ -2075,6 +2161,23 @@ int PWGenerateRingControlPoints(
                         rawFeatures[second].descriptors,
                         &matchCounts
                     );
+                    // The relaxed lower-pole pool is valuable in denser
+                    // Sigma rigs, but a four-frame ring has only one overlap
+                    // on either side of every image. A handful of merely
+                    // rotation-plausible paving matches can then outweigh
+                    // the strict matches and tip the complete ring into the
+                    // wrong pitch. Keep four-frame rings on the reciprocal
+                    // descriptor pool; genuine polar matches from that pool
+                    // remain eligible for the balanced selection below.
+                    const std::vector<cv::DMatch> polarCandidates =
+                        lensModel == PWLensModelSigma8DX && imageCount > 4
+                        ? mutualRatioMatches(
+                            rawFeatures[first].descriptors,
+                            rawFeatures[second].descriptors,
+                            nullptr,
+                            0.99f
+                        )
+                        : matches;
                     if (matches.size() < 8) {
                         lastPairDiagnostics.push_back({
                             first, second,
@@ -2105,6 +2208,7 @@ int PWGenerateRingControlPoints(
                     if (calibratedFisheye) {
                         inliers = fisheyeRotationConsistentMatches(
                             matches,
+                            polarCandidates,
                             rawFeatures[first].keypoints,
                             rawFeatures[second].keypoints,
                             firstMatchingSize,
@@ -2149,14 +2253,34 @@ int PWGenerateRingControlPoints(
                     // Keep the strongest matches across the complete overlap
                     // and balance both endpoints independently. This is
                     // important for ring and pole images alike.
-                    const std::vector<cv::DMatch> selected =
+                    std::vector<cv::DMatch> selected =
                         spatiallyBalancedSelection(
                             inliers,
                             rawFeatures[first].keypoints,
                             rawFeatures[second].keypoints,
                             firstMatchingSize,
-                            secondMatchingSize
+                            secondMatchingSize,
+                            lensModel == PWLensModelSigma8DX && imageCount > 4
                         );
+                    if (lensModel == PWLensModelSigma8DX
+                        && imageCount == 4
+                        && selected.size() < 20) {
+                        // A sparse side of a four-frame ring is geometrically
+                        // dominated by its ordinary overlap. Keep at most one
+                        // deep-pole constraint there: that is enough to anchor
+                        // the vertical extent without allowing a small second
+                        // cluster to rotate the entire ring into another valid
+                        // but upside-shifted fisheye solution.
+                        selected = spatiallyBalancedSelection(
+                            inliers,
+                            rawFeatures[first].keypoints,
+                            rawFeatures[second].keypoints,
+                            firstMatchingSize,
+                            secondMatchingSize,
+                            false,
+                            1
+                        );
+                    }
                     lastPairDiagnostics.push_back({
                         first, second,
                         int(rawFeatures[first].keypoints.size()),

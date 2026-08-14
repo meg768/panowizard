@@ -6,8 +6,6 @@ struct ContentView: View {
     @Bindable var model: AppModel
     let projectName: String?
     let projectDirectoryURL: URL?
-    @State private var isDropTargeted = false
-    @State private var isRegenerateFromScratchPresented = false
     @State private var exportController = PanoramaExportController()
     @State private var retouchController = PanoramaRetouchController()
     @FocusedValue(\.controlPointCommandActions)
@@ -20,10 +18,11 @@ struct ContentView: View {
             if model.project.images.isEmpty {
                 PanoramaWelcomeView(
                     isImporting: model.phase == .importing,
-                    isDropTargeted: isDropTargeted
-                ) {
-                    model.isImporterPresented = true
-                }
+                    chooseImages: {
+                        model.isImporterPresented = true
+                    },
+                    openProject: nil
+                )
             } else {
                 NavigationSplitView {
                     PanoramaSidebar(model: model)
@@ -48,11 +47,7 @@ struct ContentView: View {
                 canOpenProjectViews: !model.project.images.isEmpty,
                 canShowPanorama: model.stitchedResultURL != nil,
                 canStitch: model.canStitch,
-                renderPanoramaTitle: renderPanoramaTitle,
                 createPanorama: model.stitch,
-                requestRegenerateFromScratch: {
-                    isRegenerateFromScratchPresented = true
-                },
                 showSettings: { model.selection = .settings },
                 showPreview: { model.selection = .panorama },
                 showExport: { model.selection = .export }
@@ -68,31 +63,11 @@ struct ContentView: View {
             }
         }
         .fileDialogDefaultDirectory(model.sourceDirectoryURL)
-        .dropDestination(for: URL.self) { urls, _ in
-            model.importURLs(urls)
-            return !urls.isEmpty
-        } isTargeted: { targeted in
-            isDropTargeted = targeted
-        }
-        .confirmationDialog(
-            "Generera om panoramat från början?",
-            isPresented: $isRegenerateFromScratchPresented,
-            titleVisibility: .visible
-        ) {
-            Button("Generera om") {
-                model.runWizard()
-            }
-            Button("Avbryt", role: .cancel) {}
-        } message: {
-            Text(
-                "Befintliga kontrollpunkter och positionering ersätts. "
-                    + "Masker och bildroller behålls."
-            )
-        }
     }
 
     private var detailWorkspace: some View {
-        ZStack {
+        VStack(spacing: 0) {
+            ZStack {
                 if model.selection == .settings {
                     PanoramaSettingsView(model: model)
                 } else if model.selection == .export {
@@ -133,9 +108,6 @@ struct ContentView: View {
                             isSuggestingPoints: model.isSuggestingControlPoints,
                             onSuggestPoints: {
                                 model.suggestControlPoints(for: pairID)
-                            },
-                            onSuggestProjectPoints: {
-                                model.suggestControlPointsForProject()
                             },
                             onRegenerateProjectPoints: {
                                 model.regenerateControlPointsForProject()
@@ -199,19 +171,13 @@ struct ContentView: View {
                         }
                     )
                 }
-                if isDropTargeted {
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(.tint.opacity(0.08))
-                        .stroke(.tint, style: StrokeStyle(lineWidth: 3, dash: [10, 7]))
-                        .padding(20)
-                        .allowsHitTesting(false)
-                }
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            workspaceToolRow
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                workspaceToolRow
+            }
+
             StatusBar(model: model)
+                .frame(height: 30)
         }
     }
 
@@ -242,9 +208,6 @@ struct ContentView: View {
                 exportToolbarCenter
             } else if case .retouch(let pole) = model.selection {
                 retouchToolbarCenter(pole)
-            } else if model.selection == .panorama,
-                      model.stitchedResultURL == nil {
-                previewToolbarCenter
             } else if model.selection == .controlPoints {
                 controlPointToolbarCenter
             } else if model.isShowingNadirRepair {
@@ -253,17 +216,6 @@ struct ContentView: View {
                 sourceMaskToolbarCenter
             }
         }
-    }
-
-    private var previewToolbarCenter: some View {
-        Button {
-            model.stitch()
-        } label: {
-            Label("Skapa panorama", systemImage: "panorama")
-        }
-        .buttonStyle(WorkspaceToolbarPillStyle())
-        .disabled(!model.canStitch)
-        .help("Skapa panorama med nuvarande kontrollpunkter och masker")
     }
 
     @ViewBuilder
@@ -375,22 +327,16 @@ struct ContentView: View {
             .buttonStyle(WorkspaceToolbarPillStyle())
             .help("Lägg till eller avbryt ny kontrollpunkt (⌥A)")
 
-            Menu {
-                Button("Föreslå för aktuellt bildpar") {
-                    actions.suggestPairPoints()
-                }
-                .disabled(!actions.canSuggest)
-                Button("Föreslå för hela projektet") {
-                    actions.suggestProjectPoints()
-                }
-                .disabled(!actions.canSuggestProject)
-            } label: {
-                Label("Föreslå", systemImage: "sparkles")
+            Button(action: actions.suggestPairPoints) {
+                Label("Föreslå punkter", systemImage: "sparkles")
             }
-            .menuStyle(.button)
             .buttonStyle(WorkspaceToolbarPillStyle())
-            .disabled(!actions.canSuggest && !actions.canSuggestProject)
-            .help("Föreslå kontrollpunkter (⌥F)")
+            .disabled(!actions.canSuggest)
+            .help(
+                "Lägg till upp till "
+                    + "\(AppModel.suggestedControlPointBatchSize) "
+                    + "utspridda kontrollpunkter (⌥F)"
+            )
 
             Button(action: actions.optimize) {
                 Label(
@@ -451,6 +397,20 @@ struct ContentView: View {
     private var toolbarTrailing: some View {
         HStack(spacing: 6) {
             primaryToolbarAction
+
+            if model.selection != .export && hasStitchableSources {
+                Button {
+                    model.stitch()
+                } label: {
+                    Label("Skapa panorama", systemImage: "pano")
+                }
+                .buttonStyle(WorkspaceToolbarPillStyle())
+                .disabled(!model.canStitch)
+                .help(
+                    "Skapa panorama med aktuella kontrollpunkter och masker"
+                )
+                .layoutPriority(1)
+            }
 
             if showsToolbarOverflow {
                 toolbarOverflow
@@ -563,18 +523,6 @@ struct ContentView: View {
                 }
 
             }
-
-            if model.selection != .export && hasStitchableSources {
-                Divider()
-                Button(renderPanoramaTitle) {
-                    model.stitch()
-                }
-                .disabled(!model.canStitch)
-                Button("Generera om från början…") {
-                    isRegenerateFromScratchPresented = true
-                }
-                .disabled(!model.canStitch)
-            }
         } label: {
             Text("•••")
                 .accessibilityLabel("Vymeny")
@@ -590,23 +538,17 @@ struct ContentView: View {
         }.count >= 2
     }
 
-    private var renderPanoramaTitle: String {
-        model.stitchedResultURL == nil
-            ? "Skapa panorama"
-            : "Uppdatera panorama"
-    }
-
     private var showsToolbarOverflow: Bool {
         if model.selection == .export {
             return model.stitchedResultURL != nil
         }
         if case .retouch(let pole) = model.selection {
-            return model.retouchURL(for: pole) != nil || hasStitchableSources
+            return model.retouchURL(for: pole) != nil
         }
         if model.selection == .controlPoints {
-            return controlPointActions != nil || hasStitchableSources
+            return controlPointActions != nil
         }
-        return !model.project.images.isEmpty
+        return model.selectedSourceImage != nil
     }
 
     private var maskIntentTitle: String {

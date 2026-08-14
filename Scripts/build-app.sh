@@ -60,7 +60,8 @@ ditto --norsrc --noextattr "$staging_app_bundle" "$app_bundle"
 verified=false
 for attempt in {1..40}; do
     xattr -cr "$app_bundle"
-    xattr -d com.apple.FinderInfo "$app_bundle" 2>/dev/null || true
+    find "$app_bundle" -exec xattr -d com.apple.FinderInfo {} + \
+        2>/dev/null || true
     if codesign --verify --deep --strict "$app_bundle"; then
         verified=true
         break

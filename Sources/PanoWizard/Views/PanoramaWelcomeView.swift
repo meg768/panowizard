@@ -4,24 +4,18 @@ import UniformTypeIdentifiers
 
 struct PanoramaLaunchView: View {
     @Environment(\.newDocument) private var newDocument
+    @Environment(\.openDocument) private var openDocument
     @Environment(\.dismissWindow) private var dismissWindow
     @State private var isImporting = false
-    @State private var isDropTargeted = false
     @State private var importError: String?
 
     var body: some View {
         PanoramaWelcomeView(
             isImporting: isImporting,
-            isDropTargeted: isDropTargeted,
-            chooseImages: chooseImages
+            chooseImages: chooseImages,
+            openProject: chooseProject
         )
-        .dropDestination(for: URL.self) { urls, _ in
-            importImages(urls)
-            return !urls.isEmpty
-        } isTargeted: { targeted in
-            isDropTargeted = targeted
-        }
-        .alert("Bilderna kunde inte läsas", isPresented: Binding(
+        .alert("Kunde inte öppna", isPresented: Binding(
             get: { importError != nil },
             set: { if !$0 { importError = nil } }
         )) {
@@ -42,6 +36,25 @@ struct PanoramaLaunchView: View {
         guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
 
         importImages(panel.urls)
+    }
+
+    private func chooseProject() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.panoWizardProject]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.title = "Öppna panorama"
+        panel.prompt = "Öppna"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        Task {
+            do {
+                try await openDocument(at: url)
+                dismissWindow(id: "welcome")
+            } catch {
+                importError = error.localizedDescription
+            }
+        }
     }
 
     private func importImages(_ urls: [URL]) {
@@ -98,8 +111,9 @@ private struct WelcomeWindowZoomer: NSViewRepresentable {
 
 struct PanoramaWelcomeView: View {
     let isImporting: Bool
-    let isDropTargeted: Bool
     let chooseImages: () -> Void
+    let openProject: (() -> Void)?
+    private let backgroundURL = WelcomeBackgroundPicker.currentURL
 
     var body: some View {
         GeometryReader { geometry in
@@ -161,26 +175,31 @@ struct PanoramaWelcomeView: View {
                         .buttonStyle(.plain)
                         .disabled(isImporting)
 
-                        Text("Du kan också dra in bilder här.")
-                            .font(.callout)
-                            .foregroundStyle(.white.opacity(0.68))
+                        if let openProject {
+                            Button(action: openProject) {
+                                Label("Öppna panorama…", systemImage: "folder")
+                                    .font(.headline)
+                                    .foregroundStyle(.white.opacity(0.92))
+                                    .padding(.horizontal, 18)
+                                    .frame(height: 38)
+                                    .background(
+                                        .black.opacity(0.28),
+                                        in: Capsule()
+                                    )
+                                    .overlay {
+                                        Capsule()
+                                            .stroke(.white.opacity(0.32))
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(isImporting)
+                        }
                     }
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.45), radius: 12, y: 3)
                     .padding(.horizontal, 40)
 
                     Spacer(minLength: 80)
-                }
-
-                if isDropTargeted {
-                    RoundedRectangle(cornerRadius: 22)
-                        .fill(.white.opacity(0.08))
-                        .stroke(
-                            .white.opacity(0.92),
-                            style: StrokeStyle(lineWidth: 3, dash: [10, 7])
-                        )
-                        .padding(24)
-                        .allowsHitTesting(false)
                 }
             }
         }
@@ -190,10 +209,7 @@ struct PanoramaWelcomeView: View {
 
     @ViewBuilder
     private var welcomeImage: some View {
-        if let url = Bundle.module.url(
-            forResource: "WelcomePanorama",
-            withExtension: "jpg"
-        ), let image = NSImage(contentsOf: url) {
+        if let image = selectedWelcomeImage {
             Image(nsImage: image)
                 .resizable()
                 .scaledToFill()
@@ -204,5 +220,37 @@ struct PanoramaWelcomeView: View {
                 endPoint: .bottomTrailing
             )
         }
+    }
+
+    private var selectedWelcomeImage: NSImage? {
+        backgroundURL.flatMap(NSImage.init(contentsOf:))
+    }
+}
+
+private enum WelcomeBackgroundPicker {
+    private static let supportedExtensions = Set(["jpg", "jpeg", "png"])
+    private static let lastNameKey = "lastWelcomeBackgroundFilename"
+    static let currentURL = nextURL()
+
+    private static func nextURL() -> URL? {
+        let backgroundsURL = Bundle.module.resourceURL?
+            .appendingPathComponent("Backgrounds", isDirectory: true)
+        let urls = backgroundsURL.flatMap {
+            try? FileManager.default.contentsOfDirectory(
+                at: $0,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+        }?
+            .filter { supportedExtensions.contains($0.pathExtension.lowercased()) }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent } ?? []
+
+        guard !urls.isEmpty else { return nil }
+        let defaults = UserDefaults.standard
+        let lastName = defaults.string(forKey: lastNameKey)
+        let candidates = urls.filter { $0.lastPathComponent != lastName }
+        let url = candidates.randomElement() ?? urls[0]
+        defaults.set(url.lastPathComponent, forKey: lastNameKey)
+        return url
     }
 }

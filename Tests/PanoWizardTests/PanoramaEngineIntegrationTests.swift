@@ -80,7 +80,38 @@ struct PanoramaEngineIntegrationTests {
             "PANOWIZARD_FOLDER_NOMINAL_RING"
         ] == "1"
         let suppliedControlPoints: [DiagnosticControlPoint]?
-        if usesNominalRing {
+        if environment["PANOWIZARD_FOLDER_WIZARD_POINTS"] == "1" {
+            let ringIndices = images.indices.filter {
+                images[$0].isEnabled && images[$0].role == .alignment
+            }
+            let ring = ringIndices.map { images[$0] }
+            let points = try OpenCVControlPointMatcher.ring(
+                images: ring,
+                horizontalFieldOfView: inputFieldOfView,
+                lensProfile: lensProfile
+            )
+            print("PANOWIZARD_FOLDER_WIZARD_POINTS=\(points.count)")
+            suppliedControlPoints = points.map { point in
+                DiagnosticControlPoint(
+                    firstImage: ringIndices[point.firstImage],
+                    secondImage: ringIndices[point.secondImage],
+                    firstX: point.firstX,
+                    firstY: point.firstY,
+                    secondX: point.secondX,
+                    secondY: point.secondY
+                )
+            }
+        } else if let projectPath = environment[
+            "PANOWIZARD_FOLDER_CONTROL_POINTS_PROJECT"
+        ] {
+            let data = try Data(contentsOf: URL(fileURLWithPath: projectPath))
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            suppliedControlPoints = try decoder.decode(
+                PanoProject.self,
+                from: data
+            ).controlPoints
+        } else if usesNominalRing {
             let ringIndices = images.indices.filter {
                 images[$0].isEnabled && images[$0].role == .alignment
             }
@@ -158,6 +189,9 @@ struct PanoramaEngineIntegrationTests {
                 protectedMasks: [:],
                 controlPointMasks: [:],
                 controlPoints: suppliedControlPoints,
+                controlPointsAreAuthoritative: environment[
+                    "PANOWIZARD_FOLDER_WIZARD_POINTS"
+                ] != "1",
                 configuration: configuration,
                 cachedRigImageLines: [:]
             )
@@ -248,6 +282,67 @@ struct PanoramaEngineIntegrationTests {
         #expect(
             !HuginOpenCVPanoramaEngine.needsUprightCanonicalization(
                 orientations: orientations
+            )
+        )
+    }
+
+    @Test
+    func preservesWizardGeneratedNikonGraphBeforeBundleAdjustment() {
+        #expect(
+            HuginOpenCVPanoramaEngine.preservesSuppliedRingGraph(
+                hasSuppliedControlPoints: true,
+                isCircularFisheye: false
+            )
+        )
+        #expect(
+            !HuginOpenCVPanoramaEngine.preservesSuppliedRingGraph(
+                hasSuppliedControlPoints: false,
+                isCircularFisheye: false
+            )
+        )
+        #expect(
+            HuginOpenCVPanoramaEngine.preservesSuppliedRingGraph(
+                hasSuppliedControlPoints: false,
+                isCircularFisheye: true
+            )
+        )
+    }
+
+    @Test
+    func removesCatastrophicSmallPairWithoutDiscardingNoisyBridge() {
+        let stable = Self.points(first: 0, second: 1, count: 20)
+        let noisyBridge = Self.points(first: 1, second: 2, count: 4)
+        let falseExtraPair = Self.points(first: 0, second: 2, count: 4)
+        let points = stable + noisyBridge + falseExtraPair
+        let errors = Array(repeating: 1.0, count: stable.count)
+            + [10, 12, 14, 16]
+            + [1_100, 1_200, 1_300, 1_400]
+
+        let accepted = HuginOpenCVPanoramaEngine.robustControlPoints(
+            points,
+            errors: errors
+        )
+
+        #expect(accepted.filter { $0.pair.firstImage == 1 }.count == 4)
+        #expect(accepted.contains { $0.pair == falseExtraPair[0].pair } == false)
+    }
+
+    @Test
+    func retriesOnlyPoorAutomaticGeometry() {
+        #expect(
+            HuginOpenCVPanoramaEngine.needsAutomaticStabilization(
+                errors: [
+                    0.8, 1, 1.2, 1.4, 2, 5, 9.9, 10, 15, 20,
+                    25, 30, 32, 40, 60
+                ]
+            )
+        )
+        #expect(
+            !HuginOpenCVPanoramaEngine.needsAutomaticStabilization(
+                errors: [
+                    0.4, 0.6, 0.8, 0.9, 1, 1.1, 1.3, 1.5, 1.8, 2,
+                    2.3, 2.6, 3, 4, 5.6
+                ]
             )
         )
     }
@@ -379,7 +474,7 @@ struct PanoramaEngineIntegrationTests {
     }
 
     @Test
-    func removesWeakExtraPairFromFiveImageWideFisheyeSet() {
+    func identifiesWeakExtraPairForDeferredBundleAssessment() {
         let diagnostics = [
             Self.pairDiagnostic(0, 1, selected: 25, coverage: 0.29),
             Self.pairDiagnostic(0, 2, selected: 6, coverage: 0.125),
@@ -801,6 +896,7 @@ struct PanoramaEngineIntegrationTests {
                     project.panorama,
                     controlPointMasks: controlPointMasks,
                     controlPoints: points,
+                    controlPointsAreAuthoritative: true,
                     configuration: configuration
                 )
             #expect(!optimized.diagnostics.cleanedPoints.isEmpty)
@@ -855,6 +951,7 @@ struct PanoramaEngineIntegrationTests {
             protectedMasks: protectedMasks,
             controlPointMasks: controlPointMasks,
             controlPoints: regenerateControlPoints ? nil : project.controlPoints,
+            controlPointsAreAuthoritative: !regenerateControlPoints,
             configuration: configuration,
             cachedRigImageLines: [:]
         )
@@ -924,6 +1021,7 @@ struct PanoramaEngineIntegrationTests {
                 project.panorama,
                 controlPointMasks: controlPointMasks,
                 controlPoints: editedPoints,
+                controlPointsAreAuthoritative: true,
                 configuration: configuration
             )
             #expect(

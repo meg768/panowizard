@@ -8,6 +8,7 @@ protocol PanoramaEngine: Sendable {
         protectedMasks: [UUID: Data],
         controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint]?,
+        controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration,
         cachedRigImageLines: [UUID: String]
     ) async throws -> PanoramaStitchResult
@@ -16,6 +17,7 @@ protocol PanoramaEngine: Sendable {
         _ panorama: PanoramaSet,
         controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint],
+        controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration
     ) async throws -> ControlPointOptimizationResult
 }
@@ -56,6 +58,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         protectedMasks: [UUID: Data],
         controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint]?,
+        controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration,
         cachedRigImageLines: [UUID: String]
     ) async throws -> PanoramaStitchResult {
@@ -66,6 +69,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 protectedMasks: protectedMasks,
                 controlPointMasks: controlPointMasks,
                 controlPoints: controlPoints,
+                controlPointsAreAuthoritative: controlPointsAreAuthoritative,
                 configuration: configuration,
                 rendersPanorama: true
             )
@@ -76,6 +80,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         _ panorama: PanoramaSet,
         controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint],
+        controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration
     ) async throws -> ControlPointOptimizationResult {
         try await Task.detached(priority: .userInitiated) {
@@ -85,6 +90,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 protectedMasks: [:],
                 controlPointMasks: controlPointMasks,
                 controlPoints: controlPoints,
+                controlPointsAreAuthoritative: controlPointsAreAuthoritative,
                 configuration: configuration,
                 rendersPanorama: false
             )
@@ -103,8 +109,10 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         protectedMasks: [UUID: Data],
         controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint]?,
+        controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration,
-        rendersPanorama: Bool
+        rendersPanorama: Bool,
+        automaticStabilizationAttempt: Int = 0
     ) throws -> PanoramaStitchResult {
         let enabledImages = panorama.images.filter(\.isEnabled)
         let alignmentImages = enabledImages.filter { $0.role == .alignment }
@@ -281,9 +289,11 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         }
         let editedRingPoints = editedRingEntries?.map(\.point)
         let editedRingPointIDs = editedRingEntries?.map(\.id) ?? []
-        let usesEditedControlPoints = editedRingPoints?.isEmpty == false
+        let hasSuppliedControlPoints = editedRingPoints?.isEmpty == false
+        let usesEditedControlPoints = hasSuppliedControlPoints
+            && controlPointsAreAuthoritative
         let ringControlPoints: [PanoramaControlPoint]
-        if usesEditedControlPoints {
+        if hasSuppliedControlPoints {
             ringControlPoints = editedRingPoints!
         } else {
             let generatedPoints = try OpenCVControlPointMatcher.ring(
@@ -343,15 +353,12 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             from: seededProject,
             to: controlPointProject
         )
-        var calibratedNominalYaws: [Double]?
         if usesCalibratedFisheye {
             let nominalYaws = try HuginProjectFile.inferredRingYaws(
                 in: controlPointProject,
                 imageCount: ringImages.count
             )
-            calibratedNominalYaws = nominalYaws
-            let hasDuplicateViews = Set(nominalYaws).count < nominalYaws.count
-            if usesEditedControlPoints && !hasDuplicateViews {
+            if usesEditedControlPoints {
                 // A manual/imported CP set is the experiment's input. Do not
                 // silently discard pairs or reduce it to PanoWizard's
                 // automatically selected ring backbone.
@@ -360,14 +367,19 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     to: ringBackboneProject
                 )
             } else {
-                if isCircularFisheye && !hasDuplicateViews {
-                    // A 165° Sigma ring has useful overlap well beyond the
-                    // immediate neighbour pair.  Keep that redundant graph:
-                    // it constrains radial distortion and optical centre at
-                    // the edge of the fisheye circle, especially on regular
-                    // near-field ground patterns.  Robust residual cleanup
-                    // below removes individual outliers after the first
-                    // globally consistent solve.
+                if preservesSuppliedRingGraph(
+                    hasSuppliedControlPoints: hasSuppliedControlPoints,
+                    isCircularFisheye: isCircularFisheye
+                ) {
+                    // The app's wizard has already generated and saved one
+                    // connected graph. Do not reinterpret that same graph as
+                    // camera-direction groups and reduce it a second time:
+                    // duplicate or strongly pitched views can otherwise be
+                    // isolated even though explicit bridge points exist.
+                    // Internally generated Sigma rings also keep their dense
+                    // redundant graph for lens and optical-centre refinement.
+                    // Automatic points are still cleaned by cpclean and the
+                    // robust residual pass below.
                     try FileManager.default.copyItem(
                         at: controlPointProject,
                         to: ringBackboneProject
@@ -421,11 +433,13 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         }
 
         log("Ring bundle adjustment", images: ringImages)
-        if usesEditedControlPoints || usesSparseFourImageRing {
-            // cpclean drops a valid transition when a narrow four-shot
-            // closing overlap has only four to seven points. Preserve the
-            // globally matched set here; the residual-based cleanup and the
-            // two-neighbour validation below still reject inconsistent links.
+        if usesEditedControlPoints || usesSparseFourImageRing
+            || isCircularFisheye {
+            // cpclean evaluates the pose before Sigma's lens and optical
+            // centre have been refined. It therefore mistakes useful polar
+            // constraints for outliers. Preserve them through the first lens
+            // solve; the robust residual pass below still rejects individual
+            // inconsistent points. Edited points remain untouched.
             try FileManager.default.copyItem(
                 at: poseProject,
                 to: cleanedRingProject
@@ -508,15 +522,14 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 let restartPose = workDirectory.appending(
                     path: "05-ring-restart-pose.pto"
                 )
-                let restartYaws: [Double]
-                if let calibratedNominalYaws {
-                    restartYaws = calibratedNominalYaws
-                } else {
-                    restartYaws = try HuginProjectFile.inferredRingYaws(
-                        in: filteredProject,
-                        imageCount: ringImages.count
-                    )
-                }
+                // Re-infer directions from the surviving graph. A weak false
+                // pair may have merged two real camera directions in the raw
+                // graph; reusing those stale nominal yaws is exactly what made
+                // Panorama C require a second click to reach the good pose.
+                let restartYaws = try HuginProjectFile.inferredRingYaws(
+                    in: filteredProject,
+                    imageCount: ringImages.count
+                )
                 try HuginProjectFile.configuringSigmaPoseOptimization(
                     from: filteredProject,
                     to: restartPoseInput,
@@ -563,6 +576,61 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 )
             }
             finalOptimizedRingProject = robustRingProject
+        }
+        if !usesEditedControlPoints, !usesSparseFourImageRing {
+            // The first robust pass can recover a solution that was badly
+            // displaced by one false pair. Re-evaluate once in that recovered
+            // geometry so isolated residual outliers do not survive merely
+            // because the initial model itself was poor.
+            let refinedPoints = try HuginProjectFile.controlPoints(
+                in: finalOptimizedRingProject
+            )
+            let refinedErrors = try toolchain.controlPointErrors(
+                in: finalOptimizedRingProject,
+                points: refinedPoints
+            )
+            let twiceAcceptedPoints = robustControlPoints(
+                refinedPoints,
+                errors: refinedErrors
+            )
+            if twiceAcceptedPoints.count < refinedPoints.count {
+                let twiceFilteredProject = workDirectory.appending(
+                    path: "05-ring-second-outliers-removed.pto"
+                )
+                let twiceRobustInputProject = workDirectory.appending(
+                    path: "05-ring-second-robust-input.pto"
+                )
+                let twiceRobustProject = workDirectory.appending(
+                    path: "05-ring-second-robust.pto"
+                )
+                try HuginProjectFile.filteringControlPoints(
+                    from: finalOptimizedRingProject,
+                    to: twiceFilteredProject
+                ) { point in
+                    twiceAcceptedPoints.contains { accepted in
+                        accepted.firstImage == point.firstImage
+                            && accepted.secondImage == point.secondImage
+                            && abs(accepted.firstX - point.firstX) < 0.01
+                            && abs(accepted.firstY - point.firstY) < 0.01
+                            && abs(accepted.secondX - point.secondX) < 0.01
+                            && abs(accepted.secondY - point.secondY) < 0.01
+                    }
+                }
+                try HuginProjectFile.configuringPoseRefinement(
+                    from: twiceFilteredProject,
+                    to: twiceRobustInputProject
+                )
+                try toolchain.run(
+                    "autooptimiser",
+                    arguments: [
+                        "-n", "-o",
+                        twiceRobustProject.path(percentEncoded: false),
+                        twiceRobustInputProject.path(percentEncoded: false)
+                    ],
+                    in: workDirectory
+                )
+                finalOptimizedRingProject = twiceRobustProject
+            }
         }
         var cleanedDiagnosticPoints: [DiagnosticControlPoint]
         if usesEditedControlPoints, let editedRingPoints {
@@ -644,6 +712,42 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             rawPoints: controlPoints ?? diagnosticPoints,
             cleanedPoints: diagnosticPoints
         )
+        let automaticGeometryIsUnstable = Self.needsAutomaticStabilization(
+            errors: diagnosticPoints.compactMap(\.error)
+        )
+        if automaticStabilizationAttempt > 0 && automaticGeometryIsUnstable {
+            // The points on this pass are marked authoritative only so the
+            // internal recovery pass cannot silently replace them. They are
+            // still machine-generated, so a second bad solve must never be
+            // rendered and mistaken for a completed panorama.
+            throw PanoramaEngineError.stitchingFailed(
+                "Den automatiska geometrin kunde inte stabiliseras. "
+                    + "Panoramat skapades inte, eftersom resultatet annars "
+                    + "skulle bli felplacerat eller nästan helt svart."
+            )
+        }
+        if !controlPointsAreAuthoritative && automaticGeometryIsUnstable {
+            // A badly displaced first Sigma solve can remain in the wrong
+            // local minimum even after its false pairs have been removed.
+            // Starting once more from that cleaned graph is equivalent to the
+            // user's previously necessary second click, but happens before a
+            // bad panorama is ever returned or saved.
+            print(
+                "[PanoWizard] Re-running the cleaned automatic CP graph "
+                    + "to stabilize the recovered geometry"
+            )
+            return try stitchSynchronously(
+                panorama,
+                masks: masks,
+                protectedMasks: protectedMasks,
+                controlPointMasks: controlPointMasks,
+                controlPoints: diagnosticPoints,
+                controlPointsAreAuthoritative: true,
+                configuration: configuration,
+                rendersPanorama: rendersPanorama,
+                automaticStabilizationAttempt: automaticStabilizationAttempt + 1
+            )
+        }
         if !rendersPanorama {
             return PanoramaStitchResult(
                 url: nil,
@@ -1299,7 +1403,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         )
     }
 
-    private static func robustControlPoints(
+    static func robustControlPoints(
         _ points: [DiagnosticControlPoint],
         errors: [Double]
     ) -> [DiagnosticControlPoint] {
@@ -1311,6 +1415,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let deviations = errors.map { abs($0 - median) }.sorted()
         let medianAbsoluteDeviation = deviations[deviations.count / 2]
         let threshold = max(8, median + 6 * medianAbsoluteDeviation)
+        let pairRetentionThreshold = min(80, max(24, threshold * 2))
 
         let indicesByPair = Dictionary(grouping: points.indices) {
             points[$0].pair
@@ -1318,9 +1423,15 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         var acceptedIndices = Set<Int>()
         for indices in indicesByPair.values {
             // Four points keep a pair constrained even when an entire small
-            // group is somewhat noisier than the global distribution.
+            // group is somewhat noisier than the global distribution. Never
+            // preserve them unconditionally, though: a false extra pair can
+            // otherwise survive with four thousand-pixel residuals and pull
+            // the complete Sigma solution away from its valid ring.
             let bestIndices = indices.sorted { errors[$0] < errors[$1] }
-            acceptedIndices.formUnion(bestIndices.prefix(4))
+            acceptedIndices.formUnion(bestIndices.prefix(4).filter {
+                errors[$0].isFinite
+                    && errors[$0] <= pairRetentionThreshold
+            })
             acceptedIndices.formUnion(indices.filter {
                 errors[$0].isFinite && errors[$0] <= threshold
             })
@@ -1328,6 +1439,17 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         return points.indices.compactMap {
             acceptedIndices.contains($0) ? points[$0] : nil
         }
+    }
+
+    static func needsAutomaticStabilization(errors: [Double]) -> Bool {
+        let finiteErrors = errors.filter(\.isFinite).sorted()
+        guard finiteErrors.count >= 10 else { return false }
+        let median = finiteErrors[finiteErrors.count / 2]
+        let p90 = finiteErrors[min(
+            finiteErrors.count - 1,
+            Int(Double(finiteErrors.count) * 0.9)
+        )]
+        return median > 4 || p90 > 8
     }
 
     static func controlPointComponents(
@@ -1382,6 +1504,13 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         return reliableNeighbors.indices.filter {
             reliableNeighbors[$0].count < 2
         }
+    }
+
+    static func preservesSuppliedRingGraph(
+        hasSuppliedControlPoints: Bool,
+        isCircularFisheye: Bool
+    ) -> Bool {
+        hasSuppliedControlPoints || isCircularFisheye
     }
 
     static func needsUprightCanonicalization(

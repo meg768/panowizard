@@ -16,7 +16,6 @@ struct ControlPointCommandActions {
     let addPointTitle: String
     let optimizeTitle: String
     let canSuggest: Bool
-    let canSuggestProject: Bool
     let canRegenerateProject: Bool
     let canRemoveSelectedPoint: Bool
     let canRemovePairPoints: Bool
@@ -24,7 +23,6 @@ struct ControlPointCommandActions {
     let canOptimize: Bool
     let toggleAddingPoint: () -> Void
     let suggestPairPoints: () -> Void
-    let suggestProjectPoints: () -> Void
     let requestRegenerateProjectPoints: () -> Void
     let removeSelectedPoint: () -> Void
     let requestRemovePairPoints: () -> Void
@@ -87,7 +85,6 @@ struct ControlPointEditor: View {
     let onPredictPoint: (CGPoint, Int) -> (point: CGPoint, imageIndex: Int)
     let isSuggestingPoints: Bool
     let onSuggestPoints: () -> Void
-    let onSuggestProjectPoints: () -> Void
     let onRegenerateProjectPoints: () -> Void
     let onRemoveAllPoints: () -> Void
     let onRemoveAllProjectPoints: () -> Void
@@ -305,7 +302,6 @@ struct ControlPointEditor: View {
                 ? "Avbryt ny punkt" : "Lägg till punkt",
             optimizeTitle: isPoleAlignment ? "Anpassa" : "Optimera",
             canSuggest: !isSuggestingPoints,
-            canSuggestProject: !isPoleAlignment && !isSuggestingPoints,
             canRegenerateProject: !isPoleAlignment && !isSuggestingPoints,
             canRemoveSelectedPoint: selectedPointID != nil,
             canRemovePairPoints: !displayedPoints.isEmpty,
@@ -314,7 +310,6 @@ struct ControlPointEditor: View {
             canOptimize: displayedPoints.count >= 3,
             toggleAddingPoint: toggleAddingPoint,
             suggestPairPoints: onSuggestPoints,
-            suggestProjectPoints: onSuggestProjectPoints,
             requestRegenerateProjectPoints: {
                 isRegenerateDialogPresented = true
             },

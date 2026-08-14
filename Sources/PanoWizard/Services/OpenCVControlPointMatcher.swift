@@ -188,11 +188,6 @@ enum OpenCVControlPointMatcher {
             let weakPairs = nominalYaws == nil
                 && horizontalFieldOfView >= 110
                 ? weakWideFisheyePairs(in: lastPairDiagnostics) : []
-            let broadlyDistributedPoints = points.filter { point in
-                !weakPairs.contains {
-                    $0.0 == point.firstImage && $0.1 == point.secondImage
-                }
-            }
             if nominalYaws == nil,
                images.count == 4,
                horizontalFieldOfView >= 110,
@@ -215,7 +210,18 @@ enum OpenCVControlPointMatcher {
                 // become geometrically consistent.
                 return points
             }
-            return broadlyDistributedPoints
+            if !weakPairs.isEmpty {
+                print(
+                    "[PanoWizard] Deferring weak CP pairs to bundle adjustment: "
+                        + weakPairs.map { "\($0.0)-\($0.1)" }
+                            .joined(separator: ", ")
+                )
+            }
+            // A narrow overlap can carry disproportionately valuable polar
+            // constraints. Keep every geometrically established pair until
+            // cpclean and the residual-based global pass can judge it in the
+            // context of the complete rig.
+            return points
         }
     }
 
@@ -243,9 +249,9 @@ enum OpenCVControlPointMatcher {
         in diagnostics: [ControlPointPairGenerationDiagnostic]
     ) -> [(Int, Int)] {
         diagnostics.compactMap { diagnostic in
-            // A narrow but feature-rich overlap is valid (Panorama F/B has
-            // 25 geometrically verified points at 12.5% coverage). Reject
-            // sparse links and only the most extremely concentrated bands.
+            // This is diagnostic only. Wide-fisheye links are no longer
+            // removed before bundle adjustment because a narrow overlap can
+            // contain the only useful constraints near a pole.
             guard diagnostic.selectedControlPointCount > 0,
                   diagnostic.selectedControlPointCount < 10
                     || diagnostic.spatialCoverage < 0.1 else {
