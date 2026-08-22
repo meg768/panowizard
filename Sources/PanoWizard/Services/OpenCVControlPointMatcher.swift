@@ -36,8 +36,7 @@ enum OpenCVControlPointMatcher {
         images: [SourceImage],
         pair: ControlPointPair.ID,
         horizontalFieldOfView: Double,
-        lensProfile: StitchingConfiguration.LensProfile? = nil,
-        controlPointMasks: [UUID: Data] = [:]
+        lensProfile: StitchingConfiguration.LensProfile? = nil
     ) throws -> [PanoramaControlPoint] {
         guard images.indices.contains(pair.firstImage),
               images.indices.contains(pair.secondImage) else {
@@ -45,40 +44,8 @@ enum OpenCVControlPointMatcher {
                 "Det valda bildparet finns inte."
             )
         }
-        let temporaryDirectory = FileManager.default.temporaryDirectory
-            .appending(
-                path: "PanoWizard/PairMatching/\(UUID().uuidString)",
-                directoryHint: .isDirectory
-            )
-        defer {
-            try? FileManager.default.removeItem(at: temporaryDirectory)
-        }
-
-        func matchingURL(for image: SourceImage, name: String) throws -> URL {
-            guard let mask = controlPointMasks[image.id] else {
-                return image.url
-            }
-            try FileManager.default.createDirectory(
-                at: temporaryDirectory,
-                withIntermediateDirectories: true
-            )
-            let destination = temporaryDirectory.appending(path: "\(name).tif")
-            try MaskedSourceImageWriter.write(
-                sourceURL: image.url,
-                maskData: mask,
-                destinationURL: destination
-            )
-            return destination
-        }
-
-        let firstURL = try matchingURL(
-            for: images[pair.firstImage],
-            name: "first"
-        )
-        let secondURL = try matchingURL(
-            for: images[pair.secondImage],
-            name: "second"
-        )
+        let firstURL = images[pair.firstImage].url
+        let secondURL = images[pair.secondImage].url
 
         var rawPoints: UnsafeMutablePointer<PWControlPoint>?
         var pointCount: Int32 = 0
@@ -117,47 +84,43 @@ enum OpenCVControlPointMatcher {
         images: [SourceImage],
         horizontalFieldOfView: Double,
         lensProfile: StitchingConfiguration.LensProfile? = nil,
-        nominalYaws: [Double]? = nil,
-        controlPointMasks: [UUID: Data] = [:]
+        nominalYaws: [Double]? = nil
     ) throws -> [PanoramaControlPoint] {
         precondition(nominalYaws == nil || nominalYaws?.count == images.count)
-        let temporaryDirectory = FileManager.default.temporaryDirectory
-            .appending(
-                path: "PanoWizard/RingMatching/\(UUID().uuidString)",
-                directoryHint: .isDirectory
-            )
-        defer {
-            try? FileManager.default.removeItem(at: temporaryDirectory)
-        }
-        let matchingImages = try images.enumerated().map { index, image in
-            guard let mask = controlPointMasks[image.id] else { return image }
-            try FileManager.default.createDirectory(
-                at: temporaryDirectory,
-                withIntermediateDirectories: true
-            )
-            let destination = temporaryDirectory.appending(
-                path: "source-\(index).tif"
-            )
-            try MaskedSourceImageWriter.write(
-                sourceURL: image.url,
-                maskData: mask,
-                destinationURL: destination
-            )
-            return replacingURL(of: image, with: destination)
-        }
-        return try withImagePaths(matchingImages) { paths in
+        return try withImagePaths(images) { paths in
             let bridgeLensModel = bridgeLensModel(
-                images: matchingImages,
+                images: images,
                 horizontalFieldOfView: horizontalFieldOfView,
                 lensProfile: lensProfile
             )
             var rawPoints: UnsafeMutablePointer<PWControlPoint>?
             var pointCount: Int32 = 0
             var errorMessage: UnsafeMutablePointer<CChar>?
-            let succeeded = nominalYaws?.withUnsafeBufferPointer { yaws in
-                PWGenerateRingControlPoints(
+            // Every image passed here has the role "Ingår i positionering".
+            // Its old direction value belongs only to the repair UI and must
+            // not change CP generation or sparse-overlap recovery.
+            let positioningImageFlags = Array(
+                repeating: Int32(1),
+                count: images.count
+            )
+            let succeeded = positioningImageFlags.withUnsafeBufferPointer {
+                flags in
+                nominalYaws?.withUnsafeBufferPointer { yaws in
+                    PWGenerateRingControlPoints(
+                        paths.baseAddress,
+                        yaws.baseAddress,
+                        flags.baseAddress,
+                        Int32(paths.count),
+                        horizontalFieldOfView,
+                        bridgeLensModel,
+                        &rawPoints,
+                        &pointCount,
+                        &errorMessage
+                    )
+                } ?? PWGenerateRingControlPoints(
                     paths.baseAddress,
-                    yaws.baseAddress,
+                    nil,
+                    flags.baseAddress,
                     Int32(paths.count),
                     horizontalFieldOfView,
                     bridgeLensModel,
@@ -165,16 +128,7 @@ enum OpenCVControlPointMatcher {
                     &pointCount,
                     &errorMessage
                 )
-            } ?? PWGenerateRingControlPoints(
-                paths.baseAddress,
-                nil,
-                Int32(paths.count),
-                horizontalFieldOfView,
-                bridgeLensModel,
-                &rawPoints,
-                &pointCount,
-                &errorMessage
-            )
+            }
             // The bridge also records diagnostics when it cannot connect the
             // image graph. Preserve those details before propagating the
             // failure so callers can explain which overlap was missing.
@@ -189,11 +143,8 @@ enum OpenCVControlPointMatcher {
                 && horizontalFieldOfView >= 110
                 ? weakWideFisheyePairs(in: lastPairDiagnostics) : []
             if nominalYaws == nil,
-               images.count == 4,
-               horizontalFieldOfView >= 110,
-               weakFourImageRingPairs(
-                   in: lastPairDiagnostics
-               ).isEmpty == false {
+               bridgeLensModel != 0,
+               needsSparseCycleProtection(in: lastPairDiagnostics) {
                 for diagnostic in lastPairDiagnostics {
                     print(
                         "[PanoWizard] CP failure pair "
@@ -203,11 +154,11 @@ enum OpenCVControlPointMatcher {
                             + String(format: "%.3f", diagnostic.spatialCoverage)
                     )
                 }
-                // Four-shot circular-fisheye rings can have a very narrow
-                // textured closing overlap. Keep those points until the
-                // global bundle adjustment can judge their actual residuals;
-                // the engine still rejects sparse transitions that do not
-                // become geometrically consistent.
+                // Circular-fisheye rings can have a very narrow textured
+                // closing overlap. Keep those points until the global bundle
+                // adjustment can judge their actual residuals; the engine
+                // still rejects sparse transitions that do not become
+                // geometrically consistent.
                 return points
             }
             if !weakPairs.isEmpty {
@@ -261,10 +212,73 @@ enum OpenCVControlPointMatcher {
         }
     }
 
+    static func needsSparseCycleProtection(
+        in diagnostics: [ControlPointPairGenerationDiagnostic]
+    ) -> Bool {
+        let candidateEdges = diagnostics.compactMap { diagnostic in
+            diagnostic.selectedControlPointCount >= 6
+                ? (diagnostic.firstImage, diagnostic.secondImage) : nil
+        }
+        let strongEdges = diagnostics.compactMap { diagnostic in
+            diagnostic.selectedControlPointCount >= 10
+                && diagnostic.spatialCoverage >= 0.1
+                ? (diagnostic.firstImage, diagnostic.secondImage) : nil
+        }
+        return graphContainsCycle(candidateEdges)
+            && !graphContainsCycle(strongEdges)
+    }
+
+    private static func graphContainsCycle(_ edges: [(Int, Int)]) -> Bool {
+        var adjacency: [Int: [Int]] = [:]
+        for (first, second) in edges {
+            adjacency[first, default: []].append(second)
+            adjacency[second, default: []].append(first)
+        }
+        var visited = Set<Int>()
+        func visit(_ image: Int, parent: Int?) -> Bool {
+            visited.insert(image)
+            for neighbor in adjacency[image, default: []] {
+                if neighbor == parent { continue }
+                if visited.contains(neighbor) || visit(neighbor, parent: image) {
+                    return true
+                }
+            }
+            return false
+        }
+        for image in adjacency.keys where !visited.contains(image) {
+            if visit(image, parent: nil) { return true }
+        }
+        return false
+    }
+
     static func weakFourImageRingPairs(
         in diagnostics: [ControlPointPairGenerationDiagnostic]
     ) -> [(Int, Int)] {
-        let requiredPairs = [(0, 1), (1, 2), (2, 3), (0, 3)]
+        weakPositioningSequenceTransitions(
+            in: diagnostics,
+            positioningImageIndices: Array(0..<4)
+        )
+    }
+
+    static func weakPositioningSequenceTransitions(
+        in diagnostics: [ControlPointPairGenerationDiagnostic],
+        positioningImageIndices: [Int]
+    ) -> [(Int, Int)] {
+        guard positioningImageIndices.count >= 2 else { return [] }
+        let requiredPairIDs = Set(positioningImageIndices.indices.map {
+            position in
+            let first = positioningImageIndices[position]
+            let second = positioningImageIndices[
+                (position + 1) % positioningImageIndices.count
+            ]
+            return ControlPointPair.ID(
+                firstImage: min(first, second),
+                secondImage: max(first, second)
+            )
+        })
+        let requiredPairs = requiredPairIDs.sorted().map {
+            ($0.firstImage, $0.secondImage)
+        }
         return requiredPairs.filter { first, second in
             guard let diagnostic = diagnostics.first(where: {
                 $0.firstImage == first && $0.secondImage == second
@@ -272,23 +286,6 @@ enum OpenCVControlPointMatcher {
             return diagnostic.selectedControlPointCount < 10
                 || diagnostic.spatialCoverage < 0.1
         }
-    }
-
-    private static func replacingURL(
-        of image: SourceImage,
-        with url: URL
-    ) -> SourceImage {
-        SourceImage(
-            id: image.id,
-            url: url,
-            captureDate: image.captureDate,
-            pixelWidth: image.pixelWidth,
-            pixelHeight: image.pixelHeight,
-            cameraModel: image.cameraModel,
-            lens: image.lens,
-            direction: image.direction,
-            role: image.role
-        )
     }
 
     static func zenith(

@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
     int pointCount = 0;
     char *error = nullptr;
     const int succeeded = PWGenerateRingControlPoints(
-        paths.data(), nullptr, int(paths.size()), fieldOfView,
+        paths.data(), nullptr, nullptr, int(paths.size()), fieldOfView,
         fieldOfView >= 110.0
             ? PWLensModelSigma8DX : PWLensModelNikon105DX,
         &points, &pointCount, &error

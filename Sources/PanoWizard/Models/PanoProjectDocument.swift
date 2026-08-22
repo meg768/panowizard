@@ -8,14 +8,13 @@ extension UTType {
     )
 }
 
-struct PanoProjectDocument: FileDocument {
+struct PanoProjectDocument: FileDocument, Equatable {
     static var readableContentTypes: [UTType] {
         [.panoWizardProject]
     }
 
     var project: PanoProject
     var masks: [UUID: Data]
-    var controlPointMasks: [UUID: Data]
     var protectedMasks: [UUID: Data]
     var panoramaData: Data?
     var nadirOverlayData: Data?
@@ -26,7 +25,6 @@ struct PanoProjectDocument: FileDocument {
     init(
         project: PanoProject = PanoProject(),
         masks: [UUID: Data] = [:],
-        controlPointMasks: [UUID: Data] = [:],
         protectedMasks: [UUID: Data] = [:],
         panoramaData: Data? = nil,
         nadirOverlayData: Data? = nil,
@@ -36,7 +34,6 @@ struct PanoProjectDocument: FileDocument {
     ) {
         self.project = project
         self.masks = masks
-        self.controlPointMasks = controlPointMasks
         self.protectedMasks = protectedMasks
         self.panoramaData = panoramaData
         self.nadirOverlayData = nadirOverlayData
@@ -46,8 +43,16 @@ struct PanoProjectDocument: FileDocument {
     }
 
     init(configuration: ReadConfiguration) throws {
-        guard configuration.file.isDirectory,
-              let wrappers = configuration.file.fileWrappers,
+        try self.init(fileWrapper: configuration.file)
+    }
+
+    init(contentsOf url: URL) throws {
+        try self.init(fileWrapper: FileWrapper(url: url, options: .immediate))
+    }
+
+    private init(fileWrapper: FileWrapper) throws {
+        guard fileWrapper.isDirectory,
+              let wrappers = fileWrapper.fileWrappers,
               let projectData = wrappers["project.json"]?.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)
         }
@@ -75,17 +80,6 @@ struct PanoProjectDocument: FileDocument {
                     continue
                 }
                 masks[id] = data
-            }
-        }
-        controlPointMasks = [:]
-        if let maskWrappers = wrappers["control-point-masks"]?.fileWrappers {
-            for (filename, wrapper) in maskWrappers {
-                guard filename.hasSuffix(".png"),
-                      let id = UUID(uuidString: String(filename.dropLast(4))),
-                      let data = wrapper.regularFileContents else {
-                    continue
-                }
-                controlPointMasks[id] = data
             }
         }
         protectedMasks = [:]
@@ -133,14 +127,6 @@ struct PanoProjectDocument: FileDocument {
             ("\(id.uuidString).png", FileWrapper(regularFileWithContents: data))
         })
         children["masks"] = FileWrapper(directoryWithFileWrappers: maskChildren)
-        let controlPointMaskChildren = Dictionary(
-            uniqueKeysWithValues: controlPointMasks.map { id, data in
-                ("\(id.uuidString).png", FileWrapper(regularFileWithContents: data))
-            }
-        )
-        children["control-point-masks"] = FileWrapper(
-            directoryWithFileWrappers: controlPointMaskChildren
-        )
         children["protected-masks"] = FileWrapper(directoryWithFileWrappers:
             Dictionary(uniqueKeysWithValues: protectedMasks.map { id, data in
                 ("\(id.uuidString).png", FileWrapper(regularFileWithContents: data))
@@ -179,5 +165,16 @@ struct PanoProjectDocument: FileDocument {
             )
         }
         return FileWrapper(directoryWithFileWrappers: children)
+    }
+
+    func writeAtomically(to url: URL) throws {
+        let originalURL = FileManager.default.fileExists(atPath: url.path)
+            ? url
+            : nil
+        try packageFileWrapper().write(
+            to: url,
+            options: .atomic,
+            originalContentsURL: originalURL
+        )
     }
 }

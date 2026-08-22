@@ -1,14 +1,131 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
+
+private final class FileMenuDelegateProxy: NSObject, NSMenuDelegate {
+    weak var forwardedDelegate: (any NSMenuDelegate)?
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        forwardedDelegate?.menuNeedsUpdate?(menu)
+        hideEmptyPlaceholder(in: menu)
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        forwardedDelegate?.menuWillOpen?(menu)
+        hideEmptyPlaceholder(in: menu)
+    }
+
+    override func responds(to selector: Selector!) -> Bool {
+        super.responds(to: selector)
+            || forwardedDelegate?.responds(to: selector) == true
+    }
+
+    override func forwardingTarget(for selector: Selector!) -> Any? {
+        if forwardedDelegate?.responds(to: selector) == true {
+            return forwardedDelegate
+        }
+        return super.forwardingTarget(for: selector)
+    }
+
+    func hideEmptyPlaceholder(in menu: NSMenu) {
+        for item in menu.items where
+            item.title == "NSMenuItem"
+                && item.action == nil
+                && item.submenu == nil {
+            item.isHidden = true
+        }
+    }
+}
 
 @MainActor
 private final class PanoWizardApplicationDelegate: NSObject, NSApplicationDelegate {
+    private(set) static var shared: PanoWizardApplicationDelegate?
+
+    private weak var pendingTerminationWindow: NSWindow?
+    private var discardedTerminationWindows: Set<ObjectIdentifier> = []
+    private let fileMenuDelegateProxy = FileMenuDelegateProxy()
+
+    override init() {
+        super.init()
+        Self.shared = self
+    }
+
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
         false
     }
 
+    func applicationShouldTerminate(
+        _ sender: NSApplication
+    ) -> NSApplication.TerminateReply {
+        let dirtyWindow = sender.windows.first { window in
+            window.isVisible
+                && window.isDocumentEdited
+                && !discardedTerminationWindows.contains(ObjectIdentifier(window))
+        }
+        guard let dirtyWindow else { return .terminateNow }
+
+        pendingTerminationWindow = dirtyWindow
+        dirtyWindow.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async {
+            dirtyWindow.performClose(nil)
+        }
+        return .terminateCancel
+    }
+
+    func cancelPendingTermination(for window: NSWindow?) {
+        guard pendingTerminationWindow === window else { return }
+        pendingTerminationWindow = nil
+        discardedTerminationWindows.removeAll()
+    }
+
+    func discardAndContinueTermination(for window: NSWindow?) {
+        guard let window, pendingTerminationWindow === window else { return }
+        discardedTerminationWindows.insert(ObjectIdentifier(window))
+        continuePendingTermination(for: window)
+    }
+
+    func continuePendingTermination(for window: NSWindow?) {
+        guard pendingTerminationWindow === window else { return }
+        pendingTerminationWindow = nil
+        DispatchQueue.main.async {
+            NSApp.terminate(nil)
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        installFileMenuCleanupWhenReady(attempt: 0)
         openWelcomeWindowWhenReady(attempt: 0)
+    }
+
+    func applicationDidUpdate(_ notification: Notification) {
+        installFileMenuDelegateIfAvailable()
+    }
+
+    private func installFileMenuCleanupWhenReady(attempt: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            guard self.installFileMenuDelegateIfAvailable() else {
+                if attempt < 20 {
+                    self.installFileMenuCleanupWhenReady(attempt: attempt + 1)
+                }
+                return
+            }
+        }
+    }
+
+    @discardableResult
+    private func installFileMenuDelegateIfAvailable() -> Bool {
+        guard let fileMenu = NSApp.mainMenu?.items
+            .first(where: { $0.submenu?.items.contains(where: {
+                $0.action == #selector(NSDocumentController.openDocument(_:))
+            }) == true })?
+            .submenu else { return false }
+
+        if fileMenu.delegate !== fileMenuDelegateProxy {
+            fileMenuDelegateProxy.forwardedDelegate = fileMenu.delegate
+            fileMenu.delegate = fileMenuDelegateProxy
+        }
+        fileMenuDelegateProxy.hideEmptyPlaceholder(in: fileMenu)
+        return true
     }
 
     private func openWelcomeWindowWhenReady(attempt: Int) {
@@ -35,6 +152,15 @@ struct PanoramaCommandActions {
     let showExport: () -> Void
 }
 
+struct ProjectDocumentCommandActions {
+    let save: () -> Void
+    let saveAs: () -> Void
+}
+
+private struct ProjectDocumentCommandActionsKey: FocusedValueKey {
+    typealias Value = ProjectDocumentCommandActions
+}
+
 private struct PanoramaCommandActionsKey: FocusedValueKey {
     typealias Value = PanoramaCommandActions
 }
@@ -43,6 +169,11 @@ extension FocusedValues {
     var panoramaCommandActions: PanoramaCommandActions? {
         get { self[PanoramaCommandActionsKey.self] }
         set { self[PanoramaCommandActionsKey.self] = newValue }
+    }
+
+    var projectDocumentCommandActions: ProjectDocumentCommandActions? {
+        get { self[ProjectDocumentCommandActionsKey.self] }
+        set { self[ProjectDocumentCommandActionsKey.self] = newValue }
     }
 }
 
@@ -66,17 +197,41 @@ struct PanoWizardApp: App {
                 documentURL: file.fileURL
             )
                 .frame(minWidth: 900, minHeight: 600)
-                .background(WindowStateRestorer(
-                    documentName: file.fileURL?
-                        .deletingPathExtension()
-                        .lastPathComponent
-                        ?? file.document.project.title
-                ))
+                .background(WindowStateRestorer())
         }
         .defaultSize(width: 1_240, height: 780)
         .commands {
+            ProjectDocumentMenuCommands()
             PanoramaMenuCommands()
             ControlPointMenuCommands()
+        }
+    }
+}
+
+private struct ProjectDocumentMenuCommands: Commands {
+    @FocusedValue(\.projectDocumentCommandActions)
+    private var actions
+
+    var body: some Commands {
+        CommandGroup(replacing: .saveItem) {
+            Button("Stäng") {
+                (NSApp.keyWindow ?? NSApp.mainWindow)?.performClose(nil)
+            }
+            .keyboardShortcut("w")
+
+            Divider()
+
+            Button("Spara") {
+                actions?.save()
+            }
+            .keyboardShortcut("s")
+            .disabled(actions == nil)
+
+            Button("Spara som…") {
+                actions?.saveAs()
+            }
+            .keyboardShortcut("s", modifiers: [.command, .shift])
+            .disabled(actions == nil)
         }
     }
 }
@@ -171,60 +326,19 @@ private struct ControlPointMenuCommands: Commands {
 }
 
 private struct WindowStateRestorer: NSViewRepresentable {
-    let documentName: String
-
     @MainActor
     final class Coordinator {
         private static let frameName = "PanoWizard.ProjectWindow"
         private static let zoomedKey = "PanoWizard.ProjectWindow.isZoomed"
         weak var window: NSWindow?
         var observers: [NSObjectProtocol] = []
-        var documentEditedObservation: NSKeyValueObservation?
-        var windowTitleObservation: NSKeyValueObservation?
-        var windowSubtitleObservation: NSKeyValueObservation?
-        var documentName = ""
 
         @MainActor
-        func attach(to window: NSWindow, documentName: String) {
-            self.documentName = documentName
-            guard self.window !== window else {
-                applyDocumentTitle()
-                return
-            }
+        func attach(to window: NSWindow) {
+            guard self.window !== window else { return }
             detach()
             self.window = window
-            self.documentName = documentName
             window.setFrameAutosaveName(Self.frameName)
-
-            documentEditedObservation = window.observe(
-                \.isDocumentEdited,
-                options: [.initial, .new]
-            ) { [weak self] _, _ in
-                Task { @MainActor in
-                    // SwiftUI first updates the ordinary document subtitle.
-                    // Apply our compact one-line form immediately afterwards.
-                    await Task.yield()
-                    self?.applyDocumentTitle()
-                }
-            }
-            windowTitleObservation = window.observe(
-                \.title,
-                options: [.new]
-            ) { [weak self] _, _ in
-                Task { @MainActor in
-                    await Task.yield()
-                    self?.applyDocumentTitle()
-                }
-            }
-            windowSubtitleObservation = window.observe(
-                \.subtitle,
-                options: [.new]
-            ) { [weak self] _, _ in
-                Task { @MainActor in
-                    await Task.yield()
-                    self?.applyDocumentTitle()
-                }
-            }
 
             let center = NotificationCenter.default
             for name in [
@@ -259,24 +373,7 @@ private struct WindowStateRestorer: NSViewRepresentable {
         }
 
         @MainActor
-        private func applyDocumentTitle() {
-            guard let window else { return }
-            let title = window.isDocumentEdited
-                ? "\(documentName) (redigerad)"
-                : documentName
-            if window.title != title {
-                window.title = title
-            }
-            if !window.subtitle.isEmpty {
-                window.subtitle = ""
-            }
-        }
-
-        @MainActor
         func detach() {
-            documentEditedObservation = nil
-            windowTitleObservation = nil
-            windowSubtitleObservation = nil
             observers.forEach(NotificationCenter.default.removeObserver)
             observers = []
             window = nil
@@ -292,10 +389,7 @@ private struct WindowStateRestorer: NSViewRepresentable {
         let view = NSView()
         DispatchQueue.main.async {
             guard let window = view.window else { return }
-            context.coordinator.attach(
-                to: window,
-                documentName: documentName
-            )
+            context.coordinator.attach(to: window)
         }
         return view
     }
@@ -303,10 +397,7 @@ private struct WindowStateRestorer: NSViewRepresentable {
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async {
             guard let window = view.window else { return }
-            context.coordinator.attach(
-                to: window,
-                documentName: documentName
-            )
+            context.coordinator.attach(to: window)
         }
     }
 
@@ -320,52 +411,237 @@ private struct WindowStateRestorer: NSViewRepresentable {
 
 private struct ProjectDocumentView: View {
     @Environment(\.dismissWindow) private var dismissWindow
-    @Binding var document: PanoProjectDocument
     @State private var model: AppModel
-    let documentURL: URL?
+    @State private var savedDocument: PanoProjectDocument
+    @State private var saveURL: URL?
+    @State private var projectWindow: NSWindow?
+    @State private var saveError: String?
 
     init(document: Binding<PanoProjectDocument>, documentURL: URL?) {
-        _document = document
-        self.documentURL = documentURL
+        let initialDocument = documentURL.flatMap {
+            try? PanoProjectDocument(contentsOf: $0)
+        } ?? document.wrappedValue
+        _savedDocument = State(initialValue: initialDocument)
+        _saveURL = State(initialValue: documentURL)
         _model = State(initialValue: AppModel.live(
-            project: document.wrappedValue.project,
-            masks: document.wrappedValue.masks,
-            controlPointMasks: document.wrappedValue.controlPointMasks,
-            protectedMasks: document.wrappedValue.protectedMasks,
-            panoramaData: document.wrappedValue.panoramaData,
-            nadirOverlayData: document.wrappedValue.nadirOverlayData,
-            zenithOverlayData: document.wrappedValue.zenithOverlayData,
-            nadirRetouchData: document.wrappedValue.nadirRetouchData,
-            zenithRetouchData: document.wrappedValue.zenithRetouchData
+            project: initialDocument.project,
+            masks: initialDocument.masks,
+            protectedMasks: initialDocument.protectedMasks,
+            panoramaData: initialDocument.panoramaData,
+            nadirOverlayData: initialDocument.nadirOverlayData,
+            zenithOverlayData: initialDocument.zenithOverlayData,
+            nadirRetouchData: initialDocument.nadirRetouchData,
+            zenithRetouchData: initialDocument.zenithRetouchData
         ))
     }
 
     var body: some View {
         ContentView(
             model: model,
-            projectName: documentURL?
+            projectName: saveURL?
                 .deletingPathExtension()
                 .lastPathComponent,
-            projectDirectoryURL: documentURL?.deletingLastPathComponent()
+            projectDirectoryURL: saveURL?.deletingLastPathComponent()
                 ?? model.sourceDirectoryURL
         )
-            .onChange(of: model.project) { _, project in
-                document.project = project
+            .navigationSubtitle(isDirty ? "Redigerad" : "")
+            .focusedSceneValue(
+                \.projectDocumentCommandActions,
+                ProjectDocumentCommandActions(
+                    save: { _ = save() },
+                    saveAs: { _ = saveAs() }
+                )
+            )
+            .background(ProjectWindowAccessor { window in
+                projectWindow = window
+                updateWindowState()
+            })
+            .onChange(of: isDirty) {
+                updateWindowState()
             }
             .onChange(of: model.maskRevision) {
-                document.masks = model.maskDataByImageID
-                document.controlPointMasks = model.controlPointMaskDataByImageID
-                document.protectedMasks = model.protectedMaskDataByImageID
+                updateWindowState()
             }
-            .onChange(of: model.panoramaRevision) {
-                document.panoramaData = model.panoramaData
-                document.nadirOverlayData = model.nadirOverlayData
-                document.zenithOverlayData = model.zenithOverlayData
-                document.nadirRetouchData = model.nadirRetouchData
-                document.zenithRetouchData = model.zenithRetouchData
+            .dismissalConfirmationDialog(
+                "Vill du spara ändringarna?",
+                shouldPresent: isDirty
+            ) {
+                Button("Spara", role: .cancel) {
+                    DispatchQueue.main.async {
+                        saveBeforeClosing()
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
+
+                Button("Spara inte", role: .destructive) {
+                    PanoWizardApplicationDelegate.shared?
+                        .discardAndContinueTermination(for: projectWindow)
+                }
+                Button("Avbryt", role: .cancel) {
+                    PanoWizardApplicationDelegate.shared?
+                        .cancelPendingTermination(for: projectWindow)
+                }
+            } message: {
+                Text("Ändringarna går förlorade om du inte sparar dem.")
+            }
+            .alert("Kunde inte spara", isPresented: Binding(
+                get: { saveError != nil },
+                set: { if !$0 { saveError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(saveError ?? "Okänt fel")
             }
             .onAppear {
                 dismissWindow(id: "welcome")
+                updateWindowState()
             }
+    }
+
+    private var workingDocument: PanoProjectDocument {
+        let hasNewPanoramaData = model.panoramaRevision > 0
+        return PanoProjectDocument(
+            project: model.project,
+            masks: model.maskDataByImageID,
+            protectedMasks: model.protectedMaskDataByImageID,
+            panoramaData: hasNewPanoramaData
+                ? model.panoramaData
+                : savedDocument.panoramaData,
+            nadirOverlayData: hasNewPanoramaData
+                ? model.nadirOverlayData
+                : savedDocument.nadirOverlayData,
+            zenithOverlayData: hasNewPanoramaData
+                ? model.zenithOverlayData
+                : savedDocument.zenithOverlayData,
+            nadirRetouchData: hasNewPanoramaData
+                ? model.nadirRetouchData
+                : savedDocument.nadirRetouchData,
+            zenithRetouchData: hasNewPanoramaData
+                ? model.zenithRetouchData
+                : savedDocument.zenithRetouchData
+        )
+    }
+
+    private var isDirty: Bool {
+        saveURL == nil || workingDocument != savedDocument
+    }
+
+    @discardableResult
+    private func save() -> Bool {
+        guard let saveURL else { return saveAs() }
+        return writeWorkingDocument(to: saveURL)
+    }
+
+    @discardableResult
+    private func saveAs() -> Bool {
+        let panel = makeSavePanel()
+        guard panel.runModal() == .OK, let url = panel.url else { return false }
+        return writeWorkingDocument(to: url)
+    }
+
+    private func saveBeforeClosing() {
+        if let saveURL {
+            guard writeWorkingDocument(to: saveURL) else {
+                PanoWizardApplicationDelegate.shared?
+                    .cancelPendingTermination(for: projectWindow)
+                return
+            }
+            projectWindow?.performClose(nil)
+            PanoWizardApplicationDelegate.shared?
+                .continuePendingTermination(for: projectWindow)
+            return
+        }
+
+        let panel = makeSavePanel()
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else {
+                PanoWizardApplicationDelegate.shared?
+                    .cancelPendingTermination(for: projectWindow)
+                return
+            }
+            DispatchQueue.main.async {
+                guard writeWorkingDocument(to: url) else {
+                    PanoWizardApplicationDelegate.shared?
+                        .cancelPendingTermination(for: projectWindow)
+                    return
+                }
+                projectWindow?.performClose(nil)
+                PanoWizardApplicationDelegate.shared?
+                    .continuePendingTermination(for: projectWindow)
+            }
+        }
+    }
+
+    private func makeSavePanel() -> NSSavePanel {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.panoWizardProject]
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = true
+        panel.title = "Spara panorama"
+        panel.prompt = "Spara"
+        panel.directoryURL = saveURL?.deletingLastPathComponent()
+            ?? model.sourceDirectoryURL
+        panel.nameFieldStringValue = saveURL?
+            .deletingPathExtension()
+            .lastPathComponent
+            ?? "Namnlöst"
+        return panel
+    }
+
+    private func writeWorkingDocument(to url: URL) -> Bool {
+        let snapshot = workingDocument
+        do {
+            try snapshot.writeAtomically(to: url)
+            saveURL = url
+            savedDocument = snapshot
+            synchronizeSystemDocument(with: url)
+            NSDocumentController.shared.noteNewRecentDocumentURL(url)
+            updateWindowState()
+            return true
+        } catch {
+            saveError = error.localizedDescription
+            return false
+        }
+    }
+
+    private func synchronizeSystemDocument(with url: URL) {
+        guard let systemDocument = projectWindow?.windowController?.document
+                as? NSDocument else {
+            projectWindow?.representedURL = url
+            return
+        }
+        systemDocument.fileURL = url
+        systemDocument.fileType = UTType.panoWizardProject.identifier
+        systemDocument.fileModificationDate = try? url.resourceValues(
+            forKeys: [.contentModificationDateKey]
+        ).contentModificationDate
+        systemDocument.updateChangeCount(.changeCleared)
+    }
+
+    private func updateWindowState() {
+        guard let projectWindow else { return }
+        let dirty = isDirty
+        projectWindow.isDocumentEdited = dirty
+    }
+}
+
+private struct ProjectWindowAccessor: NSViewRepresentable {
+    let resolve: (NSWindow) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        resolveWindow(for: view)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        resolveWindow(for: view)
+    }
+
+    private func resolveWindow(for view: NSView) {
+        DispatchQueue.main.async {
+            guard let window = view.window else { return }
+            resolve(window)
+        }
     }
 }

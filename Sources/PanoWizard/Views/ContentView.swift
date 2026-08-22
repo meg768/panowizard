@@ -66,7 +66,9 @@ struct ContentView: View {
     }
 
     private var detailWorkspace: some View {
-        VStack(spacing: 0) {
+        DetailWorkspace {
+            workspaceToolRow
+        } content: {
             ZStack {
                 if model.selection == .settings {
                     PanoramaSettingsView(model: model)
@@ -148,11 +150,7 @@ struct ContentView: View {
                         protectedMaskData: model.selectedSourceImage.flatMap {
                             model.protectedMaskDataByImageID[$0.id]
                         },
-                        controlPointMaskData: model.selectedSourceImage.flatMap {
-                            model.controlPointMaskDataByImageID[$0.id]
-                        },
                         maskTool: model.sourceMaskTool,
-                        zoom: model.sourceImageZoom,
                         maskIntent: model.sourceMaskIntent,
                         isAdjustingNadir: model.isAdjustingNadir,
                         adjustedPole: model.activeRepairPole,
@@ -161,23 +159,17 @@ struct ContentView: View {
                         initialViewpoint: model.panoramaViewpoint,
                         onNadirAdjustmentChange: model.setNadirAdjustment,
                         onViewpointChange: model.setPanoramaViewpoint,
-                        onSourceZoomChange: { model.sourceImageZoom = $0 },
-                        onMasksChange: { red, green, orange in
+                        onMasksChange: { red, green in
                             guard let image = model.selectedSourceImage else { return }
                             model.setSourceMasks(
-                                red: red, green: green, orange: orange,
-                                for: image.id
+                                red: red, green: green, for: image.id
                             )
                         }
                     )
                 }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                workspaceToolRow
-            }
-
+        } status: {
             StatusBar(model: model)
-                .frame(height: 30)
         }
     }
 
@@ -196,9 +188,7 @@ struct ContentView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 10)
-        .frame(height: 44)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.bar)
     }
 
     @ViewBuilder
@@ -290,9 +280,6 @@ struct ContentView: View {
             Button("Skydda i panoramat") {
                 model.sourceMaskIntent = .protect
             }
-            Button("Ignorera vid matchning") {
-                model.sourceMaskIntent = .controlPoints
-            }
             Button("Sudda mask") {
                 model.sourceMaskIntent = .erase
             }
@@ -302,16 +289,6 @@ struct ContentView: View {
         .menuStyle(.button)
         .buttonStyle(WorkspaceToolbarPillStyle())
         .help("Välj vad masken ska göra")
-
-        Button {
-            model.undoMask()
-        } label: {
-            Label("Ångra", systemImage: "arrow.uturn.backward")
-        }
-        .buttonStyle(WorkspaceToolbarPillStyle())
-        .disabled(!model.canUndoMask)
-        .keyboardShortcut("z", modifiers: .command)
-        .help("Ångra senaste maskändringen (⌘Z)")
     }
 
     @ViewBuilder
@@ -555,7 +532,6 @@ struct ContentView: View {
         switch model.sourceMaskIntent {
         case .exclude: "Uteslut"
         case .protect: "Skydda"
-        case .controlPoints: "Matchning"
         case .erase: "Sudda"
         }
     }
@@ -564,7 +540,6 @@ struct ContentView: View {
         switch model.sourceMaskIntent {
         case .exclude: "eye.slash"
         case .protect: "shield"
-        case .controlPoints: "scope"
         case .erase: "eraser"
         }
     }

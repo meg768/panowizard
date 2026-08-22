@@ -172,10 +172,13 @@ enum HuginProjectFile {
         let imageCount = lines.count { $0.hasPrefix("i ") }
         let insertionIndex = lines.firstIndex(of: "# control points")
             ?? lines.endIndex
-        // Keep the calibrated distortion and optical center fixed. A small
-        // field-of-view refinement absorbs body/sample variation without
-        // letting lens and pose collapse together.
-        var variables = ["v v0"]
+        // Start from the calibrated lens, then refine the same radial and
+        // optical-centre parameters that PTGui's heavy + shift mode uses.
+        // This happens only after the pose-only solve, so lens and pose do not
+        // have to discover the rig from an unconstrained starting point.
+        var variables = [
+            "v v0", "v a0", "v b0", "v c0", "v d0", "v e0"
+        ]
         for index in 0..<imageCount {
             variables += ["v y\(index)", "v p\(index)", "v r\(index)"]
         }

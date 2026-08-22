@@ -20,7 +20,7 @@ struct PanoramaEngineIntegrationTests {
             includingPropertiesForKeys: [.isRegularFileKey],
             options: [.skipsHiddenFiles]
         ).filter { url in
-            let supportedExtensions = ["jpg", "jpeg", "tif", "tiff"]
+            let supportedExtensions = ["jpg", "jpeg", "png", "tif", "tiff"]
             return supportedExtensions.contains(url.pathExtension.lowercased())
         }
         let imported = await ImageImportService(
@@ -181,16 +181,29 @@ struct PanoramaEngineIntegrationTests {
             }
             suppliedControlPoints = generated
         }
+        if let capturePath = environment[
+            "PANOWIZARD_FOLDER_CAPTURE_POINTS_PROJECT"
+        ] {
+            project.controlPoints = suppliedControlPoints ?? []
+            let captureEncoder = JSONEncoder()
+            captureEncoder.dateEncodingStrategy = .iso8601
+            captureEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try captureEncoder.encode(project).write(
+                to: URL(fileURLWithPath: capturePath),
+                options: .atomic
+            )
+        }
         let result: PanoramaStitchResult
         do {
             result = try await HuginOpenCVPanoramaEngine().stitch(
                 project.panorama,
                 masks: [:],
                 protectedMasks: [:],
-                controlPointMasks: [:],
                 controlPoints: suppliedControlPoints,
                 controlPointsAreAuthoritative: environment[
                     "PANOWIZARD_FOLDER_WIZARD_POINTS"
+                ] != "1" && environment[
+                    "PANOWIZARD_FOLDER_POINTS_ARE_AUTOMATIC"
                 ] != "1",
                 configuration: configuration,
                 cachedRigImageLines: [:]
@@ -328,6 +341,30 @@ struct PanoramaEngineIntegrationTests {
     }
 
     @Test
+    func removesModerateParallaxTailFromDenseAutomaticPair() {
+        let stable = Self.points(first: 0, second: 1, count: 30)
+        let parallax = Self.points(first: 0, second: 1, count: 10)
+        let points = stable + parallax
+        let errors = Array(repeating: 1.0, count: stable.count)
+            + Array(repeating: 7.0, count: parallax.count)
+
+        let accepted = HuginOpenCVPanoramaEngine.robustControlPoints(
+            points,
+            errors: errors
+        )
+
+        #expect(accepted.count == stable.count)
+    }
+
+    @Test
+    func alwaysUsesDistanceBasedSeams() {
+        #expect(
+            HuginOpenCVPanoramaEngine.primarySeamGenerator
+                == "nearest-feature-transform"
+        )
+    }
+
+    @Test
     func retriesOnlyPoorAutomaticGeometry() {
         #expect(
             HuginOpenCVPanoramaEngine.needsAutomaticStabilization(
@@ -348,6 +385,24 @@ struct PanoramaEngineIntegrationTests {
     }
 
     @Test
+    func automaticRecoveryPointsRemainEligibleForResidualFiltering() {
+        #expect(
+            HuginOpenCVPanoramaEngine.treatsSuppliedControlPointsAsEdited(
+                hasSuppliedControlPoints: true,
+                controlPointsAreAuthoritative: true,
+                automaticStabilizationAttempt: 0
+            )
+        )
+        #expect(
+            !HuginOpenCVPanoramaEngine.treatsSuppliedControlPointsAsEdited(
+                hasSuppliedControlPoints: true,
+                controlPointsAreAuthoritative: true,
+                automaticStabilizationAttempt: 1
+            )
+        )
+    }
+
+    @Test
     func rejectsFourImageRingHeldTogetherByWeakFalsePair() {
         let points =
             Self.points(first: 0, second: 1, count: 23)
@@ -357,7 +412,7 @@ struct PanoramaEngineIntegrationTests {
         #expect(
             HuginOpenCVPanoramaEngine.weakFourImageRingImages(
                 controlPoints: points
-            ) == [0, 2, 3]
+            ) == [0, 1, 2, 3]
         )
     }
 
@@ -402,7 +457,164 @@ struct PanoramaEngineIntegrationTests {
         #expect(
             HuginOpenCVPanoramaEngine.weakFourImageRingImages(
                 controlPoints: points
-            ) == [0, 1, 3]
+            ) == [0, 1, 2, 3]
+        )
+    }
+
+    @Test
+    func acceptsReliableClosureThroughSixRingImages() {
+        let points =
+            Self.points(first: 0, second: 1, count: 12)
+            + Self.points(first: 1, second: 2, count: 12)
+            + Self.points(first: 2, second: 3, count: 12)
+            + Self.points(first: 3, second: 4, count: 12)
+            + Self.points(first: 4, second: 5, count: 12)
+            + Self.points(first: 0, second: 5, count: 12)
+
+        #expect(
+            HuginOpenCVPanoramaEngine.imagesOutsideReliableRingClosure(
+                imageCount: 6,
+                requiredImageIndices: Array(0..<6),
+                controlPoints: points
+            ).isEmpty
+        )
+    }
+
+    @Test
+    func rejectsConnectedSixImageRingWithoutClosure() {
+        let points =
+            Self.points(first: 0, second: 1, count: 12)
+            + Self.points(first: 1, second: 2, count: 12)
+            + Self.points(first: 2, second: 3, count: 12)
+            + Self.points(first: 3, second: 4, count: 12)
+            + Self.points(first: 4, second: 5, count: 12)
+
+        #expect(
+            HuginOpenCVPanoramaEngine.imagesOutsideReliableRingClosure(
+                imageCount: 6,
+                requiredImageIndices: Array(0..<6),
+                controlPoints: points
+            ) == Array(0..<6)
+        )
+    }
+
+    @Test
+    func allowsZenithLeafOutsideClosedHorizontalRing() {
+        let points =
+            Self.points(first: 0, second: 1, count: 12)
+            + Self.points(first: 1, second: 2, count: 12)
+            + Self.points(first: 2, second: 3, count: 12)
+            + Self.points(first: 3, second: 4, count: 12)
+            + Self.points(first: 4, second: 5, count: 12)
+            + Self.points(first: 0, second: 5, count: 12)
+            + Self.points(first: 2, second: 6, count: 12)
+
+        #expect(
+            HuginOpenCVPanoramaEngine.imagesOutsideReliableRingClosure(
+                imageCount: 7,
+                requiredImageIndices: Array(0..<6),
+                controlPoints: points
+            ).isEmpty
+        )
+    }
+
+    @Test
+    func allowsPoleAndOverlappingPositioningLeavesOutsideClosedBackbone() {
+        let points =
+            Self.points(first: 0, second: 1, count: 12, error: 0.8)
+            + Self.points(first: 1, second: 2, count: 12, error: 0.8)
+            + Self.points(first: 2, second: 3, count: 12, error: 0.8)
+            + Self.points(first: 3, second: 4, count: 12, error: 0.8)
+            + Self.points(first: 4, second: 5, count: 12, error: 0.8)
+            + Self.points(first: 0, second: 5, count: 12, error: 0.8)
+            + Self.points(first: 2, second: 6, count: 12, error: 0.8)
+            + Self.points(first: 4, second: 7, count: 12, error: 0.8)
+            + Self.points(first: 1, second: 8, count: 12, error: 0.8)
+            + Self.points(first: 3, second: 9, count: 12, error: 0.8)
+        let orientations = [
+            PanoramaOrientation(yaw: 0, pitch: 4, roll: 0),
+            PanoramaOrientation(yaw: 60, pitch: -12, roll: 0),
+            PanoramaOrientation(yaw: 120, pitch: 35, roll: 0),
+            PanoramaOrientation(yaw: 180, pitch: -25, roll: 0),
+            PanoramaOrientation(yaw: -120, pitch: 18, roll: 0),
+            PanoramaOrientation(yaw: -60, pitch: 6, roll: 0),
+            PanoramaOrientation(yaw: 20, pitch: -88, roll: 0),
+            PanoramaOrientation(yaw: -40, pitch: 89, roll: 0),
+            PanoramaOrientation(yaw: 70, pitch: -87, roll: 0),
+            PanoramaOrientation(yaw: 175, pitch: 2, roll: 0)
+        ]
+
+        #expect(
+            HuginOpenCVPanoramaEngine.hasReliable360DegreeBackbone(
+                orientations: orientations,
+                horizontalFieldOfView: 87.44,
+                controlPoints: points
+            )
+        )
+    }
+
+    @Test
+    func rejectsLocalCycleWithOpenPositioningRemainder() {
+        let points =
+            Self.points(first: 0, second: 1, count: 12)
+            + Self.points(first: 1, second: 2, count: 12)
+            + Self.points(first: 0, second: 2, count: 12)
+            + Self.points(first: 2, second: 3, count: 12)
+            + Self.points(first: 3, second: 4, count: 12)
+            + Self.points(first: 4, second: 5, count: 12)
+        let orientations = [
+            PanoramaOrientation(yaw: 0, pitch: 0, roll: 0),
+            PanoramaOrientation(yaw: 45, pitch: 0, roll: 0),
+            PanoramaOrientation(yaw: 90, pitch: 0, roll: 0),
+            PanoramaOrientation(yaw: 150, pitch: 0, roll: 0),
+            PanoramaOrientation(yaw: -150, pitch: 0, roll: 0),
+            PanoramaOrientation(yaw: -60, pitch: 0, roll: 0)
+        ]
+
+        #expect(
+            !HuginOpenCVPanoramaEngine.hasReliable360DegreeBackbone(
+                orientations: orientations,
+                horizontalFieldOfView: 87.44,
+                controlPoints: points
+            )
+        )
+    }
+
+    @Test
+    func rejectsDenseClosurePairWithHighOptimizedResiduals() {
+        let points =
+            Self.points(first: 0, second: 1, count: 12, error: 0.7)
+            + Self.points(first: 1, second: 2, count: 12, error: 0.8)
+            + Self.points(first: 2, second: 3, count: 12, error: 0.9)
+            + Self.points(first: 3, second: 4, count: 12, error: 0.7)
+            + Self.points(first: 4, second: 5, count: 12, error: 0.8)
+            + Self.points(first: 0, second: 5, count: 12, error: 8)
+
+        #expect(
+            HuginOpenCVPanoramaEngine.imagesOutsideReliableRingClosure(
+                imageCount: 6,
+                requiredImageIndices: Array(0..<6),
+                controlPoints: points
+            ) == Array(0..<6)
+        )
+    }
+
+    @Test
+    func acceptsClosedRingWithModeratelyNoisyRealTransition() {
+        let points =
+            Self.points(first: 0, second: 1, count: 12, error: 0.7)
+            + Self.points(first: 1, second: 2, count: 12, error: 0.8)
+            + Self.points(first: 2, second: 3, count: 12, error: 0.9)
+            + Self.points(first: 3, second: 4, count: 12, error: 4.5)
+            + Self.points(first: 4, second: 5, count: 12, error: 0.8)
+            + Self.points(first: 0, second: 5, count: 12, error: 0.9)
+
+        #expect(
+            HuginOpenCVPanoramaEngine.imagesOutsideReliableRingClosure(
+                imageCount: 6,
+                requiredImageIndices: Array(0..<6),
+                controlPoints: points
+            ).isEmpty
         )
     }
 
@@ -470,6 +682,53 @@ struct PanoramaEngineIntegrationTests {
             OpenCVControlPointMatcher.weakFourImageRingPairs(
                 in: diagnostics
             ).isEmpty
+        )
+    }
+
+    @Test
+    func identifiesWeakClosureInSixImageRingWithoutIncludingZenith() {
+        let diagnostics = [
+            Self.pairDiagnostic(0, 1, selected: 25, coverage: 0.25),
+            Self.pairDiagnostic(1, 2, selected: 25, coverage: 0.25),
+            Self.pairDiagnostic(2, 3, selected: 25, coverage: 0.25),
+            Self.pairDiagnostic(3, 4, selected: 25, coverage: 0.25),
+            Self.pairDiagnostic(4, 5, selected: 25, coverage: 0.25),
+            Self.pairDiagnostic(0, 5, selected: 7, coverage: 0.08),
+            Self.pairDiagnostic(2, 6, selected: 5, coverage: 0.04)
+        ]
+
+        #expect(
+            OpenCVControlPointMatcher.weakPositioningSequenceTransitions(
+                in: diagnostics,
+                positioningImageIndices: Array(0..<6)
+            ).map { "\($0.0)-\($0.1)" } == ["0-5"]
+        )
+    }
+
+    @Test
+    func protectsOnlyWhenAWeakEdgeIsNeededForTheAvailableCycle() {
+        let sparseCycle = [
+            Self.pairDiagnostic(0, 1, selected: 25, coverage: 0.25),
+            Self.pairDiagnostic(1, 2, selected: 25, coverage: 0.25),
+            Self.pairDiagnostic(2, 3, selected: 25, coverage: 0.25),
+            Self.pairDiagnostic(3, 4, selected: 25, coverage: 0.25),
+            Self.pairDiagnostic(4, 5, selected: 25, coverage: 0.25),
+            Self.pairDiagnostic(0, 5, selected: 7, coverage: 0.08),
+            Self.pairDiagnostic(3, 6, selected: 12, coverage: 0.2)
+        ]
+        let redundantGraph = sparseCycle + [
+            Self.pairDiagnostic(0, 2, selected: 25, coverage: 0.25)
+        ]
+
+        #expect(
+            OpenCVControlPointMatcher.needsSparseCycleProtection(
+                in: sparseCycle
+            )
+        )
+        #expect(
+            !OpenCVControlPointMatcher.needsSparseCycleProtection(
+                in: redundantGraph
+            )
         )
     }
 
@@ -622,7 +881,11 @@ struct PanoramaEngineIntegrationTests {
         )
 
         let html = try String(contentsOf: outputURL, encoding: .utf8)
+        #expect(html.contains("<html lang=\"en\">"))
         #expect(html.contains("<title>Pano &lt;Wizard&gt;</title>"))
+        #expect(!html.contains("<div id=\"controls\">"))
+        #expect(!html.contains("Drag to look around"))
+        #expect(!html.contains("Dra för att"))
         #expect(html.contains("data:image/jpeg;base64,"))
         #expect(html.contains("getContext(\"webgl\")"))
         #expect(html.contains("zenithRepair"))
@@ -863,24 +1126,6 @@ struct PanoramaEngineIntegrationTests {
                 masks[id] = try Data(contentsOf: file)
             }
         }
-        let controlPointMasksDirectory = package.appending(
-            path: "control-point-masks",
-            directoryHint: .isDirectory
-        )
-        var controlPointMasks: [UUID: Data] = [:]
-        if let files = try? FileManager.default.contentsOfDirectory(
-            at: controlPointMasksDirectory,
-            includingPropertiesForKeys: nil
-        ) {
-            for file in files where file.pathExtension.lowercased() == "png" {
-                guard let id = UUID(
-                    uuidString: file.deletingPathExtension().lastPathComponent
-                ) else {
-                    continue
-                }
-                controlPointMasks[id] = try Data(contentsOf: file)
-            }
-        }
         var configuration = project.stitching
         if ProcessInfo.processInfo.environment[
             "PANOWIZARD_FORCE_AUTOMATIC_ENGINE"
@@ -894,7 +1139,6 @@ struct PanoramaEngineIntegrationTests {
             let optimized = try await HuginOpenCVPanoramaEngine()
                 .optimizeControlPoints(
                     project.panorama,
-                    controlPointMasks: controlPointMasks,
                     controlPoints: points,
                     controlPointsAreAuthoritative: true,
                     configuration: configuration
@@ -949,7 +1193,6 @@ struct PanoramaEngineIntegrationTests {
             project.panorama,
             masks: masks,
             protectedMasks: protectedMasks,
-            controlPointMasks: controlPointMasks,
             controlPoints: regenerateControlPoints ? nil : project.controlPoints,
             controlPointsAreAuthoritative: !regenerateControlPoints,
             configuration: configuration,
@@ -1019,7 +1262,6 @@ struct PanoramaEngineIntegrationTests {
             let editedResult = try await HuginOpenCVPanoramaEngine()
                 .optimizeControlPoints(
                 project.panorama,
-                controlPointMasks: controlPointMasks,
                 controlPoints: editedPoints,
                 controlPointsAreAuthoritative: true,
                 configuration: configuration

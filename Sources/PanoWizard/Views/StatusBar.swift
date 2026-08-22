@@ -79,9 +79,6 @@ struct StatusBar: View {
         .frame(height: 30)
         .clipped()
         .background(.bar, ignoresSafeAreaEdges: [])
-        .overlay(alignment: .top) {
-            Divider()
-        }
     }
 
     private var statusSymbol: String {
@@ -102,7 +99,8 @@ struct StatusBar: View {
                 ? "1 ny kontrollpunkt tillagd"
                 : "\(count) nya kontrollpunkter tillagda"
         }
-        guard model.selectedSourceImage != nil,
+        guard model.phase == .ready,
+              model.selectedSourceImage != nil,
               !model.isShowingStitchedPanorama else {
             return model.phase.message
         }
@@ -111,8 +109,6 @@ struct StatusBar: View {
             action = "Dra över det rektangulära området"
         } else if model.sourceMaskIntent == .erase {
             action = "Måla för att sudda masken"
-        } else if model.sourceMaskIntent == .controlPoints {
-            action = "Måla orange över sådant som ska ignoreras vid matchning"
         } else if model.sourceMaskIntent == .protect {
             action = "Måla grönt över sådant som måste hämtas från bilden"
         } else if model.sourceMaskIntent == .erase {

@@ -87,10 +87,6 @@ not be used in the final blend. Before rendering, the mask is transferred to
 the source alpha channel; Nona transforms it with the image and Enblend uses
 the remaining unmasked overlaps.
 
-Control-point exclusion masks are stored separately and are applied during
-automatic feature matching. They do not alter the source image or the final
-blend.
-
 A handheld nadir or repair image can be marked as **Fill only**. Alignment
 images establish and freeze the panorama geometry first; fill-only images are
 registered afterwards and cannot move the base panorama. Image roles and a

@@ -33,33 +33,32 @@ struct SphericalPanoramaView: View {
         )
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(alignment: .topLeading) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label(
-                        isAdjustingNadir
-                            ? "Justering · dra: flytta · hörn: perspektiv · ⌘-dra: rotera · ⌥-rulla: skala"
-                            : "Förhandsvisning · dra för att se dig omkring · rulla för att zooma",
-                        systemImage: isAdjustingNadir ? "scope" : "move.3d"
-                    )
-                    if overlayURL != nil || zenithOverlayURL != nil
-                        || nadirRetouchURL != nil
-                        || zenithRetouchURL != nil {
+                if isAdjustingNadir {
+                    VStack(alignment: .leading, spacing: 8) {
                         Label(
-                            isAdjustingNadir
-                                ? adjustmentDescription
-                                : nadirRetouchURL == nil
-                                    && zenithRetouchURL == nil
-                                    ? "Polreparationer" : "Polretuscher",
-                            systemImage: "square.2.layers.3d.bottom.filled"
+                            "Justering · dra: flytta · hörn: perspektiv · ⌘-dra: rotera · ⌥-rulla: skala",
+                            systemImage: "scope"
                         )
+                        if overlayURL != nil || zenithOverlayURL != nil
+                            || nadirRetouchURL != nil
+                            || zenithRetouchURL != nil {
+                            Label(
+                                adjustmentDescription,
+                                systemImage: "square.2.layers.3d.bottom.filled"
+                            )
+                        }
                     }
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(
+                        .black.opacity(0.45),
+                        in: RoundedRectangle(cornerRadius: 12)
+                    )
+                    .padding(14)
+                    .allowsHitTesting(false)
                 }
-                .font(.caption)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 12))
-                .padding(14)
-                .allowsHitTesting(false)
             }
             .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
             .padding(.horizontal, 24)

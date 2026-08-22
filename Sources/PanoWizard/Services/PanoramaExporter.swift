@@ -89,7 +89,7 @@ struct FilePanoramaExporter: PanoramaExporting {
         } ?? "null"
         return """
         <!doctype html>
-        <html lang="sv">
+        <html lang="en">
         <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
@@ -98,15 +98,9 @@ struct FilePanoramaExporter: PanoramaExporting {
         *{box-sizing:border-box}html,body,canvas{width:100%;height:100%;margin:0}
         body{overflow:hidden;background:#08090b;color:white;font:14px system-ui}
         canvas{display:block;touch-action:none;cursor:grab}canvas:active{cursor:grabbing}
-        #hint{position:fixed;left:16px;top:16px;padding:8px 11px;border-radius:10px;
-        background:#0008;backdrop-filter:blur(8px);pointer-events:none}
-        #zoom{position:fixed;right:16px;bottom:16px;display:flex;gap:8px}
-        #zoom button{width:44px;height:44px;border:0;border-radius:22px;background:#0009;
-        color:white;font:26px system-ui;cursor:pointer;backdrop-filter:blur(8px)}
         </style>
         </head>
-        <body><canvas id="view"></canvas><div id="hint">Dra för att se dig omkring · rulla för att zooma</div>
-        <div id="zoom"><button id="out" aria-label="Zooma ut">−</button><button id="in" aria-label="Zooma in">+</button></div>
+        <body><canvas id="view"></canvas>
         <script>
         const panoramaSource="data:image/jpeg;base64,\(panoramaBase64)";
         const nadirOverlaySource=\(nadirOverlaySource);
@@ -114,7 +108,7 @@ struct FilePanoramaExporter: PanoramaExporting {
         const nadirRetouchSource=\(nadirRetouchSource);
         const zenithRetouchSource=\(zenithRetouchSource);
         const canvas=document.querySelector("#view"),gl=canvas.getContext("webgl");
-        if(!gl)document.body.innerHTML="<p>WebGL krävs för att visa panoramat.</p>";
+        if(!gl)document.body.innerHTML="<p>WebGL is required to view this panorama.</p>";
         const vertex=`attribute vec2 p;varying vec2 n;void main(){n=p;gl_Position=vec4(p,0.,1.);}`;
         const fragment=`precision highp float;varying vec2 n;uniform sampler2D pano,nadirRepair,zenithRepair,nadirRetouch,zenithRetouch;
         uniform float yaw,pitch,fov,aspect,hasNadirRepair,hasZenithRepair,hasNadirRetouch,hasZenithRetouch;
@@ -184,8 +178,6 @@ struct FilePanoramaExporter: PanoramaExporting {
         canvas.addEventListener("gesturestart",e=>{e.preventDefault();gestureFOV=f},{passive:false});
         canvas.addEventListener("gesturechange",e=>{e.preventDefault();
         setFOV(gestureFOV*180/PI/e.scale)},{passive:false});
-        document.querySelector("#in").onclick=()=>setFOV(f*180/PI-10);
-        document.querySelector("#out").onclick=()=>setFOV(f*180/PI+10);
         addEventListener("keydown",e=>{if(e.key==="ArrowLeft")y-=.08;
         else if(e.key==="ArrowRight")y+=.08;else if(e.key==="ArrowUp")p=Math.max(-PI/2+.001,p-.08);
         else if(e.key==="ArrowDown")p=Math.min(PI/2-.001,p+.08);

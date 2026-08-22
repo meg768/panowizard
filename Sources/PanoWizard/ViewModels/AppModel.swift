@@ -1,7 +1,6 @@
 import Foundation
 import ImageIO
 import Observation
-import CryptoKit
 
 enum ProjectSelection: Hashable {
     case panorama
@@ -20,12 +19,10 @@ final class AppModel {
     enum SourceMaskIntent: Hashable {
         case exclude
         case protect
-        case controlPoints
         case erase
     }
     enum MaskKind: Hashable {
         case panorama
-        case controlPoints
         case protected
     }
 
@@ -96,21 +93,17 @@ final class AppModel {
     var controlPointLeftImageIndex = 0
     var controlPointRightImageIndex = 1
     var maskDataByImageID: [UUID: Data]
-    var controlPointMaskDataByImageID: [UUID: Data]
     var protectedMaskDataByImageID: [UUID: Data]
     var maskRevision = 0
     var panoramaRevision = 0
     var sourceMaskIntent = SourceMaskIntent.exclude
     var sourceMaskTool = SourceMaskTool.brush
-    var sourceImageZoom = 1.0
     var isAdjustingNadir = false
     var nadirAdjustment = NadirRepairAdjustment.identity
     var zenithAdjustment = NadirRepairAdjustment.identity
     var activeRepairPole = PanoramaPole.nadir
     private var maskUndoStack: [(MaskKind, UUID, Data?)] = []
-    private var sourceMaskUndoStack: [(
-        UUID, Data?, Data?, Data?, [DiagnosticControlPoint]
-    )] = []
+    private var sourceMaskUndoStack: [(UUID, Data?, Data?)] = []
     private var repairRenderRevision = 0
     private var stitchOperationID = UUID()
 
@@ -121,7 +114,6 @@ final class AppModel {
         panoramaEngine: any PanoramaEngine,
         exporter: any PanoramaExporting,
         masks: [UUID: Data] = [:],
-        controlPointMasks: [UUID: Data] = [:],
         protectedMasks: [UUID: Data] = [:],
         panoramaData: Data? = nil,
         nadirOverlayData: Data? = nil,
@@ -131,13 +123,6 @@ final class AppModel {
     ) {
         var normalizedProject = project
         normalizedProject.removeUnsupportedControlPoints()
-        let currentMaskSignature = Self.controlPointMaskSignature(
-            controlPointMasks
-        )
-        if normalizedProject.controlPointMaskSignature
-            != currentMaskSignature {
-            normalizedProject.controlPointMaskSignature = currentMaskSignature
-        }
         if let detectedProfile = Self.detectedLensProfile(
             in: normalizedProject.images
         ) {
@@ -165,7 +150,6 @@ final class AppModel {
         panoramaViewpoint = normalizedProject.previewViewpoint
             ?? PanoramaViewpoint()
         maskDataByImageID = masks
-        controlPointMaskDataByImageID = controlPointMasks
         protectedMaskDataByImageID = protectedMasks
         if let savedControlPoints = normalizedProject.controlPoints {
             editableControlPoints = savedControlPoints
@@ -216,13 +200,11 @@ final class AppModel {
                 filename: "\(project.id.uuidString)-zenith-retouch.png"
             )
         }
-        synchronizeControlPointMaskSignature()
     }
 
     static func live(
         project: PanoProject = PanoProject(),
         masks: [UUID: Data] = [:],
-        controlPointMasks: [UUID: Data] = [:],
         protectedMasks: [UUID: Data] = [:],
         panoramaData: Data? = nil,
         nadirOverlayData: Data? = nil,
@@ -237,7 +219,6 @@ final class AppModel {
             panoramaEngine: HuginOpenCVPanoramaEngine(),
             exporter: FilePanoramaExporter(),
             masks: masks,
-            controlPointMasks: controlPointMasks,
             protectedMasks: protectedMasks,
             panoramaData: panoramaData,
             nadirOverlayData: nadirOverlayData,
@@ -399,10 +380,6 @@ final class AppModel {
             maskDataByImageID = maskDataByImageID.filter { id, _ in
                 sortedImages.contains { $0.id == id }
             }
-            controlPointMaskDataByImageID =
-                controlPointMaskDataByImageID.filter { id, _ in
-                    sortedImages.contains { $0.id == id }
-                }
             protectedMaskDataByImageID = protectedMaskDataByImageID.filter {
                 id, _ in sortedImages.contains { $0.id == id }
             }
@@ -463,7 +440,6 @@ final class AppModel {
     }
 
     func stitch() {
-        synchronizeControlPointMaskSignature()
         // Once a control-point network exists it is the project's authoritative
         // geometry, including every manual add, move, or deletion. Rendering
         // may apply new masks, but only an explicit regeneration command may
@@ -479,7 +455,6 @@ final class AppModel {
     }
 
     func optimizeEditedControlPoints() {
-        synchronizeControlPointMaskSignature()
         guard !editableControlPoints.isEmpty, let panorama else { return }
         lastControlPointSuggestionCount = nil
         phase = .optimizingControlPoints
@@ -488,7 +463,6 @@ final class AppModel {
             do {
                 let result = try await panoramaEngine.optimizeControlPoints(
                     panorama,
-                    controlPointMasks: effectiveControlPointMasks,
                     controlPoints: points,
                     controlPointsAreAuthoritative: true,
                     configuration: project.stitching
@@ -587,7 +561,6 @@ final class AppModel {
                     panorama,
                     masks: maskDataByImageID,
                     protectedMasks: protectedMaskDataByImageID,
-                    controlPointMasks: effectiveControlPointMasks,
                     controlPoints: controlPoints,
                     controlPointsAreAuthoritative:
                         controlPointsAreAuthoritative,
@@ -824,7 +797,6 @@ final class AppModel {
         let horizontalFieldOfView = project.stitching.inputHorizontalFieldOfView
         let lensProfile = project.stitching.lensProfile
         let existingPoints = editableControlPoints
-        let controlPointMasks = effectiveControlPointMasks
         let cachedLines = project.cachedRigSignature == project.rigSignature
             ? Dictionary(uniqueKeysWithValues:
                 (project.cachedRigImageLines ?? [:]).compactMap { key, value in
@@ -844,22 +816,9 @@ final class AppModel {
                         images: images,
                         pair: pair,
                         horizontalFieldOfView: horizontalFieldOfView,
-                        lensProfile: lensProfile,
-                        controlPointMasks: controlPointMasks
+                        lensProfile: lensProfile
                     )
                 }.value
-                let firstImage = images[pair.firstImage]
-                let secondImage = images[pair.secondImage]
-                let firstMask = SourceMaskRasterizer.exclusionMap(
-                    from: controlPointMasks[firstImage.id],
-                    width: firstImage.pixelWidth,
-                    height: firstImage.pixelHeight
-                )
-                let secondMask = SourceMaskRasterizer.exclusionMap(
-                    from: controlPointMasks[secondImage.id],
-                    width: secondImage.pixelWidth,
-                    height: secondImage.pixelHeight
-                )
                 var candidates = matches
                     .map {
                         DiagnosticControlPoint(
@@ -872,16 +831,7 @@ final class AppModel {
                         )
                     }
                     .filter { candidate in
-                        let isMasked =
-                            firstMask?.contains(CGPoint(
-                                x: candidate.firstX,
-                                y: candidate.firstY
-                            )) == true
-                            || secondMask?.contains(CGPoint(
-                                x: candidate.secondX,
-                                y: candidate.secondY
-                            )) == true
-                        return !isMasked && !existingPoints.contains {
+                        !existingPoints.contains {
                             $0.pair == candidate.pair
                                 && (
                                     hypot(
@@ -948,20 +898,17 @@ final class AppModel {
         phase = .suggestingControlPoints
         let horizontalFieldOfView = project.stitching.inputHorizontalFieldOfView
         let lensProfile = project.stitching.lensProfile
-        let controlPointMasks = effectiveControlPointMasks
-
         Task {
             do {
                 let matches = try await Task.detached(priority: .userInitiated) {
                     try OpenCVControlPointMatcher.ring(
                         images: matchingImages,
                         horizontalFieldOfView: horizontalFieldOfView,
-                        lensProfile: lensProfile,
-                        controlPointMasks: controlPointMasks
+                        lensProfile: lensProfile
                     )
                 }.value
-                // The ring matcher has already applied the exclusion masks and
-                // performed geometric and spatial selection. Preserve its full
+                // The ring matcher has already performed geometric and spatial
+                // selection. Preserve its full
                 // connected network rather than reselecting per pair here.
                 let generatedPoints: [DiagnosticControlPoint] = matches.map {
                     DiagnosticControlPoint(
@@ -992,7 +939,6 @@ final class AppModel {
                     let optimized = try await panoramaEngine
                         .optimizeControlPoints(
                             panorama,
-                            controlPointMasks: controlPointMasks,
                             controlPoints: generatedPoints,
                             controlPointsAreAuthoritative: false,
                             configuration: project.stitching
@@ -1386,38 +1332,9 @@ final class AppModel {
             )
         }
         project.controlPoints = editableControlPoints
-        project.controlPointMaskSignature = Self.controlPointMaskSignature(
-            controlPointMaskDataByImageID
-        )
         project.modifiedAt = Date(
             timeIntervalSince1970: Date.now.timeIntervalSince1970.rounded(.down)
         )
-    }
-
-    private func synchronizeControlPointMaskSignature() {
-        let signature = Self.controlPointMaskSignature(
-            controlPointMaskDataByImageID
-        )
-        guard project.controlPointMaskSignature != signature else { return }
-        project.controlPointMaskSignature = signature
-    }
-
-    private static func controlPointMaskSignature(
-        _ masks: [UUID: Data]
-    ) -> String? {
-        guard !masks.isEmpty else { return nil }
-        var digestInput = Data()
-        for (id, data) in masks.sorted(by: {
-            $0.key.uuidString < $1.key.uuidString
-        }) {
-            digestInput.append(contentsOf: id.uuidString.utf8)
-            digestInput.append(0)
-            digestInput.append(data)
-            digestInput.append(0)
-        }
-        return SHA256.hash(data: digestInput)
-            .map { String(format: "%02x", $0) }
-            .joined()
     }
 
     func removeSelectedSourceImage() {
@@ -1435,7 +1352,6 @@ final class AppModel {
         editableControlPoints = project.controlPoints ?? []
         selectedControlPointPairID = nil
         maskDataByImageID[id] = nil
-        controlPointMaskDataByImageID[id] = nil
         protectedMaskDataByImageID[id] = nil
         maskUndoStack.removeAll { $0.1 == id }
         maskRevision += 1
@@ -1531,7 +1447,6 @@ final class AppModel {
 
     func maskData(for id: UUID) -> Data? {
         switch activeMaskKind {
-        case .controlPoints: controlPointMaskDataByImageID[id]
         case .protected: protectedMaskDataByImageID[id]
         case .panorama: maskDataByImageID[id]
         }
@@ -1539,10 +1454,7 @@ final class AppModel {
 
     func setMaskData(_ data: Data?, for id: UUID) {
         let kind = activeMaskKind
-        if kind == .controlPoints {
-            maskUndoStack.append((kind, id, controlPointMaskDataByImageID[id]))
-            controlPointMaskDataByImageID[id] = data
-        } else if kind == .protected {
+        if kind == .protected {
             maskUndoStack.append((kind, id, protectedMaskDataByImageID[id]))
             protectedMaskDataByImageID[id] = data
         } else {
@@ -1550,18 +1462,6 @@ final class AppModel {
             maskDataByImageID[id] = data
         }
         maskRevision += 1
-        if kind == .controlPoints {
-            synchronizeControlPointMaskSignature()
-            project.cachedRigImageLines = nil
-            project.cachedRigSignature = nil
-            stitchedResultURL = nil
-            nadirOverlayURL = nil
-            project.nadirRepairPlacement = nil
-            nadirAdjustment = .identity
-            isAdjustingNadir = false
-            panoramaRevision += 1
-            return
-        }
         if refreshRepairOverlayIfPossible(for: id) {
             return
         }
@@ -1585,15 +1485,13 @@ final class AppModel {
     }
 
     func setSourceMasks(
-        red: Data?, green: Data?, orange: Data?, for id: UUID
+        red: Data?, green: Data?, for id: UUID
     ) {
         sourceMaskUndoStack.append((
-            id, maskDataByImageID[id], protectedMaskDataByImageID[id],
-            controlPointMaskDataByImageID[id], editableControlPoints
+            id, maskDataByImageID[id], protectedMaskDataByImageID[id]
         ))
         maskDataByImageID[id] = red
         protectedMaskDataByImageID[id] = green
-        controlPointMaskDataByImageID[id] = orange
         maskRevision += 1
         repairRenderRevision += 1
         stitchedResultURL = nil
@@ -1611,7 +1509,6 @@ final class AppModel {
                   currentData,
                   width: image.pixelWidth,
                   height: image.pixelHeight,
-                  controlPointExclusion: activeMaskKind == .controlPoints,
                   protectedArea: activeMaskKind == .protected
               ) else {
             return
@@ -1624,12 +1521,9 @@ final class AppModel {
     }
 
     func undoMask() {
-        if let (id, red, green, orange, controlPoints) = sourceMaskUndoStack.popLast() {
+        if let (id, red, green) = sourceMaskUndoStack.popLast() {
             maskDataByImageID[id] = red
             protectedMaskDataByImageID[id] = green
-            controlPointMaskDataByImageID[id] = orange
-            editableControlPoints = controlPoints
-            saveEditableControlPoints()
             maskRevision += 1
             repairRenderRevision += 1
             stitchedResultURL = nil
@@ -1641,26 +1535,12 @@ final class AppModel {
             return
         }
         guard let (kind, id, data) = maskUndoStack.popLast() else { return }
-        if kind == .controlPoints {
-            controlPointMaskDataByImageID[id] = data
-        } else if kind == .protected {
+        if kind == .protected {
             protectedMaskDataByImageID[id] = data
         } else {
             maskDataByImageID[id] = data
         }
         maskRevision += 1
-        if kind == .controlPoints {
-            synchronizeControlPointMaskSignature()
-            project.cachedRigImageLines = nil
-            project.cachedRigSignature = nil
-            stitchedResultURL = nil
-            nadirOverlayURL = nil
-            project.nadirRepairPlacement = nil
-            nadirAdjustment = .identity
-            isAdjustingNadir = false
-            panoramaRevision += 1
-            return
-        }
         if refreshRepairOverlayIfPossible(for: id) {
             return
         }
@@ -1677,13 +1557,8 @@ final class AppModel {
         switch sourceMaskIntent {
         case .exclude: .panorama
         case .protect: .protected
-        case .controlPoints: .controlPoints
         case .erase: .panorama
         }
-    }
-
-    private var effectiveControlPointMasks: [UUID: Data] {
-        controlPointMaskDataByImageID
     }
 
     func setNadirAdjustment(_ adjustment: NadirRepairAdjustment) {

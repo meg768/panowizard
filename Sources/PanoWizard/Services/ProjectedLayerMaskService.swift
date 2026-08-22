@@ -10,6 +10,7 @@ enum ProjectedLayerMaskService {
     static func normalize(
         _ sourceURL: URL,
         exclusionMask: Data? = nil,
+        insetsAlphaByOnePixel: Bool = false,
         to destinationURL: URL
     ) throws {
         guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
@@ -42,7 +43,40 @@ enum ProjectedLayerMaskService {
             context.setBlendMode(.destinationOut)
             context.draw(mask, in: bounds)
         }
+        if insetsAlphaByOnePixel {
+            insetAlphaByOnePixel(in: context)
+        }
         try write(context.makeImage(), to: destinationURL)
+    }
+
+    static func insetAlphaByOnePixel(
+        _ alpha: [UInt8],
+        width: Int,
+        height: Int
+    ) -> [UInt8] {
+        guard width > 0, height > 0, alpha.count == width * height else {
+            return alpha
+        }
+        var result = alpha
+        for y in 0..<height {
+            let firstY = max(0, y - 1)
+            let lastY = min(height - 1, y + 1)
+            for x in 0..<width {
+                let firstX = max(0, x - 1)
+                let lastX = min(width - 1, x + 1)
+                var minimum = UInt8.max
+                for neighborY in firstY...lastY {
+                    for neighborX in firstX...lastX {
+                        minimum = min(
+                            minimum,
+                            alpha[neighborY * width + neighborX]
+                        )
+                    }
+                }
+                result[y * width + x] = minimum
+            }
+        }
+        return result
     }
 
     static func alphaMask(from normalizedLayer: URL) throws -> Data {
@@ -97,6 +131,36 @@ enum ProjectedLayerMaskService {
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         )
+    }
+
+    private static func insetAlphaByOnePixel(in context: CGContext) {
+        guard let data = context.data else { return }
+        let pixels = data.assumingMemoryBound(to: UInt8.self)
+        let pixelCount = width * height
+        var alpha = [UInt8](repeating: 0, count: pixelCount)
+        for pixel in 0..<pixelCount {
+            alpha[pixel] = pixels[pixel * 4 + 3]
+        }
+        let inset = insetAlphaByOnePixel(alpha, width: width, height: height)
+        for pixel in 0..<pixelCount {
+            let oldAlpha = alpha[pixel]
+            let newAlpha = inset[pixel]
+            guard newAlpha < oldAlpha else { continue }
+            let byte = pixel * 4
+            if oldAlpha == 0 {
+                pixels[byte] = 0
+                pixels[byte + 1] = 0
+                pixels[byte + 2] = 0
+            } else {
+                for channel in 0..<3 {
+                    pixels[byte + channel] = UInt8(
+                        Int(pixels[byte + channel]) * Int(newAlpha)
+                            / Int(oldAlpha)
+                    )
+                }
+            }
+            pixels[byte + 3] = newAlpha
+        }
     }
 
     private static func maskImage(from data: Data) -> CGImage? {

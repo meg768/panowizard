@@ -119,8 +119,7 @@ struct PanoramaSidebar: View {
             index: index,
             image: image,
             hasMask: model.maskDataByImageID[image.id] != nil
-                || model.protectedMaskDataByImageID[image.id] != nil
-                || model.controlPointMaskDataByImageID[image.id] != nil,
+                || model.protectedMaskDataByImageID[image.id] != nil,
             onSelect: { asRightImage in
                 model.selectSourceImage(
                     image.id,

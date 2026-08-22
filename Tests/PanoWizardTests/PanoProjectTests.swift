@@ -64,6 +64,60 @@ struct PanoProjectTests {
             .regularFileContents
         #expect(stored == nadirRetouch)
         #expect(storedZenith == zenithRetouch)
+        #expect(wrapper.fileWrappers?["control-point-masks"] == nil)
+    }
+
+    @Test
+    func atomicDocumentSaveReplacesTheEntireProjectPackage() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let projectURL = directory.appending(
+            path: "Test.pw",
+            directoryHint: .isDirectory
+        )
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let maskID = UUID()
+        try PanoProjectDocument(
+            masks: [maskID: Data([1, 2, 3])],
+            panoramaData: Data([4, 5, 6])
+        ).writeAtomically(to: projectURL)
+        try PanoProjectDocument().writeAtomically(to: projectURL)
+
+        let stored = try FileWrapper(url: projectURL)
+        #expect(stored.fileWrappers?["project.json"] != nil)
+        #expect(stored.fileWrappers?["masks"]?.fileWrappers?.isEmpty == true)
+        #expect(stored.fileWrappers?["panorama"] == nil)
+    }
+
+    @Test
+    func documentLoadsAllPackageAssetsDirectlyFromDisk() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        let projectURL = directory.appending(
+            path: "Test.pw",
+            directoryHint: .isDirectory
+        )
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let panorama = Data(repeating: 7, count: 2_000_000)
+        let overlay = Data(repeating: 8, count: 3_000_000)
+        try PanoProjectDocument(
+            panoramaData: panorama,
+            nadirOverlayData: overlay
+        ).writeAtomically(to: projectURL)
+
+        let loaded = try PanoProjectDocument(contentsOf: projectURL)
+        #expect(loaded.panoramaData == panorama)
+        #expect(loaded.nadirOverlayData == overlay)
     }
 
     @Test @MainActor
@@ -338,52 +392,6 @@ struct PanoProjectTests {
     }
 
     @Test @MainActor
-    func controlPointMasksPreserveExistingPointSolution() throws {
-        let images = (0..<2).map { index in
-            SourceImage(
-                url: URL(fileURLWithPath: "/Pictures/\(index).jpg"),
-                captureDate: nil,
-                pixelWidth: 100,
-                pixelHeight: 100,
-                cameraModel: "Camera",
-                lens: LensDescription(
-                    model: "Fisheye",
-                    focalLengthIn35mm: 16,
-                    kind: .fisheye
-                )
-            )
-        }
-        let covered = DiagnosticControlPoint(
-            firstImage: 0, secondImage: 1,
-            firstX: 50, firstY: 50, secondX: 50, secondY: 50
-        )
-        let retained = DiagnosticControlPoint(
-            firstImage: 0, secondImage: 1,
-            firstX: 5, firstY: 5, secondX: 5, secondY: 5
-        )
-        let mask = try #require(SourceMaskRasterizer.applying(
-            stroke: [MaskPoint(x: 0.5, y: 0.5)],
-            radius: 8,
-            erasing: false,
-            controlPointExclusion: true,
-            to: nil,
-            width: 100,
-            height: 100
-        ))
-
-        let model = AppModel.live(
-            project: PanoProject(
-                images: images,
-                controlPoints: [covered, retained]
-            ),
-            controlPointMasks: [images[0].id: mask]
-        )
-
-        #expect(model.editableControlPoints == [covered, retained])
-        #expect(model.project.controlPoints == [covered, retained])
-    }
-
-    @Test @MainActor
     func addingAnyMaskPreservesExistingControlPoints() throws {
         let images = (0..<2).map { index in
             SourceImage(
@@ -411,25 +419,13 @@ struct PanoProjectTests {
         ))
 
         model.setSourceMasks(
-            red: nil, green: green, orange: nil, for: images[0].id
+            red: nil, green: green, for: images[0].id
         )
 
         #expect(model.editableControlPoints.count == 1)
         #expect(model.project.controlPoints?.count == 1)
 
-        let orange = try #require(SourceMaskRasterizer.applying(
-            stroke: [MaskPoint(x: 0.5, y: 0.5)], radius: 8,
-            erasing: false, controlPointExclusion: true,
-            to: nil, width: 100, height: 100
-        ))
-        model.setSourceMasks(
-            red: nil, green: green, orange: orange, for: images[0].id
-        )
-
-        #expect(model.editableControlPoints.count == 1)
-        #expect(model.project.controlPoints?.count == 1)
-
-        model.sourceMaskIntent = .controlPoints
+        model.sourceMaskIntent = .protect
         model.setMaskData(nil, for: images[0].id)
 
         #expect(model.editableControlPoints == [point])
@@ -569,6 +565,37 @@ struct PanoProjectTests {
         let contents = try String(contentsOf: destination, encoding: .utf8)
         #expect(contents.contains("v d0"))
         #expect(contents.contains("v e0"))
+    }
+
+    @Test
+    func nikon105LensRefinementOptimizesDistortionAndOpticalCenter() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizardTests/\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        let source = directory.appending(path: "source.pto")
+        let destination = directory.appending(path: "destination.pto")
+        try """
+        # hugin project file
+        i w2000 h3008 f21 v87.44 r0 p0 y0 a-0.02 b0.06 c-0.05 d4 e-1 n"one.tif"
+        i w2000 h3008 f21 v=0 r0 p0 y45 a=0 b=0 c=0 d=0 e=0 n"two.tif"
+        v
+        # control points
+        """.write(to: source, atomically: true, encoding: .utf8)
+
+        try HuginProjectFile.configuringNikon105LensRefinement(
+            from: source,
+            to: destination
+        )
+
+        let contents = try String(contentsOf: destination, encoding: .utf8)
+        for variable in ["a0", "b0", "c0", "d0", "e0"] {
+            #expect(contents.contains("v \(variable)"))
+        }
     }
 
     @Test
@@ -882,7 +909,6 @@ struct PanoProjectTests {
         )
         let panoramaMask = Data([1])
         let protectedMask = Data([2])
-        let controlPointMask = Data([3])
         let engine = RecordingPanoramaEngine()
         let model = AppModel(
             project: PanoProject(
@@ -894,7 +920,6 @@ struct PanoProjectTests {
             panoramaEngine: engine,
             exporter: FilePanoramaExporter(),
             masks: [images[0].id: panoramaMask],
-            controlPointMasks: [images[0].id: controlPointMask],
             protectedMasks: [images[1].id: protectedMask]
         )
 
@@ -910,10 +935,6 @@ struct PanoProjectTests {
         #expect(
             await engine.receivedProtectedMasks
                 == [images[1].id: protectedMask]
-        )
-        #expect(
-            await engine.receivedControlPointMasks
-                == [images[0].id: controlPointMask]
         )
     }
 
@@ -1220,13 +1241,11 @@ private actor RecordingPanoramaEngine: PanoramaEngine {
     private(set) var receivedControlPointsAreAuthoritative = false
     private(set) var receivedMasks: [UUID: Data] = [:]
     private(set) var receivedProtectedMasks: [UUID: Data] = [:]
-    private(set) var receivedControlPointMasks: [UUID: Data] = [:]
 
     func stitch(
         _ panorama: PanoramaSet,
         masks: [UUID: Data],
         protectedMasks: [UUID: Data],
-        controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint]?,
         controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration,
@@ -1237,7 +1256,6 @@ private actor RecordingPanoramaEngine: PanoramaEngine {
         receivedControlPointsAreAuthoritative = controlPointsAreAuthoritative
         receivedMasks = masks
         receivedProtectedMasks = protectedMasks
-        receivedControlPointMasks = controlPointMasks
         return PanoramaStitchResult(
             url: URL(fileURLWithPath: "/tmp/recorded-panorama.jpg"),
             rigImageLines: [:],
@@ -1249,7 +1267,6 @@ private actor RecordingPanoramaEngine: PanoramaEngine {
 
     func optimizeControlPoints(
         _ panorama: PanoramaSet,
-        controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint],
         controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration

@@ -447,7 +447,9 @@ std::vector<cv::DMatch> spatiallyBalancedSelection(
     const cv::Size &sizeA,
     const cv::Size &sizeB,
     bool preferLowerPolarSupport,
-    int maximumLowerPolarSupport = -1
+    int maximumLowerPolarSupport = -1,
+    double minimumImageSeparation = 0.05,
+    const std::map<std::pair<int, int>, double> *rotationErrors = nullptr
 ) {
     if (inliers.empty()) return {};
     std::vector<cv::DMatch> remaining = inliers;
@@ -458,11 +460,11 @@ std::vector<cv::DMatch> spatiallyBalancedSelection(
         }
     );
     const int target = std::min(25, int(remaining.size()));
-    // Five percent of the source image's short side is about 100 px for a
-    // 2000x3008 D70 frame. Require it at both endpoints: two matches that
-    // collapse onto the same local detail in either image add almost no new
-    // geometric information, even if their other endpoints are separated.
-    constexpr double minimumImageSeparation = 0.05;
+    // The ordinary five-percent separation is about 100 px for a 2000x3008
+    // D70 frame. Require the configured separation at both endpoints: two
+    // matches that collapse onto the same local detail in either image add
+    // almost no new geometric information, even if their other endpoints are
+    // separated. Sparse edge-closure recovery supplies a smaller value.
     const SourceBounds firstBounds = robustSourceBounds(
         inliers, keypointsA, true
     );
@@ -479,6 +481,8 @@ std::vector<cv::DMatch> spatiallyBalancedSelection(
                && int(selected.size()) < selectionTarget) {
             int bestIndex = -1;
             int bestNovelCells = -1;
+            double bestRotationError =
+                std::numeric_limits<double>::max();
             double bestSeparation = -1.0;
             float bestDescriptorDistance =
                 std::numeric_limits<float>::max();
@@ -523,18 +527,34 @@ std::vector<cv::DMatch> spatiallyBalancedSelection(
                         == selectedFirstCells.end())
                     + (selectedSecondCells.find(overlapCell(b, secondBounds))
                         == selectedSecondCells.end());
+                double rotationError = 0.0;
+                if (rotationErrors != nullptr) {
+                    const auto found = rotationErrors->find({
+                        candidate.queryIdx, candidate.trainIdx
+                    });
+                    rotationError = found == rotationErrors->end()
+                        ? std::numeric_limits<double>::max()
+                        : found->second;
+                }
                 if (
                     novelCells > bestNovelCells
                     || (novelCells == bestNovelCells
-                        && separation > bestSeparation)
+                        && rotationError < bestRotationError)
                     || (
                         novelCells == bestNovelCells
+                        && rotationError == bestRotationError
+                        && separation > bestSeparation
+                    )
+                    || (
+                        novelCells == bestNovelCells
+                        && rotationError == bestRotationError
                         && separation == bestSeparation
                         && candidate.distance < bestDescriptorDistance
                     )
                 ) {
                     bestIndex = index;
                     bestNovelCells = novelCells;
+                    bestRotationError = rotationError;
                     bestSeparation = separation;
                     bestDescriptorDistance = candidate.distance;
                 }
@@ -744,9 +764,14 @@ std::vector<cv::DMatch> fisheyeRotationConsistentMatches(
     const cv::Size &sizeA,
     const cv::Size &sizeB,
     double horizontalFieldOfView,
-    int lensModel
+    int lensModel,
+    int minimumInlierCount,
+    int minimumCellScore,
+    bool prioritizesInlierCount,
+    std::map<std::pair<int, int>, double> *rotationErrors
 ) {
-    if (matches.size() < 8) return {};
+    if (rotationErrors != nullptr) rotationErrors->clear();
+    if (matches.size() < minimumInlierCount) return {};
     // The loose threshold is only for finding the dominant camera rotation.
     // A second, data-driven threshold below decides which matches actually
     // become candidates. This keeps wind and parallax from becoming a fixed
@@ -779,14 +804,20 @@ std::vector<cv::DMatch> fisheyeRotationConsistentMatches(
             occupiedSourceCells(matches, keypointsA, sizeA, inliers, true),
             occupiedSourceCells(matches, keypointsB, sizeB, inliers, false)
         );
-        if (cellScore > bestCellScore
-            || (cellScore == bestCellScore
-                && inliers.size() > bestIndices.size())) {
+        const bool improvesConsensus = prioritizesInlierCount
+            ? inliers.size() > bestIndices.size()
+                || (inliers.size() == bestIndices.size()
+                    && cellScore > bestCellScore)
+            : cellScore > bestCellScore
+                || (cellScore == bestCellScore
+                    && inliers.size() > bestIndices.size());
+        if (improvesConsensus) {
             bestCellScore = cellScore;
             bestIndices = std::move(inliers);
         }
     }
-    if (bestIndices.size() < 8 || bestCellScore < 3) return {};
+    if (bestIndices.size() < minimumInlierCount
+        || bestCellScore < minimumCellScore) return {};
     const cv::Matx33d discoveryRotation = fittedSourceRotation(
         matches, keypointsA, keypointsB, sizeA, sizeB, bestIndices,
         horizontalFieldOfView, lensModel
@@ -800,7 +831,7 @@ std::vector<cv::DMatch> fisheyeRotationConsistentMatches(
         );
         if (error < discoveryThreshold) discoveryErrors.push_back(error);
     }
-    if (discoveryErrors.size() < 8) return {};
+    if (discoveryErrors.size() < minimumInlierCount) return {};
 
     const double medianError = median(discoveryErrors);
     std::vector<double> deviations;
@@ -809,11 +840,19 @@ std::vector<cv::DMatch> fisheyeRotationConsistentMatches(
         deviations.push_back(std::abs(error - medianError));
     }
     const double robustSigma = 1.4826 * median(deviations);
-    const double consistencyThreshold = std::clamp(
+    const double adaptiveConsistencyThreshold = std::clamp(
         medianError + 3.0 * robustSigma,
         0.25 * pi / 180.0,
         0.75 * pi / 180.0
     );
+    // The sparse closure fallback needs the complete RANSAC consensus. A
+    // rotation fitted mostly from one thin edge patch is weakly constrained;
+    // applying the ordinary sub-degree refinement can discard the few points
+    // from the second edge cell that resolve that ambiguity. Bundle adjustment
+    // and control-point cleaning provide the precise final rejection.
+    const double consistencyThreshold = prioritizesInlierCount
+        ? discoveryThreshold
+        : adaptiveConsistencyThreshold;
 
     std::vector<int> consistentIndices;
     for (int index = 0; index < int(matches.size()); ++index) {
@@ -832,7 +871,8 @@ std::vector<cv::DMatch> fisheyeRotationConsistentMatches(
             matches, keypointsB, sizeB, consistentIndices, false
         )
     );
-    if (consistentIndices.size() < 8 || consistentCellScore < 3) {
+    if (consistentIndices.size() < minimumInlierCount
+        || consistentCellScore < minimumCellScore) {
         return {};
     }
 
@@ -850,6 +890,9 @@ std::vector<cv::DMatch> fisheyeRotationConsistentMatches(
         if (error <= consistencyThreshold) {
             result.push_back(match);
             resultIndices.insert({match.queryIdx, match.trainIdx});
+            if (rotationErrors != nullptr) {
+                (*rotationErrors)[{match.queryIdx, match.trainIdx}] = error;
+            }
         }
     }
     // Repetitive paving is often rejected by the ordinary descriptor-ratio
@@ -870,8 +913,15 @@ std::vector<cv::DMatch> fisheyeRotationConsistentMatches(
             ) > polarSupportThreshold) {
             continue;
         }
+        const double error = sourceRotationError(
+            match, keypointsA, keypointsB, sizeA, sizeB,
+            refinedRotation, horizontalFieldOfView, lensModel
+        );
         result.push_back(match);
         resultIndices.insert({match.queryIdx, match.trainIdx});
+        if (rotationErrors != nullptr) {
+            (*rotationErrors)[{match.queryIdx, match.trainIdx}] = error;
+        }
     }
     return result;
 }
@@ -2054,6 +2104,7 @@ cv::Size sourceSizeForPath(const char *path) {
 int PWGenerateRingControlPoints(
     const char *const *imagePaths,
     const double *nominalYaws,
+    const int *positioningImageFlags,
     int imageCount,
     double horizontalFieldOfView,
     int lensModel,
@@ -2153,8 +2204,34 @@ int PWGenerateRingControlPoints(
 
             std::vector<PWControlPoint> rawResult;
             std::vector<std::vector<int>> rawGraph(imageCount);
+            std::vector<int> positioningImageIndices;
+            for (int index = 0; index < imageCount; ++index) {
+                if (positioningImageFlags == nullptr
+                    || positioningImageFlags[index] != 0) {
+                    positioningImageIndices.push_back(index);
+                }
+            }
+            auto isPositioningSequenceTransition = [&](int first, int second) {
+                if (positioningImageIndices.size() < 2) return false;
+                for (int position = 0;
+                     position < int(positioningImageIndices.size());
+                     ++position) {
+                    const int current = positioningImageIndices[position];
+                    const int next = positioningImageIndices[
+                        (position + 1) % positioningImageIndices.size()
+                    ];
+                    if ((current == first && next == second)
+                        || (current == second && next == first)) {
+                        return true;
+                    }
+                }
+                return false;
+            };
             for (int first = 0; first < imageCount; ++first) {
                 for (int second = first + 1; second < imageCount; ++second) {
+                    const bool requiredSparseRingTransition =
+                        lensModel != PWLensModelRectilinear
+                        && isPositioningSequenceTransition(first, second);
                     MatchCounts matchCounts;
                     const auto matches = mutualRatioMatches(
                         rawFeatures[first].descriptors,
@@ -2178,7 +2255,9 @@ int PWGenerateRingControlPoints(
                             0.99f
                         )
                         : matches;
-                    if (matches.size() < 8) {
+                    const int minimumDescriptorMatchCount =
+                        requiredSparseRingTransition ? 6 : 8;
+                    if (matches.size() < minimumDescriptorMatchCount) {
                         lastPairDiagnostics.push_back({
                             first, second,
                             int(rawFeatures[first].keypoints.size()),
@@ -2204,7 +2283,11 @@ int PWGenerateRingControlPoints(
                     // patch of a wide fisheye overlap.
                     const bool calibratedFisheye =
                         lensModel != PWLensModelRectilinear;
+                    const int minimumGeometricMatchCount =
+                        requiredSparseRingTransition ? 6 : 8;
                     std::vector<cv::DMatch> inliers;
+                    std::map<std::pair<int, int>, double> rotationErrors;
+                    bool usedSparseClosureFallback = false;
                     if (calibratedFisheye) {
                         inliers = fisheyeRotationConsistentMatches(
                             matches,
@@ -2214,8 +2297,39 @@ int PWGenerateRingControlPoints(
                             firstMatchingSize,
                             secondMatchingSize,
                             horizontalFieldOfView,
-                            lensModel
+                            lensModel,
+                            8,
+                            3,
+                            false,
+                            &rotationErrors
                         );
+                        // A circular-fisheye ring can close through a narrow
+                        // strip at the frame edges. Preserve the
+                        // normal, coverage-first result whenever it succeeds.
+                        // Only a missing real ring transition gets a second
+                        // pass that favors the dominant rotation consensus;
+                        // PTGui can solve such a transition from six or seven
+                        // consistent points across two edge cells. The bundle
+                        // adjustment later rejects it unless its final
+                        // residuals agree with the other ring transitions.
+                        if (inliers.size() < 8
+                            && requiredSparseRingTransition) {
+                            inliers = fisheyeRotationConsistentMatches(
+                                matches,
+                                polarCandidates,
+                                rawFeatures[first].keypoints,
+                                rawFeatures[second].keypoints,
+                                firstMatchingSize,
+                                secondMatchingSize,
+                                horizontalFieldOfView,
+                                lensModel,
+                                6,
+                                2,
+                                true,
+                                &rotationErrors
+                            );
+                            usedSparseClosureFallback = !inliers.empty();
+                        }
                     } else {
                         std::vector<cv::Point2f> firstPoints;
                         std::vector<cv::Point2f> secondPoints;
@@ -2240,7 +2354,7 @@ int PWGenerateRingControlPoints(
                             }
                         }
                     }
-                    if (inliers.size() < 8) {
+                    if (inliers.size() < minimumGeometricMatchCount) {
                         lastPairDiagnostics.push_back({
                             first, second,
                             int(rawFeatures[first].keypoints.size()),
@@ -2260,11 +2374,15 @@ int PWGenerateRingControlPoints(
                             rawFeatures[second].keypoints,
                             firstMatchingSize,
                             secondMatchingSize,
-                            lensModel == PWLensModelSigma8DX && imageCount > 4
+                            lensModel == PWLensModelSigma8DX && imageCount > 4,
+                            -1,
+                            usedSparseClosureFallback ? 0.02 : 0.05,
+                            calibratedFisheye ? &rotationErrors : nullptr
                         );
                     if (lensModel == PWLensModelSigma8DX
                         && imageCount == 4
-                        && selected.size() < 20) {
+                        && selected.size() < 20
+                        && !usedSparseClosureFallback) {
                         // A sparse side of a four-frame ring is geometrically
                         // dominated by its ordinary overlap. Keep at most one
                         // deep-pole constraint there: that is enough to anchor
@@ -2278,7 +2396,9 @@ int PWGenerateRingControlPoints(
                             firstMatchingSize,
                             secondMatchingSize,
                             false,
-                            1
+                            1,
+                            0.05,
+                            &rotationErrors
                         );
                     }
                     lastPairDiagnostics.push_back({
@@ -2457,6 +2577,7 @@ int PWGeneratePairControlPoints(
         const char *paths[] = {firstImagePath, secondImagePath};
         const int succeeded = PWGenerateRingControlPoints(
             paths,
+            nullptr,
             nullptr,
             2,
             horizontalFieldOfView,

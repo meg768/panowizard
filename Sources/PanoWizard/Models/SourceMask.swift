@@ -85,7 +85,6 @@ enum SourceMaskRasterizer {
         stroke: [MaskPoint],
         radius: CGFloat,
         erasing: Bool,
-        controlPointExclusion: Bool = false,
         protectedArea: Bool = false,
         to existingData: Data?,
         width: Int,
@@ -117,9 +116,7 @@ enum SourceMaskRasterizer {
         context.setBlendMode(erasing ? .clear : .normal)
         let color = protectedArea
             ? CGColor(red: 0.08, green: 0.9, blue: 0.22, alpha: 1)
-            : controlPointExclusion
-                ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
-                : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
+            : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
         context.setStrokeColor(color)
         context.setFillColor(color)
         context.setLineWidth(radius * 2)
@@ -166,7 +163,6 @@ enum SourceMaskRasterizer {
         center: MaskPoint,
         radius: CGFloat,
         erasing: Bool,
-        controlPointExclusion: Bool = false,
         protectedArea: Bool = false,
         to existingData: Data?,
         width: Int,
@@ -199,9 +195,7 @@ enum SourceMaskRasterizer {
         context.setBlendMode(erasing ? .clear : .normal)
         let color = protectedArea
             ? CGColor(red: 0.08, green: 0.9, blue: 0.22, alpha: 1)
-            : controlPointExclusion
-                ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
-                : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
+            : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
         context.setFillColor(color)
         let sourceCenter = CGPoint(
             x: center.x * CGFloat(width),
@@ -234,7 +228,6 @@ enum SourceMaskRasterizer {
         from start: MaskPoint,
         to end: MaskPoint,
         erasing: Bool,
-        controlPointExclusion: Bool = false,
         protectedArea: Bool = false,
         to existingData: Data?,
         width: Int,
@@ -259,9 +252,7 @@ enum SourceMaskRasterizer {
         context.setBlendMode(erasing ? .clear : .normal)
         let color = protectedArea
             ? CGColor(red: 0.08, green: 0.9, blue: 0.22, alpha: 1)
-            : controlPointExclusion
-                ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
-                : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
+            : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
         context.setFillColor(color)
         let x1 = start.x * CGFloat(width)
         let x2 = end.x * CGFloat(width)
@@ -311,7 +302,6 @@ enum SourceMaskRasterizer {
         _ existingData: Data?,
         width: Int,
         height: Int,
-        controlPointExclusion: Bool = false,
         protectedArea: Bool = false
     ) -> Data? {
         var outputWidth = width
@@ -345,9 +335,7 @@ enum SourceMaskRasterizer {
         )
         let color = protectedArea
             ? CGColor(red: 0.08, green: 0.9, blue: 0.22, alpha: 1)
-            : controlPointExclusion
-                ? CGColor(red: 1, green: 0.55, blue: 0.05, alpha: 1)
-                : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
+            : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
         context.setFillColor(color)
         context.fill(bounds)
         if let existingImage {

@@ -1,5 +1,248 @@
 # PanoWizard – aktuell projektkontext
 
+## Slutbeslut 2026-08-21 – använd alltid NFT
+
+Enblend ska alltid köras med
+`--primary-seam-generator=nearest-feature-transform` för varje panorama.
+Regeln gäller utan undantag för Sigma 8 mm, Nikkor 10,5 mm, andra objektiv,
+alla bildantal, alla bildvinklar samt projekt med eller utan masker.
+Graph-cut ska inte väljas automatiskt och kandidater från flera sömgeneratorer
+ska inte dubbelrenderas eller kvalitetsrankas. Den adaptiva sömservicen och
+dess heuristik är borttagna.
+
+Beslutet togs efter att graph-cut skapade en tydlig exponeringsskarv i
+Panorama N. En färsk NFT-rendering av N saknar den skarven och Panorama I har
+också helrenderats med samma NFT-väg. NFT-valet påverkar endast söm/blending,
+inte CP-generering, ringstängning, optimerade poser eller bildwarpning.
+CP-regression ska fortsatt jämföras före blending mot `PTGui.pts`.
+
+## Sparad princip 2026-08-21 – geometri och sömplacering är skilda problem
+
+`graph-cut` och `nearest-feature-transform` påverkar inte kontrollpunkter,
+kameraposer eller bildwarpning. De väljer endast söm mellan redan projicerade
+bildlager. Enblends graph-cut analyserar bildinnehållet och kan lägga sömmen
+runt exempelvis monopodparallax, murkanter, tak och personer. Det ger normalt
+bäst slutbild men kan samtidigt dölja en geometrisk avvikelse.
+`nearest-feature-transform` utgår bara från överlappningsområdets form och
+placerar sömmen ungefär mitt i överlappningen; den är snabb och förutsägbar men
+kan skära rakt genom ett synligt parallaxfel.
+
+PanoWizard använder alltid Enblends `nearest-feature-transform`. Beslutet är
+generellt och beror aldrig på panorama, objektiv, bildantal, masker,
+bildinnehåll eller bildvinkel. Graph-cut-försöket på Panorama N gav en tydlig
+exponeringsskarv i himlen. En efterföljande adaptiv dubbelrendering tog bort
+skarven men ökade komplexitet och körtid och har därför också tagits bort.
+NFT ger ett enda förutsägbart sömförfarande för både Sigma 8 mm och Nikkor
+10,5 mm. PTGui har innehållsmedveten seam finding aktiverad i det aktuella
+facitprojektet, men dess implementation ska inte antas vara identisk med
+Enblends graph-cut.
+
+CP-genereringens regressioner får inte bedömas enbart från den blendade
+slutbilden. Jämförelsen mot `PTGui.pts` ska i stället göras före blending med
+CP-graf och ringstängning, optimerade poser, residualfördelning och lokala
+överläggningar av warpade bildpar. Skillnader i färdig bild ska delas upp i
+geometrifel respektive söm-/blendfel innan CP-algoritmen ändras.
+
+## Sparat slutläge 2026-08-21 – Panorama I och innehållsmedvetna sömmar
+
+Användarens manuella kontroll visade ingen synlig skillnad i Panorama I efter
+den rotationsrankade CP-förbättringen, trots lägre residualer. Den ska därför
+inte beskrivas som lösningen på muren och hustaken. Tre isolerade experiment
+gjordes: zenitbildens 75 CP reducerades till fyra på ett enda par, exakt 575
+normala CP från `PTGui.pts` matades till PanoWizards optimerare och Nikkor
+växlades mellan Hugins equisolid- och equidistantprojektion. Alla tre gav i
+praktiken samma slutbild. PTGui-punkterna fick dessutom högre residual i vår
+optimerare än de automatiska punkterna. Den synliga skillnaden var alltså inte
+främst CP-antal, polgraf eller den diskreta Hugin-grundprojektionen.
+
+Blendexperimentet visade att graph-cut kunde flytta sömmar runt
+monopodparallax i Panorama I, men det ändrade inte kontrollpunkter, poser eller
+warpning. Samma generella graph-cut-val gav senare en tydlig exponeringsskarv
+i Panorama N. Den adaptiva dubbelrendering som provades därefter har också
+tagits bort. Slutbeslutet är NFT för alla panorama; eventuell skillnad mot
+PTGui i muren, taken, kanonen och handen ska inte beskrivas som en
+CP-förbättring. Korrigeringen för degenererade alfakanter är fortsatt generell
+och beror inte på cirkulär fisheye.
+
+## Sparat slutläge 2026-08-20 – Panorama I och Nikkor heavy + shift
+
+Panorama I med tolv positioneringsbilder jämfördes från tomt projekt mot
+`PTGui.pts` med 576 CP. Ringens åtta relativa yaw-vinklar var redan riktiga;
+efter en gemensam global rotation låg den gamla PanoWizard-lösningen inom
+ungefär en halv grad från PTGui. Den återstående skillnaden låg därför inte i
+ringkopplingen utan i linsanpassningen. PTGui optimerar Nikkor 10,5 mm med
+`heavy + shift`, medan PanoWizard efter pose-lösningen endast frigav HFOV och
+höll den radiala distorsionen och det optiska centrumet låsta till Panorama
+G:s startkalibrering.
+
+Nikkor-lösningen börjar fortsatt från den stabila equisolid-kalibreringen och
+kör pose-only först. I det efterföljande linssteget får nu även `a/b/c` och
+`d/e` finjusteras tillsammans med HFOV och poser. Det är samma frihetsgrader
+som redan används för Sigma och motsvarar PTGui-principen utan att importera
+några I-specifika parametrar. En ren I-körning genererade 879 CP, sparade 786
+efter optimering och renderade ett sammanhängande panorama med alla tolv
+bilder. De åtta yaw-vinklarna ligger inom 0,48° från PTGui efter global
+normalisering. Med exakt det gamla I-projektets 721 CP sjönk medianfelet från
+3,26 till 2,72 px och p90 från 6,92 till 6,16 px. Samma kontroll på Panorama
+A:s 472 Nikkor-CP förbättrade medianen från 2,36 till 1,98 px och p90 från
+5,49 till 5,17 px; A helrenderades också utan geometrisk regression. Hela
+sviten har 80 godkända tester.
+
+### Monopod och parallax
+
+I är taget med monopod, så nära motiv kan inte beskrivas exakt av den
+gemensamma rotations- och linsmodellen. Den tidigare robusta efterrensningen
+hade ett golv på 8 px och sex MAD. I en tät CP-graf lät det en måttlig svans
+av parallaxpunkter påverka lins och poser. Gränsen är nu fem px eller tre MAD,
+det högsta av dem. Minst de fyra bästa punkterna per verkligt par kan
+fortfarande bevaras för anslutning, verkligt glesa cykler går fortsatt genom
+det separata sparse-ring-skyddet och manuella/importerade CP rensas inte.
+
+Ett nytt I-projekt från alla tolv originalbilder genererade 879 CP och sparade
+683 efter den parallaxrobusta rensningen. Medianen sjönk från föregående rena
+körnings 3,02 till 2,53 px och p90 från 7,25 till 5,21 px. Ringens yaw ligger
+inom 0,58° från PTGui efter global normalisering och alla polbilder är fortsatt
+anslutna. Nya originalbildskörningar verifierade även A (521→426 CP, 1,81 px
+median, 3,70 px p90), C (213 CP, 0,60 px median, 1,76 px p90) och N:s
+oförändrat fungerande glesa fyrbildsring.
+
+### Rotationsresidual prioriteras vid CP-urval
+
+Den spatiala uttunningen valde tidigare den mest avlägsna kandidaten inom
+varje nytt bildområde och använde descriptoravstånd som sista skiljekriterium.
+Det gav god täckning men kunde på monopodserier prioritera en närliggande mur
+eller ett tak med parallax framför en punkt som bättre följde kamerans gemensamma
+rotation. Fisheye-matcharen sparar nu varje kandidats residual mot den
+förfinade sfäriska rotationen. Urvalet prioriterar fortfarande nya spatiala
+celler först, men väljer därefter lägst rotationsresidual innan separation och
+descriptoravstånd. Rectilinear-vägen är oförändrad.
+
+Ett nytt Panorama I gav 877 råa och 669 slutliga CP. Medianfelet sjönk vidare
+från 2,53 till 2,22 px och p90 från 5,21 till 4,56 px. De åtta ringbildernas
+yaw ligger inom 0,56° från `PTGui.pts` efter en enda global normalisering och
+samtliga tolv bilder är anslutna. N:s glesa fyrbildsring behåller sina
+nödvändiga svaga stängningslänkar och renderar med 68 CP. Färska regressioner
+gav C 211 CP (0,53 px median, 1,79 px p90) och A 434 CP (1,57 px median,
+3,59 px p90); A positionerar och renderar alla tio bilder inklusive båda
+nadirbilderna och zenitbilden. Ingen automatisk omklassning till reparation har
+införts: `Ingår i positionering` styr fortfarande geometrideltagandet oavsett
+bildvinkel.
+
+## Sparat slutläge 2026-08-20 – Panorama C och topologisk ringstängning
+
+Panorama C reproducerade geometrifelet med alla sju bilder satta till
+`Ingår i positionering`: fem huvudsakliga ringvinklar, en överlappande
+exponering och en zenitbild. Felet berodde inte på bildvinkeln. Den tidigare
+skyddsregeln för glesa ringar följde filsekvensens grannpar och klassade därför
+hela C som en gles ring när sekvensens sista övergång gick till zenitbilden.
+Residualrensningen hoppades då över trots att CP-grafen hade en robust cykel.
+
+Skyddet baseras nu på grafens topologi: svaga CP-par bevaras endast när minst
+ett sådant par faktiskt behövs för att stänga den tillgängliga cykeln. Extra
+överlappande bilder och polbilder får ligga utanför cykeln utan särklassning.
+Ett helt nytt C-projekt genererade 281 automatiska CP och slutade efter
+optimering med 234 CP, 0,60 px median och 1,89 px p90. Ringbildernas yaw ligger
+inom cirka 0,3–1,2 grader från PTGui efter en gemensam yaw-normalisering och
+zenitbilden löstes till +88,4° pitch. Samtliga sju bilder deltog i
+positioneringen. Panorama N har körts om från källbilderna och dess verkligt
+glesa fyrbildscykel stängs fortfarande genom att de nödvändiga svaga länkarna
+bevaras. Hela sviten har 78 godkända tester.
+
+## Sparat slutläge 2026-08-20 – Panorama A med två nadir och en zenit i riggen
+
+En ny körning av Panorama A med samtliga tio bilder reproducerade felet
+`Den automatiska geometrin kunde inte stabiliseras`. De sju ringbilderna, två
+nadirbilderna (varav en handhållen) och zenitbilden gav 521 automatiska CP.
+Första lösningen var nästan giltig (2,90 px median, 8,27 px p90), men den
+interna återhämtningsomgången märkte de maskinrensade punkterna som manuellt
+auktoritativa och körde därför samma orensade graf en gång till.
+
+Maskinens interna återhämtningspunkter skiljs nu från verkligt redigerade CP,
+så residualrensning får köras utan att manuella/importerade punkter förlorar
+sin auktoritet. `Ingår i positionering` är den enda geometriska indelningen:
+det äldre interna riktningsfältet påverkar varken CP-generering, optimering
+eller rendering för dessa bilder. Alla vinklar, flera nadir/zenit och
+överlappande exponeringar tillåts i samma rigg. Ringstängningen kräver en
+tillförlitlig 360°-stomme i den lösta CP-grafen, men extra positioneringsbilder
+får vara anslutna utanför själva cykeln. Pålitliga par bedöms med median och
+p90, så enstaka parallaxavvikare kapar inte en verklig ring medan en
+konsekvent dålig brygga fortfarande avvisas.
+
+Panorama A renderar nu med alla tio bilder till 4000×2000. Efter global
+yaw-normalisering ligger de sju ringbilderna inom cirka en grad från PTGui;
+de tre polbilderna löses till ungefär −88°, −88° och +88° pitch. Den sparade
+grafen har 472 CP, 2,36 px median och 5,49 px p90. Panorama N har samtidigt
+regressionstestats från fyra PNG-källor: den glesa fyrbildsringen stängs och
+renderar normalt. Hela sviten har 77 godkända tester.
+
+## Arbetsregel 2026-08-15 – KISS och macOS-standard
+
+GUI ska i första hand byggas med macOS och SwiftUI:s vanliga komponenter,
+utseende och dokumentbeteenden. Skriv minsta möjliga kod och undvik egna
+ersättningar, pixeljusteringar och specialhantering när systemets standard
+redan löser uppgiften. Om användarens önskemål skulle avvika från macOS Human
+Interface Guidelines eller kräva en speciallösning ska det sägas tydligt innan
+någon kod ändras, och uttryckligt klartecken ska inväntas. Systembeteenden som
+dokumenttiteln, `Redigerad` och titelfältets separator ska lämnas orörda.
+
+## Sparat slutläge 2026-08-16 – Enblend-reserv för degenererad Sigma-mask
+
+Panorama M/A har fyra giltiga horisontella Sigma 8 mm-bilder med ett slutet
+CP-nät och cirka 90 graders yaw-steg. Nona skapade breda, överlappande lager,
+men Enblend avbröt för samtliga cykliska lagerordningar med `degenerate
+image/mask geometry`. Orsaken var enpunktskontakter i de projicerade
+alfakonturerna runt equirektangulär skarv och pol, inte saknad bildöverlappning.
+
+Den vanliga Enblend-vägen är oförändrad. Endast när ett cirkulärt
+fisheyeprojekt får just detta fel normaliseras lagren till panoramats fulla
+canvas och alfakanten flyttas en pixel in före ett nytt Enblend-försök. Den
+verkliga grannöverlappningen är hundratals pixlar bred och bildinnehållet
+ändras därför inte. M/A renderar därefter ett sammanhängande 4000×2000-
+panorama; den svarta zenitluckan är naturlig eftersom de fyra 165°-bilderna
+är lösta med cirka −8° pitch. Källprojektet lämnades orört. Reservens
+maskoperation täcks av ett separat enhetstest och hela sviten har 68 tester.
+
+## Sparat slutläge 2026-08-16 – källurval, CP-fokus, filnamn och status
+
+Shift-klickad högerbild i källbildslistan markeras åter med den tidigare
+orange radbakgrunden. Huvudbilden behåller den blå accentmarkeringen.
+
+Ett klick på en residualknapp i CP-listan väljer punkten och centrerar samma
+kontrollpunkt i båda bildvyerna vid deras maximala zoom. Punktnummer och
+residual använder nu samma feta caption-typografi och tabellsiffror över hela
+knappen.
+
+Den manuella Spara-panelen visar endast projektets basnamn. Filtypen `.pw`
+läggs till och döljs av macOS i stället för att ligga i det redigerbara
+namnfältet och riskera ett synligt dubbelt suffix. Under pågående import,
+stitchning, CP-arbete, reparationsblend eller export visar statusraden åter
+fasens riktiga meddelande; maskinstruktionen visas endast i viloläget.
+
+Undo för kontrollpunktsändringar är avsiktligt inte tillagt. Samtliga 67
+tester passerar, `git diff --check` är rent och releaseappen är ombyggd och
+strikt signaturverifierad i `build/PanoWizard.app`.
+
+## Sparat slutläge 2026-08-16 – ren Arkiv-meny vid manuell sparning
+
+`Arkiv` använder åter macOS vanliga ordning: `Nytt`, `Öppna…`, `Stäng`,
+`Spara` och `Spara som…`. Eftersom PanoWizard ersätter SwiftUI:s
+`saveItem`-grupp för det manuella sparflödet måste gruppen uttryckligen
+innehålla även `Stäng`; den posten har kommando-W och stänger nyckelfönstret
+eller huvudfönstret.
+
+På den aktuella macOS/SwiftUI-versionen skapar `DocumentGroup` dessutom en
+tom, inaktiv men synlig menyplatshållare med den bokstavliga titeln
+`NSMenuItem` direkt efter `Öppna…`. Platshållaren återskapas när SwiftUI
+uppdaterar menyn och kan därför inte tas bort en gång vid appstart. Den smala
+AppKit-bryggan `FileMenuDelegateProxy` vidarebefordrar SwiftUI:s ursprungliga
+menydelegat och gömmer endast en post som samtidigt heter `NSMenuItem`, saknar
+action och saknar undermeny. Resten av Arkiv-menyn och dess systembeteende
+lämnas orört.
+
+Den rena menyn har verifierats visuellt i releaseappen och kommando-W har
+verifierats genom att stänga välkomstfönstret. Samtliga 67 tester passerar,
+`git diff --check` är rent och releaseappen är ombyggd i `build/PanoWizard.app`.
+
 ## Arbetsregel 2026-08-15 – manuell A–J-regression efter källkodsändringar
 
 Efter varje ändring i källkoden går användaren manuellt igenom panoramamappen
@@ -7,17 +250,99 @@ A–J från nya projekt. Acceptanskriteriet är att automatgenereringen ger ett
 korrekt panorama med ett enda klick på `Skapa panorama`; befintliga eller
 manuellt ändrade CP ska fortsatt vara heliga. Efter den senaste geometriska
 ändringen verifierades D, H och J som perfekta och I som i det närmaste
-perfekt. Den efterföljande titeländringen är isolerad till AppKit-fönstret och
-rör inte panorama-, CP- eller stitchmotorn.
+perfekt.
 
-## Sparat slutläge 2026-08-15 – kompakt redigerad projekttitel
+## Sparat slutläge 2026-08-15 – CP-lista som del av editorn
 
-Dokumentets ändringsstatus visas nu på samma rad som projektnamnet, exempelvis
-`A (redigerad)`, i stället för som den separata underraden `Redigerad`. När
-projektet är sparat visas åter bara `A`. Ändringen ligger enbart i AppKit-
-fönstrets titelhantering; panorama-, kontrollpunkts- och stitchkod är orörd.
-Den sparade enradstiteln verifierades i den byggda appen, samtliga 66 tester
-passerar och releaseappen är ombyggd.
+CP-listan är åter en fast 108 punkter bred vy direkt till höger om bildparet. Den
+är inte längre en separat SwiftUI-inspektör och knappen `Dölj lista`/`Visa
+lista` är borttagen. Raderna är vanliga knappar så att ett enda klick byter
+kontrollpunkt även direkt efter att en punkt har flyttats i en bild. Listan har
+ingen separat `#`-rubrik. CP-ytan är uppbyggd som tre vertikala kolumner med en
+gemensam 44-punkters titelrad: `Bild 1` och rotationsikon, `Bild 2` och
+rotationsikon samt en tom rad över CP-listan. Rotationsikonen ligger direkt efter
+`Bild X`; filnamnen och titeln `δ` visas inte. Bilddokument som är lägre än sin vy
+är toppjusterade, så bilderna och första listknappen börjar direkt under respektive
+lika höga titelrad. CP-listan är en enda kolumn av halvtransparent färgade pills:
+punktnumret är vänsterjusterat och residualen högerjusterad i samma knapp. Det
+finns inga separata kolumner, cirkelmarkörer eller radavdelare. Ett listval lämnar
+tillbaka fokus till editorn så `Delete` fortsatt kan radera vald punkt. Bildytans
+zoomknappar och procenttal är borttagna, liksom instruktionsraden under
+arbetsverktygen.
+
+Pillfärgernas opacitet matchar bildmarkörerna: 0,62 normalt och 0,82 för vald
+punkt. Markeringskanten ritas med `strokeBorder` helt inuti pillen, så den första
+knappens kant inte klipps och textens layout inte påverkas. Det starkare
+färgläget och den kompletta inåtritade kanten på den första valda pillen har
+verifierats visuellt i releaseappen.
+
+Sekvensen flytta vänster kontrollpunkt och därefter byta rad med ett klick har
+verifierats i releaseappen med en tillfällig kopia av `D/A.pw`. Originalprojektet
+öppnades inte och testkopian är borttagen. Samma kontroll verifierade att
+instruktionsraden och zoomreglagen är borta. Tre-kolumnslayoutens titelrader har
+samma höjd och bildernas överkanter ligger exakt i linje med första listraden.
+Pillutseendet och rotationsikonernas placering har verifierats visuellt i
+releaseappen. Efter ett klick på en pill raderade `Delete` den valda punkten och
+valde nästa kvarvarande punkt; kontrollen gjordes endast i testkopian.
+
+## Sparat slutläge 2026-08-15 – två masktyper och separata källbildsvyer
+
+Varje källbild har nu ett eget tillfälligt zoom- och panoreringsläge. Byte
+mellan källbilder återställer respektive bilds zoom och synliga centrum i
+stället för att återanvända föregående bilds vy. Läget hör till den öppna
+arbetsvyn och ändrar inte `.pw`-formatet.
+
+Kontrollpunktseditorns högerbild får inte längre en orange bakgrundsmarkering
+i källbildslistan. Den blå huvudbildsmarkeringen och själva bildparet i
+editorn räcker.
+
+Den orange masken `Ignorera vid matchning` är helt borttagen. Automatisk och
+lokal CP-generering använder alltid hela källbilden. Nya projekt sparar endast
+röda exkluderingsmasker och gröna skyddsmasker. Äldre `.pw`-projekt öppnas
+fortsatt, men deras eventuella `control-point-masks` ignoreras och skrivs inte
+tillbaka nästa gång projektet sparas. Befintliga och manuellt ändrade CP
+förblir auktoritativa och påverkas inte av migreringen.
+
+Den synliga `Ångra`-knappen är borttagen från maskverktygsraden. Ångra finns
+fortsatt via macOS-menyn och kommando-Z. Samtliga 65 tester passerar och
+releaseappen är ombyggd.
+
+## Sparat slutläge 2026-08-15 – projekt sparas endast manuellt
+
+Ett öppet `.pw`-projekt ändras inte längre på disk medan användaren arbetar.
+Projekt, kontrollpunkter, masker och panoramadata hålls i arbetsmodellen tills
+användaren väljer `Arkiv > Spara`, `Arkiv > Spara som…` eller trycker
+kommando-S. Vid sparning skrivs hela projektpaketet atomiskt. Nya projekt visar
+den vanliga Spara-panelen första gången.
+
+Ett osparat projekt markeras med macOS vanliga redigeringsindikering i
+fönstrets standardundertitel, alltså `Redigerad` på raden under dokumentnamnet.
+PanoWizard bygger ingen egen titeltext eller titelfältslayout. När fönstret
+stängs eller hela appen avslutas visas systemdialogen `Spara`, `Spara inte` och
+`Avbryt`; ett avbrutet Spara som lämnar både fönstret och arbetet kvar.
+
+En flyttad kontrollpunkt verifierades i en tillfällig kopia av det verkliga
+D-projektet: projektpaketet var byte-identiskt före manuell sparning,
+kommando-S ändrade endast `project.json` och bevarade befintligt panorama och
+nadir-overlay, och en senare osparad CP-flytt kunde kastas utan att filerna på
+disk ändrades. Originalprojektet öppnades inte.
+
+Dokumentläsningen laddar paketets binärfiler direkt från disk för att inte
+tappa stora panorama-, overlay- eller retuschfiler vid en senare manuell
+sparning. Atomsparning och direkt inläsning av stora pakettillgångar täcks av
+tester. Samtliga 67 tester passerar och releaseappen är ombyggd.
+
+## Sparat slutläge 2026-08-15 – retuscheringsvyn fyller detaljytan
+
+`F/X.pw` utan genererat panorama reproducerade en layoutbugg i Nadir- och
+Zenitvyerna: den tomma retuscheringsvyn fick bara sin minimihöjd, vilket
+centrerade arbetsraden och statusraden mitt i fönstret. Hela högersidan använder
+nu den gemensamma komponenten `DetailWorkspace`: fast 44-punkters knapprad,
+expanderande innehållsyta och fast 30-punkters statusrad, med avdelare mellan
+delarna. Endast innehållet i knappraden och huvudytan varierar med panelvalet.
+Titelfältet och dess eventuella separator lämnas helt åt macOS; PanoWizard gör
+inga visuella specialingrepp där. Avdelarna under knappraden och över
+statusraden är vanliga SwiftUI-komponenter.
 
 ## Sparat slutläge 2026-08-14 – svart Panorama D och gles Sigma-fyrbildsring
 
@@ -195,8 +520,8 @@ borttaget från GUI och appmeny; explicit destruktiv omgenerering finns kvar.
 `Skapa panorama` frågar inte längre om befintliga eller nya
 kontrollpunkter. Om projektet har kontrollpunkter används exakt dessa vid
 renderingen, inklusive alla manuella tillägg, flyttar och borttagningar.
-Aktuella panorama-, skydds- och matchningsmasker skickas samtidigt till
-renderingen utan att punktnätet ersätts. Endast ett uttryckligt kommando för
+Aktuella panorama- och skyddsmasker skickas samtidigt till renderingen utan
+att punktnätet ersätts. Endast ett uttryckligt kommando för
 omgenerering får skapa nya punkter. Om projektet helt saknar kontrollpunkter
 startar `Skapa panorama` fortfarande wizardflödet och renderar med det
 nygenererade nätet.

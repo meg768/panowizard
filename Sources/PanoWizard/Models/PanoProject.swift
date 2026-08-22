@@ -13,7 +13,6 @@ struct PanoProject: Codable, Equatable, Sendable {
     var cachedRigImageLines: [String: String]?
     var cachedRigSignature: String?
     var controlPoints: [DiagnosticControlPoint]?
-    var controlPointMaskSignature: String?
     var nadirRepairPlacement: NadirRepairPlacement?
     var zenithRepairPlacement: NadirRepairPlacement?
     var previewViewpoint: PanoramaViewpoint?
@@ -29,7 +28,6 @@ struct PanoProject: Codable, Equatable, Sendable {
         cachedRigImageLines: [String: String]? = nil,
         cachedRigSignature: String? = nil,
         controlPoints: [DiagnosticControlPoint]? = nil,
-        controlPointMaskSignature: String? = nil,
         nadirRepairPlacement: NadirRepairPlacement? = nil,
         zenithRepairPlacement: NadirRepairPlacement? = nil,
         previewViewpoint: PanoramaViewpoint? = nil
@@ -44,7 +42,6 @@ struct PanoProject: Codable, Equatable, Sendable {
         self.cachedRigImageLines = cachedRigImageLines
         self.cachedRigSignature = cachedRigSignature
         self.controlPoints = controlPoints
-        self.controlPointMaskSignature = controlPointMaskSignature
         self.nadirRepairPlacement = nadirRepairPlacement
         self.zenithRepairPlacement = zenithRepairPlacement
         self.previewViewpoint = previewViewpoint

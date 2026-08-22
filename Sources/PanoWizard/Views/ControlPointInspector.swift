@@ -68,6 +68,11 @@ private enum ControlPointMarkerPalette {
     }
 }
 
+private struct ControlPointFocusRequest: Hashable {
+    let pointID: DiagnosticControlPoint.ID
+    let id = UUID()
+}
+
 struct ControlPointEditor: View {
     private enum BulkDeletionRequest {
         case pair
@@ -92,6 +97,7 @@ struct ControlPointEditor: View {
     let isPoleAlignment: Bool
     @State private var selectedPointID: DiagnosticControlPoint.ID?
     @State private var pointIDToReveal: DiagnosticControlPoint.ID?
+    @State private var pointFocusRequest: ControlPointFocusRequest?
     @State private var magnifiedPointID: DiagnosticControlPoint.ID?
     @State private var isAddingPoint = false
     @State private var isCommandPressed = false
@@ -131,33 +137,25 @@ struct ControlPointEditor: View {
         if let pair = selectedPair,
            diagnostics.images.indices.contains(pair.firstImage),
            diagnostics.images.indices.contains(pair.secondImage) {
-            VStack(spacing: 0) {
-                Text(instruction)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                    .background(.bar)
-
-                HStack(spacing: 1) {
-                    controlPointColumn(
-                        imageIndex: leftImageIndex,
-                        allowsAdding: true
-                    )
-                    controlPointColumn(
-                        imageIndex: rightImageIndex,
-                        allowsAdding: false
-                    )
-                    ControlPointErrorList(
-                        points: displayedPoints,
-                        selectedPointID: selectedPointID,
-                        onSelectPoint: {
-                            selectedPointID = $0
-                            editorHasFocus = true
-                        }
-                    )
-                    .frame(width: 108)
-                }
+            HStack(spacing: 1) {
+                controlPointColumn(
+                    imageIndex: leftImageIndex,
+                    allowsAdding: true
+                )
+                controlPointColumn(
+                    imageIndex: rightImageIndex,
+                    allowsAdding: false
+                )
+                ControlPointErrorList(
+                    points: displayedPoints,
+                    selectedPointID: selectedPointID,
+                    onSelectPoint: {
+                        selectedPointID = $0
+                        pointFocusRequest = ControlPointFocusRequest(pointID: $0)
+                        editorHasFocus = true
+                    }
+                )
+                .frame(width: 108)
             }
             .focusable()
             .focusEffectDisabled()
@@ -273,6 +271,7 @@ struct ControlPointEditor: View {
                 selectedPointID = nil
                 pendingSelectionAfterDelete = nil
                 magnifiedPointID = nil
+                pointFocusRequest = nil
                 isAddingPoint = false
             }
             .onChange(of: displayedPoints.map(\.id)) {
@@ -364,22 +363,6 @@ struct ControlPointEditor: View {
         bulkDeletionRequest = nil
     }
 
-    private var instruction: String {
-        if isCommandPressed {
-            return "Klicka för att lägga till punkt och projicerad motpunkt"
-        }
-        if isAddingPoint {
-            return "Klicka i vänster bild · motpunkten placeras automatiskt"
-        }
-        if magnifiedPointID != nil {
-            return "Dra för mikrojustering · båda detaljerna är förstorade"
-        }
-        if selectedPointID != nil {
-            return "Dra punkten i valfri bild för att finjustera"
-        }
-        return "\(displayedPoints.count) kontrollpunkter · klicka för att markera"
-    }
-
     private func removeSelectedPoint() {
         guard let selectedPointID else { return }
         let selectedIndex = displayedPoints.firstIndex {
@@ -432,6 +415,7 @@ struct ControlPointEditor: View {
             selectedPointID: selectedPointID,
             magnifiedPointID: magnifiedPointID,
             pointIDToReveal: pointIDToReveal,
+            pointFocusRequest: pointFocusRequest,
             isAddingPoint: isAddingPoint,
             commandAddsPoint: isCommandPressed,
             commandPreviewPoint: commandPreviewPoints[imageIndex],
@@ -475,70 +459,49 @@ private struct ControlPointErrorList: View {
     let selectedPointID: DiagnosticControlPoint.ID?
     let onSelectPoint: (DiagnosticControlPoint.ID) -> Void
 
-    private var pointsByDescendingError: [(offset: Int, element: DiagnosticControlPoint)] {
-        points.enumerated().sorted { left, right in
-            switch (left.element.error, right.element.error) {
+    private struct Row: Identifiable {
+        let number: Int
+        let point: DiagnosticControlPoint
+
+        var id: DiagnosticControlPoint.ID { point.id }
+    }
+
+    private var pointsByDescendingError: [Row] {
+        points.enumerated().map { index, point in
+            Row(number: index + 1, point: point)
+        }.sorted { left, right in
+            switch (left.point.error, right.point.error) {
             case let (leftError?, rightError?):
                 if leftError != rightError {
                     return leftError > rightError
                 }
-                return left.offset < right.offset
+                return left.number < right.number
             case (_?, nil):
                 return true
             case (nil, _?):
                 return false
             case (nil, nil):
-                return left.offset < right.offset
+                return left.number < right.number
             }
         }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Num")
-                Spacer()
-                Text("Fel")
-            }
-            .font(.caption.bold())
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 10)
-            .frame(height: 30)
-            .background(.bar)
-
-            Divider()
+            Color.clear
+                .frame(height: 44)
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(pointsByDescendingError, id: \.element.id) {
-                            index,
-                            point in
+                    LazyVStack(spacing: 4) {
+                        ForEach(pointsByDescendingError) { row in
                             Button {
-                                onSelectPoint(point.id)
+                                onSelectPoint(row.id)
                             } label: {
-                                HStack {
-                                    Text("\(index + 1)")
-                                        .font(.caption.bold())
-                                        .foregroundStyle(.black)
-                                        .frame(width: 25, height: 25)
-                                        .background(
-                                            markerColor(index),
-                                            in: Circle()
-                                        )
-                                        .overlay {
-                                            Circle().stroke(
-                                                point.id == selectedPointID
-                                                    ? Color.white
-                                                    : Color.black,
-                                                lineWidth:
-                                                    point.id == selectedPointID
-                                                        ? 2
-                                                        : 1
-                                            )
-                                        }
+                                HStack(spacing: 6) {
+                                    Text("\(row.number)")
                                     Spacer()
-                                    if let error = point.error {
+                                    if let error = row.point.error {
                                         Text(
                                             error,
                                             format: .number.precision(
@@ -551,21 +514,35 @@ private struct ControlPointErrorList: View {
                                             .foregroundStyle(.tertiary)
                                     }
                                 }
-                                .padding(.horizontal, 9)
-                                .frame(height: 29)
-                                .contentShape(Rectangle())
+                                .font(.caption.bold())
+                                .monospacedDigit()
+                                .foregroundStyle(.primary)
+                                .padding(.horizontal, 10)
+                                .frame(height: 28)
+                                .contentShape(Capsule())
                                 .background(
-                                    point.id == selectedPointID
-                                        ? Color.accentColor.opacity(0.28)
-                                        : Color.clear
+                                    markerColor(row.number - 1).opacity(
+                                        row.id == selectedPointID ? 0.82 : 0.62
+                                    ),
+                                    in: Capsule()
                                 )
+                                .overlay {
+                                    Capsule().strokeBorder(
+                                        Color.primary.opacity(
+                                            row.id == selectedPointID
+                                                ? 0.72
+                                                : 0.12
+                                        ),
+                                        lineWidth:
+                                            row.id == selectedPointID ? 2 : 1
+                                    )
+                                }
                             }
                             .buttonStyle(.plain)
-                            .id(point.id)
-
-                            Divider()
+                            .id(row.id)
                         }
                     }
+                    .padding(.horizontal, 6)
                 }
                 .onChange(of: selectedPointID) {
                     guard let selectedPointID else { return }
@@ -591,6 +568,7 @@ private struct ControlPointImage: View {
     let selectedPointID: DiagnosticControlPoint.ID?
     let magnifiedPointID: DiagnosticControlPoint.ID?
     let pointIDToReveal: DiagnosticControlPoint.ID?
+    let pointFocusRequest: ControlPointFocusRequest?
     let isAddingPoint: Bool
     let commandAddsPoint: Bool
     let commandPreviewPoint: CGPoint?
@@ -609,15 +587,9 @@ private struct ControlPointImage: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: 6) {
                 Text("Bild \(imageIndex + 1)")
                     .font(.headline)
-                Text(image.filename)
-                    .lineLimit(1)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                ControlPointZoomControls(controller: viewport)
-
                 Button {
                     quarterTurns = (quarterTurns + 1) % 4
                 } label: {
@@ -626,9 +598,10 @@ private struct ControlPointImage: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help("Rotera bilden 90°")
+                Spacer()
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .frame(height: 44)
 
             GeometryReader { geometry in
                 if let sourceImage {
@@ -875,6 +848,14 @@ private struct ControlPointImage: View {
                             )
                         }
                     }
+                    .task(id: pointFocusRequest) {
+                        guard let pointFocusRequest,
+                              let location = markerLocations.first(where: {
+                                  $0.id == pointFocusRequest.pointID
+                              })?.position else { return }
+                        await Task.yield()
+                        viewport.focusAtMaximumZoom(on: location)
+                    }
                 } else {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1084,38 +1065,6 @@ private struct ControlPointMarkerLayer: View {
 }
 
 @MainActor
-private struct ControlPointZoomControls: View {
-    @ObservedObject var controller: ControlPointViewportController
-
-    var body: some View {
-        Button {
-            controller.zoom(by: 1 / 1.25)
-        } label: {
-            Image(systemName: "minus.magnifyingglass")
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
-        .disabled(controller.magnification <= 1)
-        .help("Zooma ut bilden")
-
-        Text("\(Int((controller.magnification * 100).rounded())) %")
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(.secondary)
-            .frame(minWidth: 46)
-
-        Button {
-            controller.zoom(by: 1.25)
-        } label: {
-            Image(systemName: "plus.magnifyingglass")
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
-        .disabled(controller.magnification >= 8)
-        .help("Zooma in bilden")
-    }
-}
-
-@MainActor
 private final class ControlPointViewportController: ObservableObject {
     @Published private(set) var magnification = 1.0
     @Published private(set) var isMovingPoint = false
@@ -1129,22 +1078,6 @@ private final class ControlPointViewportController: ObservableObject {
 
     var visibleDocumentRect: CGRect {
         scrollView?.documentVisibleRect ?? .zero
-    }
-
-    func zoom(by factor: Double) {
-        guard let scrollView else { return }
-        let center = CGPoint(
-            x: scrollView.documentVisibleRect.midX,
-            y: scrollView.documentVisibleRect.midY
-        )
-        scrollView.setMagnification(
-            min(max(
-                scrollView.magnification * factor,
-                fitMagnification
-            ), fitMagnification * 8),
-            centeredAt: center
-        )
-        updateMagnification(scrollView.magnification)
     }
 
     func beginPan() {
@@ -1194,6 +1127,15 @@ private final class ControlPointViewportController: ObservableObject {
         // the absolute magnification, so they still need a redraw.
         objectWillChange.send()
     }
+
+    func focusAtMaximumZoom(on point: CGPoint) {
+        guard let scrollView else { return }
+        scrollView.setMagnification(
+            scrollView.maxMagnification,
+            centeredAt: point
+        )
+        updateMagnification(scrollView.magnification)
+    }
 }
 
 private final class ControlPointNSScrollView: NSScrollView {
@@ -1231,7 +1173,7 @@ private final class ControlPointNSScrollView: NSScrollView {
     }
 }
 
-private final class CenteringControlPointClipView: NSClipView {
+private final class TopAlignedControlPointClipView: NSClipView {
     override func constrainBoundsRect(_ proposedBounds: NSRect) -> NSRect {
         var bounds = super.constrainBoundsRect(proposedBounds)
         guard let documentView else { return bounds }
@@ -1239,7 +1181,9 @@ private final class CenteringControlPointClipView: NSClipView {
             bounds.origin.x = (documentView.frame.width - bounds.width) / 2
         }
         if bounds.height > documentView.frame.height {
-            bounds.origin.y = (documentView.frame.height - bounds.height) / 2
+            bounds.origin.y = documentView.isFlipped
+                ? 0
+                : documentView.frame.height - bounds.height
         }
         return bounds
     }
@@ -1290,7 +1234,7 @@ private struct ControlPointNativeScrollView<Content: View>:
 
     func makeNSView(context: Context) -> ControlPointNSScrollView {
         let scrollView = ControlPointNSScrollView()
-        scrollView.contentView = CenteringControlPointClipView()
+        scrollView.contentView = TopAlignedControlPointClipView()
         scrollView.drawsBackground = true
         scrollView.backgroundColor = .windowBackgroundColor
         scrollView.hasHorizontalScroller = true

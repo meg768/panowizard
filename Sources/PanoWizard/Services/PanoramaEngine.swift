@@ -6,7 +6,6 @@ protocol PanoramaEngine: Sendable {
         _ panorama: PanoramaSet,
         masks: [UUID: Data],
         protectedMasks: [UUID: Data],
-        controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint]?,
         controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration,
@@ -15,7 +14,6 @@ protocol PanoramaEngine: Sendable {
 
     func optimizeControlPoints(
         _ panorama: PanoramaSet,
-        controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint],
         controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration
@@ -56,7 +54,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         _ panorama: PanoramaSet,
         masks: [UUID: Data],
         protectedMasks: [UUID: Data],
-        controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint]?,
         controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration,
@@ -67,7 +64,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 panorama,
                 masks: masks,
                 protectedMasks: protectedMasks,
-                controlPointMasks: controlPointMasks,
                 controlPoints: controlPoints,
                 controlPointsAreAuthoritative: controlPointsAreAuthoritative,
                 configuration: configuration,
@@ -78,7 +74,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
 
     func optimizeControlPoints(
         _ panorama: PanoramaSet,
-        controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint],
         controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration
@@ -88,7 +83,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 panorama,
                 masks: [:],
                 protectedMasks: [:],
-                controlPointMasks: controlPointMasks,
                 controlPoints: controlPoints,
                 controlPointsAreAuthoritative: controlPointsAreAuthoritative,
                 configuration: configuration,
@@ -107,7 +101,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         _ panorama: PanoramaSet,
         masks: [UUID: Data],
         protectedMasks: [UUID: Data],
-        controlPointMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint]?,
         controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration,
@@ -176,7 +169,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             )
             try MaskedSourceImageWriter.write(
                 sourceURL: image.url,
-                maskData: controlPointMasks[image.id],
+                maskData: nil,
                 clipsToFisheyeCircle: false,
                 sourceFisheyeFactor: configuration.lensProfile == .sigma8DX
                     ? -0.526971 : nil,
@@ -290,8 +283,11 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let editedRingPoints = editedRingEntries?.map(\.point)
         let editedRingPointIDs = editedRingEntries?.map(\.id) ?? []
         let hasSuppliedControlPoints = editedRingPoints?.isEmpty == false
-        let usesEditedControlPoints = hasSuppliedControlPoints
-            && controlPointsAreAuthoritative
+        let usesEditedControlPoints = Self.treatsSuppliedControlPointsAsEdited(
+            hasSuppliedControlPoints: hasSuppliedControlPoints,
+            controlPointsAreAuthoritative: controlPointsAreAuthoritative,
+            automaticStabilizationAttempt: automaticStabilizationAttempt
+        )
         let ringControlPoints: [PanoramaControlPoint]
         if hasSuppliedControlPoints {
             ringControlPoints = editedRingPoints!
@@ -299,8 +295,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             let generatedPoints = try OpenCVControlPointMatcher.ring(
                 images: ringImages,
                 horizontalFieldOfView: matchingFieldOfView,
-                lensProfile: configuration.lensProfile,
-                controlPointMasks: controlPointMasks
+                lensProfile: configuration.lensProfile
             )
             ringControlPoints = isCircularFisheye
                 ? generatedPoints.map { point in
@@ -326,12 +321,12 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     )
                 } : generatedPoints
         }
-        let usesSparseFourImageRing = !usesEditedControlPoints
-            && isCircularFisheye
-            && ringImages.count == 4
-            && OpenCVControlPointMatcher.weakFourImageRingPairs(
+        let usesSparseRing = automaticStabilizationAttempt == 0
+            && !usesEditedControlPoints
+            && usesCalibratedFisheye
+            && OpenCVControlPointMatcher.needsSparseCycleProtection(
                 in: OpenCVControlPointMatcher.lastPairDiagnostics
-            ).isEmpty == false
+            )
         if !usesEditedControlPoints {
             for diagnostic in OpenCVControlPointMatcher.lastPairDiagnostics {
                 print(
@@ -433,7 +428,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         }
 
         log("Ring bundle adjustment", images: ringImages)
-        if usesEditedControlPoints || usesSparseFourImageRing
+        if usesEditedControlPoints || usesSparseRing
             || isCircularFisheye {
             // cpclean evaluates the pose before Sigma's lens and optical
             // centre have been refined. It therefore mistakes useful polar
@@ -493,7 +488,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             errors: initiallyOptimizedErrors
         )
         if !usesEditedControlPoints,
-           !usesSparseFourImageRing,
+           !usesSparseRing,
            acceptedPoints.count < initiallyOptimizedPoints.count {
             let filteredProject = workDirectory.appending(
                 path: "05-ring-outliers-removed.pto"
@@ -577,7 +572,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             }
             finalOptimizedRingProject = robustRingProject
         }
-        if !usesEditedControlPoints, !usesSparseFourImageRing {
+        if !usesEditedControlPoints, !usesSparseRing {
             // The first robust pass can recover a solution that was badly
             // displaced by one false pair. Re-evaluate once in that recovered
             // geometry so isolated residual outliers do not survive merely
@@ -715,6 +710,46 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let automaticGeometryIsUnstable = Self.needsAutomaticStabilization(
             errors: diagnosticPoints.compactMap(\.error)
         )
+        if automaticGeometryIsUnstable {
+            let finiteErrors = diagnosticPoints.compactMap(\.error)
+                .filter(\.isFinite)
+                .sorted()
+            let median = finiteErrors[finiteErrors.count / 2]
+            let p90 = finiteErrors[min(
+                finiteErrors.count - 1,
+                Int(Double(finiteErrors.count) * 0.9)
+            )]
+            print(
+                "[PanoWizard] Unstable automatic geometry "
+                    + "attempt=\(automaticStabilizationAttempt) "
+                    + "sparseRing=\(usesSparseRing) "
+                    + "edited=\(usesEditedControlPoints) "
+                    + "points=\(finiteErrors.count) "
+                    + String(
+                        format: "median=%.3f p90=%.3f max=%.3f",
+                        median, p90, finiteErrors.last ?? 0
+                    )
+            )
+            let errorsByPair = Dictionary(grouping: diagnosticPoints) { $0.pair }
+            for pair in errorsByPair.keys.sorted(by: {
+                ($0.firstImage, $0.secondImage)
+                    < ($1.firstImage, $1.secondImage)
+            }) {
+                let pairErrors = errorsByPair[pair, default: []]
+                    .compactMap(\.error).filter(\.isFinite).sorted()
+                guard !pairErrors.isEmpty else { continue }
+                print(
+                    "[PanoWizard] Residual pair "
+                        + "\(pair.firstImage)-\(pair.secondImage): "
+                        + "count=\(pairErrors.count) "
+                        + String(
+                            format: "median=%.3f max=%.3f",
+                            pairErrors[pairErrors.count / 2],
+                            pairErrors.last ?? 0
+                        )
+                )
+            }
+        }
         if automaticStabilizationAttempt > 0 && automaticGeometryIsUnstable {
             // The points on this pass are marked authoritative only so the
             // internal recovery pass cannot silently replace them. They are
@@ -740,7 +775,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 panorama,
                 masks: masks,
                 protectedMasks: protectedMasks,
-                controlPointMasks: controlPointMasks,
                 controlPoints: diagnosticPoints,
                 controlPointsAreAuthoritative: true,
                 configuration: configuration,
@@ -806,21 +840,18 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     + "kontrollpunkter mellan två bilder som faktiskt överlappar."
             )
         }
-        if isCircularFisheye,
-           ringImages.count == 4,
-           let weakImage = Self.weakFourImageRingImages(
-               controlPoints: cleanedDiagnosticPoints
-           ).first {
-            let projectNumber = Self.projectImageNumbers(
-                for: [weakImage],
-                ringImages: ringImages,
-                panoramaImages: panorama.images
-            ).first ?? weakImage + 1
+        if usesCalibratedFisheye,
+           ringImages.count >= 3,
+           !Self.hasReliable360DegreeBackbone(
+               orientations: ringOrientations,
+               horizontalFieldOfView: matchingFieldOfView,
+               controlPoints: cleanedDiagnosticPoints,
+               logsDiagnostics: true
+           ) {
             throw PanoramaEngineError.stitchingFailed(
-                "Bild \(projectNumber) har inte tillförlitliga "
-                    + "kontrollpunkter mot båda sina grannbilder. "
-                    + "Den automatiska geometrin avbröts i stället för "
-                    + "att placera två olika kamerariktningar ovanpå varandra."
+                "Kontrollpunktsnätet saknar en tillförlitlig sluten "
+                    + "360°-stomme. Den automatiska geometrin avbröts "
+                    + "i stället för att skapa en öppen eller vikt ring."
             )
         }
         let finalGeometryProject = ringGeometryProject
@@ -1014,17 +1045,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             }
         }
         let result = workDirectory.appending(path: "panorama.jpg")
-        let usesSourceMasks = orderedImages.contains { masks[$0.id] != nil }
-        let usesPolarAlignmentImage = ringOrientations.contains {
-            abs($0.pitch) >= 60
-        }
-        // Circular fisheye layers overlap across most of the canvas. Enblend's
-        // graph-cut seam can then wander through smooth sky and leave broad,
-        // visible exposure bands. The distance transform keeps transitions
-        // near the middle of the real lens overlap, as it already does for
-        // masks and polar images.
-        let usesDistanceBasedSeams = isCircularFisheye
-            || usesSourceMasks || usesPolarAlignmentImage
         func blend(
             _ inputLayers: [URL],
             to output: URL
@@ -1034,23 +1054,27 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 arguments: [
                     "-f", "4000x2000+0+0", "--wrap=horizontal",
                     "--compression=92",
+                    "--primary-seam-generator=\(Self.primarySeamGenerator)",
                     "--output=\(output.path(percentEncoded: false))"
                 ]
-                    + (usesDistanceBasedSeams ? [
-                        "--primary-seam-generator=nearest-feature-transform"
-                    ] : [])
                     + inputLayers.map { $0.path(percentEncoded: false) },
                 in: workDirectory
             )
         }
-        func blendCyclically(_ inputLayers: [URL], to output: URL) throws {
+        func blendCyclically(
+            _ inputLayers: [URL],
+            to output: URL
+        ) throws {
             var blendError: Error?
             for offset in inputLayers.indices {
                 try? FileManager.default.removeItem(at: output)
                 do {
                     let orderedLayers = Array(inputLayers[offset...])
                         + Array(inputLayers[..<offset])
-                    try blend(orderedLayers, to: output)
+                    try blend(
+                        orderedLayers,
+                        to: output
+                    )
                     return
                 } catch {
                     blendError = error
@@ -1061,7 +1085,30 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             )
         }
 
-        try blendCyclically(blendLayers, to: result)
+        do {
+            try blendCyclically(blendLayers, to: result)
+        } catch {
+            guard error.localizedDescription.contains(
+                "degenerate image/mask geometry"
+            ) else { throw error }
+            // Valid projected masks can touch at a single pixel regardless of
+            // lens type or image direction. Enblend rejects that topology
+            // before calculating a seam. Moving only the alpha edge one pixel
+            // inward removes the ambiguous contact while preserving the real
+            // overlap between neighboring images.
+            let insetLayers = try blendLayers.enumerated().map { index, layer in
+                let destination = workDirectory.appending(
+                    path: "inset-blend-layer-\(index).tif"
+                )
+                try ProjectedLayerMaskService.normalize(
+                    layer,
+                    insetsAlphaByOnePixel: true,
+                    to: destination
+                )
+                return destination
+            }
+            try blendCyclically(insetLayers, to: result)
+        }
 
         var nadirRepair: NadirRepairRegistrationResult?
         let repairHorizontalFieldOfView = try HuginProjectFile
@@ -1414,7 +1461,13 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let median = sortedErrors[sortedErrors.count / 2]
         let deviations = errors.map { abs($0 - median) }.sorted()
         let medianAbsoluteDeviation = deviations[deviations.count / 2]
-        let threshold = max(8, median + 6 * medianAbsoluteDeviation)
+        // Dense automatic graphs from a monopod often contain a coherent
+        // low-error rotation plus a moderate residual tail from nearby
+        // objects. An 8 px / 6-MAD floor lets that parallax bend the shared
+        // lens and poses. Keep the robust core tighter; sparse cycles bypass
+        // this pass, and the best points of every pair are retained below so
+        // a real narrow bridge is not disconnected.
+        let threshold = max(5, median + 3 * medianAbsoluteDeviation)
         let pairRetentionThreshold = min(80, max(24, threshold * 2))
 
         let indicesByPair = Dictionary(grouping: points.indices) {
@@ -1439,6 +1492,24 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         return points.indices.compactMap {
             acceptedIndices.contains($0) ? points[$0] : nil
         }
+    }
+
+    /// The same predictable, geometry-based seam generator is used for every
+    /// panorama, independently of lens, masks, image direction and image count.
+    static let primarySeamGenerator = "nearest-feature-transform"
+
+    static func treatsSuppliedControlPointsAsEdited(
+        hasSuppliedControlPoints: Bool,
+        controlPointsAreAuthoritative: Bool,
+        automaticStabilizationAttempt: Int
+    ) -> Bool {
+        // A recovery pass receives the app's own generated points so it can
+        // restart from exactly that connected graph. Those points are not a
+        // manual edit: robust residual filtering must remain available or a
+        // sparse ring can repeat the same marginally unstable solve forever.
+        hasSuppliedControlPoints
+            && controlPointsAreAuthoritative
+            && automaticStabilizationAttempt == 0
     }
 
     static func needsAutomaticStabilization(errors: [Double]) -> Bool {
@@ -1481,29 +1552,213 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         return components.sorted { ($0.first ?? 0) < ($1.first ?? 0) }
     }
 
+    static func hasReliable360DegreeBackbone(
+        orientations: [PanoramaOrientation],
+        horizontalFieldOfView: Double,
+        controlPoints: [DiagnosticControlPoint],
+        logsDiagnostics: Bool = false
+    ) -> Bool {
+        let reliablePairs = reliableControlPointPairs(
+            imageCount: orientations.count,
+            controlPoints: controlPoints
+        )
+        let cycleComponents = reliableCycleComponents(
+            imageCount: orientations.count,
+            reliablePairs: reliablePairs
+        )
+        // Consecutive cameras that truly overlap must be closer than roughly
+        // one input field of view. The tolerance absorbs lens-model and CP
+        // noise without allowing a local overlap triangle to masquerade as a
+        // complete 360-degree backbone.
+        let maximumAllowedYawGap = min(
+            180,
+            max(45, horizontalFieldOfView * 1.15)
+        )
+        let closes = cycleComponents.contains { component in
+            let yaws = component.compactMap { index -> Double? in
+                guard orientations.indices.contains(index),
+                      orientations[index].yaw.isFinite else { return nil }
+                var yaw = orientations[index].yaw
+                    .truncatingRemainder(dividingBy: 360)
+                if yaw < 0 { yaw += 360 }
+                return yaw
+            }.sorted()
+            guard yaws.count >= 3 else { return false }
+            var maximumGap = yaws[0] + 360 - yaws[yaws.count - 1]
+            for index in 1..<yaws.count {
+                maximumGap = max(maximumGap, yaws[index] - yaws[index - 1])
+            }
+            return maximumGap <= maximumAllowedYawGap
+        }
+        if logsDiagnostics, !closes {
+            print(
+                "[PanoWizard] Reliable cycle components: "
+                    + cycleComponents.map { component in
+                        component.map(String.init).joined(separator: ",")
+                    }.joined(separator: " | ")
+            )
+        }
+        return closes
+    }
+
     static func weakFourImageRingImages(
         controlPoints: [DiagnosticControlPoint]
     ) -> [Int] {
+        imagesOutsideReliableRingClosure(
+            imageCount: 4,
+            requiredImageIndices: Array(0..<4),
+            controlPoints: controlPoints
+        )
+    }
+
+    static func imagesOutsideReliableRingClosure(
+        imageCount: Int,
+        requiredImageIndices: [Int],
+        controlPoints: [DiagnosticControlPoint],
+        logsDiagnostics: Bool = false
+    ) -> [Int] {
         let pointsByPair = Dictionary(grouping: controlPoints, by: \.pair)
-        var reliableNeighbors = Array(repeating: Set<Int>(), count: 4)
-        for (pair, points) in pointsByPair {
-            guard (0..<4).contains(pair.firstImage),
-                  (0..<4).contains(pair.secondImage) else { continue }
+        let reliablePairs = reliableControlPointPairs(
+            imageCount: imageCount,
+            controlPoints: controlPoints
+        )
+        let imagesInCycles = Set(
+            reliableCycleComponents(
+                imageCount: imageCount,
+                reliablePairs: reliablePairs
+            ).flatMap { $0 }
+        )
+        let outside = requiredImageIndices.sorted().filter {
+            (0..<imageCount).contains($0) && !imagesInCycles.contains($0)
+        }
+        if logsDiagnostics, !outside.isEmpty {
+            print(
+                "[PanoWizard] Reliable ring pairs: "
+                    + reliablePairs.map {
+                        "\($0.firstImage)-\($0.secondImage)"
+                    }.joined(separator: ", ")
+            )
+            for (pair, points) in pointsByPair.sorted(by: { $0.key < $1.key }) {
+                let errors = points.compactMap(\.error).filter(\.isFinite).sorted()
+                guard !errors.isEmpty else { continue }
+                print(
+                    "[PanoWizard] Ring pair residual "
+                        + "\(pair.firstImage)-\(pair.secondImage): "
+                        + "count=\(errors.count) "
+                        + String(
+                            format: "median=%.3f p90=%.3f",
+                            errors[errors.count / 2],
+                            errors[min(
+                                errors.count - 1,
+                                Int(Double(errors.count) * 0.9)
+                            )]
+                        )
+                )
+            }
+        }
+        return outside
+    }
+
+    static func reliableControlPointPairs(
+        imageCount: Int,
+        controlPoints: [DiagnosticControlPoint]
+    ) -> [ControlPointPair.ID] {
+        Dictionary(grouping: controlPoints, by: \.pair).compactMap {
+            pair, points in
+            guard (0..<imageCount).contains(pair.firstImage),
+                  (0..<imageCount).contains(pair.secondImage) else {
+                return nil as ControlPointPair.ID?
+            }
             let errors = points.compactMap(\.error)
             let hasReliableResiduals: Bool
             if points.count >= 4, errors.count == points.count {
-                let mean = errors.reduce(0, +) / Double(errors.count)
-                hasReliableResiduals = mean <= 2 && (errors.max() ?? 0) <= 5
+                let sortedErrors = errors.filter(\.isFinite).sorted()
+                if sortedErrors.count == errors.count {
+                    let median = sortedErrors[sortedErrors.count / 2]
+                    let p90 = sortedErrors[min(
+                        sortedErrors.count - 1,
+                        Int(Double(sortedErrors.count) * 0.9)
+                    )]
+                    // A real transition can contain a few parallax-heavy
+                    // points, especially where nadir exposures overlap the
+                    // tripod ring. Judge the pair by its robust distribution
+                    // instead of one worst point, while still rejecting a
+                    // consistently bad bridge that could fold the panorama.
+                    hasReliableResiduals = median <= 5 && p90 <= 8
+                } else {
+                    hasReliableResiduals = false
+                }
             } else {
                 hasReliableResiduals = false
             }
-            guard points.count >= 8 || hasReliableResiduals else { continue }
-            reliableNeighbors[pair.firstImage].insert(pair.secondImage)
-            reliableNeighbors[pair.secondImage].insert(pair.firstImage)
+            let isReliable = errors.isEmpty
+                ? points.count >= 8
+                : errors.count == points.count && hasReliableResiduals
+            return isReliable ? pair : nil
+        }.sorted()
+    }
+
+    static func reliableCycleComponents(
+        imageCount: Int,
+        reliablePairs: [ControlPointPair.ID]
+    ) -> [[Int]] {
+        var adjacency = Array(
+            repeating: [(neighbor: Int, edge: Int)](),
+            count: imageCount
+        )
+        for (edge, pair) in reliablePairs.enumerated() {
+            adjacency[pair.firstImage].append((pair.secondImage, edge))
+            adjacency[pair.secondImage].append((pair.firstImage, edge))
         }
-        return reliableNeighbors.indices.filter {
-            reliableNeighbors[$0].count < 2
+
+        var discovery = Array(repeating: -1, count: imageCount)
+        var low = Array(repeating: -1, count: imageCount)
+        var nextDiscovery = 0
+        var bridges = Set<Int>()
+        func visit(_ image: Int, parentEdge: Int?) {
+            discovery[image] = nextDiscovery
+            low[image] = nextDiscovery
+            nextDiscovery += 1
+            for connection in adjacency[image] {
+                if connection.edge == parentEdge { continue }
+                if discovery[connection.neighbor] < 0 {
+                    visit(connection.neighbor, parentEdge: connection.edge)
+                    low[image] = min(low[image], low[connection.neighbor])
+                    if low[connection.neighbor] > discovery[image] {
+                        bridges.insert(connection.edge)
+                    }
+                } else {
+                    low[image] = min(
+                        low[image],
+                        discovery[connection.neighbor]
+                    )
+                }
+            }
         }
+        for image in 0..<imageCount where discovery[image] < 0 {
+            visit(image, parentEdge: nil)
+        }
+
+        var remaining = Set(0..<imageCount)
+        var components: [[Int]] = []
+        while let start = remaining.first {
+            var component: [Int] = []
+            var pending = [start]
+            remaining.remove(start)
+            while let image = pending.popLast() {
+                component.append(image)
+                for connection in adjacency[image]
+                    where !bridges.contains(connection.edge) {
+                    if remaining.remove(connection.neighbor) != nil {
+                        pending.append(connection.neighbor)
+                    }
+                }
+            }
+            if component.count >= 3 {
+                components.append(component.sorted())
+            }
+        }
+        return components.sorted { ($0.first ?? 0) < ($1.first ?? 0) }
     }
 
     static func preservesSuppliedRingGraph(

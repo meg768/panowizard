@@ -56,6 +56,7 @@ typedef enum {
 int PWGenerateRingControlPoints(
     const char *const *imagePaths,
     const double *nominalYaws,
+    const int *positioningImageFlags,
     int imageCount,
     double horizontalFieldOfView,
     int lensModel,
