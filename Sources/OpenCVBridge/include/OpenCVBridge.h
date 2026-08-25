@@ -19,6 +19,8 @@ typedef struct {
     int connectedImageCount;
     double medianResidualDegrees;
     double p90ResidualDegrees;
+    double contaminatedRigMedianResidualDegrees;
+    double contaminatedRigP90ResidualDegrees;
     double rigMedianResidualDegrees;
     double rigP90ResidualDegrees;
 } PWPositioningEvidence;

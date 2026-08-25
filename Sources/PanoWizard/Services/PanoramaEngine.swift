@@ -137,13 +137,16 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration,
         rendersPanorama: Bool,
-        isAutomaticRecovery: Bool = false
+        isAutomaticRecovery: Bool = false,
+        inheritedAutomaticPositioningDecisions:
+            [UUID: AutomaticPositioningDecision]? = nil
     ) throws -> PanoramaStitchResult {
-        var automaticPositioningDecisions = positioningDecisions(
-            images: sourcePanorama.images,
-            controlPoints: controlPoints ?? [],
-            configuration: configuration
-        )
+        var automaticPositioningDecisions =
+            inheritedAutomaticPositioningDecisions ?? positioningDecisions(
+                images: sourcePanorama.images,
+                controlPoints: controlPoints ?? [],
+                configuration: configuration
+            )
         let resolvedImages = sourcePanorama.images.map { image in
             guard let decision = automaticPositioningDecisions[image.id]
             else { return image }
@@ -456,7 +459,9 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     controlPointsAreAuthoritative: false,
                     configuration: configuration,
                     rendersPanorama: rendersPanorama,
-                    isAutomaticRecovery: isAutomaticRecovery
+                    isAutomaticRecovery: isAutomaticRecovery,
+                    inheritedAutomaticPositioningDecisions:
+                        generatedDecisions
                 )
             }
         }
@@ -1013,7 +1018,9 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 controlPointsAreAuthoritative: true,
                 configuration: configuration,
                 rendersPanorama: rendersPanorama,
-                isAutomaticRecovery: true
+                isAutomaticRecovery: true,
+                inheritedAutomaticPositioningDecisions:
+                    automaticPositioningDecisions
             )
         }
         if !rendersPanorama {
@@ -1075,7 +1082,9 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     controlPointsAreAuthoritative: true,
                     configuration: configuration,
                     rendersPanorama: rendersPanorama,
-                    isAutomaticRecovery: true
+                    isAutomaticRecovery: true,
+                    inheritedAutomaticPositioningDecisions:
+                        automaticPositioningDecisions
                 )
             }
             let groups = disconnectedComponents.map { component in
@@ -1589,7 +1598,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         }
 
         guard let geometryEvidence else { return decisions }
-        let repairCandidates = localImages.indices.filter { index in
+        var repairCandidates = localImages.indices.filter { index in
             guard localImages[index].role == .automatic else { return false }
             let evidence = geometryEvidence[index]
             let isPolar = abs(evidence.orientation.pitch) >= 70
@@ -1597,13 +1606,60 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 evidence.rigMedianResidualDegrees, 0.10
             )
             let tailBaseline = max(evidence.rigP90ResidualDegrees, 0.25)
+            let isDirectGeometricOutlier =
+                evidence.medianResidualDegrees >= 0.50
+                && evidence.medianResidualDegrees >= medianBaseline * 1.5
+                && evidence.p90ResidualDegrees >= tailBaseline * 2.5
+            let removalImprovesRig =
+                evidence.medianResidualDegrees >= 0.35
+                && evidence.p90ResidualDegrees >= tailBaseline * 1.5
+                && evidence.contaminatedRigP90ResidualDegrees
+                    >= max(tailBaseline * 1.5, tailBaseline + 0.75)
             return isPolar
                 && evidence.connectedImageCount >= 3
                 && evidence.pointCount >= 12
-                && evidence.medianResidualDegrees >= 0.50
                 && evidence.p90ResidualDegrees >= 2.00
-                && evidence.medianResidualDegrees >= medianBaseline * 1.5
-                && evidence.p90ResidualDegrees >= tailBaseline * 2.5
+                && (isDirectGeometricOutlier || removalImprovesRig)
+        }
+        if repairCandidates.isEmpty {
+            let datedImages = localImages.indices.compactMap { index in
+                localImages[index].captureDate.map { (index, $0) }
+            }.sorted { $0.1 < $1.1 }
+            if datedImages.count >= 4,
+               let final = datedImages.last,
+               localImages[final.0].role == .automatic {
+                let gaps = zip(datedImages, datedImages.dropFirst()).map {
+                    max(0, $1.1.timeIntervalSince($0.1))
+                }
+                let ordinaryGaps = gaps.dropLast().filter { $0 > 0 }.sorted()
+                let finalGap = gaps.last ?? 0
+                let medianGap = ordinaryGaps.isEmpty
+                    ? 0 : ordinaryGaps[ordinaryGaps.count / 2]
+                let evidence = geometryEvidence[final.0]
+                let priorIndex = datedImages[datedImages.count - 2].0
+                let priorIsPolar = abs(
+                    geometryEvidence[priorIndex].orientation.pitch
+                ) >= 70
+                let finalIsPolar = abs(evidence.orientation.pitch) >= 70
+                let medianBaseline = max(
+                    evidence.rigMedianResidualDegrees, 0.10
+                )
+                // A delayed final pole exposure is only supporting evidence,
+                // never a decision by itself. It must follow another polar
+                // rig view and also disagree measurably with the shared
+                // rotation model. This distinguishes H's moved-camera nadir
+                // from A's coherent mounted nadir/zenith sequence.
+                if finalGap >= max(20, medianGap * 2.5),
+                   priorIsPolar,
+                   finalIsPolar,
+                   evidence.connectedImageCount >= 3,
+                   evidence.pointCount >= 12,
+                   evidence.medianResidualDegrees >= 0.50,
+                   evidence.p90ResidualDegrees >= 2.00,
+                   evidence.medianResidualDegrees >= medianBaseline * 1.25 {
+                    repairCandidates = [final.0]
+                }
+            }
         }
         for index in localImages.indices {
             let evidence = geometryEvidence[index]
@@ -1611,13 +1667,15 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 String(
                     format: "[PanoWizard] Positioning evidence image %d: "
                         + "pitch=%.1f points=%d links=%d median=%.3f "
-                        + "p90=%.3f rigMedian=%.3f rigP90=%.3f%@",
+                        + "p90=%.3f contaminatedRigP90=%.3f "
+                        + "rigMedian=%.3f rigP90=%.3f%@",
                     index + 1,
                     evidence.orientation.pitch,
                     evidence.pointCount,
                     evidence.connectedImageCount,
                     evidence.medianResidualDegrees,
                     evidence.p90ResidualDegrees,
+                    evidence.contaminatedRigP90ResidualDegrees,
                     evidence.rigMedianResidualDegrees,
                     evidence.rigP90ResidualDegrees,
                     repairCandidates.contains(index) ? " repair" : ""

@@ -22,6 +22,8 @@ struct PositioningGeometryEvidence: Equatable, Sendable {
     let connectedImageCount: Int
     let medianResidualDegrees: Double
     let p90ResidualDegrees: Double
+    let contaminatedRigMedianResidualDegrees: Double
+    let contaminatedRigP90ResidualDegrees: Double
     let rigMedianResidualDegrees: Double
     let rigP90ResidualDegrees: Double
 }
@@ -283,6 +285,8 @@ enum OpenCVControlPointMatcher {
                 connectedImageCount: 0,
                 medianResidualDegrees: 0,
                 p90ResidualDegrees: 0,
+                contaminatedRigMedianResidualDegrees: 0,
+                contaminatedRigP90ResidualDegrees: 0,
                 rigMedianResidualDegrees: 0,
                 rigP90ResidualDegrees: 0
             ),
@@ -330,6 +334,10 @@ enum OpenCVControlPointMatcher {
                 connectedImageCount: Int($0.connectedImageCount),
                 medianResidualDegrees: $0.medianResidualDegrees,
                 p90ResidualDegrees: $0.p90ResidualDegrees,
+                contaminatedRigMedianResidualDegrees:
+                    $0.contaminatedRigMedianResidualDegrees,
+                contaminatedRigP90ResidualDegrees:
+                    $0.contaminatedRigP90ResidualDegrees,
                 rigMedianResidualDegrees: $0.rigMedianResidualDegrees,
                 rigP90ResidualDegrees: $0.rigP90ResidualDegrees
             )

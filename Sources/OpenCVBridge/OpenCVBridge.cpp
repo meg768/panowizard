@@ -732,7 +732,8 @@ struct RotationEdge {
 
 std::vector<cv::Matx33d> worldRotationsFromStrongestEdges(
     const std::vector<RotationEdge> &edges,
-    int imageCount
+    int imageCount,
+    int ignoredImage = -1
 ) {
     std::vector<int> parent(imageCount);
     for (int index = 0; index < imageCount; ++index) parent[index] = index;
@@ -758,8 +759,18 @@ std::vector<cv::Matx33d> worldRotationsFromStrongestEdges(
         imageCount, cv::Matx33d::eye()
     );
     std::vector<bool> visited(imageCount, false);
-    std::vector<int> pending = {0};
-    visited[0] = true;
+    if (ignoredImage >= 0 && ignoredImage < imageCount) {
+        visited[ignoredImage] = true;
+    }
+    int seed = 0;
+    while (seed < imageCount && seed == ignoredImage) ++seed;
+    if (seed >= imageCount) {
+        throw std::runtime_error(
+            "Kontrollpunkterna gav ingen kvarvarande 3D-startpose."
+        );
+    }
+    std::vector<int> pending = {seed};
+    visited[seed] = true;
     while (!pending.empty()) {
         const int current = pending.back();
         pending.pop_back();
@@ -852,14 +863,15 @@ RaysByImagePair controlPointRays(
 }
 
 std::vector<RotationEdge> strongestRotationEdges(
-    const RaysByImagePair &rays
+    const RaysByImagePair &rays,
+    int minimumInlierCount = 6
 ) {
     std::vector<RotationEdge> edges;
     constexpr double inlierThreshold = 1.5 * pi / 180.0;
     for (const auto &entry : rays) {
         const auto &pair = entry.first;
         const auto &pairRays = entry.second;
-        if (pairRays.size() < 6) continue;
+        if (pairRays.size() < std::size_t(minimumInlierCount)) continue;
         cv::RNG random(pair.first * 1009 + pair.second * 9176);
         std::vector<int> bestIndices;
         const int iterations = std::min(2000, int(pairRays.size() * 30));
@@ -884,7 +896,7 @@ std::vector<RotationEdge> strongestRotationEdges(
                 bestIndices = std::move(inliers);
             }
         }
-        if (bestIndices.size() < 6) continue;
+        if (bestIndices.size() < std::size_t(minimumInlierCount)) continue;
         const cv::Matx33d rotation = fittedRayRotation(
             int(bestIndices.size()),
             [&](int position) { return pairRays[bestIndices[position]]; }
@@ -2957,7 +2969,11 @@ int PWEstimateControlPointOrientations(
             horizontalFieldOfView,
             lensModel
         );
-        const std::vector<RotationEdge> edges = strongestRotationEdges(rays);
+        // Recovery points have already survived Hugin's global residual
+        // filtering. A sparse zenith view may retain only three to five good
+        // points on its sole connection, which is still enough to seed a 3D
+        // rotation. Positioning evidence keeps the stricter six-point rule.
+        const std::vector<RotationEdge> edges = strongestRotationEdges(rays, 3);
         const std::vector<cv::Matx33d> worldRotations =
             worldRotationsFromStrongestEdges(edges, imageCount);
         for (int index = 0; index < imageCount; ++index) {
@@ -3027,7 +3043,7 @@ int PWEstimatePositioningEvidence(
         }
 
         for (int image = 0; image < imageCount; ++image) {
-            std::vector<double> rigResiduals;
+            std::vector<double> contaminatedRigResiduals;
             for (const auto &entry : rays) {
                 const int first = entry.first.first;
                 const int second = entry.first.second;
@@ -3035,14 +3051,49 @@ int PWEstimatePositioningEvidence(
                 const cv::Matx33d predictedRotation =
                     worldRotations[first].t() * worldRotations[second];
                 for (const RayPair &pair : entry.second) {
-                    rigResiduals.push_back(
+                    contaminatedRigResiduals.push_back(
                         rayRotationError(pair, predictedRotation)
                             * 180.0 / pi
                     );
                 }
             }
+
+            std::vector<double> rigResiduals;
+            RaysByImagePair rigRays;
+            for (const auto &entry : rays) {
+                if (entry.first.first != image
+                    && entry.first.second != image) {
+                    rigRays.insert(entry);
+                }
+            }
+            try {
+                const std::vector<RotationEdge> rigEdges =
+                    strongestRotationEdges(rigRays);
+                const std::vector<cv::Matx33d> rigRotations =
+                    worldRotationsFromStrongestEdges(
+                        rigEdges, imageCount, image
+                    );
+                for (const auto &entry : rigRays) {
+                    const int first = entry.first.first;
+                    const int second = entry.first.second;
+                    const cv::Matx33d predictedRotation =
+                        rigRotations[first].t() * rigRotations[second];
+                    for (const RayPair &pair : entry.second) {
+                        rigResiduals.push_back(
+                            rayRotationError(pair, predictedRotation)
+                                * 180.0 / pi
+                        );
+                    }
+                }
+            } catch (const std::exception &) {
+                // A disconnected leave-one-out graph cannot prove that
+                // removing this image improves the shared camera rig.
+                rigResiduals.clear();
+            }
             const PWOrientation orientation =
                 panoramaOrientation(worldRotations[image]);
+            const double unavailable =
+                std::numeric_limits<double>::infinity();
             evidence[image] = {
                 orientation.yaw,
                 orientation.pitch,
@@ -3051,8 +3102,11 @@ int PWEstimatePositioningEvidence(
                 int(connectedImages[image].size()),
                 median(residuals[image]),
                 percentile(residuals[image], 0.9),
-                median(rigResiduals),
-                percentile(rigResiduals, 0.9)
+                median(contaminatedRigResiduals),
+                percentile(contaminatedRigResiduals, 0.9),
+                rigResiduals.empty() ? unavailable : median(rigResiduals),
+                rigResiduals.empty() ? unavailable
+                    : percentile(rigResiduals, 0.9)
             };
         }
         return 1;
