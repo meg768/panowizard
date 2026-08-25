@@ -9,6 +9,64 @@ struct NadirRepairRegistrationResult: Sendable {
 }
 
 enum OpenCVNadirRepairRegistrar {
+    static func alignmentToProjectedOverlay(
+        at projectedOverlayURL: URL,
+        repairImage: SourceImage,
+        exclusionMaskData: Data?,
+        horizontalFieldOfView: Double
+    ) throws -> (homography: [Double], matchedFeatureCount: Int) {
+        let (repairImage, decodedURL) = try decodedWorkingCopy(
+            of: repairImage,
+            beside: projectedOverlayURL
+        )
+        defer {
+            if let decodedURL {
+                try? FileManager.default.removeItem(at: decodedURL)
+            }
+        }
+        let maskURL = try temporaryMaskURL(
+            for: exclusionMaskData,
+            beside: projectedOverlayURL
+        )
+        defer {
+            if let maskURL {
+                try? FileManager.default.removeItem(at: maskURL)
+            }
+        }
+
+        var registration = PWNadirRegistration()
+        var errorMessage: UnsafeMutablePointer<CChar>?
+        let succeeded = projectedOverlayURL.path.withCString { overlayPath in
+            repairImage.url.path.withCString { repairPath in
+                (maskURL?.path ?? "").withCString { maskPath in
+                    PWAlignNadirRepairToProjectedOverlay(
+                        overlayPath,
+                        repairPath,
+                        maskPath,
+                        horizontalFieldOfView,
+                        &registration,
+                        &errorMessage
+                    )
+                }
+            }
+        }
+        defer { PWFreeString(errorMessage) }
+        guard succeeded != 0 else {
+            throw PanoramaEngineError.stitchingFailed(
+                errorMessage.map { String(cString: $0) }
+                    ?? "Polbildens sfäriska projektion kunde inte återanvändas."
+            )
+        }
+        return (
+            [
+                registration.h00, registration.h01, registration.h02,
+                registration.h10, registration.h11, registration.h12,
+                registration.h20, registration.h21, registration.h22
+            ],
+            Int(registration.matchedFeatureCount)
+        )
+    }
+
     static func extractPoleOverlay(
         from equirectangularLayer: URL,
         pole: PanoramaPole,
@@ -266,6 +324,7 @@ enum OpenCVNadirRepairRegistrar {
         panoramaURL: URL,
         repairImage: SourceImage,
         exclusionMaskData: Data?,
+        projectedRepairURL: URL? = nil,
         horizontalFieldOfView: Double,
         pole: PanoramaPole = .nadir,
         placement: NadirRepairPlacement,
@@ -308,6 +367,9 @@ enum OpenCVNadirRepairRegistrar {
         let baseLayerURL = workDirectory.appending(path: "base.tif")
         let repairLayerURL = workDirectory.appending(path: "repair.tif")
         let blendedLocalURL = workDirectory.appending(path: "blended.tif")
+        let seamMaskTemplate = workDirectory.appending(
+            path: "seam-mask-%n.tif"
+        )
         let adjustment = placement.manualAdjustment ?? .identity
         var cornerOffsets = adjustment.resolvedCornerOffsets
         var contentBounds = placement.resolvedContentBounds
@@ -316,27 +378,31 @@ enum OpenCVNadirRepairRegistrar {
         let prepared = panoramaURL.path.withCString { panoramaPath in
             repairImage.url.path.withCString { repairPath in
                 (maskURL?.path ?? "").withCString { maskPath in
-                    baseLayerURL.path.withCString { basePath in
-                        repairLayerURL.path.withCString { repairOutputPath in
-                            cornerOffsets.withUnsafeMutableBufferPointer { offsets in
-                                contentBounds.withUnsafeMutableBufferPointer { bounds in
-                                    PWPrepareNadirRepairBlend(
-                                        panoramaPath,
-                                        repairPath,
-                                        maskPath,
-                                        horizontalFieldOfView,
-                                        pole.pitchDegrees,
-                                        &registration,
-                                        adjustment.translationX,
-                                        adjustment.translationY,
-                                        adjustment.rotationDegrees,
-                                        adjustment.scale,
-                                        offsets.baseAddress,
-                                        bounds.baseAddress,
-                                        basePath,
-                                        repairOutputPath,
-                                        &preparationError
-                                    )
+                    (projectedRepairURL?.path ?? "").withCString {
+                        projectedRepairPath in
+                        baseLayerURL.path.withCString { basePath in
+                            repairLayerURL.path.withCString { repairOutputPath in
+                                cornerOffsets.withUnsafeMutableBufferPointer { offsets in
+                                    contentBounds.withUnsafeMutableBufferPointer { bounds in
+                                        PWPrepareNadirRepairBlend(
+                                            panoramaPath,
+                                            repairPath,
+                                            maskPath,
+                                            projectedRepairPath,
+                                            horizontalFieldOfView,
+                                            pole.pitchDegrees,
+                                            &registration,
+                                            adjustment.translationX,
+                                            adjustment.translationY,
+                                            adjustment.rotationDegrees,
+                                            adjustment.scale,
+                                            offsets.baseAddress,
+                                            bounds.baseAddress,
+                                            basePath,
+                                            repairOutputPath,
+                                            &preparationError
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -354,7 +420,9 @@ enum OpenCVNadirRepairRegistrar {
         }
 
         let blendArguments = [
+            "--primary-seam-generator=nearest-feature-transform",
             "--fine-mask",
+            "--save-masks=\(seamMaskTemplate.path(percentEncoded: false))",
             "--blend-colorspace=CIELAB",
             "--compression=deflate",
             "-f", "1600x1600+0+0",
@@ -370,6 +438,12 @@ enum OpenCVNadirRepairRegistrar {
             )
         } catch {
             try? FileManager.default.removeItem(at: blendedLocalURL)
+            for url in try FileManager.default.contentsOfDirectory(
+                at: workDirectory,
+                includingPropertiesForKeys: nil
+            ) where url.lastPathComponent.hasPrefix("seam-mask-") {
+                try? FileManager.default.removeItem(at: url)
+            }
             try toolchain.run(
                 "enblend",
                 arguments: ["--no-optimize"] + blendArguments,
@@ -377,14 +451,37 @@ enum OpenCVNadirRepairRegistrar {
             )
         }
 
+        let seamMasks = try FileManager.default.contentsOfDirectory(
+            at: workDirectory,
+            includingPropertiesForKeys: nil
+        ).filter {
+            $0.lastPathComponent.hasPrefix("seam-mask-")
+                && ["tif", "tiff"].contains($0.pathExtension.lowercased())
+        }.sorted {
+            $0.lastPathComponent.localizedStandardCompare(
+                $1.lastPathComponent
+            ) == .orderedAscending
+        }
+        guard let repairSeamMaskURL = seamMasks.last else {
+            throw PanoramaEngineError.stitchingFailed(
+                "Enblend skapade ingen sömmask för reparationsbilden."
+            )
+        }
+
         var finishingError: UnsafeMutablePointer<CChar>?
         let finished = blendedLocalURL.path.withCString { blendedPath in
-            outputURL.path.withCString { outputPath in
-                PWFinishNadirRepairBlend(
-                    blendedPath,
-                    outputPath,
-                    &finishingError
-                )
+            repairLayerURL.path.withCString { repairPath in
+                repairSeamMaskURL.path.withCString { seamMaskPath in
+                    outputURL.path.withCString { outputPath in
+                        PWFinishNadirRepairBlend(
+                            blendedPath,
+                            repairPath,
+                            seamMaskPath,
+                            outputPath,
+                            &finishingError
+                        )
+                    }
+                }
             }
         }
         defer {

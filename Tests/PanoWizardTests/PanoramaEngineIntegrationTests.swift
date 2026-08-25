@@ -82,7 +82,7 @@ struct PanoramaEngineIntegrationTests {
         let suppliedControlPoints: [DiagnosticControlPoint]?
         if environment["PANOWIZARD_FOLDER_WIZARD_POINTS"] == "1" {
             let ringIndices = images.indices.filter {
-                images[$0].isEnabled && images[$0].role == .alignment
+                images[$0].isEnabled && images[$0].role != .fillOnly
             }
             let ring = ringIndices.map { images[$0] }
             let points = try OpenCVControlPointMatcher.ring(
@@ -222,6 +222,9 @@ struct PanoramaEngineIntegrationTests {
             throw error
         }
         let resultURL = try #require(result.url)
+        project.applyAutomaticPositioningDecisions(
+            result.automaticPositioningDecisions
+        )
         project.controlPoints = try #require(
             result.controlPointDiagnostics?.cleanedPoints
         )
@@ -255,6 +258,25 @@ struct PanoramaEngineIntegrationTests {
                 at: overlay,
                 to: panoramaDirectory.appending(path: "nadir-overlay.png")
             )
+            if let placement = result.nadirRepair?.placement,
+               let repairImage = project.images.first(where: {
+                   $0.id == placement.imageID
+               }) {
+                try OpenCVNadirRepairRegistrar.renderBlendedOverlay(
+                    panoramaURL: resultURL,
+                    repairImage: repairImage,
+                    exclusionMaskData: nil,
+                    projectedRepairURL: overlay,
+                    horizontalFieldOfView:
+                        placement.sourceHorizontalFieldOfView
+                            ?? configuration.inputHorizontalFieldOfView,
+                    pole: .nadir,
+                    placement: placement,
+                    outputURL: panoramaDirectory.appending(
+                        path: "nadir-blended-overlay.png"
+                    )
+                )
+            }
         }
         if let overlay = result.zenithRepair?.overlayURL {
             try FileManager.default.copyItem(
@@ -390,14 +412,14 @@ struct PanoramaEngineIntegrationTests {
             HuginOpenCVPanoramaEngine.treatsSuppliedControlPointsAsEdited(
                 hasSuppliedControlPoints: true,
                 controlPointsAreAuthoritative: true,
-                automaticStabilizationAttempt: 0
+                isAutomaticRecovery: false
             )
         )
         #expect(
             !HuginOpenCVPanoramaEngine.treatsSuppliedControlPointsAsEdited(
                 hasSuppliedControlPoints: true,
                 controlPointsAreAuthoritative: true,
-                automaticStabilizationAttempt: 1
+                isAutomaticRecovery: true
             )
         )
     }

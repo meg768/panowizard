@@ -405,7 +405,7 @@ struct ContentView: View {
             }
             .buttonStyle(WorkspaceToolbarPillStyle())
             .disabled(model.phase != .ready)
-        } else if model.selectedSourceImage?.role == .fillOnly,
+        } else if model.selectedSourceImage?.effectiveRole == .fillOnly,
                   model.stitchedResultURL != nil {
             Button {
                 model.showNadirRepairPreview()
@@ -511,7 +511,7 @@ struct ContentView: View {
 
     private var hasStitchableSources: Bool {
         model.project.images.filter {
-            $0.isEnabled && $0.role == .alignment
+            $0.isEnabled && $0.effectiveRole == .alignment
         }.count >= 2
     }
 
@@ -589,7 +589,8 @@ private struct PanoramaSettingsView: View {
             Section {
                 Text(
                     "Roll och masker anges för varje källbild. För en "
-                        + "reparationsbild väljer du även zenit eller nadir."
+                        + "reparationsbild avgör PanoWizard automatiskt om "
+                        + "den hör till zenit eller nadir."
                 )
                 .foregroundStyle(.secondary)
             }

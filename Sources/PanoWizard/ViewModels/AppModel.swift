@@ -341,7 +341,7 @@ final class AppModel {
     var canStitch: Bool {
         project.images.filter {
             $0.isEnabled
-                && $0.role == .alignment
+                && $0.effectiveRole == .alignment
         }.count >= 2
             && phase != .importing
             && phase != .stitching
@@ -403,7 +403,7 @@ final class AppModel {
     private static func detectedLensProfile(
         in images: [SourceImage]
     ) -> StitchingConfiguration.LensProfile? {
-        let alignmentImages = images.filter { $0.role == .alignment }
+        let alignmentImages = images.filter { $0.effectiveRole == .alignment }
         let profiles = Set(alignmentImages.compactMap { image in
             detectedLensProfile(for: image)
         })
@@ -466,6 +466,9 @@ final class AppModel {
                     controlPoints: points,
                     controlPointsAreAuthoritative: true,
                     configuration: project.stitching
+                )
+                project.applyAutomaticPositioningDecisions(
+                    result.automaticPositioningDecisions
                 )
                 applyOptimizationDiagnostics(
                     result.diagnostics,
@@ -575,6 +578,9 @@ final class AppModel {
                     )
                 )
                 guard stitchOperationID == operationID else { return }
+                project.applyAutomaticPositioningDecisions(
+                    result.automaticPositioningDecisions
+                )
                 guard let resultURL = result.url else {
                     throw PanoramaEngineError.stitchingFailed(
                         "Stitchmotorn skapade inget panorama."
@@ -627,7 +633,8 @@ final class AppModel {
                     let overlayURL = try await blendedRepairOverlay(
                         .nadir,
                         panoramaURL: resultURL,
-                        placement: newPlacement
+                        placement: newPlacement,
+                        projectedRepairURL: result.nadirRepair?.overlayURL
                     )
                     guard stitchOperationID == operationID else { return }
                     nadirOverlayURL = overlayURL
@@ -637,7 +644,8 @@ final class AppModel {
                     let overlayURL = try await blendedRepairOverlay(
                         .zenith,
                         panoramaURL: resultURL,
-                        placement: newZenithPlacement
+                        placement: newZenithPlacement,
+                        projectedRepairURL: result.zenithRepair?.overlayURL
                     )
                     guard stitchOperationID == operationID else { return }
                     zenithOverlayURL = overlayURL
@@ -735,7 +743,7 @@ final class AppModel {
     private func isFrozenRingImage(at index: Int) -> Bool {
         guard project.images.indices.contains(index) else { return false }
         let image = project.images[index]
-        return image.role == .alignment
+        return image.effectiveRole == .alignment
     }
 
     func moveControlPoint(
@@ -888,7 +896,7 @@ final class AppModel {
             return
         }
         let eligible = images.enumerated().filter {
-            $0.element.isEnabled && isRingControlPointImage($0.element)
+            $0.element.isEnabled && isPositioningCandidate($0.element)
         }
         guard eligible.count >= 2 else { return }
         let matchingImages = eligible.map(\.element)
@@ -910,7 +918,7 @@ final class AppModel {
                 // The ring matcher has already performed geometric and spatial
                 // selection. Preserve its full
                 // connected network rather than reselecting per pair here.
-                let generatedPoints: [DiagnosticControlPoint] = matches.map {
+                var generatedPoints: [DiagnosticControlPoint] = matches.map {
                     DiagnosticControlPoint(
                         firstImage: projectIndices[$0.firstImage],
                         secondImage: projectIndices[$0.secondImage],
@@ -919,6 +927,37 @@ final class AppModel {
                         secondX: $0.secondX,
                         secondY: $0.secondY
                     )
+                }
+                let manualRepairIndices = images.indices.filter {
+                    images[$0].isEnabled && images[$0].role == .fillOnly
+                }
+                for repairIndex in manualRepairIndices {
+                    for positioningIndex in projectIndices {
+                        let pair = ControlPointPair.ID(
+                            firstImage: min(repairIndex, positioningIndex),
+                            secondImage: max(repairIndex, positioningIndex)
+                        )
+                        let repairMatches = await Task.detached(
+                            priority: .userInitiated
+                        ) {
+                            (try? OpenCVControlPointMatcher.pair(
+                                images: images,
+                                pair: pair,
+                                horizontalFieldOfView: horizontalFieldOfView,
+                                lensProfile: lensProfile
+                            )) ?? []
+                        }.value
+                        generatedPoints += repairMatches.map {
+                            DiagnosticControlPoint(
+                                firstImage: $0.firstImage,
+                                secondImage: $0.secondImage,
+                                firstX: $0.firstX,
+                                firstY: $0.firstY,
+                                secondX: $0.secondX,
+                                secondY: $0.secondY
+                            )
+                        }
+                    }
                 }
                 editableControlPoints = generatedPoints
                 saveEditableControlPoints()
@@ -943,6 +982,9 @@ final class AppModel {
                             controlPointsAreAuthoritative: false,
                             configuration: project.stitching
                         )
+                    project.applyAutomaticPositioningDecisions(
+                        optimized.automaticPositioningDecisions
+                    )
                     applyControlPointDiagnostics(optimized.diagnostics)
                     phase = .ready
                 }
@@ -1065,15 +1107,15 @@ final class AppModel {
         selection = .controlPoints
     }
 
-    private func isRingControlPointImage(_ image: SourceImage) -> Bool {
-        image.role == .alignment
+    private func isPositioningCandidate(_ image: SourceImage) -> Bool {
+        image.role != .fillOnly
     }
 
     private func canShareControlPoints(
         _ first: SourceImage,
         _ second: SourceImage
     ) -> Bool {
-        first.role == .alignment || second.role == .alignment
+        first.role != .fillOnly || second.role != .fillOnly
     }
 
     @discardableResult
@@ -1376,10 +1418,18 @@ final class AppModel {
     func setRole(_ role: SourceImage.Role, for imageID: UUID) {
         repairRenderRevision += 1
         project.setRole(role, for: imageID)
-        clearEditableControlPointsAfterGeometryChange()
+        editableControlPoints = project.controlPoints ?? []
+        controlPointDiagnostics = ControlPointDiagnostics(
+            images: project.images,
+            rawPoints: editableControlPoints,
+            cleanedPoints: editableControlPoints
+        )
+        selectedControlPointPairID = nil
         stitchedResultURL = nil
         nadirOverlayURL = nil
+        zenithOverlayURL = nil
         nadirAdjustment = .identity
+        zenithAdjustment = .identity
         isAdjustingNadir = false
         panoramaRevision += 1
     }
@@ -1873,9 +1923,9 @@ final class AppModel {
         guard
             let repairImage = project.images.first(where: {
                 $0.id == imageID
-                    && $0.role == .fillOnly
+                    && $0.effectiveRole == .fillOnly
             }),
-            let placement = repairImage.direction == .zenith
+            let placement = repairImage.effectiveDirection == .zenith
                 ? project.zenithRepairPlacement
                 : project.nadirRepairPlacement,
             placement.imageID == imageID,
@@ -1895,7 +1945,7 @@ final class AppModel {
                 directoryHint: .isDirectory
             )
         let outputURL = outputDirectory.appending(
-            path: "\(UUID().uuidString)-\(repairImage.direction.rawValue)-overlay.png"
+            path: "\(UUID().uuidString)-\(repairImage.effectiveDirection.rawValue)-overlay.png"
         )
         do {
             try FileManager.default.createDirectory(
@@ -1923,7 +1973,7 @@ final class AppModel {
                 let bounds = OpenCVNadirRepairRegistrar.alphaContentBounds(
                     at: outputURL
                 )
-                if repairImage.direction == .zenith {
+                if repairImage.effectiveDirection == .zenith {
                     zenithOverlayURL = outputURL
                     project.setZenithRepairContentBounds(bounds)
                     project.setZenithRepairPreviewBlended(false)
@@ -1933,7 +1983,7 @@ final class AppModel {
                     project.setNadirRepairPreviewBlended(false)
                 }
                 if enterAdjustment {
-                    activeRepairPole = repairImage.direction == .zenith
+                    activeRepairPole = repairImage.effectiveDirection == .zenith
                         ? .zenith : .nadir
                     selection = .panorama
                     isAdjustingNadir = true
@@ -1956,8 +2006,9 @@ final class AppModel {
                 : project.nadirRepairPlacement,
             let repairImage = project.images.first(where: {
                 $0.id == placement.imageID
-                    && $0.role == .fillOnly
-                    && $0.direction == (pole == .zenith ? .zenith : .nadir)
+                    && $0.effectiveRole == .fillOnly
+                    && $0.effectiveDirection
+                        == (pole == .zenith ? .zenith : .nadir)
             })
         else {
             return
@@ -2022,12 +2073,14 @@ final class AppModel {
     private func blendedRepairOverlay(
         _ pole: PanoramaPole,
         panoramaURL: URL,
-        placement: NadirRepairPlacement
+        placement: NadirRepairPlacement,
+        projectedRepairURL: URL? = nil
     ) async throws -> URL {
         guard let repairImage = project.images.first(where: {
             $0.id == placement.imageID
-                && $0.role == .fillOnly
-                && $0.direction == (pole == .zenith ? .zenith : .nadir)
+                && $0.effectiveRole == .fillOnly
+                && $0.effectiveDirection
+                    == (pole == .zenith ? .zenith : .nadir)
         }) else {
             throw PanoramaEngineError.stitchingFailed(
                 "\(pole.displayName)bilden saknas i projektet."
@@ -2054,6 +2107,7 @@ final class AppModel {
                 panoramaURL: panoramaURL,
                 repairImage: repairImage,
                 exclusionMaskData: exclusionMaskData,
+                projectedRepairURL: projectedRepairURL,
                 horizontalFieldOfView: horizontalFieldOfView,
                 pole: pole,
                 placement: placement,

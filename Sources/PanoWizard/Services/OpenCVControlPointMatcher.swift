@@ -16,6 +16,16 @@ struct PanoramaOrientation: Equatable, Sendable {
     let roll: Double
 }
 
+struct PositioningGeometryEvidence: Equatable, Sendable {
+    let orientation: PanoramaOrientation
+    let pointCount: Int
+    let connectedImageCount: Int
+    let medianResidualDegrees: Double
+    let p90ResidualDegrees: Double
+    let rigMedianResidualDegrees: Double
+    let rigP90ResidualDegrees: Double
+}
+
 struct ControlPointPairGenerationDiagnostic: Equatable, Sendable {
     let firstImage: Int
     let secondImage: Int
@@ -173,6 +183,156 @@ enum OpenCVControlPointMatcher {
             // cpclean and the residual-based global pass can judge it in the
             // context of the complete rig.
             return points
+        }
+    }
+
+    static func initialOrientations(
+        images: [SourceImage],
+        controlPoints: [PanoramaControlPoint],
+        horizontalFieldOfView: Double,
+        lensProfile: StitchingConfiguration.LensProfile
+    ) throws -> [PanoramaOrientation] {
+        guard images.count >= 2, !controlPoints.isEmpty else {
+            throw PanoramaEngineError.stitchingFailed(
+                "Underlaget för sfäriska startposer är ofullständigt."
+            )
+        }
+        var rawPoints = controlPoints.map {
+            PWControlPoint(
+                firstImage: Int32($0.firstImage),
+                secondImage: Int32($0.secondImage),
+                firstX: $0.firstX,
+                firstY: $0.firstY,
+                secondX: $0.secondX,
+                secondY: $0.secondY
+            )
+        }
+        let widths = images.map { Int32($0.pixelWidth) }
+        let heights = images.map { Int32($0.pixelHeight) }
+        var rawOrientations = Array(
+            repeating: PWOrientation(yaw: 0, pitch: 0, roll: 0),
+            count: images.count
+        )
+        var errorMessage: UnsafeMutablePointer<CChar>?
+        let lensModel = bridgeLensModel(
+            images: images,
+            horizontalFieldOfView: horizontalFieldOfView,
+            lensProfile: lensProfile
+        )
+        let succeeded = rawPoints.withUnsafeMutableBufferPointer { points in
+            widths.withUnsafeBufferPointer { widths in
+                heights.withUnsafeBufferPointer { heights in
+                    rawOrientations.withUnsafeMutableBufferPointer {
+                        orientations in
+                        PWEstimateControlPointOrientations(
+                            points.baseAddress,
+                            Int32(points.count),
+                            widths.baseAddress,
+                            heights.baseAddress,
+                            Int32(images.count),
+                            horizontalFieldOfView,
+                            lensModel,
+                            orientations.baseAddress,
+                            &errorMessage
+                        )
+                    }
+                }
+            }
+        }
+        defer { PWFreeString(errorMessage) }
+        guard succeeded != 0 else {
+            let message = errorMessage.map { String(cString: $0) }
+                ?? "De sfäriska startposerna kunde inte beräknas."
+            throw PanoramaEngineError.stitchingFailed(message)
+        }
+        return rawOrientations.map {
+            PanoramaOrientation(yaw: $0.yaw, pitch: $0.pitch, roll: $0.roll)
+        }
+    }
+
+    static func positioningGeometryEvidence(
+        images: [SourceImage],
+        controlPoints: [PanoramaControlPoint],
+        horizontalFieldOfView: Double,
+        lensProfile: StitchingConfiguration.LensProfile
+    ) throws -> [PositioningGeometryEvidence] {
+        guard images.count >= 2, !controlPoints.isEmpty else {
+            throw PanoramaEngineError.stitchingFailed(
+                "Underlaget för geometrisk positioneringsevidens är "
+                    + "ofullständigt."
+            )
+        }
+        var rawPoints = controlPoints.map {
+            PWControlPoint(
+                firstImage: Int32($0.firstImage),
+                secondImage: Int32($0.secondImage),
+                firstX: $0.firstX,
+                firstY: $0.firstY,
+                secondX: $0.secondX,
+                secondY: $0.secondY
+            )
+        }
+        let widths = images.map { Int32($0.pixelWidth) }
+        let heights = images.map { Int32($0.pixelHeight) }
+        var rawEvidence = Array(
+            repeating: PWPositioningEvidence(
+                yaw: 0,
+                pitch: 0,
+                roll: 0,
+                pointCount: 0,
+                connectedImageCount: 0,
+                medianResidualDegrees: 0,
+                p90ResidualDegrees: 0,
+                rigMedianResidualDegrees: 0,
+                rigP90ResidualDegrees: 0
+            ),
+            count: images.count
+        )
+        var errorMessage: UnsafeMutablePointer<CChar>?
+        let lensModel = bridgeLensModel(
+            images: images,
+            horizontalFieldOfView: horizontalFieldOfView,
+            lensProfile: lensProfile
+        )
+        let succeeded = rawPoints.withUnsafeMutableBufferPointer { points in
+            widths.withUnsafeBufferPointer { widths in
+                heights.withUnsafeBufferPointer { heights in
+                    rawEvidence.withUnsafeMutableBufferPointer { evidence in
+                        PWEstimatePositioningEvidence(
+                            points.baseAddress,
+                            Int32(points.count),
+                            widths.baseAddress,
+                            heights.baseAddress,
+                            Int32(images.count),
+                            horizontalFieldOfView,
+                            lensModel,
+                            evidence.baseAddress,
+                            &errorMessage
+                        )
+                    }
+                }
+            }
+        }
+        defer { PWFreeString(errorMessage) }
+        guard succeeded != 0 else {
+            let message = errorMessage.map { String(cString: $0) }
+                ?? "Geometrisk positioneringsevidens kunde inte beräknas."
+            throw PanoramaEngineError.stitchingFailed(message)
+        }
+        return rawEvidence.map {
+            PositioningGeometryEvidence(
+                orientation: PanoramaOrientation(
+                    yaw: $0.yaw,
+                    pitch: $0.pitch,
+                    roll: $0.roll
+                ),
+                pointCount: Int($0.pointCount),
+                connectedImageCount: Int($0.connectedImageCount),
+                medianResidualDegrees: $0.medianResidualDegrees,
+                p90ResidualDegrees: $0.p90ResidualDegrees,
+                rigMedianResidualDegrees: $0.rigMedianResidualDegrees,
+                rigP90ResidualDegrees: $0.rigP90ResidualDegrees
+            )
         }
     }
 

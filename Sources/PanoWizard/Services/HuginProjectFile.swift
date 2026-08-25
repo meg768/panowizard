@@ -128,8 +128,8 @@ enum HuginProjectFile {
     static func configuringNikon105PoseOptimization(
         from source: URL,
         to destination: URL,
-        nominalYaws: [Double],
-        horizontalFieldOfView: Double
+        horizontalFieldOfView: Double,
+        poseSeeds: [PanoramaOrientation]
     ) throws {
         var imageIndex = 0
         var lines = try contents(of: source).split(
@@ -138,21 +138,24 @@ enum HuginProjectFile {
         ).map { substring -> String in
             var line = String(substring)
             guard line.hasPrefix("i ") else { return line }
+            precondition(imageIndex < poseSeeds.count)
             line = replacingProjection(with: 21, in: line)
             if imageIndex == 0 {
                 line = replacing("v", with: horizontalFieldOfView, in: line)
             }
-            line = replacing("y", with: nominalYaws[imageIndex], in: line)
-            line = replacing("p", with: 0, in: line)
-            line = replacing("r", with: 0, in: line)
+            let pose = poseSeeds[imageIndex]
+            line = replacing("y", with: pose.yaw, in: line)
+            line = replacing("p", with: pose.pitch, in: line)
+            line = replacing("r", with: pose.roll, in: line)
             imageIndex += 1
             return line
         }
+        precondition(imageIndex == poseSeeds.count)
         lines.removeAll { $0.hasPrefix("v ") || $0 == "v" }
         let insertionIndex = lines.firstIndex(of: "# control points")
             ?? lines.endIndex
         var variables: [String] = []
-        for index in nominalYaws.indices {
+        for index in poseSeeds.indices {
             variables += ["v y\(index)", "v p\(index)", "v r\(index)"]
         }
         variables += ["v", ""]
@@ -162,7 +165,8 @@ enum HuginProjectFile {
 
     static func configuringNikon105LensRefinement(
         from source: URL,
-        to destination: URL
+        to destination: URL,
+        refinesPoses: Bool = true
     ) throws {
         var lines = try contents(of: source).split(
             separator: "\n",
@@ -179,8 +183,10 @@ enum HuginProjectFile {
         var variables = [
             "v v0", "v a0", "v b0", "v c0", "v d0", "v e0"
         ]
-        for index in 0..<imageCount {
-            variables += ["v y\(index)", "v p\(index)", "v r\(index)"]
+        if refinesPoses {
+            for index in 0..<imageCount {
+                variables += ["v y\(index)", "v p\(index)", "v r\(index)"]
+            }
         }
         variables += ["v", ""]
         lines.insert(contentsOf: variables, at: insertionIndex)
@@ -191,8 +197,10 @@ enum HuginProjectFile {
         from source: URL,
         to destination: URL,
         nominalYaws: [Double],
-        horizontalFieldOfView: Double
+        horizontalFieldOfView: Double,
+        poseSeeds: [PanoramaOrientation]? = nil
     ) throws {
+        precondition(poseSeeds == nil || poseSeeds?.count == nominalYaws.count)
         var imageIndex = 0
         var lines = try contents(of: source).split(
             separator: "\n",
@@ -211,10 +219,14 @@ enum HuginProjectFile {
                 line = replacing("b", with: 0.16155732903077044, in: line)
                 line = replacing("c", with: -0.12544199818788626, in: line)
             }
-            let yaw = nominalYaws[imageIndex]
-            line = replacing("y", with: yaw, in: line)
-            line = replacing("p", with: 0, in: line)
-            line = replacing("r", with: 0, in: line)
+            let pose = poseSeeds?[imageIndex] ?? PanoramaOrientation(
+                yaw: nominalYaws[imageIndex],
+                pitch: 0,
+                roll: 0
+            )
+            line = replacing("y", with: pose.yaw, in: line)
+            line = replacing("p", with: pose.pitch, in: line)
+            line = replacing("r", with: pose.roll, in: line)
             imageIndex += 1
             return line
         }
@@ -232,7 +244,8 @@ enum HuginProjectFile {
 
     static func configuringSigmaLensRefinement(
         from source: URL,
-        to destination: URL
+        to destination: URL,
+        refinesPoses: Bool = true
     ) throws {
         var lines = try contents(of: source).split(
             separator: "\n",
@@ -249,8 +262,10 @@ enum HuginProjectFile {
         var variables = [
             "v v0", "v a0", "v b0", "v c0", "v d0", "v e0"
         ]
-        for index in 0..<imageCount {
-            variables += ["v y\(index)", "v p\(index)", "v r\(index)"]
+        if refinesPoses {
+            for index in 0..<imageCount {
+                variables += ["v y\(index)", "v p\(index)", "v r\(index)"]
+            }
         }
         variables += ["v", ""]
         lines.insert(contentsOf: variables, at: insertionIndex)

@@ -129,9 +129,6 @@ struct PanoramaSidebar: View {
             onSetRole: {
                 model.setRole($0, for: image.id)
             },
-            onSetRepairArea: {
-                model.setRepairArea($0, for: image.id)
-            },
             onToggleEnabled: {
                 model.toggleSourceImageEnabled(image.id)
             },
@@ -210,7 +207,6 @@ private struct SourceImageRow: View {
     let hasMask: Bool
     let onSelect: (Bool) -> Void
     let onSetRole: (SourceImage.Role) -> Void
-    let onSetRepairArea: (SourceImage.Direction) -> Void
     let onToggleEnabled: () -> Void
     let onDelete: () -> Void
 
@@ -242,9 +238,7 @@ private struct SourceImageRow: View {
                     .lineLimit(1)
                     .help(image.filename)
                 HStack(spacing: 4) {
-                    Text(image.role == .alignment
-                        ? image.role.displayName
-                        : "\(image.direction.displayName) · Reparation")
+                    Text(roleDescription)
                     if hasMask {
                         Label("Maskerad", systemImage: "paintbrush.fill")
                             .labelStyle(.iconOnly)
@@ -260,14 +254,17 @@ private struct SourceImageRow: View {
 
             SourceImageSettingsButton(
                 role: image.role,
-                direction: image.direction,
+                onSetAutomatic: {
+                    onSelect(false)
+                    onSetRole(.automatic)
+                },
                 onSetAlignment: {
                     onSelect(false)
                     onSetRole(.alignment)
                 },
-                onSetRepairArea: { direction in
+                onSetRepair: {
                     onSelect(false)
-                    onSetRepairArea(direction)
+                    onSetRole(.fillOnly)
                 },
                 onDelete: onDelete
             )
@@ -289,6 +286,16 @@ private struct SourceImageRow: View {
     private var sourceImageRoleMenu: some View {
         Button {
             onSelect(false)
+            onSetRole(.automatic)
+        } label: {
+            Label(
+                "Automatisk positionering",
+                systemImage: image.role == .automatic
+                    ? "checkmark" : "wand.and.stars"
+            )
+        }
+        Button {
+            onSelect(false)
             onSetRole(.alignment)
         } label: {
             Label(
@@ -297,30 +304,34 @@ private struct SourceImageRow: View {
             )
         }
         Divider()
-        ForEach(SourceImage.Direction.repairCases, id: \.self) { direction in
-            Button {
-                onSelect(false)
-                onSetRepairArea(direction)
-            } label: {
-                Label(
-                    "\(direction.displayName) · Reparation",
-                    systemImage: image.role == .fillOnly
-                        && image.direction == direction
-                        ? "checkmark"
-                        : "square.2.layers.3d.bottom.filled"
-                )
-            }
+        Button {
+            onSelect(false)
+            onSetRole(.fillOnly)
+        } label: {
+            Label(
+                "Reparation",
+                systemImage: image.role == .fillOnly
+                    ? "checkmark"
+                    : "square.2.layers.3d.bottom.filled"
+            )
         }
         Divider()
         Button("Ta bort bild…", role: .destructive, action: onDelete)
+    }
+
+    private var roleDescription: String {
+        guard image.role == .automatic else { return image.role.displayName }
+        return image.effectiveRole == .fillOnly
+            ? "Automatisk · Reparation"
+            : image.role.displayName
     }
 }
 
 private struct SourceImageSettingsButton: NSViewRepresentable {
     let role: SourceImage.Role
-    let direction: SourceImage.Direction
+    let onSetAutomatic: () -> Void
     let onSetAlignment: () -> Void
-    let onSetRepairArea: (SourceImage.Direction) -> Void
+    let onSetRepair: () -> Void
     let onDelete: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -356,6 +367,14 @@ private struct SourceImageSettingsButton: NSViewRepresentable {
         buttonFace.tag = Coordinator.buttonFaceTag
         menu.addItem(buttonFace)
 
+        let automatic = NSMenuItem(
+            title: "Automatisk positionering",
+            action: nil,
+            keyEquivalent: ""
+        )
+        automatic.tag = Coordinator.automaticTag
+        menu.addItem(automatic)
+
         let alignment = NSMenuItem(
             title: "Ingår i positionering",
             action: nil,
@@ -365,21 +384,13 @@ private struct SourceImageSettingsButton: NSViewRepresentable {
         menu.addItem(alignment)
         menu.addItem(.separator())
 
-        let zenith = NSMenuItem(
-            title: "Zenit · Reparation",
+        let repair = NSMenuItem(
+            title: "Reparation",
             action: nil,
             keyEquivalent: ""
         )
-        zenith.tag = Coordinator.zenithTag
-        menu.addItem(zenith)
-
-        let nadir = NSMenuItem(
-            title: "Nadir · Reparation",
-            action: nil,
-            keyEquivalent: ""
-        )
-        nadir.tag = Coordinator.nadirTag
-        menu.addItem(nadir)
+        repair.tag = Coordinator.repairTag
+        menu.addItem(repair)
         menu.addItem(.separator())
 
         let delete = NSMenuItem(
@@ -402,23 +413,23 @@ private struct SourceImageSettingsButton: NSViewRepresentable {
     }
 
     private func updateMenu(in button: NSPopUpButton) {
+        button.itemArray.first { $0.tag == Coordinator.automaticTag }?.state =
+            role == .automatic
+                ? NSControl.StateValue.on : NSControl.StateValue.off
         button.itemArray.first { $0.tag == Coordinator.alignmentTag }?.state =
             role == .alignment
             ? NSControl.StateValue.on : NSControl.StateValue.off
-        button.itemArray.first { $0.tag == Coordinator.zenithTag }?.state =
-            role == .fillOnly && direction == .zenith
-                ? NSControl.StateValue.on : NSControl.StateValue.off
-        button.itemArray.first { $0.tag == Coordinator.nadirTag }?.state =
-            role == .fillOnly && direction == .nadir
+        button.itemArray.first { $0.tag == Coordinator.repairTag }?.state =
+            role == .fillOnly
                 ? NSControl.StateValue.on : NSControl.StateValue.off
     }
 
     @MainActor
     final class Coordinator: NSObject {
         static let buttonFaceTag = 100
-        static let alignmentTag = 101
-        static let zenithTag = 102
-        static let nadirTag = 103
+        static let automaticTag = 101
+        static let alignmentTag = 102
+        static let repairTag = 103
         static let deleteTag = 104
 
         var parent: SourceImageSettingsButton
@@ -429,12 +440,12 @@ private struct SourceImageSettingsButton: NSViewRepresentable {
 
         @objc func chooseRole(_ sender: NSPopUpButton) {
             switch sender.selectedTag() {
+            case Self.automaticTag:
+                parent.onSetAutomatic()
             case Self.alignmentTag:
                 parent.onSetAlignment()
-            case Self.zenithTag:
-                parent.onSetRepairArea(.zenith)
-            case Self.nadirTag:
-                parent.onSetRepairArea(.nadir)
+            case Self.repairTag:
+                parent.onSetRepair()
             case Self.deleteTag:
                 parent.onDelete()
             default:

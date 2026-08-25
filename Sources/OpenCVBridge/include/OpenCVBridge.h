@@ -12,6 +12,18 @@ typedef struct {
 } PWOrientation;
 
 typedef struct {
+    double yaw;
+    double pitch;
+    double roll;
+    int pointCount;
+    int connectedImageCount;
+    double medianResidualDegrees;
+    double p90ResidualDegrees;
+    double rigMedianResidualDegrees;
+    double rigP90ResidualDegrees;
+} PWPositioningEvidence;
+
+typedef struct {
     int firstImage;
     int secondImage;
     double firstX;
@@ -83,6 +95,30 @@ int PWCopyLastControlPointPairDiagnostics(
     int *diagnosticCount
 );
 
+int PWEstimateControlPointOrientations(
+    const PWControlPoint *controlPoints,
+    int controlPointCount,
+    const int *imageWidths,
+    const int *imageHeights,
+    int imageCount,
+    double horizontalFieldOfView,
+    int lensModel,
+    PWOrientation *orientations,
+    char **errorMessage
+);
+
+int PWEstimatePositioningEvidence(
+    const PWControlPoint *controlPoints,
+    int controlPointCount,
+    const int *imageWidths,
+    const int *imageHeights,
+    int imageCount,
+    double horizontalFieldOfView,
+    int lensModel,
+    PWPositioningEvidence *evidence,
+    char **errorMessage
+);
+
 int PWGenerateZenithControlPoints(
     const char *const *ringImagePaths,
     const PWOrientation *ringOrientations,
@@ -102,6 +138,15 @@ int PWRegisterNadirRepair(
     double horizontalFieldOfView,
     double polePitchDegrees,
     const char *overlayOutputPath,
+    PWNadirRegistration *registration,
+    char **errorMessage
+);
+
+int PWAlignNadirRepairToProjectedOverlay(
+    const char *projectedOverlayPath,
+    const char *repairImagePath,
+    const char *repairExclusionMaskPath,
+    double horizontalFieldOfView,
     PWNadirRegistration *registration,
     char **errorMessage
 );
@@ -141,6 +186,7 @@ int PWPrepareNadirRepairBlend(
     const char *panoramaPath,
     const char *repairImagePath,
     const char *repairExclusionMaskPath,
+    const char *projectedRepairPath,
     double horizontalFieldOfView,
     double polePitchDegrees,
     const PWNadirRegistration *registration,
@@ -157,6 +203,8 @@ int PWPrepareNadirRepairBlend(
 
 int PWFinishNadirRepairBlend(
     const char *blendedLocalPath,
+    const char *repairLayerPath,
+    const char *repairSeamMaskPath,
     const char *overlayOutputPath,
     char **errorMessage
 );

@@ -26,10 +26,38 @@ struct PanoramaStitchResult: Sendable {
     let nadirRepair: NadirRepairRegistrationResult?
     let zenithRepair: NadirRepairRegistrationResult?
     let controlPointDiagnostics: ControlPointDiagnostics?
+    let automaticPositioningDecisions: [UUID: AutomaticPositioningDecision]
+
+    init(
+        url: URL?,
+        rigImageLines: [UUID: String],
+        nadirRepair: NadirRepairRegistrationResult?,
+        zenithRepair: NadirRepairRegistrationResult?,
+        controlPointDiagnostics: ControlPointDiagnostics?,
+        automaticPositioningDecisions:
+            [UUID: AutomaticPositioningDecision] = [:]
+    ) {
+        self.url = url
+        self.rigImageLines = rigImageLines
+        self.nadirRepair = nadirRepair
+        self.zenithRepair = zenithRepair
+        self.controlPointDiagnostics = controlPointDiagnostics
+        self.automaticPositioningDecisions = automaticPositioningDecisions
+    }
 }
 
 struct ControlPointOptimizationResult: Sendable {
     let diagnostics: ControlPointDiagnostics
+    let automaticPositioningDecisions: [UUID: AutomaticPositioningDecision]
+
+    init(
+        diagnostics: ControlPointDiagnostics,
+        automaticPositioningDecisions:
+            [UUID: AutomaticPositioningDecision] = [:]
+    ) {
+        self.diagnostics = diagnostics
+        self.automaticPositioningDecisions = automaticPositioningDecisions
+    }
 }
 
 enum PanoramaEngineError: LocalizedError {
@@ -93,30 +121,49 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     "Hugin returnerade inga kontrollpunktsdata."
                 )
             }
-            return ControlPointOptimizationResult(diagnostics: diagnostics)
+            return ControlPointOptimizationResult(
+                diagnostics: diagnostics,
+                automaticPositioningDecisions:
+                    result.automaticPositioningDecisions
+            )
         }.value
     }
 
     private static func stitchSynchronously(
-        _ panorama: PanoramaSet,
+        _ sourcePanorama: PanoramaSet,
         masks: [UUID: Data],
         protectedMasks: [UUID: Data],
         controlPoints: [DiagnosticControlPoint]?,
         controlPointsAreAuthoritative: Bool,
         configuration: StitchingConfiguration,
         rendersPanorama: Bool,
-        automaticStabilizationAttempt: Int = 0
+        isAutomaticRecovery: Bool = false
     ) throws -> PanoramaStitchResult {
+        var automaticPositioningDecisions = positioningDecisions(
+            images: sourcePanorama.images,
+            controlPoints: controlPoints ?? [],
+            configuration: configuration
+        )
+        let resolvedImages = sourcePanorama.images.map { image in
+            guard let decision = automaticPositioningDecisions[image.id]
+            else { return image }
+            var resolved = image
+            resolved.role = decision.role
+            resolved.direction = decision.direction
+            return resolved
+        }
+        let panorama = PanoramaSet(id: sourcePanorama.id, images: resolvedImages)
         let enabledImages = panorama.images.filter(\.isEnabled)
         let alignmentImages = enabledImages.filter { $0.role == .alignment }
         let fillOnlyImages = enabledImages.filter { $0.role == .fillOnly }
         // Every positioning image belongs to the same globally optimized rig.
         // Direction is retained only as a repair target for old project files.
         let ringImages = alignmentImages
-        let nadirRepairImages = fillOnlyImages.filter {
-            $0.direction != .zenith
-        }
+        let nadirRepairImages = fillOnlyImages.filter { $0.direction == .nadir }
         let zenithRepairImages = fillOnlyImages.filter { $0.direction == .zenith }
+        let undirectedRepairImages = fillOnlyImages.filter {
+            $0.direction == .horizontal
+        }
 
         guard ringImages.count >= 2 else {
             throw PanoramaEngineError.insufficientImages
@@ -137,6 +184,14 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     repairs: zenithRepairImages,
                     allImages: panorama.images
                 )
+            )
+        }
+        guard fillOnlyImages.count <= 2,
+              undirectedRepairImages.count <= 1 else {
+            throw PanoramaEngineError.stitchingFailed(
+                "PanoWizard kan använda högst en reparationsbild vid vardera "
+                    + "polen. Lägg till kontrollpunkter så att bildernas riktning "
+                    + "kan avgöras automatiskt."
             )
         }
 
@@ -209,7 +264,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let usesCalibratedFisheye = isCircularFisheye || isNikon105
 
         log("Ring feature matching", images: ringImages)
-        let matchingFieldOfView = isCircularFisheye
+        let matchingFieldOfView = usesCalibratedFisheye
             ? configuration.lensProfile.defaultHorizontalFieldOfView
                 ?? horizontalFieldOfView
             : horizontalFieldOfView
@@ -283,15 +338,30 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let editedRingPoints = editedRingEntries?.map(\.point)
         let editedRingPointIDs = editedRingEntries?.map(\.id) ?? []
         let hasSuppliedControlPoints = editedRingPoints?.isEmpty == false
+        let regeneratesRingAfterAutomaticRoleChange =
+            hasSuppliedControlPoints
+            && sourcePanorama.images.contains { image in
+                image.role == .automatic
+                    && image.automaticRole != .fillOnly
+                    && automaticPositioningDecisions[image.id]?.role
+                        == .fillOnly
+            }
         let usesEditedControlPoints = Self.treatsSuppliedControlPointsAsEdited(
             hasSuppliedControlPoints: hasSuppliedControlPoints,
             controlPointsAreAuthoritative: controlPointsAreAuthoritative,
-            automaticStabilizationAttempt: automaticStabilizationAttempt
-        )
+            isAutomaticRecovery: isAutomaticRecovery
+        ) && !regeneratesRingAfterAutomaticRoleChange
         let ringControlPoints: [PanoramaControlPoint]
-        if hasSuppliedControlPoints {
+        if hasSuppliedControlPoints
+            && !regeneratesRingAfterAutomaticRoleChange {
             ringControlPoints = editedRingPoints!
         } else {
+            if regeneratesRingAfterAutomaticRoleChange {
+                print(
+                    "[PanoWizard] Re-matching the positioning rig after "
+                        + "automatic repair-image classification"
+                )
+            }
             let generatedPoints = try OpenCVControlPointMatcher.ring(
                 images: ringImages,
                 horizontalFieldOfView: matchingFieldOfView,
@@ -321,7 +391,76 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     )
                 } : generatedPoints
         }
-        let usesSparseRing = automaticStabilizationAttempt == 0
+        if controlPoints == nil,
+           sourcePanorama.images.contains(where: { $0.role == .automatic }) {
+            // Automatic roles need the same feature graph that was just
+            // generated for alignment. On the first pass there were no
+            // points yet, so every automatic image provisionally belonged to
+            // the rig. Resolve polar repair shots now, then restart before a
+            // hand-held nadir image can distort or invalidate the global rig.
+            let projectIndexByID = Dictionary(uniqueKeysWithValues:
+                panorama.images.enumerated().map { ($0.element.id, $0.offset) }
+            )
+            let generatedDiagnostics = ringControlPoints.compactMap {
+                point -> DiagnosticControlPoint? in
+                guard ringImages.indices.contains(point.firstImage),
+                      ringImages.indices.contains(point.secondImage),
+                      let first = projectIndexByID[
+                        ringImages[point.firstImage].id
+                      ],
+                      let second = projectIndexByID[
+                        ringImages[point.secondImage].id
+                      ] else { return nil }
+                let firstPoint = isCircularFisheye
+                    ? Self.remappingFisheyePoint(
+                        x: point.firstX, y: point.firstY,
+                        width: ringImages[point.firstImage].pixelWidth,
+                        height: ringImages[point.firstImage].pixelHeight,
+                        sourceFactor: -0.5, destinationFactor: -0.526971
+                    ) : (point.firstX, point.firstY)
+                let secondPoint = isCircularFisheye
+                    ? Self.remappingFisheyePoint(
+                        x: point.secondX, y: point.secondY,
+                        width: ringImages[point.secondImage].pixelWidth,
+                        height: ringImages[point.secondImage].pixelHeight,
+                        sourceFactor: -0.5, destinationFactor: -0.526971
+                    ) : (point.secondX, point.secondY)
+                return DiagnosticControlPoint(
+                    firstImage: first,
+                    secondImage: second,
+                    firstX: firstPoint.0,
+                    firstY: firstPoint.1,
+                    secondX: secondPoint.0,
+                    secondY: secondPoint.1
+                )
+            }
+            let generatedDecisions = positioningDecisions(
+                images: sourcePanorama.images,
+                controlPoints: generatedDiagnostics,
+                configuration: configuration
+            )
+            let foundAutomaticRepair = sourcePanorama.images.contains { image in
+                image.role == .automatic
+                    && generatedDecisions[image.id]?.role == .fillOnly
+            }
+            if foundAutomaticRepair {
+                print(
+                    "[PanoWizard] Re-running alignment after automatic "
+                        + "repair-image classification"
+                )
+                return try stitchSynchronously(
+                    sourcePanorama,
+                    masks: masks,
+                    protectedMasks: protectedMasks,
+                    controlPoints: generatedDiagnostics,
+                    controlPointsAreAuthoritative: false,
+                    configuration: configuration,
+                    rendersPanorama: rendersPanorama,
+                    isAutomaticRecovery: isAutomaticRecovery
+                )
+            }
+        }
+        let usesSparseRing = !isAutomaticRecovery
             && !usesEditedControlPoints
             && usesCalibratedFisheye
             && OpenCVControlPointMatcher.needsSparseCycleProtection(
@@ -342,6 +481,30 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                         + String(format: "%.3f", diagnostic.spatialCoverage)
                 )
             }
+        }
+        let recoveryOrientations: [PanoramaOrientation]?
+        if usesCalibratedFisheye, isAutomaticRecovery {
+            recoveryOrientations = try OpenCVControlPointMatcher
+                .initialOrientations(
+                    images: ringImages,
+                    controlPoints: ringControlPoints,
+                    horizontalFieldOfView: matchingFieldOfView,
+                    lensProfile: configuration.lensProfile
+                )
+            print(
+                "[PanoWizard] Recovered orientation seeds: "
+                    + (recoveryOrientations ?? []).enumerated().map {
+                        index, orientation in
+                        "\(index):y="
+                            + String(format: "%.2f", orientation.yaw)
+                            + " p="
+                            + String(format: "%.2f", orientation.pitch)
+                            + " r="
+                            + String(format: "%.2f", orientation.roll)
+                    }.joined(separator: ", ")
+            )
+        } else {
+            recoveryOrientations = nil
         }
         try HuginProjectFile.appending(
             controlPoints: ringControlPoints,
@@ -401,25 +564,46 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     from: ringBackboneProject,
                     to: poseInputProject,
                     nominalYaws: nominalYaws,
-                    horizontalFieldOfView: horizontalFieldOfView
+                    horizontalFieldOfView: horizontalFieldOfView,
+                    poseSeeds: recoveryOrientations
                 )
             } else {
+                let poseSeeds = recoveryOrientations ?? nominalYaws.map {
+                    PanoramaOrientation(yaw: $0, pitch: 0, roll: 0)
+                }
                 try HuginProjectFile.configuringNikon105PoseOptimization(
                     from: ringBackboneProject,
                     to: poseInputProject,
-                    nominalYaws: nominalYaws,
-                    horizontalFieldOfView: horizontalFieldOfView
+                    horizontalFieldOfView: horizontalFieldOfView,
+                    poseSeeds: poseSeeds
                 )
             }
-            try toolchain.run(
-                "autooptimiser",
-                arguments: [
-                    "-n",
-                    "-o", poseProject.path(percentEncoded: false),
-                    poseInputProject.path(percentEncoded: false)
-                ],
-                in: workDirectory
-            )
+            if recoveryOrientations != nil {
+                // A second automatic pass must not repeat the same evenly
+                // spaced horizontal seed that already failed. The recovered
+                // 3D orientations include strongly pitched image rows and are
+                // already the robust pose solution. A second Hugin pose solve
+                // can pull the polar views back toward the local minimum from
+                // pass one and reopen holes at the poles.
+                print(
+                    "[PanoWizard] Re-running alignment from recovered 3D "
+                        + "camera orientations"
+                )
+                try FileManager.default.copyItem(
+                    at: poseInputProject,
+                    to: poseProject
+                )
+            } else {
+                try toolchain.run(
+                    "autooptimiser",
+                    arguments: [
+                        "-n",
+                        "-o", poseProject.path(percentEncoded: false),
+                        poseInputProject.path(percentEncoded: false)
+                    ],
+                    in: workDirectory
+                )
+            }
         } else {
             try FileManager.default.copyItem(
                 at: controlPointProject,
@@ -452,12 +636,14 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         if isCircularFisheye {
             try HuginProjectFile.configuringSigmaLensRefinement(
                 from: cleanedRingProject,
-                to: lensInputProject
+                to: lensInputProject,
+                refinesPoses: !isAutomaticRecovery
             )
         } else if isNikon105 {
             try HuginProjectFile.configuringNikon105LensRefinement(
                 from: cleanedRingProject,
-                to: lensInputProject
+                to: lensInputProject,
+                refinesPoses: !isAutomaticRecovery
             )
         } else {
             try FileManager.default.copyItem(
@@ -465,14 +651,17 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 to: lensInputProject
             )
         }
+        var lensArguments = ["-n"]
+        if !(isNikon105 && isAutomaticRecovery) {
+            lensArguments.append("-l")
+        }
+        lensArguments += [
+            "-o", optimizedRingProject.path(percentEncoded: false),
+            lensInputProject.path(percentEncoded: false)
+        ]
         try toolchain.run(
             "autooptimiser",
-            arguments: [
-                "-n",
-                "-l",
-                "-o", optimizedRingProject.path(percentEncoded: false),
-                lensInputProject.path(percentEncoded: false)
-            ],
+            arguments: lensArguments,
             in: workDirectory
         )
         var finalOptimizedRingProject = optimizedRingProject
@@ -655,7 +844,8 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         for index in cleanedDiagnosticPoints.indices {
             let parsed = cleanedDiagnosticPoints[index]
             cleanedDiagnosticPoints[index] = DiagnosticControlPoint(
-                id: editedRingPointIDs.indices.contains(index)
+                id: usesEditedControlPoints
+                    && editedRingPointIDs.indices.contains(index)
                     ? editedRingPointIDs[index] : parsed.id,
                 firstImage: parsed.firstImage,
                 secondImage: parsed.secondImage,
@@ -669,6 +859,36 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         let panoramaIndexByID = Dictionary(uniqueKeysWithValues:
             panorama.images.enumerated().map { ($0.element.id, $0.offset) }
         )
+        let rawRingPointsInPanorama = ringControlPoints.compactMap {
+            point -> DiagnosticControlPoint? in
+            guard ringImages.indices.contains(point.firstImage),
+                  ringImages.indices.contains(point.secondImage),
+                  let first = panoramaIndexByID[ringImages[point.firstImage].id],
+                  let second = panoramaIndexByID[ringImages[point.secondImage].id]
+            else { return nil }
+            let firstPoint = isCircularFisheye
+                ? Self.remappingFisheyePoint(
+                    x: point.firstX, y: point.firstY,
+                    width: ringImages[point.firstImage].pixelWidth,
+                    height: ringImages[point.firstImage].pixelHeight,
+                    sourceFactor: -0.5, destinationFactor: -0.526971
+                ) : (point.firstX, point.firstY)
+            let secondPoint = isCircularFisheye
+                ? Self.remappingFisheyePoint(
+                    x: point.secondX, y: point.secondY,
+                    width: ringImages[point.secondImage].pixelWidth,
+                    height: ringImages[point.secondImage].pixelHeight,
+                    sourceFactor: -0.5, destinationFactor: -0.526971
+                ) : (point.secondX, point.secondY)
+            return DiagnosticControlPoint(
+                firstImage: first,
+                secondImage: second,
+                firstX: firstPoint.0,
+                firstY: firstPoint.1,
+                secondX: secondPoint.0,
+                secondY: secondPoint.1
+            )
+        }
         let ringPointsInPanorama = cleanedDiagnosticPoints.compactMap {
             point -> DiagnosticControlPoint? in
             guard ringImages.indices.contains(point.firstImage),
@@ -701,7 +921,21 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 error: point.error
             )
         }
-        let diagnosticPoints = ringPointsInPanorama
+        let ringImageIDs = Set(ringImages.map(\.id))
+        let repairPointsInPanorama = (controlPoints ?? []).filter { point in
+            guard panorama.images.indices.contains(point.firstImage),
+                  panorama.images.indices.contains(point.secondImage)
+            else { return false }
+            return !ringImageIDs.contains(panorama.images[point.firstImage].id)
+                || !ringImageIDs.contains(
+                    panorama.images[point.secondImage].id
+                )
+        }
+        // Repair images are positioned locally, so their CPs do not receive
+        // global Hugin residuals. They still belong in the editable CP set:
+        // users must be able to inspect and adjust both rig and hand-held
+        // matches after automatic positioning.
+        let diagnosticPoints = ringPointsInPanorama + repairPointsInPanorama
         let controlPointDiagnostics = ControlPointDiagnostics(
             images: panorama.images,
             rawPoints: controlPoints ?? diagnosticPoints,
@@ -721,7 +955,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             )]
             print(
                 "[PanoWizard] Unstable automatic geometry "
-                    + "attempt=\(automaticStabilizationAttempt) "
+                    + "pass=\(isAutomaticRecovery ? "recovery" : "initial") "
                     + "sparseRing=\(usesSparseRing) "
                     + "edited=\(usesEditedControlPoints) "
                     + "points=\(finiteErrors.count) "
@@ -750,7 +984,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 )
             }
         }
-        if automaticStabilizationAttempt > 0 && automaticGeometryIsUnstable {
+        if isAutomaticRecovery && automaticGeometryIsUnstable {
             // The points on this pass are marked authoritative only so the
             // internal recovery pass cannot silently replace them. They are
             // still machine-generated, so a second bad solve must never be
@@ -761,7 +995,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     + "skulle bli felplacerat eller nästan helt svart."
             )
         }
-        if !controlPointsAreAuthoritative && automaticGeometryIsUnstable {
+        if !usesEditedControlPoints && automaticGeometryIsUnstable {
             // A badly displaced first Sigma solve can remain in the wrong
             // local minimum even after its false pairs have been removed.
             // Starting once more from that cleaned graph is equivalent to the
@@ -772,14 +1006,14 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     + "to stabilize the recovered geometry"
             )
             return try stitchSynchronously(
-                panorama,
+                sourcePanorama,
                 masks: masks,
                 protectedMasks: protectedMasks,
                 controlPoints: diagnosticPoints,
                 controlPointsAreAuthoritative: true,
                 configuration: configuration,
                 rendersPanorama: rendersPanorama,
-                automaticStabilizationAttempt: automaticStabilizationAttempt + 1
+                isAutomaticRecovery: true
             )
         }
         if !rendersPanorama {
@@ -788,7 +1022,8 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 rigImageLines: [:],
                 nadirRepair: nil,
                 zenithRepair: nil,
-                controlPointDiagnostics: controlPointDiagnostics
+                controlPointDiagnostics: controlPointDiagnostics,
+                automaticPositioningDecisions: automaticPositioningDecisions
             )
         }
 
@@ -827,6 +1062,22 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             controlPoints: cleanedDiagnosticPoints
         )
         if disconnectedComponents.count > 1 {
+            if !usesEditedControlPoints && !isAutomaticRecovery {
+                print(
+                    "[PanoWizard] Re-running the full automatic CP graph "
+                        + "from recovered 3D camera orientations"
+                )
+                return try stitchSynchronously(
+                    sourcePanorama,
+                    masks: masks,
+                    protectedMasks: protectedMasks,
+                    controlPoints: rawRingPointsInPanorama,
+                    controlPointsAreAuthoritative: true,
+                    configuration: configuration,
+                    rendersPanorama: rendersPanorama,
+                    isAutomaticRecovery: true
+                )
+            }
             let groups = disconnectedComponents.map { component in
                 Self.projectImageNumbers(
                     for: component,
@@ -1111,61 +1362,90 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         }
 
         var nadirRepair: NadirRepairRegistrationResult?
+        var zenithRepair: NadirRepairRegistrationResult?
         let repairHorizontalFieldOfView = try HuginProjectFile
             .horizontalFieldOfView(in: ringGeometryProject)
-        if let repairImage = nadirRepairImages.first {
-            log("Local nadir repair registration", images: [repairImage])
-            let overlay = workDirectory.appending(path: "nadir-overlay.png")
-            do {
-                nadirRepair = try controlPoints.flatMap {
-                    try sphericalRepairRegistration(
-                        pole: .nadir, repairImage: repairImage,
-                        panoramaImages: panorama.images,
-                        ringImages: geometryRingImages,
-                        ringProject: ringGeometryProject,
-                        mask: masks[repairImage.id], controlPoints: $0,
-                        outputURL: overlay, workDirectory: workDirectory,
-                        toolchain: toolchain
-                    )
-                } ?? OpenCVNadirRepairRegistrar.register(
-                    panoramaURL: result, repairImage: repairImage,
-                    exclusionMaskData: masks[repairImage.id],
-                    horizontalFieldOfView: repairHorizontalFieldOfView,
-                    outputURL: overlay
-                )
-            } catch {
-                log(
-                    "Nadir repair skipped (\(error.localizedDescription))",
-                    images: [repairImage]
+
+        func registerRepair(
+            _ repairImage: SourceImage,
+            at pole: PanoramaPole,
+            filename: String
+        ) throws -> NadirRepairRegistrationResult {
+            log("Spherical \(pole.rawValue) repair registration", images: [repairImage])
+            let overlay = workDirectory.appending(path: filename)
+            guard let controlPoints else {
+                throw PanoramaEngineError.stitchingFailed(
+                    "\(pole.displayName)bilden saknar kontrollpunkter. "
+                        + "Kör Justera så att den kan positioneras sfäriskt."
                 )
             }
+            guard let registration = try sphericalRepairRegistration(
+                pole: pole, repairImage: repairImage,
+                panoramaImages: panorama.images,
+                ringImages: geometryRingImages,
+                ringProject: ringGeometryProject,
+                mask: masks[repairImage.id], controlPoints: controlPoints,
+                lensProfile: configuration.lensProfile,
+                horizontalFieldOfView: repairHorizontalFieldOfView,
+                outputURL: overlay, workDirectory: workDirectory,
+                toolchain: toolchain
+            ) else {
+                throw PanoramaEngineError.stitchingFailed(
+                    "\(pole.displayName)bilden har kontrollpunkter mot för få "
+                        + "positioneringsbilder. Minst tre bildkopplingar krävs."
+                )
+            }
+            return registration
         }
-        var zenithRepair: NadirRepairRegistrationResult?
+
+        if let repairImage = nadirRepairImages.first {
+            nadirRepair = try registerRepair(
+                repairImage, at: .nadir, filename: "nadir-overlay.png"
+            )
+        }
         if let repairImage = zenithRepairImages.first {
-            log("Local zenith repair registration", images: [repairImage])
-            let overlay = workDirectory.appending(path: "zenith-overlay.png")
-            do {
-                zenithRepair = try controlPoints.flatMap {
-                    try sphericalRepairRegistration(
-                        pole: .zenith, repairImage: repairImage,
-                        panoramaImages: panorama.images,
-                        ringImages: geometryRingImages,
-                        ringProject: ringGeometryProject,
-                        mask: masks[repairImage.id], controlPoints: $0,
-                        outputURL: overlay, workDirectory: workDirectory,
-                        toolchain: toolchain
+            zenithRepair = try registerRepair(
+                repairImage, at: .zenith, filename: "zenith-overlay.png"
+            )
+        }
+        if let repairImage = undirectedRepairImages.first {
+            let availablePoles = PanoramaPole.allCases.filter { pole in
+                switch pole {
+                case .nadir: nadirRepairImages.isEmpty
+                case .zenith: zenithRepairImages.isEmpty
+                }
+            }
+            var attempts: [(PanoramaPole, NadirRepairRegistrationResult)] = []
+            var lastRegistrationError: Error?
+            for pole in availablePoles {
+                do {
+                    attempts.append((
+                        pole,
+                        try registerRepair(
+                            repairImage,
+                            at: pole,
+                            filename: "automatic-\(pole.rawValue)-overlay.png"
+                        )
+                    ))
+                } catch {
+                    lastRegistrationError = error
+                }
+            }
+            if attempts.isEmpty, let lastRegistrationError {
+                throw lastRegistrationError
+            }
+            if let selected = attempts.max(by: {
+                repairRegistrationQuality($0.1) < repairRegistrationQuality($1.1)
+            }) {
+                automaticPositioningDecisions[repairImage.id] =
+                    AutomaticPositioningDecision(
+                        role: .fillOnly,
+                        direction: selected.0 == .zenith ? .zenith : .nadir
                     )
-                } ?? OpenCVNadirRepairRegistrar.register(
-                    panoramaURL: result, repairImage: repairImage,
-                    exclusionMaskData: masks[repairImage.id],
-                    horizontalFieldOfView: repairHorizontalFieldOfView,
-                    pole: .zenith, outputURL: overlay
-                )
-            } catch {
-                log(
-                    "Zenith repair skipped (\(error.localizedDescription))",
-                    images: [repairImage]
-                )
+                switch selected.0 {
+                case .nadir: nadirRepair = selected.1
+                case .zenith: zenithRepair = selected.1
+                }
             }
         }
 
@@ -1216,7 +1496,8 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 zenithRepair,
                 filename: "zenith-overlay.png"
             ),
-            controlPointDiagnostics: controlPointDiagnostics
+            controlPointDiagnostics: controlPointDiagnostics,
+            automaticPositioningDecisions: automaticPositioningDecisions
         )
     }
 
@@ -1232,6 +1513,134 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             + "(bild \(numbers)). Välj rätt reparationsområde för varje bild."
     }
 
+    private static func repairRegistrationQuality(
+        _ result: NadirRepairRegistrationResult
+    ) -> (Int, Double) {
+        let errors = (result.placement.controlPoints ?? [])
+            .compactMap(\.error)
+            .filter(\.isFinite)
+            .sorted()
+        let medianError = errors.isEmpty
+            ? Double.greatestFiniteMagnitude
+            : errors[errors.count / 2]
+        return (result.placement.matchedFeatureCount, -medianError)
+    }
+
+    private static func positioningDecisions(
+        images: [SourceImage],
+        controlPoints: [DiagnosticControlPoint],
+        configuration: StitchingConfiguration
+    ) -> [UUID: AutomaticPositioningDecision] {
+        let enabled = images.enumerated().filter(\.element.isEnabled)
+        let localIndexByProjectIndex = Dictionary(uniqueKeysWithValues:
+            enabled.enumerated().map { ($0.element.offset, $0.offset) }
+        )
+        let localImages = enabled.map(\.element)
+        let localPoints: [PanoramaControlPoint] = controlPoints.compactMap {
+            point in
+            guard let first = localIndexByProjectIndex[point.firstImage],
+                  let second = localIndexByProjectIndex[point.secondImage]
+            else { return nil }
+            return PanoramaControlPoint(
+                firstImage: first,
+                secondImage: second,
+                firstX: point.firstX,
+                firstY: point.firstY,
+                secondX: point.secondX,
+                secondY: point.secondY
+            )
+        }
+        let geometryEvidence = try? OpenCVControlPointMatcher
+            .positioningGeometryEvidence(
+                images: localImages,
+                controlPoints: localPoints,
+                horizontalFieldOfView:
+                    configuration.inputHorizontalFieldOfView,
+                lensProfile: configuration.lensProfile
+            )
+
+        func inferredDirection(at index: Int) -> SourceImage.Direction {
+            guard let geometryEvidence,
+                  geometryEvidence.indices.contains(index) else {
+                return localImages[index].direction
+            }
+            return geometryEvidence[index].orientation.pitch >= 0
+                ? .zenith : .nadir
+        }
+
+        var decisions: [UUID: AutomaticPositioningDecision] = [:]
+        var occupiedRepairDirections = Set<SourceImage.Direction>()
+        for index in localImages.indices
+        where localImages[index].role == .fillOnly {
+            let direction = inferredDirection(at: index)
+            decisions[localImages[index].id] = AutomaticPositioningDecision(
+                role: .fillOnly,
+                direction: direction
+            )
+            occupiedRepairDirections.insert(direction)
+        }
+
+        for index in localImages.indices
+        where localImages[index].role == .automatic {
+            decisions[localImages[index].id] = AutomaticPositioningDecision(
+                role: .alignment,
+                direction: .horizontal
+            )
+        }
+
+        guard let geometryEvidence else { return decisions }
+        let repairCandidates = localImages.indices.filter { index in
+            guard localImages[index].role == .automatic else { return false }
+            let evidence = geometryEvidence[index]
+            let isPolar = abs(evidence.orientation.pitch) >= 70
+            let medianBaseline = max(
+                evidence.rigMedianResidualDegrees, 0.10
+            )
+            let tailBaseline = max(evidence.rigP90ResidualDegrees, 0.25)
+            return isPolar
+                && evidence.connectedImageCount >= 3
+                && evidence.pointCount >= 12
+                && evidence.medianResidualDegrees >= 0.50
+                && evidence.p90ResidualDegrees >= 2.00
+                && evidence.medianResidualDegrees >= medianBaseline * 1.5
+                && evidence.p90ResidualDegrees >= tailBaseline * 2.5
+        }
+        for index in localImages.indices {
+            let evidence = geometryEvidence[index]
+            print(
+                String(
+                    format: "[PanoWizard] Positioning evidence image %d: "
+                        + "pitch=%.1f points=%d links=%d median=%.3f "
+                        + "p90=%.3f rigMedian=%.3f rigP90=%.3f%@",
+                    index + 1,
+                    evidence.orientation.pitch,
+                    evidence.pointCount,
+                    evidence.connectedImageCount,
+                    evidence.medianResidualDegrees,
+                    evidence.p90ResidualDegrees,
+                    evidence.rigMedianResidualDegrees,
+                    evidence.rigP90ResidualDegrees,
+                    repairCandidates.contains(index) ? " repair" : ""
+                )
+            )
+        }
+        // More than one candidate means the geometry has not isolated a
+        // single moved-camera exposure. Uncertainty deliberately stays in the
+        // shared positioning rig.
+        if repairCandidates.count == 1,
+           let repair = repairCandidates.first {
+            let direction = inferredDirection(at: repair)
+            if !occupiedRepairDirections.contains(direction) {
+                decisions[localImages[repair].id] =
+                    AutomaticPositioningDecision(
+                        role: .fillOnly,
+                        direction: direction
+                    )
+            }
+        }
+        return decisions
+    }
+
     private static func sphericalRepairRegistration(
         pole: PanoramaPole,
         repairImage: SourceImage,
@@ -1240,6 +1649,8 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         ringProject: URL,
         mask: Data?,
         controlPoints: [DiagnosticControlPoint],
+        lensProfile: StitchingConfiguration.LensProfile,
+        horizontalFieldOfView: Double,
         outputURL: URL,
         workDirectory: URL,
         toolchain: HuginToolchain
@@ -1266,16 +1677,42 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             guard panoramaImages.indices.contains(other),
                   let ring = ringIndexByID[panoramaImages[other].id]
             else { return nil }
+            let normalizedRingPoint: (Double, Double)
+            let normalizedRepairPoint: (Double, Double)
+            if lensProfile == .sigma8DX {
+                normalizedRingPoint = remappingFisheyePoint(
+                    x: ringPoint.x,
+                    y: ringPoint.y,
+                    width: panoramaImages[other].pixelWidth,
+                    height: panoramaImages[other].pixelHeight,
+                    sourceFactor: -0.526971,
+                    destinationFactor: -0.5
+                )
+                normalizedRepairPoint = remappingFisheyePoint(
+                    x: repairPoint.x,
+                    y: repairPoint.y,
+                    width: repairImage.pixelWidth,
+                    height: repairImage.pixelHeight,
+                    sourceFactor: -0.526971,
+                    destinationFactor: -0.5
+                )
+            } else {
+                normalizedRingPoint = (ringPoint.x, ringPoint.y)
+                normalizedRepairPoint = (repairPoint.x, repairPoint.y)
+            }
             return PanoramaControlPoint(
                 firstImage: ring,
                 secondImage: ringImages.count,
-                firstX: ringPoint.x,
-                firstY: ringPoint.y,
-                secondX: repairPoint.x,
-                secondY: repairPoint.y
+                firstX: normalizedRingPoint.0,
+                firstY: normalizedRingPoint.1,
+                secondX: normalizedRepairPoint.0,
+                secondY: normalizedRepairPoint.1
             )
         }
-        guard remapped.count >= 4 else { return nil }
+        let supportingRingImages = Set(remapped.map(\.firstImage))
+        guard remapped.count >= 4, supportingRingImages.count >= 3 else {
+            return nil
+        }
         let prepared = workDirectory.appending(
             path: "hugin-\(pole.rawValue)-source.png"
         )
@@ -1283,6 +1720,8 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             sourceURL: repairImage.url,
             maskData: mask,
             clipsToFisheyeCircle: true,
+            sourceFisheyeFactor: lensProfile == .sigma8DX
+                ? -0.526971 : nil,
             destinationURL: prepared
         )
         guard let preparedSource = CGImageSourceCreateWithURL(
@@ -1325,6 +1764,40 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             arguments: ["-n", "-o", optimized.path(), seeded.path()],
             in: workDirectory
         )
+        guard let repairOrientation = try HuginProjectFile.orientations(
+            in: optimized
+        ).last else {
+            throw PanoramaEngineError.stitchingFailed(
+                "Den optimerade polbildens riktning kunde inte läsas."
+            )
+        }
+        var canonicalPitch = repairOrientation.pitch
+            .truncatingRemainder(dividingBy: 360)
+        if canonicalPitch > 180 { canonicalPitch -= 360 }
+        if canonicalPitch < -180 { canonicalPitch += 360 }
+        if canonicalPitch > 90 {
+            canonicalPitch = 180 - canonicalPitch
+        } else if canonicalPitch < -90 {
+            canonicalPitch = -180 - canonicalPitch
+        }
+        let optimizedPole: PanoramaPole = canonicalPitch >= 0
+            ? .zenith : .nadir
+        guard optimizedPole == pole else {
+            throw PanoramaEngineError.stitchingFailed(
+                "Kontrollpunkterna placerar reparationsbilden vid "
+                    + "\(optimizedPole.displayName.lowercased()), inte "
+                    + "\(pole.displayName.lowercased())."
+            )
+        }
+        print(
+            "[PanoWizard] \(pole.displayName) spherical orientation: "
+                + String(
+                    format: "y=%.2f p=%.2f r=%.2f",
+                    repairOrientation.yaw,
+                    canonicalPitch,
+                    repairOrientation.roll
+                )
+        )
         let sources = workDirectory.appending(
             path: "hugin-\(pole.rawValue)-sources.pto"
         )
@@ -1365,6 +1838,17 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             pole: pole,
             outputURL: outputURL
         )
+        // The spherical Hugin layer is the authoritative pose. Persist the
+        // exact projective transform from the ordinary 120-degree repair view
+        // to that layer so later blending and mask edits cannot accidentally
+        // defish the source again as an unrotated pole image.
+        let projectedAlignment = try OpenCVNadirRepairRegistrar
+            .alignmentToProjectedOverlay(
+                at: outputURL,
+                repairImage: repairImage,
+                exclusionMaskData: mask,
+                horizontalFieldOfView: horizontalFieldOfView
+            )
         let ringPanoramaPoints = try toolchain.panoramaCoordinates(
             in: render,
             points: remapped.map {
@@ -1406,44 +1890,18 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     secondY: ringLocal.y
                 )
             }
-        var placement = NadirRepairPlacement(
+        let placement = NadirRepairPlacement(
             imageID: repairImage.id,
-            localHomography: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+            localHomography: projectedAlignment.homography,
             matchedFeatureCount: remapped.count,
             localViewFieldOfView: 120,
+            sourceHorizontalFieldOfView: horizontalFieldOfView,
+            contentBounds: OpenCVNadirRepairRegistrar.alphaContentBounds(
+                at: outputURL
+            ),
             controlPoints: localPoints,
             sphericalProjection: true
         )
-        // Hugin establishes the spherical direction. A similarity transform
-        // then supplies only the missing coarse translation, rotation and
-        // uniform scale caused by the hand-held camera position. Perspective,
-        // shear and corner stretch remain exclusively manual fine tuning.
-        if localPoints.count >= 6 {
-            let coarse = try OpenCVNadirRepairRegistrar
-                .coarseSimilarityPlacement(bySolving: localPoints, from: placement)
-            placement = coarse.0
-            let coarseURL = outputURL.deletingLastPathComponent().appending(
-                path: "\(pole.rawValue)-coarse-overlay.png"
-            )
-            try OpenCVNadirRepairRegistrar.warpPoleOverlay(
-                at: outputURL,
-                using: placement,
-                outputURL: coarseURL
-            )
-            try? FileManager.default.removeItem(at: outputURL)
-            try FileManager.default.moveItem(at: coarseURL, to: outputURL)
-        }
-        let storedPoints = placement.controlPoints ?? remapped.map {
-            DiagnosticControlPoint(
-                firstImage: $0.firstImage,
-                secondImage: $0.secondImage,
-                firstX: $0.firstX,
-                firstY: $0.firstY,
-                secondX: $0.secondX,
-                secondY: $0.secondY
-            )
-        }
-        placement.controlPoints = storedPoints
         return NadirRepairRegistrationResult(
             overlayURL: outputURL,
             placement: placement
@@ -1501,7 +1959,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
     static func treatsSuppliedControlPointsAsEdited(
         hasSuppliedControlPoints: Bool,
         controlPointsAreAuthoritative: Bool,
-        automaticStabilizationAttempt: Int
+        isAutomaticRecovery: Bool
     ) -> Bool {
         // A recovery pass receives the app's own generated points so it can
         // restart from exactly that connected graph. Those points are not a
@@ -1509,7 +1967,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         // sparse ring can repeat the same marginally unstable solve forever.
         hasSuppliedControlPoints
             && controlPointsAreAuthoritative
-            && automaticStabilizationAttempt == 0
+            && !isAutomaticRecovery
     }
 
     static func needsAutomaticStabilization(errors: [Double]) -> Bool {
@@ -1671,7 +2129,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             }
             let errors = points.compactMap(\.error)
             let hasReliableResiduals: Bool
-            if points.count >= 4, errors.count == points.count {
+            if points.count >= 3, errors.count == points.count {
                 let sortedErrors = errors.filter(\.isFinite).sorted()
                 if sortedErrors.count == errors.count {
                     let median = sortedErrors[sortedErrors.count / 2]
@@ -1853,7 +2311,12 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         case .sigma8DX:
             return 113.4
         case .nikon105DX:
-            return 87.44
+            guard let image = images.first else { return 87.44 }
+            let shortSide = Double(min(image.pixelWidth, image.pixelHeight))
+            guard shortSide > 0 else { return 87.44 }
+            let widthRatio = Double(image.pixelWidth) / shortSide
+            let halfChord = widthRatio * sin(87.44 * .pi / 720)
+            return 720 / .pi * asin(min(1, halfChord))
         case .automatic:
             if images.contains(where: {
                 $0.lens.kind == .fisheye

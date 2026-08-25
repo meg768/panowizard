@@ -350,6 +350,17 @@ double median(std::vector<double> values) {
     return values[middle];
 }
 
+double percentile(std::vector<double> values, double fraction) {
+    if (values.empty()) return 0.0;
+    std::sort(values.begin(), values.end());
+    const double position = std::clamp(fraction, 0.0, 1.0)
+        * (values.size() - 1);
+    const std::size_t lower = std::size_t(std::floor(position));
+    const std::size_t upper = std::size_t(std::ceil(position));
+    const double blend = position - lower;
+    return values[lower] * (1.0 - blend) + values[upper] * blend;
+}
+
 SourceBounds robustSourceBounds(
     const std::vector<cv::DMatch> &matches,
     const std::vector<cv::KeyPoint> &keypoints,
@@ -668,27 +679,15 @@ cv::Vec3d calibratedFisheyeRay(
     );
 }
 
-cv::Matx33d fittedSourceRotation(
-    const std::vector<cv::DMatch> &matches,
-    const std::vector<cv::KeyPoint> &keypointsA,
-    const std::vector<cv::KeyPoint> &keypointsB,
-    const cv::Size &sizeA,
-    const cv::Size &sizeB,
-    const std::vector<int> &indices,
-    double horizontalFieldOfView,
-    int lensModel
-) {
+using RayPair = std::pair<cv::Vec3d, cv::Vec3d>;
+
+template<typename RayAt>
+cv::Matx33d fittedRayRotation(int rayCount, RayAt rayAt) {
     cv::Matx33d covariance = cv::Matx33d::zeros();
-    for (const int index : indices) {
-        const cv::DMatch &match = matches[index];
-        const cv::Vec3d first = calibratedFisheyeRay(
-            keypointsA[match.queryIdx].pt, sizeA,
-            horizontalFieldOfView, lensModel
-        );
-        const cv::Vec3d second = calibratedFisheyeRay(
-            keypointsB[match.trainIdx].pt, sizeB,
-            horizontalFieldOfView, lensModel
-        );
+    for (int index = 0; index < rayCount; ++index) {
+        const RayPair rays = rayAt(index);
+        const cv::Vec3d &first = rays.first;
+        const cv::Vec3d &second = rays.second;
         covariance += cv::Matx33d(
             second[0] * first[0], second[0] * first[1], second[0] * first[2],
             second[1] * first[0], second[1] * first[1], second[1] * first[2],
@@ -715,6 +714,226 @@ cv::Matx33d fittedSourceRotation(
         }
     }
     return result;
+}
+
+double rayRotationError(const RayPair &rays, const cv::Matx33d &rotation) {
+    return std::acos(std::clamp(
+        rays.first.dot(rotation * rays.second), -1.0, 1.0
+    ));
+}
+
+struct RotationEdge {
+    int first;
+    int second;
+    cv::Matx33d rotation;
+    int inlierCount;
+    double medianError;
+};
+
+std::vector<cv::Matx33d> worldRotationsFromStrongestEdges(
+    const std::vector<RotationEdge> &edges,
+    int imageCount
+) {
+    std::vector<int> parent(imageCount);
+    for (int index = 0; index < imageCount; ++index) parent[index] = index;
+    auto root = [&](int image) {
+        while (parent[image] != image) {
+            parent[image] = parent[parent[image]];
+            image = parent[image];
+        }
+        return image;
+    };
+    struct Connection { int neighbor; cv::Matx33d rotation; };
+    std::vector<std::vector<Connection>> tree(imageCount);
+    for (const RotationEdge &edge : edges) {
+        const int firstRoot = root(edge.first);
+        const int secondRoot = root(edge.second);
+        if (firstRoot == secondRoot) continue;
+        parent[secondRoot] = firstRoot;
+        tree[edge.first].push_back({edge.second, edge.rotation});
+        tree[edge.second].push_back({edge.first, edge.rotation.t()});
+    }
+
+    std::vector<cv::Matx33d> worldRotations(
+        imageCount, cv::Matx33d::eye()
+    );
+    std::vector<bool> visited(imageCount, false);
+    std::vector<int> pending = {0};
+    visited[0] = true;
+    while (!pending.empty()) {
+        const int current = pending.back();
+        pending.pop_back();
+        for (const Connection &connection : tree[current]) {
+            if (visited[connection.neighbor]) continue;
+            worldRotations[connection.neighbor] =
+                worldRotations[current] * connection.rotation;
+            visited[connection.neighbor] = true;
+            pending.push_back(connection.neighbor);
+        }
+    }
+    if (std::find(visited.begin(), visited.end(), false) != visited.end()) {
+        throw std::runtime_error(
+            "Kontrollpunkterna gav ingen sammanhangande 3D-startpose."
+        );
+    }
+    return worldRotations;
+}
+
+PWOrientation panoramaOrientation(const cv::Matx33d &rotation) {
+    // This Y-X-Z extraction produces the same yaw, pitch and roll convention
+    // used by PTGui and Hugin for source-image poses.
+    const double pitch = std::asin(std::clamp(
+        -rotation(1, 2), -1.0, 1.0
+    ));
+    const double cosinePitch = std::cos(pitch);
+    double yaw;
+    double roll;
+    if (std::abs(cosinePitch) > 1e-7) {
+        yaw = std::atan2(rotation(0, 2), rotation(2, 2));
+        roll = std::atan2(rotation(1, 0), rotation(1, 1));
+    } else {
+        yaw = std::atan2(-rotation(2, 0), rotation(0, 0));
+        roll = 0.0;
+    }
+    return {
+        yaw * 180.0 / pi,
+        pitch * 180.0 / pi,
+        roll * 180.0 / pi
+    };
+}
+
+using RaysByImagePair = std::map<std::pair<int, int>, std::vector<RayPair>>;
+
+RaysByImagePair controlPointRays(
+    const PWControlPoint *controlPoints,
+    int controlPointCount,
+    const int *imageWidths,
+    const int *imageHeights,
+    int imageCount,
+    double horizontalFieldOfView,
+    int lensModel
+) {
+    RaysByImagePair rays;
+    for (int index = 0; index < controlPointCount; ++index) {
+        const PWControlPoint &point = controlPoints[index];
+        if (point.firstImage < 0 || point.secondImage < 0
+            || point.firstImage >= imageCount
+            || point.secondImage >= imageCount
+            || point.firstImage == point.secondImage) {
+            continue;
+        }
+        const int first = std::min(point.firstImage, point.secondImage);
+        const int second = std::max(point.firstImage, point.secondImage);
+        const bool isForward = point.firstImage == first;
+        const cv::Point2f firstPoint(
+            float(isForward ? point.firstX : point.secondX),
+            float(isForward ? point.firstY : point.secondY)
+        );
+        const cv::Point2f secondPoint(
+            float(isForward ? point.secondX : point.firstX),
+            float(isForward ? point.secondY : point.firstY)
+        );
+        rays[{first, second}].push_back({
+            calibratedFisheyeRay(
+                firstPoint,
+                cv::Size(imageWidths[first], imageHeights[first]),
+                horizontalFieldOfView,
+                lensModel
+            ),
+            calibratedFisheyeRay(
+                secondPoint,
+                cv::Size(imageWidths[second], imageHeights[second]),
+                horizontalFieldOfView,
+                lensModel
+            )
+        });
+    }
+    return rays;
+}
+
+std::vector<RotationEdge> strongestRotationEdges(
+    const RaysByImagePair &rays
+) {
+    std::vector<RotationEdge> edges;
+    constexpr double inlierThreshold = 1.5 * pi / 180.0;
+    for (const auto &entry : rays) {
+        const auto &pair = entry.first;
+        const auto &pairRays = entry.second;
+        if (pairRays.size() < 6) continue;
+        cv::RNG random(pair.first * 1009 + pair.second * 9176);
+        std::vector<int> bestIndices;
+        const int iterations = std::min(2000, int(pairRays.size() * 30));
+        for (int iteration = 0; iteration < iterations; ++iteration) {
+            std::set<int> sampleSet;
+            while (sampleSet.size() < 3) {
+                sampleSet.insert(random.uniform(0, int(pairRays.size())));
+            }
+            const std::vector<int> sample(sampleSet.begin(), sampleSet.end());
+            const cv::Matx33d candidate = fittedRayRotation(
+                int(sample.size()),
+                [&](int position) { return pairRays[sample[position]]; }
+            );
+            std::vector<int> inliers;
+            for (int index = 0; index < int(pairRays.size()); ++index) {
+                if (rayRotationError(pairRays[index], candidate)
+                        <= inlierThreshold) {
+                    inliers.push_back(index);
+                }
+            }
+            if (inliers.size() > bestIndices.size()) {
+                bestIndices = std::move(inliers);
+            }
+        }
+        if (bestIndices.size() < 6) continue;
+        const cv::Matx33d rotation = fittedRayRotation(
+            int(bestIndices.size()),
+            [&](int position) { return pairRays[bestIndices[position]]; }
+        );
+        std::vector<double> errors;
+        for (const int index : bestIndices) {
+            errors.push_back(rayRotationError(pairRays[index], rotation));
+        }
+        std::sort(errors.begin(), errors.end());
+        edges.push_back({
+            pair.first, pair.second, rotation, int(bestIndices.size()),
+            errors[errors.size() / 2]
+        });
+    }
+    std::sort(
+        edges.begin(), edges.end(),
+        [](const RotationEdge &a, const RotationEdge &b) {
+            if (a.inlierCount != b.inlierCount) {
+                return a.inlierCount > b.inlierCount;
+            }
+            return a.medianError < b.medianError;
+        }
+    );
+    return edges;
+}
+
+cv::Matx33d fittedSourceRotation(
+    const std::vector<cv::DMatch> &matches,
+    const std::vector<cv::KeyPoint> &keypointsA,
+    const std::vector<cv::KeyPoint> &keypointsB,
+    const cv::Size &sizeA,
+    const cv::Size &sizeB,
+    const std::vector<int> &indices,
+    double horizontalFieldOfView,
+    int lensModel
+) {
+    return fittedRayRotation(int(indices.size()), [&](int position) {
+        const cv::DMatch &match = matches[indices[position]];
+        return RayPair{
+            calibratedFisheyeRay(
+                keypointsA[match.queryIdx].pt, sizeA,
+                horizontalFieldOfView, lensModel
+            ),
+            calibratedFisheyeRay(
+                keypointsB[match.trainIdx].pt, sizeB,
+                horizontalFieldOfView, lensModel
+            )
+        };
+    });
 }
 
 double sourceRotationError(
@@ -1793,7 +2012,21 @@ cv::Mat centeredPoleHoleMask(const cv::Mat &baseLocal) {
     const int poleLabel = labels.at<int>(center);
     cv::Mat hole;
     cv::compare(labels, poleLabel, hole, cv::CMP_EQ);
-    if (cv::countNonZero(hole) < 256) {
+    const int holeArea = cv::countNonZero(hole);
+    const cv::Rect bounds = cv::boundingRect(hole);
+    const int margin = 8;
+    const bool touchesProjectionEdge = bounds.x < margin
+        || bounds.y < margin
+        || bounds.br().x > baseLocal.cols - margin
+        || bounds.br().y > baseLocal.rows - margin;
+    if (holeArea < 256
+        || holeArea > int(baseLocal.total() * 0.20)
+        || touchesProjectionEdge) {
+        // At a covered pole, a black tripod, coat or the equirectangular
+        // singularity can form one enormous dark component through the exact
+        // centre. That is scene content, not missing image coverage. Treat it
+        // as a normal covered pole; the seam logic can then use the verified
+        // repair layer's useful coverage instead of following the dark object.
         return cv::Mat::zeros(baseLocal.size(), CV_8U);
     }
     return hole;
@@ -1880,11 +2113,10 @@ void writeNadirBlendInputs(
             alignedAlpha.setTo(cv::Scalar(0), outsideRepairRegion);
             baseAlpha.setTo(cv::Scalar(0), poleHole);
         } else {
-            // When the ring already covers the pole (typically with the
-            // photographer or tripod), require only a small central repair.
-            // Enblend can then choose a low-energy seam through the remaining
-            // overlap instead of being forced to use the repair almost all the
-            // way to the square projection boundary.
+            // A hand-held pole image has a different camera centre. Give
+            // Enblend enough overlap to follow ground-plane details, but keep
+            // the repair local to the pole so parallax cannot pull nearby
+            // tables, chairs, or people into the published overlay.
             cv::Mat repairVisibility;
             cv::compare(
                 alignedAlpha,
@@ -1892,47 +2124,58 @@ void writeNadirBlendInputs(
                 repairVisibility,
                 cv::CMP_GT
             );
-            cv::Mat centralRepair = cv::Mat::zeros(
-                baseLocal.size(),
+            cv::Mat maximumRepairRegion = cv::Mat::zeros(
+                alignedAlpha.size(),
                 CV_8U
             );
             cv::circle(
-                centralRepair,
-                cv::Point(baseLocal.cols / 2, baseLocal.rows / 2),
-                96,
+                maximumRepairRegion,
+                cv::Point(
+                    repairLocalViewSize / 2,
+                    repairLocalViewSize / 2
+                ),
+                static_cast<int>(repairLocalViewSize * 0.30),
                 cv::Scalar(255),
-                cv::FILLED
+                cv::FILLED,
+                cv::LINE_AA
             );
             cv::bitwise_and(
-                centralRepair,
+                maximumRepairRegion,
                 repairVisibility,
-                centralRepair
+                maximumRepairRegion
             );
-            baseAlpha.setTo(cv::Scalar(0), centralRepair);
+            cv::Mat outsideMaximumRepairRegion;
+            cv::bitwise_not(
+                maximumRepairRegion,
+                outsideMaximumRepairRegion
+            );
+            alignedAlpha.setTo(
+                cv::Scalar(0),
+                outsideMaximumRepairRegion
+            );
 
-            // Keep Enblend close to the requested pole repair. Without a real
-            // coverage hole its seam is otherwise free to wander through the
-            // entire aligned image, which can replace large valid subjects
-            // merely because their dark clothing offers a cheap seam.
-            cv::Mat repairRegion = cv::Mat::zeros(
-                baseLocal.size(),
+            cv::Mat forcedRepairCore;
+            forcedRepairCore = cv::Mat::zeros(
+                alignedAlpha.size(),
                 CV_8U
             );
             cv::circle(
-                repairRegion,
-                cv::Point(baseLocal.cols / 2, baseLocal.rows / 2),
-                224,
+                forcedRepairCore,
+                cv::Point(
+                    repairLocalViewSize / 2,
+                    repairLocalViewSize / 2
+                ),
+                static_cast<int>(repairLocalViewSize * 0.10),
                 cv::Scalar(255),
-                cv::FILLED
+                cv::FILLED,
+                cv::LINE_AA
             );
             cv::bitwise_and(
-                repairRegion,
-                repairVisibility,
-                repairRegion
+                forcedRepairCore,
+                maximumRepairRegion,
+                forcedRepairCore
             );
-            cv::Mat outsideRepairRegion;
-            cv::bitwise_not(repairRegion, outsideRepairRegion);
-            alignedAlpha.setTo(cv::Scalar(0), outsideRepairRegion);
+            baseAlpha.setTo(cv::Scalar(0), forcedRepairCore);
         }
     } else {
         // A fully covered pole can still be an intentional repair (for
@@ -1991,6 +2234,8 @@ void writeNadirBlendInputs(
 
 void writeBlendedNadirOverlay(
     const cv::Mat &blendedLocal,
+    const cv::Mat &repairLayer,
+    const cv::Mat &repairSeamMask,
     const std::string &outputPath
 ) {
     cv::Mat color;
@@ -2014,32 +2259,74 @@ void writeBlendedNadirOverlay(
         );
     }
 
-    constexpr double featherWidth = 96.0;
-    cv::Mat alpha(
-        repairLocalViewSize,
-        repairLocalViewSize,
-        CV_8U
-    );
-    for (int y = 0; y < repairLocalViewSize; ++y) {
-        unsigned char *row = alpha.ptr<unsigned char>(y);
-        for (int x = 0; x < repairLocalViewSize; ++x) {
-            const double edgeDistance = std::min({
-                double(x),
-                double(y),
-                double(repairLocalViewSize - 1 - x),
-                double(repairLocalViewSize - 1 - y)
-            });
-            const double position = std::clamp(
-                edgeDistance / featherWidth,
-                0.0,
-                1.0
-            );
-            const double smooth = position * position * (3.0 - 2.0 * position);
-            row[x] = static_cast<unsigned char>(
-                std::round(smooth * 255.0)
-            );
-        }
+    if (repairLayer.empty() || repairLayer.size() != color.size()
+        || repairLayer.channels() != 4) {
+        throw std::runtime_error(
+            "Enblends reparationslager saknar giltig alfa."
+        );
     }
+    std::vector<cv::Mat> repairChannels;
+    cv::split(repairLayer, repairChannels);
+    cv::Mat repairCoverage;
+    cv::compare(repairChannels[3], 8, repairCoverage, cv::CMP_GT);
+
+    if (repairSeamMask.empty() || repairSeamMask.size() != color.size()) {
+        throw std::runtime_error(
+            "Enblends sömmask för reparationsbilden är ogiltig."
+        );
+    }
+    cv::Mat seamGray;
+    if (repairSeamMask.channels() == 1) {
+        seamGray = repairSeamMask;
+    } else if (repairSeamMask.channels() == 3) {
+        cv::cvtColor(repairSeamMask, seamGray, cv::COLOR_BGR2GRAY);
+    } else if (repairSeamMask.channels() == 4) {
+        cv::cvtColor(repairSeamMask, seamGray, cv::COLOR_BGRA2GRAY);
+    } else {
+        throw std::runtime_error(
+            "Enblends sömmask har ett okänt pixelformat."
+        );
+    }
+    cv::Mat seamSelection;
+    cv::compare(seamGray, 0, seamSelection, cv::CMP_GT);
+    cv::bitwise_and(seamSelection, repairCoverage, seamSelection);
+
+    // Enblend has already decided where the repair wins. Publish that actual
+    // seam instead of the repair image's entire projected coverage. A small
+    // dilation includes Enblend's multiresolution transition; an internal
+    // feather then joins the local result back to the live panorama cleanly.
+    cv::Mat publishedRegion;
+    cv::dilate(
+        seamSelection,
+        publishedRegion,
+        cv::getStructuringElement(
+            cv::MORPH_ELLIPSE,
+            cv::Size(65, 65)
+        )
+    );
+    cv::bitwise_and(publishedRegion, repairCoverage, publishedRegion);
+    if (cv::countNonZero(publishedRegion) < 256) {
+        throw std::runtime_error(
+            "Enblends sömmask innehåller ingen användbar nadirreparation."
+        );
+    }
+    cv::Mat distanceInsidePublishedRegion;
+    cv::distanceTransform(
+        publishedRegion,
+        distanceInsidePublishedRegion,
+        cv::DIST_L2,
+        cv::DIST_MASK_PRECISE
+    );
+    constexpr double featherWidth = 24.0;
+    cv::Mat normalized;
+    distanceInsidePublishedRegion.convertTo(
+        normalized,
+        CV_32F,
+        1.0 / featherWidth
+    );
+    cv::min(normalized, 1.0, normalized);
+    cv::Mat alpha;
+    normalized.convertTo(alpha, CV_8U, 255.0);
 
     if (!cv::imwrite(outputPath, imageWithAlpha(color, alpha))) {
         throw std::runtime_error(
@@ -2415,7 +2702,16 @@ int PWGenerateRingControlPoints(
                             secondMatchingSize
                         )
                     });
-                    if (selected.size() < 6) continue;
+                    // A calibrated closing transition may cover only three
+                    // independent cells even when its rotation consensus is
+                    // strong. Keep that narrow closure for the global
+                    // residual check; ordinary extra pairs still require six
+                    // selected points.
+                    const int minimumSelectedControlPointCount =
+                        requiredSparseRingTransition ? 3 : 6;
+                    if (selected.size() < minimumSelectedControlPointCount) {
+                        continue;
+                    }
                     rawGraph[first].push_back(second);
                     rawGraph[second].push_back(first);
                     for (const auto &match : selected) {
@@ -2627,6 +2923,145 @@ int PWCopyLastControlPointPairDiagnostics(
         );
     }
     return 1;
+}
+
+int PWEstimateControlPointOrientations(
+    const PWControlPoint *controlPoints,
+    int controlPointCount,
+    const int *imageWidths,
+    const int *imageHeights,
+    int imageCount,
+    double horizontalFieldOfView,
+    int lensModel,
+    PWOrientation *orientations,
+    char **errorMessage
+) {
+    try {
+        if (controlPoints == nullptr || controlPointCount < 1
+            || imageWidths == nullptr || imageHeights == nullptr
+            || imageCount < 2 || orientations == nullptr
+            || errorMessage == nullptr
+            || lensModel == PWLensModelRectilinear) {
+            throw std::runtime_error(
+                "Underlaget for sfariska startposer ar ofullstandigt."
+            );
+        }
+        *errorMessage = nullptr;
+
+        const RaysByImagePair rays = controlPointRays(
+            controlPoints,
+            controlPointCount,
+            imageWidths,
+            imageHeights,
+            imageCount,
+            horizontalFieldOfView,
+            lensModel
+        );
+        const std::vector<RotationEdge> edges = strongestRotationEdges(rays);
+        const std::vector<cv::Matx33d> worldRotations =
+            worldRotationsFromStrongestEdges(edges, imageCount);
+        for (int index = 0; index < imageCount; ++index) {
+            orientations[index] = panoramaOrientation(worldRotations[index]);
+        }
+        return 1;
+    } catch (const std::exception &error) {
+        if (errorMessage != nullptr) {
+            *errorMessage = copiedString(error.what());
+        }
+        return 0;
+    }
+}
+
+int PWEstimatePositioningEvidence(
+    const PWControlPoint *controlPoints,
+    int controlPointCount,
+    const int *imageWidths,
+    const int *imageHeights,
+    int imageCount,
+    double horizontalFieldOfView,
+    int lensModel,
+    PWPositioningEvidence *evidence,
+    char **errorMessage
+) {
+    try {
+        if (controlPoints == nullptr || controlPointCount < 1
+            || imageWidths == nullptr || imageHeights == nullptr
+            || imageCount < 2 || evidence == nullptr
+            || errorMessage == nullptr
+            || lensModel == PWLensModelRectilinear) {
+            throw std::runtime_error(
+                "Underlaget for geometrisk positioneringsevidens ar "
+                "ofullstandigt."
+            );
+        }
+        *errorMessage = nullptr;
+
+        const RaysByImagePair rays = controlPointRays(
+            controlPoints,
+            controlPointCount,
+            imageWidths,
+            imageHeights,
+            imageCount,
+            horizontalFieldOfView,
+            lensModel
+        );
+        const std::vector<RotationEdge> edges = strongestRotationEdges(rays);
+        const std::vector<cv::Matx33d> worldRotations =
+            worldRotationsFromStrongestEdges(edges, imageCount);
+
+        std::vector<std::vector<double>> residuals(imageCount);
+        std::vector<std::set<int>> connectedImages(imageCount);
+        for (const auto &entry : rays) {
+            const int first = entry.first.first;
+            const int second = entry.first.second;
+            const cv::Matx33d predictedRotation =
+                worldRotations[first].t() * worldRotations[second];
+            connectedImages[first].insert(second);
+            connectedImages[second].insert(first);
+            for (const RayPair &pair : entry.second) {
+                const double degrees =
+                    rayRotationError(pair, predictedRotation) * 180.0 / pi;
+                residuals[first].push_back(degrees);
+                residuals[second].push_back(degrees);
+            }
+        }
+
+        for (int image = 0; image < imageCount; ++image) {
+            std::vector<double> rigResiduals;
+            for (const auto &entry : rays) {
+                const int first = entry.first.first;
+                const int second = entry.first.second;
+                if (first == image || second == image) continue;
+                const cv::Matx33d predictedRotation =
+                    worldRotations[first].t() * worldRotations[second];
+                for (const RayPair &pair : entry.second) {
+                    rigResiduals.push_back(
+                        rayRotationError(pair, predictedRotation)
+                            * 180.0 / pi
+                    );
+                }
+            }
+            const PWOrientation orientation =
+                panoramaOrientation(worldRotations[image]);
+            evidence[image] = {
+                orientation.yaw,
+                orientation.pitch,
+                orientation.roll,
+                int(residuals[image].size()),
+                int(connectedImages[image].size()),
+                median(residuals[image]),
+                percentile(residuals[image], 0.9),
+                median(rigResiduals),
+                percentile(rigResiduals, 0.9)
+            };
+        }
+        return 1;
+    } catch (const std::exception &error) {
+        if (errorMessage != nullptr) {
+            *errorMessage = copiedString(error.what());
+        }
+        return 0;
+    }
 }
 
 int PWGenerateZenithControlPoints(
@@ -2972,6 +3407,121 @@ int PWRegisterNadirRepair(
     }
 }
 
+int PWAlignNadirRepairToProjectedOverlay(
+    const char *projectedOverlayPath,
+    const char *repairImagePath,
+    const char *repairExclusionMaskPath,
+    double horizontalFieldOfView,
+    PWNadirRegistration *registration,
+    char **errorMessage
+) {
+    try {
+        if (projectedOverlayPath == nullptr
+            || repairImagePath == nullptr
+            || registration == nullptr
+            || errorMessage == nullptr) {
+            throw std::runtime_error(
+                "Underlaget för den sfäriska polregistreringen är ofullständigt."
+            );
+        }
+        cv::setNumThreads(1);
+        cv::setRNGSeed(0);
+
+        const cv::Mat projected = cv::imread(
+            projectedOverlayPath,
+            cv::IMREAD_UNCHANGED
+        );
+        const cv::Mat repairSource = cv::imread(
+            repairImagePath,
+            cv::IMREAD_COLOR
+        );
+        if (projected.empty()
+            || projected.cols != repairLocalViewSize
+            || projected.rows != repairLocalViewSize) {
+            throw std::runtime_error(
+                "Hugins sfäriska pollager kunde inte läsas."
+            );
+        }
+        if (repairSource.empty()) {
+            throw std::runtime_error("Polbilden kunde inte läsas.");
+        }
+
+        cv::Mat projectedColor;
+        cv::Mat projectedMask(
+            projected.size(),
+            CV_8U,
+            cv::Scalar(255)
+        );
+        if (projected.channels() == 4) {
+            std::vector<cv::Mat> channels;
+            cv::split(projected, channels);
+            cv::cvtColor(projected, projectedColor, cv::COLOR_BGRA2BGR);
+            cv::compare(channels[3], 8, projectedMask, cv::CMP_GT);
+        } else if (projected.channels() == 3) {
+            projectedColor = projected;
+        } else {
+            throw std::runtime_error(
+                "Hugins sfäriska pollager har okänt pixelformat."
+            );
+        }
+
+        cv::Mat repairMapX;
+        cv::Mat repairMapY;
+        cv::Mat repairProjectionMask;
+        makeRepairLocalMap(
+            repairSource.size(),
+            horizontalFieldOfView,
+            repairMapX,
+            repairMapY,
+            repairProjectionMask
+        );
+        cv::Mat repairLocal;
+        cv::remap(
+            repairSource,
+            repairLocal,
+            repairMapX,
+            repairMapY,
+            cv::INTER_LINEAR,
+            cv::BORDER_CONSTANT,
+            cv::Scalar(0, 0, 0)
+        );
+        const cv::Mat repairMask = repairOutputMask(
+            repairProjectionMask,
+            repairMapX,
+            repairMapY,
+            repairSource.size(),
+            repairExclusionMaskPath
+        );
+
+        int inlierCount = 0;
+        const cv::Mat homography = registerRepairHomography(
+            projectedColor,
+            projectedMask,
+            repairLocal,
+            repairMask,
+            inlierCount
+        );
+        registration->h00 = homography.at<double>(0, 0);
+        registration->h01 = homography.at<double>(0, 1);
+        registration->h02 = homography.at<double>(0, 2);
+        registration->h10 = homography.at<double>(1, 0);
+        registration->h11 = homography.at<double>(1, 1);
+        registration->h12 = homography.at<double>(1, 2);
+        registration->h20 = homography.at<double>(2, 0);
+        registration->h21 = homography.at<double>(2, 1);
+        registration->h22 = homography.at<double>(2, 2);
+        registration->matchedFeatureCount = inlierCount;
+        registration->localViewFieldOfView = repairLocalViewFieldOfView;
+        *errorMessage = nullptr;
+        return 1;
+    } catch (const std::exception &error) {
+        if (errorMessage != nullptr) {
+            *errorMessage = copiedString(error.what());
+        }
+        return 0;
+    }
+}
+
 int PWExtractPoleOverlay(
     const char *equirectangularLayerPath,
     double polePitchDegrees,
@@ -3142,6 +3692,7 @@ int PWPrepareNadirRepairBlend(
     const char *panoramaPath,
     const char *repairImagePath,
     const char *repairExclusionMaskPath,
+    const char *projectedRepairPath,
     double horizontalFieldOfView,
     double polePitchDegrees,
     const PWNadirRegistration *registration,
@@ -3178,21 +3729,11 @@ int PWPrepareNadirRepairBlend(
             panoramaPath,
             cv::IMREAD_COLOR
         );
-        const cv::Mat repairSource = cv::imread(
-            repairImagePath,
-            cv::IMREAD_COLOR
-        );
         if (panorama.empty()) {
             throw std::runtime_error(
                 "Det färdiga panoramat kunde inte läsas."
             );
         }
-        if (repairSource.empty()) {
-            throw std::runtime_error(
-                "Nadirbilden kunde inte läsas."
-            );
-        }
-
         cv::Mat panoramaMapX;
         cv::Mat panoramaMapY;
         makeNadirLocalPanoramaMap(
@@ -3211,33 +3752,81 @@ int PWPrepareNadirRepairBlend(
             cv::BORDER_WRAP
         );
 
-        cv::Mat repairMapX;
-        cv::Mat repairMapY;
-        cv::Mat repairMask;
-        makeRepairLocalMap(
-            repairSource.size(),
-            horizontalFieldOfView,
-            repairMapX,
-            repairMapY,
-            repairMask
-        );
         cv::Mat repairLocal;
-        cv::remap(
-            repairSource,
-            repairLocal,
-            repairMapX,
-            repairMapY,
-            cv::INTER_LINEAR,
-            cv::BORDER_CONSTANT,
-            cv::Scalar(0, 0, 0)
-        );
-        const cv::Mat outputMask = repairOutputMask(
-            repairMask,
-            repairMapX,
-            repairMapY,
-            repairSource.size(),
-            repairExclusionMaskPath
-        );
+        cv::Mat repairMask;
+        cv::Mat repairHomography;
+        if (projectedRepairPath != nullptr
+            && std::strlen(projectedRepairPath) > 0) {
+            const cv::Mat projectedRepair = cv::imread(
+                projectedRepairPath,
+                cv::IMREAD_UNCHANGED
+            );
+            if (projectedRepair.empty()
+                || projectedRepair.cols != repairLocalViewSize
+                || projectedRepair.rows != repairLocalViewSize) {
+                throw std::runtime_error(
+                    "Hugins sfäriska pollager kunde inte läsas."
+                );
+            }
+            if (projectedRepair.channels() == 4) {
+                std::vector<cv::Mat> channels;
+                cv::split(projectedRepair, channels);
+                repairMask = channels[3];
+                cv::cvtColor(
+                    projectedRepair,
+                    repairLocal,
+                    cv::COLOR_BGRA2BGR
+                );
+            } else if (projectedRepair.channels() == 3) {
+                repairLocal = projectedRepair;
+                repairMask = cv::Mat(
+                    projectedRepair.size(),
+                    CV_8U,
+                    cv::Scalar(255)
+                );
+            } else {
+                throw std::runtime_error(
+                    "Hugins sfäriska pollager har ett okänt pixelformat."
+                );
+            }
+            repairHomography = cv::Mat::eye(3, 3, CV_64F);
+        } else {
+            const cv::Mat repairSource = cv::imread(
+                repairImagePath,
+                cv::IMREAD_COLOR
+            );
+            if (repairSource.empty()) {
+                throw std::runtime_error(
+                    "Nadirbilden kunde inte läsas."
+                );
+            }
+            cv::Mat repairMapX;
+            cv::Mat repairMapY;
+            makeRepairLocalMap(
+                repairSource.size(),
+                horizontalFieldOfView,
+                repairMapX,
+                repairMapY,
+                repairMask
+            );
+            cv::remap(
+                repairSource,
+                repairLocal,
+                repairMapX,
+                repairMapY,
+                cv::INTER_LINEAR,
+                cv::BORDER_CONSTANT,
+                cv::Scalar(0, 0, 0)
+            );
+            repairMask = repairOutputMask(
+                repairMask,
+                repairMapX,
+                repairMapY,
+                repairSource.size(),
+                repairExclusionMaskPath
+            );
+            repairHomography = registrationHomography(*registration);
+        }
         bool hasManualGeometry = std::abs(translationX) > 1e-6
             || std::abs(translationY) > 1e-6
             || std::abs(rotationDegrees) > 1e-6
@@ -3251,8 +3840,8 @@ int PWPrepareNadirRepairBlend(
         writeNadirBlendInputs(
             baseLocal,
             repairLocal,
-            outputMask,
-            registrationHomography(*registration),
+            repairMask,
+            repairHomography,
             !hasManualGeometry,
             translationX,
             translationY,
@@ -3276,12 +3865,16 @@ int PWPrepareNadirRepairBlend(
 
 int PWFinishNadirRepairBlend(
     const char *blendedLocalPath,
+    const char *repairLayerPath,
+    const char *repairSeamMaskPath,
     const char *overlayOutputPath,
     char **errorMessage
 ) {
     try {
         if (
             blendedLocalPath == nullptr
+            || repairLayerPath == nullptr
+            || repairSeamMaskPath == nullptr
             || overlayOutputPath == nullptr
             || errorMessage == nullptr
         ) {
@@ -3298,8 +3891,28 @@ int PWFinishNadirRepairBlend(
                 "Enblends lokala nadirresultat kunde inte läsas."
             );
         }
+        const cv::Mat repairLayer = cv::imread(
+            repairLayerPath,
+            cv::IMREAD_UNCHANGED
+        );
+        if (repairLayer.empty()) {
+            throw std::runtime_error(
+                "Enblends reparationslager kunde inte läsas."
+            );
+        }
+        const cv::Mat repairSeamMask = cv::imread(
+            repairSeamMaskPath,
+            cv::IMREAD_UNCHANGED
+        );
+        if (repairSeamMask.empty()) {
+            throw std::runtime_error(
+                "Enblends sömmask för reparationsbilden kunde inte läsas."
+            );
+        }
         writeBlendedNadirOverlay(
             blendedLocal,
+            repairLayer,
+            repairSeamMask,
             overlayOutputPath
         );
         *errorMessage = nullptr;

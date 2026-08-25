@@ -1,7 +1,7 @@
 import Foundation
 
 struct PanoProject: Codable, Equatable, Sendable {
-    static let currentFormatVersion = 5
+    static let currentFormatVersion = 6
 
     var formatVersion: Int
     var id: UUID
@@ -135,13 +135,40 @@ struct PanoProject: Codable, Equatable, Sendable {
             return
         }
         images[index].role = role
-        if role == .fillOnly && images[index].direction == .horizontal {
-            images[index].direction = .nadir
-        }
+        images[index].automaticRole = nil
+        images[index].automaticDirection = nil
+        if role == .fillOnly { images[index].direction = .horizontal }
         removeUnsupportedControlPoints()
-        invalidateRigCache()
+        cachedRigImageLines = nil
+        cachedRigSignature = nil
         nadirRepairPlacement = nil
         zenithRepairPlacement = nil
+        modifiedAt = Self.secondPrecision(.now)
+    }
+
+    mutating func applyAutomaticPositioningDecisions(
+        _ decisions: [UUID: AutomaticPositioningDecision]
+    ) {
+        var changedGeometry = false
+        for index in images.indices {
+            let decision = decisions[images[index].id]
+            if images[index].role == .automatic {
+                if images[index].automaticRole != decision?.role
+                    || images[index].automaticDirection != decision?.direction {
+                    changedGeometry = true
+                }
+                images[index].automaticRole = decision?.role
+                images[index].automaticDirection = decision?.direction
+            } else if images[index].role == .fillOnly,
+                      images[index].direction == .horizontal,
+                      let direction = decision?.direction {
+                images[index].direction = direction
+                changedGeometry = true
+            }
+        }
+        guard changedGeometry else { return }
+        cachedRigImageLines = nil
+        cachedRigSignature = nil
         modifiedAt = Self.secondPrecision(.now)
     }
 
@@ -176,7 +203,7 @@ struct PanoProject: Codable, Equatable, Sendable {
 
     var rigSignature: String {
         let imagePart = images
-            .filter { $0.role == .alignment }
+            .filter { $0.effectiveRole == .alignment }
             .map {
                 "\($0.id.uuidString):\($0.isEnabled)"
             }
@@ -197,9 +224,9 @@ struct PanoProject: Codable, Equatable, Sendable {
     }
 
     mutating func removeUnsupportedControlPoints() {
-        for index in images.indices where images[index].role == .fillOnly
+        for index in images.indices where images[index].effectiveRole == .fillOnly
             && images[index].direction == .horizontal {
-            images[index].direction = .nadir
+            images[index].direction = images[index].effectiveDirection
         }
         controlPoints = controlPoints?.filter { point in
             guard images.indices.contains(point.firstImage),
@@ -208,7 +235,8 @@ struct PanoProject: Codable, Equatable, Sendable {
             }
             let first = images[point.firstImage]
             let second = images[point.secondImage]
-            return first.role == .alignment || second.role == .alignment
+            return first.effectiveRole == .alignment
+                || second.effectiveRole == .alignment
         }
         if controlPoints?.isEmpty == true {
             controlPoints = nil

@@ -517,6 +517,9 @@ struct PanoProjectTests {
         )
         let source = directory.appending(path: "source.pto")
         let destination = directory.appending(path: "destination.pto")
+        let recoveredDestination = directory.appending(
+            path: "recovered.pto"
+        )
         try """
         # hugin project file
         i w4000 h6000 f3 v87.44 r0 p0 y0 a0 b0 c0 d0 e0 n\"one.tif\"
@@ -528,13 +531,35 @@ struct PanoProjectTests {
         try HuginProjectFile.configuringNikon105PoseOptimization(
             from: source,
             to: destination,
-            nominalYaws: [0, 60],
-            horizontalFieldOfView: 87.44
+            horizontalFieldOfView: 87.44,
+            poseSeeds: [
+                PanoramaOrientation(yaw: 0, pitch: 0, roll: 0),
+                PanoramaOrientation(yaw: 60, pitch: 0, roll: 0)
+            ]
         )
 
         let imageLines = try HuginProjectFile.imageLines(in: destination)
         #expect(imageLines.count == 2)
         #expect(imageLines.allSatisfy { $0.contains(" f21 ") })
+
+        try HuginProjectFile.configuringNikon105PoseOptimization(
+            from: source,
+            to: recoveredDestination,
+            horizontalFieldOfView: 87.44,
+            poseSeeds: [
+                PanoramaOrientation(yaw: 2, pitch: -51, roll: 3),
+                PanoramaOrientation(yaw: 91, pitch: 4, roll: -2)
+            ]
+        )
+        let recovered = try HuginProjectFile.orientations(
+            in: recoveredDestination
+        )
+        #expect(recovered[0] == PanoramaOrientation(
+            yaw: 2, pitch: -51, roll: 3
+        ))
+        #expect(recovered[1] == PanoramaOrientation(
+            yaw: 91, pitch: 4, roll: -2
+        ))
     }
 
     @Test
@@ -1157,6 +1182,91 @@ struct PanoProjectTests {
         project.replaceImages([image])
 
         #expect(project.title == captureDate.formatted(date: .abbreviated, time: .omitted))
+    }
+
+    @Test
+    func newImagesUseAutomaticPositioningByDefault() {
+        let image = SourceImage(
+            url: URL(fileURLWithPath: "/Pictures/panorama/one.jpg"),
+            captureDate: nil,
+            pixelWidth: 2_000,
+            pixelHeight: 3_008,
+            cameraModel: nil,
+            lens: LensDescription(
+                model: nil,
+                focalLengthIn35mm: nil,
+                kind: .unknown
+            )
+        )
+
+        #expect(image.role == .automatic)
+        #expect(image.effectiveRole == .alignment)
+    }
+
+    @Test
+    func automaticRepairKeepsPointsToThePositioningRig() {
+        let lens = LensDescription(
+            model: "Fisheye", focalLengthIn35mm: 16, kind: .fisheye
+        )
+        let images = (0..<2).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: 2_000,
+                pixelHeight: 3_008,
+                cameraModel: nil,
+                lens: lens
+            )
+        }
+        let point = DiagnosticControlPoint(
+            firstImage: 0, secondImage: 1,
+            firstX: 10, firstY: 20, secondX: 30, secondY: 40
+        )
+        var project = PanoProject(
+            images: images,
+            controlPoints: [point]
+        )
+
+        project.applyAutomaticPositioningDecisions([
+            images[0].id: AutomaticPositioningDecision(
+                role: .alignment, direction: .horizontal
+            ),
+            images[1].id: AutomaticPositioningDecision(
+                role: .fillOnly, direction: .nadir
+            )
+        ])
+
+        #expect(project.images[0].effectiveRole == .alignment)
+        #expect(project.images[1].effectiveRole == .fillOnly)
+        #expect(project.images[1].effectiveDirection == .nadir)
+        #expect(project.controlPoints == [point])
+    }
+
+    @Test
+    func manuallyMarkingRepairKeepsItsControlPointsVisible() {
+        let lens = LensDescription(
+            model: "Fisheye", focalLengthIn35mm: 16, kind: .fisheye
+        )
+        let images = (0..<2).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: 2_000,
+                pixelHeight: 3_008,
+                cameraModel: nil,
+                lens: lens
+            )
+        }
+        let point = DiagnosticControlPoint(
+            firstImage: 0, secondImage: 1,
+            firstX: 10, firstY: 20, secondX: 30, secondY: 40
+        )
+        var project = PanoProject(images: images, controlPoints: [point])
+
+        project.setRole(.fillOnly, for: images[1].id)
+
+        #expect(project.images[1].direction == .horizontal)
+        #expect(project.controlPoints == [point])
     }
 
     @Test

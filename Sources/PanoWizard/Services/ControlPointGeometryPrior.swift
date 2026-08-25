@@ -10,7 +10,7 @@ struct ControlPointGeometryPrior: Sendable {
     ) {
         let rigEntries: [(projectIndex: Int, line: String)] = images
             .enumerated().compactMap { index, image in
-            guard image.isEnabled, image.role == .alignment,
+            guard image.isEnabled, image.effectiveRole == .alignment,
                   let line = cachedImageLines[image.id] else { return nil }
             return (projectIndex: index, line: line)
         }

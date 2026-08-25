@@ -46,9 +46,11 @@ The application is written to `build/PanoWizard.app`.
 ## Panorama workflow
 
 PanoWizard provides calibrated profiles for the Sigma 8 mm Circular Fisheye
-and Nikon 10.5 mm Fisheye on DX sensors. Images can be assigned as horizontal,
-zenith, or nadir views and can participate either in alignment or only in
-repair/fill rendering.
+and Nikon 10.5 mm Fisheye on DX sensors. New images use **Automatic
+positioning**: PanoWizard decides which images establish the panorama geometry
+and which unusual pole views are handheld repairs. A user can override the
+decision with **Included in positioning** or **Repair**; repair images are
+automatically assigned to the zenith or nadir internally.
 
 The automatic control-point pipeline uses OpenCV feature matching, mutual
 ratio filtering, robust geometric validation, and spatially balanced point
@@ -87,11 +89,13 @@ not be used in the final blend. Before rendering, the mask is transferred to
 the source alpha channel; Nona transforms it with the image and Enblend uses
 the remaining unmasked overlaps.
 
-A handheld nadir or repair image can be marked as **Fill only**. Alignment
-images establish and freeze the panorama geometry first; fill-only images are
-registered afterwards and cannot move the base panorama. Image roles and a
-successful alignment are stored in the project. PanoWizard does not assume a
-special role from an image's position in the source list.
+A handheld pole image can be marked as **Repair**. Positioning images establish
+and freeze the panorama geometry first; repair images are registered afterwards
+and cannot move the base panorama. Their control points are still retained and
+shown in the editor because they are useful for local registration. Image roles,
+the inferred pole, and a successful alignment are stored in the project.
+PanoWizard does not assume a special role from an image's position in the
+source list.
 
 ## External pole retouch
 
