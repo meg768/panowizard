@@ -145,7 +145,10 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             inheritedAutomaticPositioningDecisions ?? positioningDecisions(
                 images: sourcePanorama.images,
                 controlPoints: controlPoints ?? [],
-                configuration: configuration
+                configuration: configuration,
+                permitsIsolatedRepairInference:
+                    controlPoints?.isEmpty == false
+                        && !controlPointsAreAuthoritative
             )
         let resolvedImages = sourcePanorama.images.map { image in
             guard let decision = automaticPositioningDecisions[image.id]
@@ -440,7 +443,8 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             let generatedDecisions = positioningDecisions(
                 images: sourcePanorama.images,
                 controlPoints: generatedDiagnostics,
-                configuration: configuration
+                configuration: configuration,
+                permitsIsolatedRepairInference: true
             )
             let foundAutomaticRepair = sourcePanorama.images.contains { image in
                 image.role == .automatic
@@ -1388,7 +1392,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                         + "Kör Justera så att den kan positioneras sfäriskt."
                 )
             }
-            guard let registration = try sphericalRepairRegistration(
+            if let registration = try sphericalRepairRegistration(
                 pole: pole, repairImage: repairImage,
                 panoramaImages: panorama.images,
                 ringImages: geometryRingImages,
@@ -1398,13 +1402,47 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 horizontalFieldOfView: repairHorizontalFieldOfView,
                 outputURL: overlay, workDirectory: workDirectory,
                 toolchain: toolchain
-            ) else {
-                throw PanoramaEngineError.stitchingFailed(
-                    "\(pole.displayName)bilden har kontrollpunkter mot för få "
-                        + "positioneringsbilder. Minst tre bildkopplingar krävs."
+            ) {
+                return registration
+            }
+
+            // A repair inferred from a single isolated, delayed exposure has
+            // no trustworthy pure-rotation CPs by definition. Its retained
+            // rig has already passed the strict topology and geometry gates,
+            // so register only the local pole patch against that frozen
+            // rendered panorama. This path cannot move the rig and is never
+            // used for explicit repairs or repairs with spherical CP support.
+            let sourceRepairIndex = sourcePanorama.images.firstIndex {
+                $0.id == repairImage.id
+            }
+            let isInferredIsolatedRepair = sourceRepairIndex.map { index in
+                sourcePanorama.images[index].role == .automatic
+                    && automaticPositioningDecisions[repairImage.id]?.role
+                        == .fillOnly
+                    && automaticPositioningDecisions[repairImage.id]?.direction
+                        == .horizontal
+                    && !controlPoints.contains { point in
+                        point.firstImage == index || point.secondImage == index
+                    }
+            } ?? false
+            if isInferredIsolatedRepair {
+                print(
+                    "[PanoWizard] Registering isolated "
+                        + "\(pole.rawValue) repair against frozen panorama"
+                )
+                return try OpenCVNadirRepairRegistrar.register(
+                    panoramaURL: result,
+                    repairImage: repairImage,
+                    exclusionMaskData: masks[repairImage.id],
+                    horizontalFieldOfView: repairHorizontalFieldOfView,
+                    pole: pole,
+                    outputURL: overlay
                 )
             }
-            return registration
+            throw PanoramaEngineError.stitchingFailed(
+                "\(pole.displayName)bilden har kontrollpunkter mot för få "
+                    + "positioneringsbilder. Minst tre bildkopplingar krävs."
+            )
         }
 
         if let repairImage = nadirRepairImages.first {
@@ -1538,7 +1576,8 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
     private static func positioningDecisions(
         images: [SourceImage],
         controlPoints: [DiagnosticControlPoint],
-        configuration: StitchingConfiguration
+        configuration: StitchingConfiguration,
+        permitsIsolatedRepairInference: Bool = false
     ) -> [UUID: AutomaticPositioningDecision] {
         let enabled = images.enumerated().filter(\.element.isEnabled)
         let localIndexByProjectIndex = Dictionary(uniqueKeysWithValues:
@@ -1595,6 +1634,25 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 role: .alignment,
                 direction: .horizontal
             )
+        }
+
+        if geometryEvidence == nil,
+           permitsIsolatedRepairInference,
+           let isolatedRepair = isolatedAutomaticRepairCandidate(
+                images: localImages,
+                controlPoints: localPoints,
+                configuration: configuration
+           ) {
+            decisions[localImages[isolatedRepair].id] =
+                AutomaticPositioningDecision(
+                    role: .fillOnly,
+                    direction: .horizontal
+                )
+            print(
+                "[PanoWizard] Positioning evidence image "
+                    + "\(isolatedRepair + 1): isolated delayed pole repair"
+            )
+            return decisions
         }
 
         guard let geometryEvidence else { return decisions }
@@ -1697,6 +1755,121 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             }
         }
         return decisions
+    }
+
+    private static func isolatedAutomaticRepairCandidate(
+        images: [SourceImage],
+        controlPoints: [PanoramaControlPoint],
+        configuration: StitchingConfiguration
+    ) -> Int? {
+        guard let graph = isolatedDelayedAutomaticRepairGraph(
+            images: images,
+            controlPoints: controlPoints
+        ) else { return nil }
+        let candidate = graph.candidate
+        let rigIndices = graph.rigIndices
+
+        let rigIndexByImageIndex = Dictionary(uniqueKeysWithValues:
+            rigIndices.enumerated().map { ($0.element, $0.offset) }
+        )
+        let rigPoints = controlPoints.compactMap {
+            point -> PanoramaControlPoint? in
+            guard let first = rigIndexByImageIndex[point.firstImage],
+                  let second = rigIndexByImageIndex[point.secondImage]
+            else { return nil }
+            return PanoramaControlPoint(
+                firstImage: first,
+                secondImage: second,
+                firstX: point.firstX,
+                firstY: point.firstY,
+                secondX: point.secondX,
+                secondY: point.secondY
+            )
+        }
+        let rigImages = rigIndices.map { images[$0] }
+        guard let rigEvidence = try? OpenCVControlPointMatcher
+            .positioningGeometryEvidence(
+                images: rigImages,
+                controlPoints: rigPoints,
+                horizontalFieldOfView:
+                    configuration.inputHorizontalFieldOfView,
+                lensProfile: configuration.lensProfile
+            ) else { return nil }
+
+        let p90Residuals = rigEvidence.map(\.p90ResidualDegrees).sorted()
+        guard p90Residuals.allSatisfy(\.isFinite),
+              p90Residuals[p90Residuals.count / 2] <= 1.5,
+              p90Residuals.last ?? .infinity <= 3.0,
+              rigEvidence.allSatisfy({ $0.pointCount >= 6 }) else {
+            return nil
+        }
+        let horizontalCount = rigEvidence.count {
+            abs($0.orientation.pitch) <= 45
+        }
+        let datedImages = images.indices.compactMap { index in
+            images[index].captureDate.map { (index, $0) }
+        }.sorted { $0.1 < $1.1 }
+        let priorImage = datedImages[datedImages.count - 2].0
+        guard let priorRigIndex = rigIndexByImageIndex[priorImage],
+              abs(rigEvidence[priorRigIndex].orientation.pitch) >= 70,
+              horizontalCount >= 3 else { return nil }
+
+        return candidate
+    }
+
+    static func isolatedDelayedAutomaticRepairGraph(
+        images: [SourceImage],
+        controlPoints: [PanoramaControlPoint]
+    ) -> (candidate: Int, rigIndices: [Int])? {
+        guard images.count >= 6 else { return nil }
+
+        var adjacency = Array(repeating: Set<Int>(), count: images.count)
+        for point in controlPoints
+        where images.indices.contains(point.firstImage)
+            && images.indices.contains(point.secondImage)
+            && point.firstImage != point.secondImage {
+            adjacency[point.firstImage].insert(point.secondImage)
+            adjacency[point.secondImage].insert(point.firstImage)
+        }
+        let isolated = images.indices.filter { adjacency[$0].isEmpty }
+        guard isolated.count == 1,
+              let candidate = isolated.first,
+              images[candidate].role == .automatic else { return nil }
+
+        let rigIndices = images.indices.filter { $0 != candidate }
+        guard rigIndices.count >= 5 else { return nil }
+        var visited: Set<Int> = [rigIndices[0]]
+        var pending = [rigIndices[0]]
+        while let current = pending.popLast() {
+            for neighbor in adjacency[current]
+            where neighbor != candidate && !visited.contains(neighbor) {
+                visited.insert(neighbor)
+                pending.append(neighbor)
+            }
+        }
+        guard visited.count == rigIndices.count else { return nil }
+
+        // Connectivity alone can be a fragile tree. Require at least one
+        // redundant cycle in the retained rig before dropping any image.
+        let rigEdgeCount = rigIndices.reduce(0) {
+            $0 + adjacency[$1].filter { $0 != candidate }.count
+        } / 2
+        guard rigEdgeCount >= rigIndices.count else { return nil }
+
+        let datedImages = images.indices.compactMap { index in
+            images[index].captureDate.map { (index, $0) }
+        }.sorted { $0.1 < $1.1 }
+        guard datedImages.count == images.count,
+              datedImages.last?.0 == candidate else { return nil }
+        let gaps = zip(datedImages, datedImages.dropFirst()).map {
+            max(0, $1.1.timeIntervalSince($0.1))
+        }
+        let ordinaryGaps = gaps.dropLast().filter { $0 > 0 }.sorted()
+        let finalGap = gaps.last ?? 0
+        let medianGap = ordinaryGaps.isEmpty
+            ? 0 : ordinaryGaps[ordinaryGaps.count / 2]
+        guard finalGap >= max(20, medianGap * 2.5) else { return nil }
+        return (candidate, rigIndices)
     }
 
     private static func sphericalRepairRegistration(

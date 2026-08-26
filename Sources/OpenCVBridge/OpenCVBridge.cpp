@@ -2741,9 +2741,34 @@ int PWGenerateRingControlPoints(
                     }
                 }
             }
+            // Preserve one deliberately narrow partial-graph case for the
+            // automatic role classifier: a complete positioning rig plus one
+            // image with no usable pure-rotation matches. A moved hand-held
+            // pole exposure can be visually related to the panorama while
+            // still contributing zero trustworthy rig points. Swift applies
+            // the capture-time, topology and geometry requirements before it
+            // may reinterpret that isolated image as a repair. Every other
+            // disconnected graph remains an error here.
+            const std::vector<int> isolatedImages = [&] {
+                std::vector<int> result;
+                for (int index = 0; index < imageCount; ++index) {
+                    if (rawGraph[index].empty()) result.push_back(index);
+                }
+                return result;
+            }();
+            const bool mayDeferSingleIsolatedImage =
+                lensModel != PWLensModelRectilinear
+                && imageCount >= 6 && isolatedImages.size() == 1;
+            const int isolatedImage = mayDeferSingleIsolatedImage
+                ? isolatedImages.front() : -1;
+            int seed = 0;
+            while (seed < imageCount && seed == isolatedImage) ++seed;
             std::vector<bool> visited(imageCount, false);
-            std::vector<int> pending = {0};
-            visited[0] = true;
+            std::vector<int> pending;
+            if (seed < imageCount) {
+                pending.push_back(seed);
+                visited[seed] = true;
+            }
             while (!pending.empty()) {
                 const int current = pending.back();
                 pending.pop_back();
@@ -2754,8 +2779,11 @@ int PWGenerateRingControlPoints(
                     }
                 }
             }
+            if (isolatedImage >= 0) visited[isolatedImage] = true;
             if (std::find(visited.begin(), visited.end(), false)
-                != visited.end()) {
+                    != visited.end()
+                || (!mayDeferSingleIsolatedImage
+                    && !isolatedImages.empty())) {
                 throw std::runtime_error(
                     "Kontrollpunkterna bildar inte en sammanhängande 360°-ring."
                 );

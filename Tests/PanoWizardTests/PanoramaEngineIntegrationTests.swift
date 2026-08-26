@@ -344,6 +344,69 @@ struct PanoramaEngineIntegrationTests {
     }
 
     @Test
+    func isolatesOnlyDelayedFinalImageFromRedundantRig() {
+        let lens = LensDescription(
+            model: "Sigma 8 mm",
+            focalLengthIn35mm: 8,
+            kind: .fisheye
+        )
+        func images(finalGap: TimeInterval = 40) -> [SourceImage] {
+            let times: [TimeInterval] = [0, 8, 15, 22, 27, 27 + finalGap]
+            return times.enumerated().map { index, time in
+                SourceImage(
+                    url: URL(fileURLWithPath: "/Pictures/\(index).tif"),
+                    captureDate: Date(timeIntervalSince1970: time),
+                    pixelWidth: 2_600,
+                    pixelHeight: 3_888,
+                    cameraModel: "NIKON D80",
+                    lens: lens
+                )
+            }
+        }
+        func point(_ first: Int, _ second: Int) -> PanoramaControlPoint {
+            PanoramaControlPoint(
+                firstImage: first,
+                secondImage: second,
+                firstX: 10,
+                firstY: 20,
+                secondX: 30,
+                secondY: 40
+            )
+        }
+        let cyclicRig = [
+            point(0, 1), point(1, 2), point(2, 3),
+            point(3, 4), point(4, 0)
+        ]
+
+        let accepted = HuginOpenCVPanoramaEngine
+            .isolatedDelayedAutomaticRepairGraph(
+                images: images(),
+                controlPoints: cyclicRig
+            )
+        #expect(accepted?.candidate == 5)
+        #expect(accepted?.rigIndices == [0, 1, 2, 3, 4])
+
+        #expect(
+            HuginOpenCVPanoramaEngine.isolatedDelayedAutomaticRepairGraph(
+                images: images(finalGap: 8),
+                controlPoints: cyclicRig
+            ) == nil
+        )
+        #expect(
+            HuginOpenCVPanoramaEngine.isolatedDelayedAutomaticRepairGraph(
+                images: images(),
+                controlPoints: Array(cyclicRig.dropLast())
+            ) == nil
+        )
+        #expect(
+            HuginOpenCVPanoramaEngine.isolatedDelayedAutomaticRepairGraph(
+                images: images(),
+                controlPoints: [point(0, 1), point(1, 2), point(2, 0)]
+            ) == nil
+        )
+    }
+
+    @Test
     func removesCatastrophicSmallPairWithoutDiscardingNoisyBridge() {
         let stable = Self.points(first: 0, second: 1, count: 20)
         let noisyBridge = Self.points(first: 1, second: 2, count: 4)
