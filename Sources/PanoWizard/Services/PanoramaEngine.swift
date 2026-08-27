@@ -141,8 +141,18 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         inheritedAutomaticPositioningDecisions:
             [UUID: AutomaticPositioningDecision]? = nil
     ) throws -> PanoramaStitchResult {
+        let storedAutomaticPositioningDecisions =
+            controlPoints?.isEmpty == false
+                && controlPointsAreAuthoritative
+                && !isAutomaticRecovery
+                ? Self.storedAutomaticPositioningDecisions(
+                    images: sourcePanorama.images
+                )
+                : nil
         var automaticPositioningDecisions =
-            inheritedAutomaticPositioningDecisions ?? positioningDecisions(
+            inheritedAutomaticPositioningDecisions
+            ?? storedAutomaticPositioningDecisions
+            ?? positioningDecisions(
                 images: sourcePanorama.images,
                 controlPoints: controlPoints ?? [],
                 configuration: configuration,
@@ -1392,7 +1402,10 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                         + "Kör Justera så att den kan positioneras sfäriskt."
                 )
             }
-            if let registration = try sphericalRepairRegistration(
+            let sourceRepairIndex = sourcePanorama.images.firstIndex {
+                $0.id == repairImage.id
+            }
+            if let sphericalRegistration = try sphericalRepairRegistration(
                 pole: pole, repairImage: repairImage,
                 panoramaImages: panorama.images,
                 ringImages: geometryRingImages,
@@ -1403,7 +1416,55 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 outputURL: overlay, workDirectory: workDirectory,
                 toolchain: toolchain
             ) {
-                return registration
+                let isAutomaticRepair = sourceRepairIndex.map { index in
+                    sourcePanorama.images[index].role == .automatic
+                        && automaticPositioningDecisions[repairImage.id]?.role
+                            == .fillOnly
+                } ?? false
+                if isAutomaticRepair {
+                    let localOverlay = workDirectory.appending(
+                        path: "local-\(filename)"
+                    )
+                    defer {
+                        try? FileManager.default.removeItem(at: localOverlay)
+                    }
+                    do {
+                        let localRegistration = try OpenCVNadirRepairRegistrar
+                            .register(
+                                panoramaURL: result,
+                                repairImage: repairImage,
+                                exclusionMaskData: masks[repairImage.id],
+                                horizontalFieldOfView:
+                                    repairHorizontalFieldOfView,
+                                pole: pole,
+                                outputURL: localOverlay
+                            )
+                        if Self.shouldPreferLocalRepairRegistration(
+                            local: localRegistration.placement,
+                            spherical: sphericalRegistration.placement
+                        ) {
+                            print(
+                                "[PanoWizard] Correcting automatic "
+                                    + "\(pole.rawValue) axial rotation from "
+                                    + "frozen panorama texture"
+                            )
+                            try Data(contentsOf: localOverlay).write(
+                                to: overlay,
+                                options: .atomic
+                            )
+                            return NadirRepairRegistrationResult(
+                                overlayURL: overlay,
+                                placement: localRegistration.placement
+                            )
+                        }
+                    } catch {
+                        print(
+                            "[PanoWizard] Local \(pole.rawValue) validation "
+                                + "was unavailable: \(error.localizedDescription)"
+                        )
+                    }
+                }
+                return sphericalRegistration
             }
 
             // A repair inferred from a single isolated, delayed exposure has
@@ -1412,9 +1473,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             // so register only the local pole patch against that frozen
             // rendered panorama. This path cannot move the rig and is never
             // used for explicit repairs or repairs with spherical CP support.
-            let sourceRepairIndex = sourcePanorama.images.firstIndex {
-                $0.id == repairImage.id
-            }
             let isInferredIsolatedRepair = sourceRepairIndex.map { index in
                 sourcePanorama.images[index].role == .automatic
                     && automaticPositioningDecisions[repairImage.id]?.role
@@ -1428,6 +1486,39 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             if isInferredIsolatedRepair {
                 print(
                     "[PanoWizard] Registering isolated "
+                        + "\(pole.rawValue) repair against frozen panorama"
+                )
+                return try OpenCVNadirRepairRegistrar.register(
+                    panoramaURL: result,
+                    repairImage: repairImage,
+                    exclusionMaskData: masks[repairImage.id],
+                    horizontalFieldOfView: repairHorizontalFieldOfView,
+                    pole: pole,
+                    outputURL: overlay
+                )
+            }
+            let supportingImageIndices = sourceRepairIndex.map { repairIndex in
+                controlPoints.filter { point in
+                    point.firstImage == repairIndex
+                        || point.secondImage == repairIndex
+                }.compactMap { point -> Int? in
+                    let other = point.firstImage == repairIndex
+                        ? point.secondImage : point.firstImage
+                    guard panorama.images.indices.contains(other),
+                          panorama.images[other].effectiveRole == .alignment
+                    else { return nil }
+                    return other
+                }
+            } ?? []
+            // A moved hand-held pole image does not obey the shared-camera
+            // rotation model. Two balanced rig links are enough to establish
+            // that it belongs at the pole, but not enough to orient it
+            // spherically without choosing a parallax-biased solution. Keep
+            // the rig frozen and let the actual local panorama texture solve
+            // the planar repair instead.
+            if Self.hasBalancedTwoImageRepairSupport(supportingImageIndices) {
+                print(
+                    "[PanoWizard] Registering two-link "
                         + "\(pole.rawValue) repair against frozen panorama"
                 )
                 return try OpenCVNadirRepairRegistrar.register(
@@ -1699,6 +1790,7 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                     geometryEvidence[priorIndex].orientation.pitch
                 ) >= 70
                 let finalIsPolar = abs(evidence.orientation.pitch) >= 70
+                let finalIsNearPolar = abs(evidence.orientation.pitch) >= 65
                 let medianBaseline = max(
                     evidence.rigMedianResidualDegrees, 0.10
                 )
@@ -1707,14 +1799,33 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
                 // rig view and also disagree measurably with the shared
                 // rotation model. This distinguishes H's moved-camera nadir
                 // from A's coherent mounted nadir/zenith sequence.
+                let followsPolarRigView = priorIsPolar
+                    && finalIsPolar
+                    && evidence.connectedImageCount >= 3
+                    && evidence.pointCount >= 12
+                    && evidence.medianResidualDegrees >= 0.50
+                    && evidence.p90ResidualDegrees >= 2.00
+                    && evidence.medianResidualDegrees
+                        >= medianBaseline * 1.25
+                // A final hand-held pole view can overlap only the two ring
+                // frames beside one seam. In that case the preliminary
+                // spanning-tree pose is slightly less stable than the final
+                // Hugin solve, so accept a small tolerance around 70 degrees
+                // only when the image is a very strong geometric outlier and
+                // the retained rig itself is clean. Time remains supporting
+                // evidence and can never make this decision by itself.
+                let isStrongTwoLinkPoleOutlier = finalIsNearPolar
+                    && evidence.connectedImageCount >= 2
+                    && evidence.pointCount >= 12
+                    && evidence.medianResidualDegrees >= 0.75
+                    && evidence.p90ResidualDegrees >= 3.00
+                    && evidence.rigP90ResidualDegrees <= 1.25
+                    && evidence.p90ResidualDegrees
+                        >= evidence.rigP90ResidualDegrees * 3
+                    && evidence.medianResidualDegrees
+                        >= medianBaseline * 2
                 if finalGap >= max(20, medianGap * 2.5),
-                   priorIsPolar,
-                   finalIsPolar,
-                   evidence.connectedImageCount >= 3,
-                   evidence.pointCount >= 12,
-                   evidence.medianResidualDegrees >= 0.50,
-                   evidence.p90ResidualDegrees >= 2.00,
-                   evidence.medianResidualDegrees >= medianBaseline * 1.25 {
+                   followsPolarRigView || isStrongTwoLinkPoleOutlier {
                     repairCandidates = [final.0]
                 }
             }
@@ -2139,6 +2250,48 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         )
     }
 
+    static func hasBalancedTwoImageRepairSupport(
+        _ supportingImageIndices: [Int]
+    ) -> Bool {
+        let supportCounts = Dictionary(
+            grouping: supportingImageIndices,
+            by: { $0 }
+        )
+            .mapValues(\.count)
+        return supportingImageIndices.count >= 8
+            && supportCounts.count == 2
+            && supportCounts.values.allSatisfy { $0 >= 4 }
+    }
+
+    static func shouldPreferLocalRepairRegistration(
+        local: NadirRepairPlacement,
+        spherical: NadirRepairPlacement
+    ) -> Bool {
+        guard local.matchedFeatureCount >= max(
+            48,
+            spherical.matchedFeatureCount * 4
+        ), let localRotation = axialRotationDegrees(
+            from: local.localHomography
+        ), let sphericalRotation = axialRotationDegrees(
+            from: spherical.localHomography
+        ) else { return false }
+        var difference = abs(localRotation - sphericalRotation)
+            .truncatingRemainder(dividingBy: 360)
+        if difference > 180 { difference = 360 - difference }
+        return difference >= 30
+    }
+
+    private static func axialRotationDegrees(
+        from homography: [Double]
+    ) -> Double? {
+        guard homography.count == 9,
+              homography[0].isFinite,
+              homography[3].isFinite,
+              hypot(homography[0], homography[3]) > 1e-9
+        else { return nil }
+        return atan2(homography[3], homography[0]) * 180 / .pi
+    }
+
     static func robustControlPoints(
         _ points: [DiagnosticControlPoint],
         errors: [Double]
@@ -2199,6 +2352,27 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
         hasSuppliedControlPoints
             && controlPointsAreAuthoritative
             && !isAutomaticRecovery
+    }
+
+    static func storedAutomaticPositioningDecisions(
+        images: [SourceImage]
+    ) -> [UUID: AutomaticPositioningDecision]? {
+        let automaticImages = images.filter { $0.role == .automatic }
+        guard !automaticImages.isEmpty else { return nil }
+        let decisions = automaticImages.compactMap { image
+            -> (UUID, AutomaticPositioningDecision)? in
+            guard let role = image.automaticRole,
+                  let direction = image.automaticDirection else { return nil }
+            return (
+                image.id,
+                AutomaticPositioningDecision(
+                    role: role,
+                    direction: direction
+                )
+            )
+        }
+        guard decisions.count == automaticImages.count else { return nil }
+        return Dictionary(uniqueKeysWithValues: decisions)
     }
 
     static func needsAutomaticStabilization(errors: [Double]) -> Bool {

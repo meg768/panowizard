@@ -12,6 +12,7 @@ struct StatusBar: View {
                 || model.phase == .optimizingControlPoints
                 || model.phase == .updatingRepair
                 || model.phase == .blendingRepair
+                || model.phase == .retouching
                 || model.phase == .exporting {
                 ProgressView()
                     .controlSize(.small)

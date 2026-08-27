@@ -55,7 +55,7 @@ final class AppModel {
             case .blendingRepair:
                 "Blandar nadirreparation med Enblend…"
             case .retouching:
-                "Förbereder polretusch…"
+                "Retuscherar polbild…"
             case .exporting:
                 "Exporterar…"
             case .failed(let message):
@@ -1543,6 +1543,13 @@ final class AppModel {
         maskDataByImageID[id] = red
         protectedMaskDataByImageID[id] = green
         maskRevision += 1
+        // A source mask on an already registered pole repair only changes
+        // which repair pixels are visible. Re-render that overlay against the
+        // frozen panorama instead of discarding the placement and forcing the
+        // global rig through another geometry solve.
+        if refreshRepairOverlayIfPossible(for: id) {
+            return
+        }
         repairRenderRevision += 1
         stitchedResultURL = nil
         nadirOverlayURL = nil
@@ -1694,6 +1701,14 @@ final class AppModel {
         pole == .nadir ? nadirRetouchURL : zenithRetouchURL
     }
 
+    func aiRetouchPrompt(for pole: PanoramaPole) -> String? {
+        project.aiRetouchPrompt(for: pole)
+    }
+
+    func setAIRetouchPrompt(_ prompt: String, for pole: PanoramaPole) {
+        project.setAIRetouchPrompt(prompt, for: pole)
+    }
+
     func exportRetouchPlate(
         for pole: PanoramaPole,
         to destinationURL: URL
@@ -1760,6 +1775,106 @@ final class AppModel {
                 phase = .failed(error.localizedDescription)
             }
         }
+    }
+
+    func createAIRetouchPreview(
+        for pole: PanoramaPole,
+        prompt: String,
+        apiKey: String
+    ) async throws -> AIRetouchPreview {
+        guard let panoramaURL = stitchedResultURL, phase == .ready else {
+            throw AIRetouchError.panoramaUnavailable
+        }
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPrompt.isEmpty else { throw AIRetouchError.emptyPrompt }
+
+        let repairOverlayURL = pole == .nadir
+            ? (project.nadirRepairPlacement == nil ? nil : nadirOverlayURL)
+            : (project.zenithRepairPlacement == nil ? nil : zenithOverlayURL)
+        let existingRetouchURL = retouchURL(for: pole)
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizard/AIRetouch/\(project.id.uuidString)/\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        let sourceURL = directory.appending(path: "\(pole.rawValue)-source.png")
+        let editedURL = directory.appending(path: "\(pole.rawValue)-edited.png")
+        let preparedURL = directory.appending(path: "\(pole.rawValue)-prepared.png")
+
+        phase = .retouching
+        defer {
+            if phase == .retouching { phase = .ready }
+        }
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        try await Task.detached(priority: .userInitiated) {
+            try PoleRetouchService().exportPlate(
+                panoramaURL: panoramaURL,
+                repairOverlayURL: repairOverlayURL,
+                existingRetouchURL: existingRetouchURL,
+                pole: pole,
+                to: sourceURL
+            )
+        }.value
+        try Task.checkCancellation()
+
+        let sourceData = try await Task.detached(priority: .userInitiated) {
+            try Data(contentsOf: sourceURL)
+        }.value
+        let editedData = try await OpenAIImageEditService(apiKey: apiKey).edit(
+            imageData: sourceData,
+            filename: "\(pole.rawValue).png",
+            prompt: trimmedPrompt,
+            size: PoleRetouchService.plateSize
+        )
+        try Task.checkCancellation()
+
+        try await Task.detached(priority: .userInitiated) {
+            try editedData.write(to: editedURL, options: .atomic)
+            try PoleRetouchService().prepareImportedPlate(
+                from: editedURL,
+                pole: pole,
+                to: preparedURL
+            )
+        }.value
+        return AIRetouchPreview(
+            pole: pole,
+            sourceURL: sourceURL,
+            editedURL: editedURL,
+            preparedURL: preparedURL
+        )
+    }
+
+    func applyAIRetouchPreview(_ preview: AIRetouchPreview) throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizard/Retouch/\(project.id.uuidString)",
+            directoryHint: .isDirectory
+        )
+        let destinationURL = directory.appending(
+            path: "\(preview.pole.rawValue)-retouch.png"
+        )
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        try Data(contentsOf: preview.preparedURL).write(
+            to: destinationURL,
+            options: .atomic
+        )
+        if preview.pole == .nadir {
+            nadirRetouchURL = destinationURL
+        } else {
+            zenithRetouchURL = destinationURL
+        }
+        selection = .panorama
+        panoramaRevision += 1
+    }
+
+    func discardAIRetouchPreview(_ preview: AIRetouchPreview) {
+        try? FileManager.default.removeItem(
+            at: preview.sourceURL.deletingLastPathComponent()
+        )
     }
 
     func removeRetouch(for pole: PanoramaPole) {

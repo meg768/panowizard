@@ -43,14 +43,17 @@ struct PanoProjectDocument: FileDocument, Equatable {
     }
 
     init(configuration: ReadConfiguration) throws {
-        try self.init(fileWrapper: configuration.file)
+        try self.init(fileWrapper: configuration.file, projectURL: nil)
     }
 
     init(contentsOf url: URL) throws {
-        try self.init(fileWrapper: FileWrapper(url: url, options: .immediate))
+        try self.init(
+            fileWrapper: FileWrapper(url: url, options: .immediate),
+            projectURL: url
+        )
     }
 
-    private init(fileWrapper: FileWrapper) throws {
+    private init(fileWrapper: FileWrapper, projectURL: URL?) throws {
         guard fileWrapper.isDirectory,
               let wrappers = fileWrapper.fileWrappers,
               let projectData = wrappers["project.json"]?.regularFileContents else {
@@ -70,7 +73,6 @@ struct PanoProjectDocument: FileDocument, Equatable {
                 ]
             )
         }
-
         masks = [:]
         if let maskWrappers = wrappers["masks"]?.fileWrappers {
             for (filename, wrapper) in maskWrappers {
@@ -106,20 +108,36 @@ struct PanoProjectDocument: FileDocument, Equatable {
         zenithRetouchData = wrappers["panorama"]?
             .fileWrappers?["zenith-retouch.png"]?
             .regularFileContents
+        if let projectURL {
+            resolveSourceImages(
+                relativeTo: projectURL.deletingLastPathComponent()
+            )
+            let retainedImageIDs = Set(project.images.map(\.id))
+            masks = masks.filter { retainedImageIDs.contains($0.key) }
+            protectedMasks = protectedMasks.filter {
+                retainedImageIDs.contains($0.key)
+            }
+        }
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
         try packageFileWrapper()
     }
 
-    func packageFileWrapper() throws -> FileWrapper {
+    func packageFileWrapper(relativeTo directoryURL: URL? = nil) throws
+        -> FileWrapper {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        let storageDirectory = directoryURL
+            ?? project.images.first?.url.deletingLastPathComponent()
+        let storedProject = storageDirectory.map {
+            projectWithRelativeSourcePaths(relativeTo: $0)
+        } ?? project
 
         var children: [String: FileWrapper] = [
             "project.json": FileWrapper(
-                regularFileWithContents: try encoder.encode(project)
+                regularFileWithContents: try encoder.encode(storedProject)
             )
         ]
 
@@ -171,10 +189,108 @@ struct PanoProjectDocument: FileDocument, Equatable {
         let originalURL = FileManager.default.fileExists(atPath: url.path)
             ? url
             : nil
-        try packageFileWrapper().write(
+        try packageFileWrapper(
+            relativeTo: url.deletingLastPathComponent()
+        ).write(
             to: url,
             options: .atomic,
             originalContentsURL: originalURL
         )
+    }
+
+    private mutating func resolveSourceImages(relativeTo directoryURL: URL) {
+        for index in project.images.indices.reversed() {
+            let storedURL = project.images[index].url
+            let resolvedURL = storedURL.isFileURL
+                ? storedURL.standardizedFileURL
+                : directoryURL.appending(path: storedURL.path)
+                    .standardizedFileURL
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(
+                atPath: resolvedURL.path,
+                isDirectory: &isDirectory
+            ), !isDirectory.boolValue else {
+                project.removeImage(at: index)
+                continue
+            }
+            project.images[index].url = resolvedURL
+        }
+    }
+
+    private func projectWithRelativeSourcePaths(
+        relativeTo directoryURL: URL
+    ) -> PanoProject {
+        var storedProject = project
+        let relativePaths = Dictionary(uniqueKeysWithValues:
+            project.images.map { image in
+                (image.id, Self.relativePath(
+                    from: directoryURL,
+                    to: image.url
+                ))
+            }
+        )
+        for index in storedProject.images.indices {
+            let imageID = storedProject.images[index].id
+            guard let relativePath = relativePaths[imageID] else { continue }
+            storedProject.images[index].url = Self.relativeURL(relativePath)
+        }
+        if var cachedLines = storedProject.cachedRigImageLines {
+            for (key, line) in cachedLines {
+                guard let imageID = UUID(uuidString: key),
+                      let relativePath = relativePaths[imageID] else { continue }
+                cachedLines[key] = Self.replacingCachedFilename(
+                    relativePath,
+                    in: line
+                )
+            }
+            storedProject.cachedRigImageLines = cachedLines
+        }
+        return storedProject
+    }
+
+    private static func relativePath(from directoryURL: URL, to fileURL: URL)
+        -> String {
+        let base = directoryURL.standardizedFileURL.pathComponents
+        let target = fileURL.standardizedFileURL.pathComponents
+        var commonCount = 0
+        while commonCount < min(base.count, target.count),
+              base[commonCount] == target[commonCount] {
+            commonCount += 1
+        }
+        let components = Array(
+            repeating: "..",
+            count: base.count - commonCount
+        ) + target.dropFirst(commonCount)
+        return components.isEmpty ? "." : components.joined(separator: "/")
+    }
+
+    private static func relativeURL(_ path: String) -> URL {
+        let encoded = path.split(
+            separator: "/",
+            omittingEmptySubsequences: false
+        ).map {
+            String($0).addingPercentEncoding(
+                withAllowedCharacters: .urlPathAllowed
+            ) ?? String($0)
+        }.joined(separator: "/")
+        return URL(string: encoded)!
+    }
+
+    private static func replacingCachedFilename(
+        _ filename: String,
+        in line: String
+    ) -> String {
+        let escaped = filename
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        guard let expression = try? NSRegularExpression(
+            pattern: #" n"[^"]*""#
+        ), let match = expression.firstMatch(
+            in: line,
+            range: NSRange(line.startIndex..., in: line)
+        ), let range = Range(match.range, in: line) else { return line }
+        var result = line
+        result.replaceSubrange(range, with: " n\"\(escaped)\"")
+        return result
     }
 }

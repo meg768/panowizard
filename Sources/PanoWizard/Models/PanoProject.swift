@@ -15,6 +15,8 @@ struct PanoProject: Codable, Equatable, Sendable {
     var controlPoints: [DiagnosticControlPoint]?
     var nadirRepairPlacement: NadirRepairPlacement?
     var zenithRepairPlacement: NadirRepairPlacement?
+    var nadirAIRetouchPrompt: String?
+    var zenithAIRetouchPrompt: String?
     var previewViewpoint: PanoramaViewpoint?
 
     init(
@@ -30,6 +32,8 @@ struct PanoProject: Codable, Equatable, Sendable {
         controlPoints: [DiagnosticControlPoint]? = nil,
         nadirRepairPlacement: NadirRepairPlacement? = nil,
         zenithRepairPlacement: NadirRepairPlacement? = nil,
+        nadirAIRetouchPrompt: String? = nil,
+        zenithAIRetouchPrompt: String? = nil,
         previewViewpoint: PanoramaViewpoint? = nil
     ) {
         self.formatVersion = formatVersion
@@ -44,6 +48,8 @@ struct PanoProject: Codable, Equatable, Sendable {
         self.controlPoints = controlPoints
         self.nadirRepairPlacement = nadirRepairPlacement
         self.zenithRepairPlacement = zenithRepairPlacement
+        self.nadirAIRetouchPrompt = nadirAIRetouchPrompt
+        self.zenithAIRetouchPrompt = zenithAIRetouchPrompt
         self.previewViewpoint = previewViewpoint
         removeUnsupportedControlPoints()
     }
@@ -292,6 +298,23 @@ struct PanoProject: Codable, Equatable, Sendable {
         guard var placement = zenithRepairPlacement else { return }
         placement.contentBounds = bounds
         zenithRepairPlacement = placement
+        modifiedAt = Self.secondPrecision(.now)
+    }
+
+    func aiRetouchPrompt(for pole: PanoramaPole) -> String? {
+        pole == .nadir ? nadirAIRetouchPrompt : zenithAIRetouchPrompt
+    }
+
+    mutating func setAIRetouchPrompt(
+        _ prompt: String,
+        for pole: PanoramaPole
+    ) {
+        guard aiRetouchPrompt(for: pole) != prompt else { return }
+        if pole == .nadir {
+            nadirAIRetouchPrompt = prompt
+        } else {
+            zenithAIRetouchPrompt = prompt
+        }
         modifiedAt = Self.secondPrecision(.now)
     }
 

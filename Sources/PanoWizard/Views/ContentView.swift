@@ -2,12 +2,18 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+private struct AIRetouchPresentation: Identifiable {
+    let id = UUID()
+    let pole: PanoramaPole
+}
+
 struct ContentView: View {
     @Bindable var model: AppModel
     let projectName: String?
     let projectDirectoryURL: URL?
     @State private var exportController = PanoramaExportController()
     @State private var retouchController = PanoramaRetouchController()
+    @State private var aiRetouchPresentation: AIRetouchPresentation?
     @FocusedValue(\.controlPointCommandActions)
     private var controlPointActions
     @AppStorage("PanoWizard.ProjectWindow.sidebarWidth")
@@ -63,6 +69,9 @@ struct ContentView: View {
             }
         }
         .fileDialogDefaultDirectory(model.sourceDirectoryURL)
+        .sheet(item: $aiRetouchPresentation) { presentation in
+            AIRetouchSheet(model: model, pole: presentation.pole)
+        }
     }
 
     private var detailWorkspace: some View {
@@ -231,6 +240,14 @@ struct ContentView: View {
     @ViewBuilder
     private func retouchToolbarCenter(_ pole: PanoramaPole) -> some View {
         if model.stitchedResultURL != nil {
+            Button {
+                aiRetouchPresentation = AIRetouchPresentation(pole: pole)
+            } label: {
+                Label("AI-retuschera…", systemImage: "wand.and.sparkles")
+            }
+            .buttonStyle(WorkspaceToolbarPillStyle())
+            .disabled(model.phase != .ready)
+
             Button {
                 retouchController.exportPlate(
                     model: model,

@@ -68,6 +68,26 @@ struct PanoProjectTests {
     }
 
     @Test
+    func documentStoresAIRetouchPromptsInProjectJSON() throws {
+        let project = PanoProject(
+            nadirAIRetouchPrompt: "Behåll stolarna",
+            zenithAIRetouchPrompt: "Behåll takkronan"
+        )
+        let wrapper = try PanoProjectDocument(project: project)
+            .packageFileWrapper()
+        let data = try #require(
+            wrapper.fileWrappers?["project.json"]?.regularFileContents
+        )
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let storedProject = try decoder.decode(PanoProject.self, from: data)
+
+        #expect(storedProject.nadirAIRetouchPrompt == "Behåll stolarna")
+        #expect(storedProject.zenithAIRetouchPrompt == "Behåll takkronan")
+    }
+
+    @Test
     func atomicDocumentSaveReplacesTheEntireProjectPackage() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
@@ -92,6 +112,116 @@ struct PanoProjectTests {
         #expect(stored.fileWrappers?["project.json"] != nil)
         #expect(stored.fileWrappers?["masks"]?.fileWrappers?.isEmpty == true)
         #expect(stored.fileWrappers?["panorama"] == nil)
+    }
+
+    @Test
+    func documentUsesRelativePathsAndDropsMissingSourceImages() throws {
+        let container = FileManager.default.temporaryDirectory.appending(
+            path: UUID().uuidString,
+            directoryHint: .isDirectory
+        )
+        let originalDirectory = container.appending(
+            path: "Original",
+            directoryHint: .isDirectory
+        )
+        let movedDirectory = container.appending(
+            path: "Moved",
+            directoryHint: .isDirectory
+        )
+        let sourceDirectory = originalDirectory.appending(
+            path: "Sources",
+            directoryHint: .isDirectory
+        )
+        let projectURL = originalDirectory.appending(
+            path: "Test.pw",
+            directoryHint: .isDirectory
+        )
+        try FileManager.default.createDirectory(
+            at: sourceDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: container) }
+
+        let existingURL = sourceDirectory.appending(path: "one image.tif")
+        let missingURL = sourceDirectory.appending(path: "missing.tif")
+        try Data([1, 2, 3]).write(to: existingURL)
+        let lens = LensDescription(
+            model: "Fisheye",
+            focalLengthIn35mm: 16,
+            kind: .fisheye
+        )
+        let existing = SourceImage(
+            url: existingURL,
+            captureDate: nil,
+            pixelWidth: 100,
+            pixelHeight: 100,
+            cameraModel: nil,
+            lens: lens
+        )
+        let missing = SourceImage(
+            url: missingURL,
+            captureDate: nil,
+            pixelWidth: 100,
+            pixelHeight: 100,
+            cameraModel: nil,
+            lens: lens
+        )
+        let point = DiagnosticControlPoint(
+            firstImage: 0,
+            secondImage: 1,
+            firstX: 10,
+            firstY: 20,
+            secondX: 30,
+            secondY: 40
+        )
+        let document = PanoProjectDocument(
+            project: PanoProject(
+                images: [existing, missing],
+                cachedRigImageLines: [
+                    existing.id.uuidString:
+                        "i w100 h100 n\"\(existingURL.path)\""
+                ],
+                controlPoints: [point]
+            ),
+            masks: [
+                existing.id: Data([4]),
+                missing.id: Data([5])
+            ],
+            protectedMasks: [
+                existing.id: Data([6]),
+                missing.id: Data([7])
+            ]
+        )
+        try document.writeAtomically(to: projectURL)
+
+        let projectData = try Data(
+            contentsOf: projectURL.appending(path: "project.json")
+        )
+        let projectJSON = try #require(String(data: projectData, encoding: .utf8))
+        #expect(!projectJSON.contains(container.path))
+        #expect(!projectJSON.contains("file://"))
+        #expect(projectJSON.contains("Sources/one%20image.tif"))
+        #expect(projectJSON.contains("n\\\"Sources/one image.tif\\\""))
+
+        try FileManager.default.moveItem(
+            at: originalDirectory,
+            to: movedDirectory
+        )
+        let movedProjectURL = movedDirectory.appending(
+            path: "Test.pw",
+            directoryHint: .isDirectory
+        )
+        let loaded = try PanoProjectDocument(contentsOf: movedProjectURL)
+
+        #expect(loaded.project.images.count == 1)
+        #expect(
+            loaded.project.images[0].url.standardizedFileURL
+                == movedDirectory.appending(path: "Sources/one image.tif")
+                    .standardizedFileURL
+        )
+        #expect(loaded.project.controlPoints == nil)
+        #expect(loaded.masks == [existing.id: Data([4])])
+        #expect(loaded.protectedMasks == [existing.id: Data([6])])
     }
 
     @Test
@@ -435,6 +565,70 @@ struct PanoProjectTests {
 
         #expect(model.editableControlPoints == [point])
         #expect(model.project.controlPoints == [point])
+    }
+
+    @Test @MainActor
+    func paintingSolvedAutomaticRepairKeepsFrozenPanoramaAndPlacement()
+        async throws {
+        let sourceData = try #require(SourceMaskRasterizer.applyingCircle(
+            center: MaskPoint(x: 0.5, y: 0.5),
+            radius: 40,
+            erasing: false,
+            to: nil,
+            width: 100,
+            height: 100
+        ))
+        let sourceURL = FileManager.default.temporaryDirectory.appending(
+            path: "\(UUID().uuidString)-repair.png"
+        )
+        try sourceData.write(to: sourceURL, options: .atomic)
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+        let repair = SourceImage(
+            url: sourceURL,
+            captureDate: nil,
+            pixelWidth: 100,
+            pixelHeight: 100,
+            cameraModel: "NIKON D80",
+            lens: LensDescription(
+                model: "Sigma 8mm",
+                focalLengthIn35mm: 12,
+                kind: .fisheye
+            ),
+            role: .automatic,
+            automaticRole: .fillOnly,
+            automaticDirection: .nadir
+        )
+        let placement = NadirRepairPlacement(
+            imageID: repair.id,
+            localHomography: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+            matchedFeatureCount: 42,
+            localViewFieldOfView: 120
+        )
+        let model = AppModel.live(
+            project: PanoProject(
+                images: [repair],
+                stitching: StitchingConfiguration(
+                    engine: .automatic,
+                    projection: .equirectangular,
+                    lensProfile: .sigma8DX,
+                    inputHorizontalFieldOfView: 165.38
+                ),
+                nadirRepairPlacement: placement
+            ),
+            panoramaData: sourceData
+        )
+
+        #expect(model.stitchedResultURL != nil)
+        model.setSourceMasks(
+            red: sourceData, green: nil, for: repair.id
+        )
+
+        #expect(model.stitchedResultURL != nil)
+        #expect(model.project.nadirRepairPlacement == placement)
+        #expect(model.maskDataByImageID[repair.id] == sourceData)
+        for _ in 0..<500 where model.phase == .updatingRepair {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
     }
 
     @Test
@@ -1095,6 +1289,8 @@ struct PanoProjectTests {
                     ]
                 )
             ),
+            nadirAIRetouchPrompt: "Behåll stolarna",
+            zenithAIRetouchPrompt: "Behåll takkronan",
             previewViewpoint: PanoramaViewpoint(
                 yawRadians: 1.25,
                 pitchRadians: -0.35,

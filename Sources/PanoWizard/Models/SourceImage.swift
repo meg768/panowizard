@@ -33,7 +33,7 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
     }
 
     let id: UUID
-    let url: URL
+    var url: URL
     let captureDate: Date?
     let pixelWidth: Int
     let pixelHeight: Int

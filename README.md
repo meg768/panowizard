@@ -1,137 +1,145 @@
 # PanoWizard
 
-The automatic control-point generator's principles and deliberate limits are
-documented in [CONTROL_POINT_STRATEGY.md](CONTROL_POINT_STRATEGY.md).
+PanoWizard är en native macOS-app för att skapa equirektangulära 360°-panoraman
+från fisheye-bilder. Tyngdpunkten ligger på ett snabbt automatiskt arbetsflöde,
+men kontrollpunkter, källmasker och reparationsbilder går att justera när ett
+svårt bildset behöver hjälp.
 
-PanoWizard is a native macOS application for automatic panorama stitching,
-with an emphasis on full-spherical fisheye panoramas and an efficient manual
-control-point workflow when a difficult handheld set needs refinement.
+Appen kan också AI-retuschera en färdig nadir- eller zenitplatta. Den funktionen
+är ett valfritt eftersteg och påverkar inte panoramats geometri.
 
-The product goal is fully automatic output at least as good as the matching
-PTGui reference, starting from source images and metadata only. Manual control
-points and corrections remain diagnostic tools, not part of the acceptance
-path.
+Den tekniska strategin för kontrollpunkter och positionering finns i
+[CONTROL_POINT_STRATEGY.md](CONTROL_POINT_STRATEGY.md). Aktuella
+utvecklarbeslut och arkitektur finns i [CODEX.md](CODEX.md).
 
-Each document window contains one panorama. Projects are saved as `.pw` file
-packages and can be reopened with the standard macOS document commands. A
-package contains `project.json`, the user's PNG masks, and the most recently
-stitched panorama. Original source images remain at their existing locations
-and are not embedded in the project.
-
-## Requirements
+## Krav
 
 - macOS 26
-- Apple Silicon
-- Xcode 16 or later
-- Swift 6
+- Apple Silicon (`arm64`)
+- Xcode med Swift 6.2
+- En OpenAI API-nyckel endast om AI-retusch ska användas
 
-## Build and run
+OpenCV- och Hugin-komponenterna som appen behöver ligger redan i `Vendor/`.
+Det finns inga separata byggskript för dessa beroenden.
 
-Open `Package.swift` in Xcode and select **PanoWizard** as the run target. The
-project can also be verified from Terminal:
+## Bygg och testa
 
 ```sh
-swift build
 swift test
-```
-
-Build an ad hoc-signed application with:
-
-```sh
 ./Scripts/build-app.sh
 ```
 
-The application is written to `build/PanoWizard.app`.
+Det signerade appaketet skapas som `build/PanoWizard.app`. Projektet kan även
+öppnas via `Package.swift` i Xcode.
 
-## Panorama workflow
+## Grundflöde
 
-PanoWizard provides calibrated profiles for the Sigma 8 mm Circular Fisheye
-and Nikon 10.5 mm Fisheye on DX sensors. New images use **Automatic
-positioning**: PanoWizard decides which images establish the panorama geometry
-and which unusual pole views are handheld repairs. A user can override the
-decision with **Included in positioning** or **Repair**; repair images are
-automatically assigned to the zenith or nadir internally.
+1. Lägg till bilderna för ett panorama.
+2. Kontrollera objektivprofil och bildroller.
+3. Klicka **Skapa panorama**.
+4. Granska resultatet i den sfäriska förhandsvisningen.
+5. Justera vid behov kontrollpunkter, masker eller en reparationsbild och skapa
+   panoramat igen.
+6. Retuschera valfritt nadir eller zenit och exportera slutresultatet.
 
-The automatic control-point pipeline uses OpenCV feature matching, mutual
-ratio filtering, robust geometric validation, and spatially balanced point
-selection. For four-image circular-fisheye rings it builds the four real ring
-transitions rather than introducing contradictory diagonal links. The Sigma
-optimization can refine radial distortion and optical centre after the camera
-poses have been established. Internal per-pair diagnostics record feature,
-match, geometric-inlier, selected-point, reprojection, and spatial-coverage
-statistics for benchmarking.
+### Bildroller
 
-This pipeline has produced a nearly seamless handheld four-image Sigma
-panorama in a demanding near-nadir scene with strong parallax and regular
-ground detail. That result is a useful regression target, not a guarantee that
-every handheld set can be solved automatically; difficult pairs can still be
-completed or corrected manually.
+- **Automatisk positionering** låter PanoWizard avgöra om bilden hör till den
+  gemensamma kamerariggen eller är en handhållen reparation.
+- **Ingår i positionering** tvingar bilden att delta i geometrin.
+- **Reparation** håller bilden utanför riggens geometri och använder den som
+  lokalt innehåll vid nadir eller zenit.
 
-## Control-point editor
+En bild som pekar uppåt eller nedåt är inte automatiskt en reparation. Monterade
+nadir- och zenitbilder kan vara fullvärdiga positioneringsbilder.
 
-The control-point editor is designed to make manual refinement practical:
+### Kontrollpunkter
 
-- the two image panels keep independent zoom and pan positions;
-- two-finger scrolling and pinch gestures zoom around the pointer;
-- click-dragging the background pans the active panel;
-- control-point markers remain a constant on-screen size and can be moved at
-  every zoom level;
-- each panel uses the source image at its native pixel resolution for detailed
-  inspection;
-- `Esc` leaves add/move mode and cancels the active control-point interaction;
-- points can be suggested for one pair or regenerated for the complete ring.
+PanoWizard genererar kontrollpunkter med OpenCV och optimerar panoramat med den
+inbäddade Hugin-verktygskedjan. Befintliga eller manuellt redigerade
+kontrollpunkter är auktoritativa: **Skapa panorama** återanvänder dem, medan ett
+uttryckligt kommando för nya automatiska punkter ersätter nätet.
 
-## Masks and repair images
+Den manuella editorn kan visa, lägga till, flytta och ta bort punktpar. Det går
+också att föreslå fler punkter för det synliga bildparet utan att radera andra
+punkter.
 
-Every source image has a manual, non-destructive pixel mask. Select an image
-in the sidebar and paint red over people, tripods, or other pixels that should
-not be used in the final blend. Before rendering, the mask is transferred to
-the source alpha channel; Nona transforms it with the image and Enblend uses
-the remaining unmasked overlaps.
+### Källmasker
 
-A handheld pole image can be marked as **Repair**. Positioning images establish
-and freeze the panorama geometry first; repair images are registered afterwards
-and cannot move the base panorama. Their control points are still retained and
-shown in the editor because they are useful for local registration. Image roles,
-the inferred pole, and a successful alignment are stored in the project.
-PanoWizard does not assume a special role from an image's position in the
-source list.
+Maskerna hör till en specifik källbild och påverkar stitchningen:
 
-## External pole retouch
+- rött exkluderar bildinnehåll;
+- grönt skyddar innehåll som ska hämtas från bilden;
+- suddgummit tar bort maskdata.
 
-A stitched panorama can export its nadir and zenith as 90-degree cube faces
-at 2048×2048 pixels for editing in an external image editor. Importing an
-edited PNG stores it non-destructively in the `.pw` package and previews it
-in the spherical viewer. Each plate keeps a soft transparent perimeter and
-is baked into JPEG and HTML exports; no source-image registration or control
-points are used.
+Maskerna är separata från en färdig retusch och sparas i projektpaketet.
 
-## Architecture
+## Retusch
 
-The application uses MVVM with small services and protocol-based dependencies:
+Nadir och zenit kan exporteras som plana 2048 × 2048-pixlars 90°-plattor,
+redigeras externt och importeras igen. Importerad retusch blandas mjukt mot det
+färdiga panoramat och följer med i projektet.
 
-- `Views` contains the SwiftUI interface and native AppKit-backed image and
-  panorama viewports.
-- `ViewModels` owns the observable state for each document window.
-- `PanoProjectDocument` reads and writes the versioned `.pw` format.
-- `ImageImportService` discovers images in files and folders.
-- `ImageMetadataReader` reads EXIF metadata through ImageIO.
-- `PanoramaGroupingService` sorts imported image sequences.
-- `OpenCVBridge` performs feature matching and geometry operations.
-- `PanoramaEngine` coordinates OpenCV, Hugin, Nona, and Enblend.
-- `PanoramaExporting` defines the export boundary.
+**AI-retuschera…** använder samma platta, skickar den tillsammans med
+instruktionen till OpenAI Images API och visar en före/efter-förhandsvisning.
+Ingenting aktiveras förrän användaren väljer **Använd**.
 
-OpenCV 5 is built locally for ARM64/macOS 26 with:
+- API-nyckeln lagras i macOS Nyckelring, aldrig i `.pw`-filen.
+- Nadir och zenit har var sin projektspecifik prompt i `.pw`-filen.
+- Bilden lämnar datorn först när användaren startar AI-retuschen.
+- API-anropet använder användarens OpenAI-konto och kan medföra kostnad.
+- Hela plattan kan i nuläget förändras av modellen. Prompten bör därför uttryckligen
+  nämna objekt som måste bevaras.
 
-```sh
-./Scripts/build-opencv.sh
+Den planerade generella AI-patchmotorn för valfria markerade områden i
+förhandsvisningen är ännu inte implementerad. Dagens AI-retusch gäller bara
+nadir och zenit.
+
+## Projektformat
+
+Ett `.pw`-projekt är ett macOS-filpaket. Det innehåller bland annat:
+
+```text
+Projekt.pw/
+├── project.json
+├── masks/
+├── protected-masks/
+└── panorama/
+    ├── result.jpg
+    ├── nadir-overlay.png
+    ├── zenith-overlay.png
+    ├── nadir-retouch.png
+    └── zenith-retouch.png
 ```
 
-This requires `cmake` and `ninja`. `build-app.sh` runs the OpenCV build on the
-first invocation and embeds the required libraries in the application.
+Endast filer som faktiskt finns behöver förekomma. Originalbilderna bäddas inte
+in. De lagras som relativa sökvägar från mappen som innehåller `.pw`-projektet.
+Flytta därför projektet och dess bildmapp tillsammans. Om en källbild saknas när
+projektet öppnas tas den och dess tillhörande punkter och masker bort; PanoWizard
+försöker inte hitta en gammal absolut sökväg.
 
-The Hugin command-line tools are fetched and prepared with:
+## Export
 
-```sh
-./Scripts/build-hugin-tools.sh
-```
+PanoWizard kan exportera den equirektangulära bilden med aktuell retusch samt en
+HTML-visning med vald startvinkel. Det sparade projektet behåller även den senast
+genererade panoramabilden för snabb återöppning.
+
+## Arkitektur i korthet
+
+- SwiftUI hanterar dokumentfönster, editorer och förhandsvisning.
+- `OpenCVBridge` står för feature matching och geometrioperationer.
+- `PanoramaEngine` samordnar kontrollpunkter, Hugin, Nona och Enblend.
+- Enblend använder alltid `nearest-feature-transform` för förutsägbara sömmar.
+- `PoleRetouchService` projicerar mellan equirektangulärt panorama och plana
+  nadir-/zenitplattor.
+- `OpenAIImageEditService` är ett isolerat, valfritt eftersteg för bildretusch.
+
+## Tester
+
+`swift test` verifierar bland annat projektlagring, relativa sökvägar,
+metadata/gruppering, mask- och projektionsmatematik, retusch, API-anropsformat
+och utvalda integrationer i panoramamaskinen.
+
+Panorama A–R är däremot ett manuellt visuellt regressionskorpus. Den automatiska
+testsviten öppnar inte varje sådant panorama och kan inte avgöra om en söm eller
+lokal detalj ser bra ut i en 360°-visare.

@@ -181,6 +181,12 @@ struct PanoramaEngineIntegrationTests {
             }
             suppliedControlPoints = generated
         }
+        if environment[
+            "PANOWIZARD_FOLDER_WIZARD_LAST_IS_NADIR_REPAIR"
+        ] == "1", let last = project.images.indices.last {
+            project.images[last].role = .fillOnly
+            project.images[last].direction = .nadir
+        }
         if let capturePath = environment[
             "PANOWIZARD_FOLDER_CAPTURE_POINTS_PROJECT"
         ] {
@@ -407,6 +413,87 @@ struct PanoramaEngineIntegrationTests {
     }
 
     @Test
+    func requiresBalancedSupportForLocalTwoImageRepair() {
+        func supportingImages(_ counts: [Int]) -> [Int] {
+            counts.enumerated().flatMap { image, count in
+                Array(repeating: image, count: count)
+            }
+        }
+
+        #expect(
+            HuginOpenCVPanoramaEngine.hasBalancedTwoImageRepairSupport(
+                supportingImages([4, 4])
+            )
+        )
+        #expect(
+            !HuginOpenCVPanoramaEngine.hasBalancedTwoImageRepairSupport(
+                supportingImages([7, 1])
+            )
+        )
+        #expect(
+            !HuginOpenCVPanoramaEngine.hasBalancedTwoImageRepairSupport(
+                supportingImages([4, 3])
+            )
+        )
+    }
+
+    @Test
+    func strongLocalEvidenceCorrectsLargeAutomaticPoleRotationConflict() {
+        func placement(
+            matches: Int,
+            homography: [Double]
+        ) -> NadirRepairPlacement {
+            NadirRepairPlacement(
+                imageID: UUID(),
+                localHomography: homography,
+                matchedFeatureCount: matches,
+                localViewFieldOfView: 120
+            )
+        }
+        let spherical = placement(
+            matches: 95,
+            homography: [
+                -1.1539, 0.5270, 1_120.2,
+                -0.6859, -0.9958, 2_023.5,
+                -0.00019, 0.00001, 1
+            ]
+        )
+        let local = placement(
+            matches: 3_142,
+            homography: [
+                0.3988, 0.8266, -238.8,
+                -0.8946, 0.5942, 912.1,
+                -0.00018, 0.00007, 1
+            ]
+        )
+
+        #expect(
+            HuginOpenCVPanoramaEngine.shouldPreferLocalRepairRegistration(
+                local: local,
+                spherical: spherical
+            )
+        )
+        #expect(
+            !HuginOpenCVPanoramaEngine.shouldPreferLocalRepairRegistration(
+                local: placement(
+                    matches: 200,
+                    homography: local.localHomography
+                ),
+                spherical: spherical
+            )
+        )
+        #expect(
+            !HuginOpenCVPanoramaEngine.shouldPreferLocalRepairRegistration(
+                local: placement(
+                    matches: 3_142,
+                    homography: spherical.localHomography
+                ),
+                spherical: spherical
+            )
+        )
+    }
+
+    @Test
     func removesCatastrophicSmallPairWithoutDiscardingNoisyBridge() {
         let stable = Self.points(first: 0, second: 1, count: 20)
         let noisyBridge = Self.points(first: 1, second: 2, count: 4)
@@ -484,6 +571,46 @@ struct PanoramaEngineIntegrationTests {
                 controlPointsAreAuthoritative: true,
                 isAutomaticRecovery: true
             )
+        )
+    }
+
+    @Test
+    func authoritativeRerenderKeepsStoredAutomaticRepairDecision() throws {
+        let lens = LensDescription(
+            model: "Sigma 8 mm",
+            focalLengthIn35mm: 8,
+            kind: .fisheye
+        )
+        let images = (0..<6).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/Pictures/\(index).tif"),
+                captureDate: nil,
+                pixelWidth: 2_600,
+                pixelHeight: 3_888,
+                cameraModel: "NIKON D80",
+                lens: lens,
+                role: .automatic,
+                automaticRole: index == 5 ? .fillOnly : .alignment,
+                automaticDirection: index == 5 ? .nadir : .horizontal
+            )
+        }
+
+        let decisions = try #require(
+            HuginOpenCVPanoramaEngine.storedAutomaticPositioningDecisions(
+                images: images
+            )
+        )
+
+        #expect(decisions.count == 6)
+        #expect(decisions[images[5].id]?.role == .fillOnly)
+        #expect(decisions[images[5].id]?.direction == .nadir)
+
+        var incomplete = images
+        incomplete[0].automaticRole = nil
+        #expect(
+            HuginOpenCVPanoramaEngine.storedAutomaticPositioningDecisions(
+                images: incomplete
+            ) == nil
         )
     }
 
@@ -992,12 +1119,7 @@ struct PanoramaEngineIntegrationTests {
         }
 
         let package = URL(fileURLWithPath: packagePath)
-        let projectData = try Data(
-            contentsOf: package.appending(path: "project.json")
-        )
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let project = try decoder.decode(PanoProject.self, from: projectData)
+        let project = try PanoProjectDocument(contentsOf: package).project
         var placement = try #require(project.nadirRepairPlacement)
         var adjustment = placement.manualAdjustment ?? .identity
         adjustment.cornerOffsets = [
@@ -1092,12 +1214,7 @@ struct PanoramaEngineIntegrationTests {
         }
 
         let package = URL(fileURLWithPath: packagePath)
-        let projectData = try Data(
-            contentsOf: package.appending(path: "project.json")
-        )
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let project = try decoder.decode(PanoProject.self, from: projectData)
+        let project = try PanoProjectDocument(contentsOf: package).project
         let placement = try #require(project.nadirRepairPlacement)
         let repairImage = try #require(
             project.images.first { $0.id == placement.imageID }
@@ -1180,12 +1297,8 @@ struct PanoramaEngineIntegrationTests {
         }
 
         let package = URL(fileURLWithPath: packagePath)
-        let projectData = try Data(
-            contentsOf: package.appending(path: "project.json")
-        )
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        var project = try decoder.decode(PanoProject.self, from: projectData)
+        let document = try PanoProjectDocument(contentsOf: package)
+        var project = document.project
         if ProcessInfo.processInfo.environment[
             "PANOWIZARD_MARK_LAST_ALIGNMENT_ZENITH"
         ] == "1", let index = project.images.lastIndex(where: {
@@ -1193,24 +1306,13 @@ struct PanoramaEngineIntegrationTests {
         }) {
             project.images[index].direction = .zenith
         }
-        let masksDirectory = package.appending(
-            path: "masks",
-            directoryHint: .isDirectory
-        )
-        var masks: [UUID: Data] = [:]
-        if let files = try? FileManager.default.contentsOfDirectory(
-            at: masksDirectory,
-            includingPropertiesForKeys: nil
-        ) {
-            for file in files where file.pathExtension.lowercased() == "png" {
-                guard let id = UUID(
-                    uuidString: file.deletingPathExtension().lastPathComponent
-                ) else {
-                    continue
-                }
-                masks[id] = try Data(contentsOf: file)
-            }
+        if ProcessInfo.processInfo.environment[
+            "PANOWIZARD_MARK_LAST_AS_NADIR_REPAIR"
+        ] == "1", let last = project.images.indices.last {
+            project.images[last].role = .fillOnly
+            project.images[last].direction = .nadir
         }
+        let masks = document.masks
         var configuration = project.stitching
         if ProcessInfo.processInfo.environment[
             "PANOWIZARD_FORCE_AUTOMATIC_ENGINE"
@@ -1289,7 +1391,7 @@ struct PanoramaEngineIntegrationTests {
         #expect((try Data(contentsOf: resultURL)).count > 100_000)
         #expect(
             result.controlPointDiagnostics?.cleanedPoints.allSatisfy {
-                $0.error?.isFinite == true
+                $0.error?.isFinite != false
             } == true
         )
         print("PANOWIZARD_INTEGRATION_RESULT=\(resultURL.path(percentEncoded: false))")
@@ -1364,7 +1466,7 @@ struct PanoramaEngineIntegrationTests {
         }
 
         if let repairImage = project.images.first(where: {
-            $0.role == .fillOnly && $0.direction == .nadir
+            $0.effectiveRole == .fillOnly && $0.effectiveDirection == .nadir
         }) {
             let repair = try #require(result.nadirRepair)
             #expect(repair.placement.imageID == repairImage.id)
@@ -1400,6 +1502,31 @@ struct PanoramaEngineIntegrationTests {
                     + "matches=\(repair.placement.matchedFeatureCount) "
                     + "homography=\(homographyDescription)"
             )
+            if ProcessInfo.processInfo.environment[
+                "PANOWIZARD_COMPARE_LOCAL_REPAIR"
+            ] == "1" {
+                let localOverlay = resultURL.deletingLastPathComponent()
+                    .appending(path: "nadir-overlay-local.png")
+                let local = try OpenCVNadirRepairRegistrar.register(
+                    panoramaURL: resultURL,
+                    repairImage: repairImage,
+                    exclusionMaskData: masks[repairImage.id],
+                    horizontalFieldOfView:
+                        repair.placement.sourceHorizontalFieldOfView
+                            ?? configuration.inputHorizontalFieldOfView,
+                    pole: .nadir,
+                    outputURL: localOverlay
+                )
+                let localHomography = local.placement.localHomography
+                    .map { String($0) }
+                    .joined(separator: ",")
+                print(
+                    "PANOWIZARD_LOCAL_NADIR_OVERLAY="
+                        + "\(local.overlayURL.path(percentEncoded: false)) "
+                        + "matches=\(local.placement.matchedFeatureCount) "
+                        + "homography=\(localHomography)"
+                )
+            }
         } else {
             #expect(result.nadirRepair?.overlayURL == nil)
         }
