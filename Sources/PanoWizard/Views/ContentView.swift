@@ -146,9 +146,7 @@ struct ContentView: View {
                         panorama: model.panorama,
                         imageURL: model.selectedPreviewURL,
                         isStitched: model.isShowingStitchedPanorama,
-                        nadirOverlayURL: model.isShowingNadirRepair
-                            ? model.nadirOverlayURL
-                            : nil,
+                        nadirOverlayURL: model.nadirOverlayURL,
                         zenithOverlayURL: model.zenithOverlayURL,
                         nadirRetouchURL: model.nadirRetouchURL,
                         zenithRetouchURL: model.zenithRetouchURL,
@@ -161,12 +159,7 @@ struct ContentView: View {
                         },
                         maskTool: model.sourceMaskTool,
                         maskIntent: model.sourceMaskIntent,
-                        isAdjustingNadir: model.isAdjustingNadir,
-                        adjustedPole: model.activeRepairPole,
-                        nadirAdjustment: model.displayedNadirAdjustment,
-                        nadirContentBounds: model.nadirContentBounds,
                         initialViewpoint: model.panoramaViewpoint,
-                        onNadirAdjustmentChange: model.setNadirAdjustment,
                         onViewpointChange: model.setPanoramaViewpoint,
                         onMasksChange: { red, green in
                             guard let image = model.selectedSourceImage else { return }
@@ -209,8 +202,6 @@ struct ContentView: View {
                 retouchToolbarCenter(pole)
             } else if model.selection == .controlPoints {
                 controlPointToolbarCenter
-            } else if model.isShowingNadirRepair {
-                repairToolbarCenter
             } else if model.selectedSourceImage != nil {
                 sourceMaskToolbarCenter
             }
@@ -345,49 +336,6 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private var repairToolbarCenter: some View {
-        if model.isAdjustingNadir {
-            Button {
-                model.resetNadirAdjustment()
-            } label: {
-                Label("Återställ position", systemImage: "arrow.counterclockwise")
-            }
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .disabled(model.displayedNadirAdjustment.isIdentity)
-        } else {
-            Menu {
-                if model.zenithOverlayURL != nil {
-                    Button("Justera zenit") {
-                        model.beginRepairAdjustment(.zenith)
-                    }
-                }
-                if model.nadirOverlayURL != nil {
-                    Button("Justera nadir") {
-                        model.beginRepairAdjustment(.nadir)
-                    }
-                }
-            } label: {
-                Label("Justera", systemImage: "move.3d")
-            }
-            .menuStyle(.button)
-            .buttonStyle(WorkspaceToolbarPillStyle())
-
-            Button {
-                model.selectNadirRepairForMasking()
-            } label: {
-                Label(
-                    model.hasNadirRepairMask
-                        ? "Redigera mask" : "Maskera reparation",
-                    systemImage: "paintbrush.pointed"
-                )
-            }
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .disabled(model.phase != .ready)
-            .help("Välj vilka delar av reparationsbilden som ska användas")
-        }
-    }
-
-    @ViewBuilder
     private var toolbarTrailing: some View {
         HStack(spacing: 6) {
             primaryToolbarAction
@@ -414,18 +362,10 @@ struct ContentView: View {
 
     @ViewBuilder
     private var primaryToolbarAction: some View {
-        if model.isShowingNadirRepair && model.isAdjustingNadir {
+        if model.selectedSourceImage?.effectiveRole == .fillOnly,
+           model.stitchedResultURL != nil {
             Button {
-                model.toggleNadirAdjustment()
-            } label: {
-                Label("Förhandsvisa", systemImage: "checkmark.circle.fill")
-            }
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .disabled(model.phase != .ready)
-        } else if model.selectedSourceImage?.effectiveRole == .fillOnly,
-                  model.stitchedResultURL != nil {
-            Button {
-                model.showNadirRepairPreview()
+                model.showSelectedRepairPreview()
             } label: {
                 Label("Visa resultat", systemImage: "checkmark.circle")
             }

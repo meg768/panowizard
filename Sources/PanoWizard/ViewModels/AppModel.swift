@@ -98,10 +98,6 @@ final class AppModel {
     var panoramaRevision = 0
     var sourceMaskIntent = SourceMaskIntent.exclude
     var sourceMaskTool = SourceMaskTool.brush
-    var isAdjustingNadir = false
-    var nadirAdjustment = NadirRepairAdjustment.identity
-    var zenithAdjustment = NadirRepairAdjustment.identity
-    var activeRepairPole = PanoramaPole.nadir
     private var maskUndoStack: [(MaskKind, UUID, Data?)] = []
     private var sourceMaskUndoStack: [(UUID, Data?, Data?)] = []
     private var repairRenderRevision = 0
@@ -165,10 +161,6 @@ final class AppModel {
                 controlPointRightImageIndex = pair.secondImage
             }
         }
-        nadirAdjustment = project.nadirRepairPlacement?.manualAdjustment
-            ?? .identity
-        zenithAdjustment = project.zenithRepairPlacement?.manualAdjustment
-            ?? .identity
         selection = project.images.first.map { .source($0.id) }
         if let panoramaData {
             stitchedResultURL = Self.restoreData(
@@ -301,41 +293,8 @@ final class AppModel {
         selection == .panorama && stitchedResultURL != nil
     }
 
-    var isShowingNadirRepair: Bool {
-        isShowingStitchedPanorama
-            && (nadirOverlayURL != nil || zenithOverlayURL != nil)
-    }
-
     var isNadirPreviewBlended: Bool {
         project.nadirRepairPlacement?.isBlendedPreview == true
-    }
-
-    var displayedNadirAdjustment: NadirRepairAdjustment {
-        activeRepairPole == .zenith
-            ? (project.zenithRepairPlacement?.isBlendedPreview == true
-                ? .identity : zenithAdjustment)
-            : (isNadirPreviewBlended ? .identity : nadirAdjustment)
-    }
-
-    var nadirContentBounds: [Double] {
-        if activeRepairPole == .zenith {
-            return project.zenithRepairPlacement?.resolvedContentBounds
-                ?? [0, 0, 1, 1]
-        }
-        guard
-            let bounds = project.nadirRepairPlacement?.contentBounds,
-            bounds.count == 4
-        else {
-            return [0, 0, 1, 1]
-        }
-        return bounds
-    }
-
-    var hasNadirRepairMask: Bool {
-        guard let imageID = project.nadirRepairPlacement?.imageID else {
-            return false
-        }
-        return maskDataByImageID[imageID] != nil
     }
 
     var canStitch: Bool {
@@ -389,8 +348,6 @@ final class AppModel {
             nadirOverlayURL = nil
             controlPointDiagnostics = nil
             project.nadirRepairPlacement = nil
-            nadirAdjustment = .identity
-            isAdjustingNadir = false
             selection = sortedImages.first.map { .source($0.id) }
             phase = .ready
         }
@@ -555,9 +512,6 @@ final class AppModel {
         stitchOperationID = operationID
         repairRenderRevision += 1
         phase = .stitching
-        let previousPlacement = project.nadirRepairPlacement
-        let previousZenithPlacement = project.zenithRepairPlacement
-
         Task {
             do {
                 let result = try await panoramaEngine.stitch(
@@ -593,34 +547,10 @@ final class AppModel {
                 if let diagnostics = result.controlPointDiagnostics {
                     applyControlPointDiagnostics(diagnostics)
                 }
-                var newPlacement = result.nadirRepair?.placement
-                if let placement = newPlacement,
-                   placement.imageID == previousPlacement?.imageID {
-                    if !hasSourceControlPoints(
-                        for: placement.imageID,
-                        in: controlPoints ?? []
-                    ) {
-                        newPlacement?.manualAdjustment =
-                            previousPlacement?.manualAdjustment
-                    }
-                }
+                let newPlacement = result.nadirRepair?.placement
                 project.nadirRepairPlacement = newPlacement
-                var newZenithPlacement = result.zenithRepair?.placement
-                if let placement = newZenithPlacement,
-                   placement.imageID == previousZenithPlacement?.imageID {
-                    if !hasSourceControlPoints(
-                        for: placement.imageID,
-                        in: controlPoints ?? []
-                    ) {
-                        newZenithPlacement?.manualAdjustment =
-                            previousZenithPlacement?.manualAdjustment
-                    }
-                }
+                let newZenithPlacement = result.zenithRepair?.placement
                 project.zenithRepairPlacement = newZenithPlacement
-                nadirAdjustment = newPlacement?.manualAdjustment ?? .identity
-                zenithAdjustment = newZenithPlacement?.manualAdjustment
-                    ?? .identity
-                isAdjustingNadir = false
                 if !result.rigImageLines.isEmpty {
                     project.cachedRigImageLines = Dictionary(uniqueKeysWithValues:
                         result.rigImageLines.map { ($0.key.uuidString, $0.value) }
@@ -726,17 +656,6 @@ final class AppModel {
         if let pair = selectedControlPointPairID {
             controlPointLeftImageIndex = pair.firstImage
             controlPointRightImageIndex = pair.secondImage
-        }
-    }
-
-    private func hasSourceControlPoints(
-        for imageID: UUID,
-        in points: [DiagnosticControlPoint]
-    ) -> Bool {
-        guard let index = project.images.firstIndex(where: { $0.id == imageID })
-        else { return false }
-        return points.contains {
-            $0.firstImage == index || $0.secondImage == index
         }
     }
 
@@ -1402,9 +1321,6 @@ final class AppModel {
         nadirOverlayURL = nil
         zenithOverlayURL = nil
         controlPointDiagnostics = nil
-        nadirAdjustment = .identity
-        zenithAdjustment = .identity
-        isAdjustingNadir = false
         phase = .ready
         panoramaRevision += 1
 
@@ -1428,9 +1344,6 @@ final class AppModel {
         stitchedResultURL = nil
         nadirOverlayURL = nil
         zenithOverlayURL = nil
-        nadirAdjustment = .identity
-        zenithAdjustment = .identity
-        isAdjustingNadir = false
         panoramaRevision += 1
     }
 
@@ -1452,9 +1365,6 @@ final class AppModel {
         stitchedResultURL = nil
         nadirOverlayURL = nil
         zenithOverlayURL = nil
-        nadirAdjustment = .identity
-        zenithAdjustment = .identity
-        isAdjustingNadir = false
         panoramaRevision += 1
     }
 
@@ -1465,9 +1375,6 @@ final class AppModel {
         stitchedResultURL = nil
         nadirOverlayURL = nil
         zenithOverlayURL = nil
-        nadirAdjustment = .identity
-        zenithAdjustment = .identity
-        isAdjustingNadir = false
         phase = .ready
         panoramaRevision += 1
     }
@@ -1490,8 +1397,6 @@ final class AppModel {
         stitchedResultURL = nil
         nadirOverlayURL = nil
         project.nadirRepairPlacement = nil
-        nadirAdjustment = .identity
-        isAdjustingNadir = false
         panoramaRevision += 1
     }
 
@@ -1519,8 +1424,6 @@ final class AppModel {
         stitchedResultURL = nil
         nadirOverlayURL = nil
         project.nadirRepairPlacement = nil
-        nadirAdjustment = .identity
-        isAdjustingNadir = false
         panoramaRevision += 1
     }
 
@@ -1554,8 +1457,6 @@ final class AppModel {
         stitchedResultURL = nil
         nadirOverlayURL = nil
         project.nadirRepairPlacement = nil
-        nadirAdjustment = .identity
-        isAdjustingNadir = false
         panoramaRevision += 1
     }
 
@@ -1586,8 +1487,6 @@ final class AppModel {
             stitchedResultURL = nil
             nadirOverlayURL = nil
             project.nadirRepairPlacement = nil
-            nadirAdjustment = .identity
-            isAdjustingNadir = false
             panoramaRevision += 1
             return
         }
@@ -1605,8 +1504,6 @@ final class AppModel {
         stitchedResultURL = nil
         nadirOverlayURL = nil
         project.nadirRepairPlacement = nil
-        nadirAdjustment = .identity
-        isAdjustingNadir = false
         panoramaRevision += 1
     }
 
@@ -1618,70 +1515,13 @@ final class AppModel {
         }
     }
 
-    func setNadirAdjustment(_ adjustment: NadirRepairAdjustment) {
-        if activeRepairPole == .zenith {
-            zenithAdjustment = adjustment
-            project.setZenithRepairAdjustment(adjustment)
-            return
-        }
-        nadirAdjustment = adjustment
-        project.setNadirRepairAdjustment(adjustment)
-    }
-
-    func resetNadirAdjustment() {
-        setNadirAdjustment(.identity)
-    }
-
-    func beginRepairAdjustment(_ pole: PanoramaPole) {
-        guard phase == .ready else { return }
-        let available = pole == .zenith
-            ? zenithOverlayURL != nil
-            : nadirOverlayURL != nil
-        guard available else { return }
-        activeRepairPole = pole
-        let placement = pole == .zenith
-            ? project.zenithRepairPlacement
-            : project.nadirRepairPlacement
-        if placement?.isBlendedPreview == true,
-           let imageID = placement?.imageID {
-            _ = refreshRepairOverlayIfPossible(
-                for: imageID,
-                enterAdjustment: true
-            )
-            return
-        }
-        selection = .panorama
-        isAdjustingNadir = true
-    }
-
-    func toggleNadirAdjustment() {
-        if activeRepairPole == .zenith {
-            if isAdjustingNadir {
-                renderBlendedRepairPreview(.zenith)
-            } else {
-                isAdjustingNadir = true
-            }
-            return
-        }
+    func showSelectedRepairPreview() {
         guard phase == .ready,
-              let placement = project.nadirRepairPlacement else {
-            return
-        }
-        if isAdjustingNadir {
-            renderBlendedRepairPreview(.nadir)
-        } else if placement.isBlendedPreview {
-            _ = refreshRepairOverlayIfPossible(
-                for: placement.imageID,
-                enterAdjustment: true
-            )
-        } else {
-            isAdjustingNadir = true
-        }
-    }
-
-    func showNadirRepairPreview() {
-        guard phase == .ready else { return }
-        renderBlendedRepairPreview(.nadir)
+              let image = selectedSourceImage,
+              image.effectiveRole == .fillOnly else { return }
+        renderBlendedRepairPreview(
+            image.effectiveDirection == .zenith ? .zenith : .nadir
+        )
     }
 
     var canExportHTML: Bool {
@@ -1981,14 +1821,6 @@ final class AppModel {
         }
     }
 
-    func selectNadirRepairForMasking() {
-        guard let imageID = project.nadirRepairPlacement?.imageID else {
-            return
-        }
-        isAdjustingNadir = false
-        selection = .source(imageID)
-    }
-
     var panoramaData: Data? {
         guard let stitchedResultURL else { return nil }
         return try? Data(contentsOf: stitchedResultURL)
@@ -2032,8 +1864,7 @@ final class AppModel {
 
 
     private func refreshRepairOverlayIfPossible(
-        for imageID: UUID,
-        enterAdjustment: Bool = false
+        for imageID: UUID
     ) -> Bool {
         guard
             let repairImage = project.images.first(where: {
@@ -2085,23 +1916,12 @@ final class AppModel {
                     )
                 }.value
                 guard revision == repairRenderRevision else { return }
-                let bounds = OpenCVNadirRepairRegistrar.alphaContentBounds(
-                    at: outputURL
-                )
                 if repairImage.effectiveDirection == .zenith {
                     zenithOverlayURL = outputURL
-                    project.setZenithRepairContentBounds(bounds)
                     project.setZenithRepairPreviewBlended(false)
                 } else {
                     nadirOverlayURL = outputURL
-                    project.setNadirRepairContentBounds(bounds)
                     project.setNadirRepairPreviewBlended(false)
-                }
-                if enterAdjustment {
-                    activeRepairPole = repairImage.effectiveDirection == .zenith
-                        ? .zenith : .nadir
-                    selection = .panorama
-                    isAdjustingNadir = true
                 }
                 panoramaRevision += 1
                 phase = .ready
@@ -2152,7 +1972,6 @@ final class AppModel {
             return
         }
 
-        isAdjustingNadir = false
         phase = .blendingRepair
         Task {
             do {

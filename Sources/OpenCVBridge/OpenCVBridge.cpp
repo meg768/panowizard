@@ -1873,63 +1873,6 @@ cv::Mat registrationHomography(
     return homography;
 }
 
-cv::Mat manualRepairHomography(
-    double translationX,
-    double translationY,
-    double rotationDegrees,
-    double scale
-) {
-    const double angle = radians(rotationDegrees);
-    const double cosine = std::cos(angle) * scale;
-    const double sine = std::sin(angle) * scale;
-    const double center = repairLocalViewSize / 2.0;
-    const double values[] = {
-        cosine,
-        -sine,
-        center + translationX - cosine * center + sine * center,
-        sine,
-        cosine,
-        center + translationY - sine * center - cosine * center,
-        0.0,
-        0.0,
-        1.0
-    };
-    cv::Mat homography(3, 3, CV_64F);
-    std::memcpy(
-        homography.ptr<double>(),
-        values,
-        sizeof(values)
-    );
-    return homography;
-}
-
-cv::Mat cornerRepairHomography(
-    const double *offsets,
-    const double *bounds
-) {
-    if (offsets == nullptr || bounds == nullptr) {
-        return cv::Mat::eye(3, 3, CV_64F);
-    }
-    const float left = float(bounds[0] * repairLocalViewSize);
-    const float top = float(bounds[1] * repairLocalViewSize);
-    const float right = float(
-        (bounds[0] + bounds[2]) * repairLocalViewSize
-    );
-    const float bottom = float(
-        (bounds[1] + bounds[3]) * repairLocalViewSize
-    );
-    const cv::Point2f source[] = {
-        {left, top}, {right, top}, {right, bottom}, {left, bottom}
-    };
-    const cv::Point2f destination[] = {
-        {left + float(offsets[0]), top + float(offsets[1])},
-        {right + float(offsets[2]), top + float(offsets[3])},
-        {right + float(offsets[4]), bottom + float(offsets[5])},
-        {left + float(offsets[6]), bottom + float(offsets[7])}
-    };
-    return cv::getPerspectiveTransform(source, destination);
-}
-
 cv::Mat imageWithAlpha(
     const cv::Mat &color,
     const cv::Mat &alpha
@@ -2049,31 +1992,15 @@ void writeNadirBlendInputs(
     const cv::Mat &repairLocal,
     const cv::Mat &repairMask,
     const cv::Mat &homography,
-    bool automaticPoleBlend,
-    double translationX,
-    double translationY,
-    double rotationDegrees,
-    double scale,
-    const double *cornerOffsets,
-    const double *contentBounds,
     const std::string &baseOutputPath,
     const std::string &repairOutputPath
 ) {
-    const cv::Mat adjustedHomography =
-        cornerRepairHomography(cornerOffsets, contentBounds)
-            * manualRepairHomography(
-            translationX,
-            translationY,
-            rotationDegrees,
-            scale
-        ) * homography;
-
     cv::Mat alignedRepair;
     cv::Mat alignedAlpha;
     cv::warpPerspective(
         repairLocal,
         alignedRepair,
-        adjustedHomography,
+        homography,
         cv::Size(repairLocalViewSize, repairLocalViewSize),
         cv::INTER_LINEAR,
         cv::BORDER_CONSTANT,
@@ -2082,7 +2009,7 @@ void writeNadirBlendInputs(
     cv::warpPerspective(
         repairMask,
         alignedAlpha,
-        adjustedHomography,
+        homography,
         cv::Size(repairLocalViewSize, repairLocalViewSize),
         cv::INTER_LINEAR,
         cv::BORDER_CONSTANT,
@@ -2100,99 +2027,32 @@ void writeNadirBlendInputs(
         CV_8U,
         cv::Scalar(255)
     );
-    const cv::Mat poleHole = automaticPoleBlend
-        ? centeredPoleHoleMask(baseLocal)
-        : cv::Mat::zeros(baseLocal.size(), CV_8U);
-    if (automaticPoleBlend) {
-        if (cv::countNonZero(poleHole) >= 256) {
-            // Fill the actual uncovered cap and give Enblend a broad ring of
-            // valid overlap in which to hide the seam. Do not let a pole image
-            // replace the entire otherwise valid ring view merely because its
-            // projection happens to cover all 1600x1600 local pixels.
-            cv::Mat outsideHole;
-            cv::bitwise_not(poleHole, outsideHole);
-            cv::Mat distanceFromHole;
-            cv::distanceTransform(
-                outsideHole,
-                distanceFromHole,
-                cv::DIST_L2,
-                cv::DIST_MASK_PRECISE
-            );
-            cv::Mat repairRegion;
-            cv::compare(distanceFromHole, 160.0, repairRegion, cv::CMP_LE);
-            cv::Mat outsideRepairRegion;
-            cv::bitwise_not(repairRegion, outsideRepairRegion);
-            alignedAlpha.setTo(cv::Scalar(0), outsideRepairRegion);
-            baseAlpha.setTo(cv::Scalar(0), poleHole);
-        } else {
-            // A hand-held pole image has a different camera centre. Give
-            // Enblend enough overlap to follow ground-plane details, but keep
-            // the repair local to the pole so parallax cannot pull nearby
-            // tables, chairs, or people into the published overlay.
-            cv::Mat repairVisibility;
-            cv::compare(
-                alignedAlpha,
-                8,
-                repairVisibility,
-                cv::CMP_GT
-            );
-            cv::Mat maximumRepairRegion = cv::Mat::zeros(
-                alignedAlpha.size(),
-                CV_8U
-            );
-            cv::circle(
-                maximumRepairRegion,
-                cv::Point(
-                    repairLocalViewSize / 2,
-                    repairLocalViewSize / 2
-                ),
-                static_cast<int>(repairLocalViewSize * 0.30),
-                cv::Scalar(255),
-                cv::FILLED,
-                cv::LINE_AA
-            );
-            cv::bitwise_and(
-                maximumRepairRegion,
-                repairVisibility,
-                maximumRepairRegion
-            );
-            cv::Mat outsideMaximumRepairRegion;
-            cv::bitwise_not(
-                maximumRepairRegion,
-                outsideMaximumRepairRegion
-            );
-            alignedAlpha.setTo(
-                cv::Scalar(0),
-                outsideMaximumRepairRegion
-            );
-
-            cv::Mat forcedRepairCore;
-            forcedRepairCore = cv::Mat::zeros(
-                alignedAlpha.size(),
-                CV_8U
-            );
-            cv::circle(
-                forcedRepairCore,
-                cv::Point(
-                    repairLocalViewSize / 2,
-                    repairLocalViewSize / 2
-                ),
-                static_cast<int>(repairLocalViewSize * 0.10),
-                cv::Scalar(255),
-                cv::FILLED,
-                cv::LINE_AA
-            );
-            cv::bitwise_and(
-                forcedRepairCore,
-                maximumRepairRegion,
-                forcedRepairCore
-            );
-            baseAlpha.setTo(cv::Scalar(0), forcedRepairCore);
-        }
+    const cv::Mat poleHole = centeredPoleHoleMask(baseLocal);
+    if (cv::countNonZero(poleHole) >= 256) {
+        // Fill the actual uncovered cap and give Enblend a broad ring of
+        // valid overlap in which to hide the seam. Do not let a pole image
+        // replace the entire otherwise valid ring view merely because its
+        // projection happens to cover all 1600x1600 local pixels.
+        cv::Mat outsideHole;
+        cv::bitwise_not(poleHole, outsideHole);
+        cv::Mat distanceFromHole;
+        cv::distanceTransform(
+            outsideHole,
+            distanceFromHole,
+            cv::DIST_L2,
+            cv::DIST_MASK_PRECISE
+        );
+        cv::Mat repairRegion;
+        cv::compare(distanceFromHole, 160.0, repairRegion, cv::CMP_LE);
+        cv::Mat outsideRepairRegion;
+        cv::bitwise_not(repairRegion, outsideRepairRegion);
+        alignedAlpha.setTo(cv::Scalar(0), outsideRepairRegion);
+        baseAlpha.setTo(cv::Scalar(0), poleHole);
     } else {
-        // A fully covered pole can still be an intentional repair (for
-        // example to remove a tripod). Preserve the established behaviour in
-        // that case and force the selected repair except for a narrow overlap.
+        // A hand-held pole image has a different camera centre. Give
+        // Enblend enough overlap to follow ground-plane details, but keep
+        // the repair local to the pole so parallax cannot pull nearby
+        // tables, chairs, or people into the published overlay.
         cv::Mat repairVisibility;
         cv::compare(
             alignedAlpha,
@@ -2200,29 +2060,55 @@ void writeNadirBlendInputs(
             repairVisibility,
             cv::CMP_GT
         );
-        cv::Mat distanceInsideRepair;
-        cv::distanceTransform(
+        cv::Mat maximumRepairRegion = cv::Mat::zeros(
+            alignedAlpha.size(),
+            CV_8U
+        );
+        cv::circle(
+            maximumRepairRegion,
+            cv::Point(
+                repairLocalViewSize / 2,
+                repairLocalViewSize / 2
+            ),
+            static_cast<int>(repairLocalViewSize * 0.30),
+            cv::Scalar(255),
+            cv::FILLED,
+            cv::LINE_AA
+        );
+        cv::bitwise_and(
+            maximumRepairRegion,
             repairVisibility,
-            distanceInsideRepair,
-            cv::DIST_L2,
-            cv::DIST_MASK_PRECISE
+            maximumRepairRegion
         );
-        double maximumDistance = 0.0;
-        cv::minMaxLoc(
-            distanceInsideRepair,
-            nullptr,
-            &maximumDistance
+        cv::Mat outsideMaximumRepairRegion;
+        cv::bitwise_not(
+            maximumRepairRegion,
+            outsideMaximumRepairRegion
         );
-        const double overlapWidth = std::min(
-            16.0,
-            maximumDistance * 0.2
+        alignedAlpha.setTo(
+            cv::Scalar(0),
+            outsideMaximumRepairRegion
         );
-        cv::Mat forcedRepairCore;
-        cv::compare(
-            distanceInsideRepair,
-            overlapWidth,
+
+        cv::Mat forcedRepairCore = cv::Mat::zeros(
+            alignedAlpha.size(),
+            CV_8U
+        );
+        cv::circle(
             forcedRepairCore,
-            cv::CMP_GT
+            cv::Point(
+                repairLocalViewSize / 2,
+                repairLocalViewSize / 2
+            ),
+            static_cast<int>(repairLocalViewSize * 0.10),
+            cv::Scalar(255),
+            cv::FILLED,
+            cv::LINE_AA
+        );
+        cv::bitwise_and(
+            forcedRepairCore,
+            maximumRepairRegion,
+            forcedRepairCore
         );
         baseAlpha.setTo(cv::Scalar(0), forcedRepairCore);
     }
@@ -3778,12 +3664,6 @@ int PWPrepareNadirRepairBlend(
     double horizontalFieldOfView,
     double polePitchDegrees,
     const PWNadirRegistration *registration,
-    double translationX,
-    double translationY,
-    double rotationDegrees,
-    double scale,
-    const double *cornerOffsets,
-    const double *contentBounds,
     const char *baseOutputPath,
     const char *repairOutputPath,
     char **errorMessage
@@ -3801,12 +3681,6 @@ int PWPrepareNadirRepairBlend(
                 "Underlaget för lokal Enblend-blandning är ofullständigt."
             );
         }
-        if (scale <= 0.0) {
-            throw std::runtime_error(
-                "Nadirreparationens skala måste vara större än noll."
-            );
-        }
-
         const cv::Mat panorama = cv::imread(
             panoramaPath,
             cv::IMREAD_COLOR
@@ -3909,28 +3783,11 @@ int PWPrepareNadirRepairBlend(
             );
             repairHomography = registrationHomography(*registration);
         }
-        bool hasManualGeometry = std::abs(translationX) > 1e-6
-            || std::abs(translationY) > 1e-6
-            || std::abs(rotationDegrees) > 1e-6
-            || std::abs(scale - 1.0) > 1e-6;
-        if (cornerOffsets != nullptr) {
-            for (int index = 0; index < 8; ++index) {
-                hasManualGeometry = hasManualGeometry
-                    || std::abs(cornerOffsets[index]) > 1e-6;
-            }
-        }
         writeNadirBlendInputs(
             baseLocal,
             repairLocal,
             repairMask,
             repairHomography,
-            !hasManualGeometry,
-            translationX,
-            translationY,
-            rotationDegrees,
-            scale,
-            cornerOffsets,
-            contentBounds,
             baseOutputPath,
             repairOutputPath
         );

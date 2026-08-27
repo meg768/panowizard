@@ -44,6 +44,11 @@ tidskänslig arbetsstatus efter den incheckade baslinjen.
   kameraposer.
 - AI-retusch är tills vidare begränsad till nadir och zenit. En utvidgning till
   godtyckliga panoramariktningar kräver ett nytt uttryckligt produktbeslut.
+- Reparationslager kan inte flyttas, roteras, skalas eller perspektivjusteras
+  manuellt. Fel position är ett motorfel; fel innehåll löses med källmask eller
+  polretusch.
+- Reparationsbilden maskeras genom att välja den i källbildslistan. Lägg inte
+  tillbaka en separat **Maskera reparation**-genväg.
 - Commit och push görs bara på uttrycklig begäran.
 
 ## Kodkarta
@@ -87,7 +92,7 @@ warpning, söm/blandning eller efterretusch.
 - `Views/ControlPointInspector.swift` är den manuella CP-editorn.
 - `Views/PanoramaPreview.swift` innehåller källbildsmaskeringen.
 - `Views/SphericalPanoramaView.swift` renderar den sfäriska Metal-
-  förhandsvisningen.
+  förhandsvisningen utan redigerbar overlaygeometri.
 - `Views/PanoramaRetouchView.swift` hanterar polretusch och AI-dialogen.
 
 Röd och grön mask är källbildsdata i källans koordinater. Om AI-resultatet får

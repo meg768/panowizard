@@ -262,8 +262,7 @@ enum OpenCVNadirRepairRegistrar {
                 localHomography: homography,
                 matchedFeatureCount: Int(registration.matchedFeatureCount),
                 localViewFieldOfView: registration.localViewFieldOfView,
-                sourceHorizontalFieldOfView: horizontalFieldOfView,
-                contentBounds: alphaContentBounds(at: outputURL)
+                sourceHorizontalFieldOfView: horizontalFieldOfView
             )
         )
     }
@@ -370,9 +369,6 @@ enum OpenCVNadirRepairRegistrar {
         let seamMaskTemplate = workDirectory.appending(
             path: "seam-mask-%n.tif"
         )
-        let adjustment = placement.manualAdjustment ?? .identity
-        var cornerOffsets = adjustment.resolvedCornerOffsets
-        var contentBounds = placement.resolvedContentBounds
         var registration = cRegistration(from: placement)
         var preparationError: UnsafeMutablePointer<CChar>?
         let prepared = panoramaURL.path.withCString { panoramaPath in
@@ -382,28 +378,18 @@ enum OpenCVNadirRepairRegistrar {
                         projectedRepairPath in
                         baseLayerURL.path.withCString { basePath in
                             repairLayerURL.path.withCString { repairOutputPath in
-                                cornerOffsets.withUnsafeMutableBufferPointer { offsets in
-                                    contentBounds.withUnsafeMutableBufferPointer { bounds in
-                                        PWPrepareNadirRepairBlend(
-                                            panoramaPath,
-                                            repairPath,
-                                            maskPath,
-                                            projectedRepairPath,
-                                            horizontalFieldOfView,
-                                            pole.pitchDegrees,
-                                            &registration,
-                                            adjustment.translationX,
-                                            adjustment.translationY,
-                                            adjustment.rotationDegrees,
-                                            adjustment.scale,
-                                            offsets.baseAddress,
-                                            bounds.baseAddress,
-                                            basePath,
-                                            repairOutputPath,
-                                            &preparationError
-                                        )
-                                    }
-                                }
+                                PWPrepareNadirRepairBlend(
+                                    panoramaPath,
+                                    repairPath,
+                                    maskPath,
+                                    projectedRepairPath,
+                                    horizontalFieldOfView,
+                                    pole.pitchDegrees,
+                                    &registration,
+                                    basePath,
+                                    repairOutputPath,
+                                    &preparationError
+                                )
                             }
                         }
                     }
@@ -511,49 +497,6 @@ enum OpenCVNadirRepairRegistrar {
             matchedFeatureCount: Int32(placement.matchedFeatureCount),
             localViewFieldOfView: placement.localViewFieldOfView
         )
-    }
-
-    static func alphaContentBounds(at url: URL) -> [Double]? {
-        guard
-            let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-            let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-        else {
-            return nil
-        }
-        let width = image.width
-        let height = image.height
-        var pixels = [UInt8](repeating: 0, count: width * height * 4)
-        guard let context = CGContext(
-            data: &pixels,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: width * 4,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else {
-            return nil
-        }
-        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-        var minimumX = width
-        var minimumY = height
-        var maximumX = -1
-        var maximumY = -1
-        for y in 0..<height {
-            for x in 0..<width where pixels[(y * width + x) * 4 + 3] > 8 {
-                minimumX = min(minimumX, x)
-                minimumY = min(minimumY, y)
-                maximumX = max(maximumX, x)
-                maximumY = max(maximumY, y)
-            }
-        }
-        guard maximumX >= minimumX, maximumY >= minimumY else { return nil }
-        return [
-            Double(minimumX) / Double(width),
-            Double(minimumY) / Double(height),
-            Double(maximumX - minimumX + 1) / Double(width),
-            Double(maximumY - minimumY + 1) / Double(height)
-        ]
     }
 
     private static func decodedWorkingCopy(

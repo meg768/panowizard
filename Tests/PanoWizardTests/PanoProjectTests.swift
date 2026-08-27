@@ -1275,19 +1275,7 @@ struct PanoProjectTests {
                     0, 0, 1
                 ],
                 matchedFeatureCount: 42,
-                localViewFieldOfView: 120,
-                manualAdjustment: NadirRepairAdjustment(
-                    translationX: 18,
-                    translationY: -7,
-                    rotationDegrees: 1.25,
-                    scale: 1.03,
-                    cornerOffsets: [
-                        -12, 8,
-                        18, -5,
-                        24, 16,
-                        -9, 11
-                    ]
-                )
+                localViewFieldOfView: 120
             ),
             nadirAIRetouchPrompt: "Behåll stolarna",
             zenithAIRetouchPrompt: "Behåll takkronan",
@@ -1311,11 +1299,10 @@ struct PanoProjectTests {
     }
 
     @Test
-    func nadirAdjustmentIsStoredWithoutChangingRegistration() throws {
-        let imageID = UUID()
-        var project = PanoProject(
+    func repairPlacementPersistsOnlyAutomaticGeometry() throws {
+        let project = PanoProject(
             nadirRepairPlacement: NadirRepairPlacement(
-                imageID: imageID,
+                imageID: UUID(),
                 localHomography: [
                     1, 0, 12,
                     0, 1, -8,
@@ -1325,37 +1312,14 @@ struct PanoProjectTests {
                 localViewFieldOfView: 120
             )
         )
-        let originalHomography = try #require(
-            project.nadirRepairPlacement?.localHomography
-        )
-        let adjustment = NadirRepairAdjustment(
-            translationX: 23,
-            translationY: -11,
-            rotationDegrees: 0.8,
-            scale: 0.97,
-            cornerOffsets: [
-                -10, 4,
-                12, -6,
-                16, 9,
-                -7, 13
-            ]
+
+        let json = try #require(
+            String(data: JSONEncoder().encode(project), encoding: .utf8)
         )
 
-        project.setNadirRepairAdjustment(adjustment)
-
-        #expect(project.nadirRepairPlacement?.manualAdjustment == adjustment)
-        #expect(
-            project.nadirRepairPlacement?.localHomography
-                == originalHomography
-        )
-
-        project.setNadirRepairAdjustment(.identity)
-
-        #expect(project.nadirRepairPlacement?.manualAdjustment == nil)
-        #expect(
-            project.nadirRepairPlacement?.localHomography
-                == originalHomography
-        )
+        #expect(json.contains("localHomography"))
+        #expect(!json.contains("manualAdjustment"))
+        #expect(!json.contains("contentBounds"))
     }
 
     @Test

@@ -105,7 +105,9 @@ aldrig dra i panoramats kameraposer.
   klassade reparationer ändras inte av denna kontroll.
 
 Masken och blandningen bestämmer vilket innehåll som används; de ändrar inte
-den frysta geometrin.
+den frysta geometrin. Det finns ingen manuell eftertransform för ett placerat
+reparationslager. Om automatiken placerar lagret fel ska registreringen rättas i
+motorn; användaren ska inte behöva kompensera med ett trubbigt flyttverktyg.
 
 ## Sömstrategi
 

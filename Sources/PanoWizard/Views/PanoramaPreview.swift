@@ -15,12 +15,7 @@ struct PanoramaPreview: View {
     let protectedMaskData: Data?
     let maskTool: SourceMaskTool
     let maskIntent: AppModel.SourceMaskIntent
-    let isAdjustingNadir: Bool
-    let adjustedPole: PanoramaPole
-    let nadirAdjustment: NadirRepairAdjustment
-    let nadirContentBounds: [Double]
     let initialViewpoint: PanoramaViewpoint
-    let onNadirAdjustmentChange: (NadirRepairAdjustment) -> Void
     let onViewpointChange: (PanoramaViewpoint) -> Void
     let onMasksChange: (Data?, Data?) -> Void
 
@@ -36,12 +31,7 @@ struct PanoramaPreview: View {
                         zenithOverlayURL: zenithOverlayURL,
                         nadirRetouchURL: nadirRetouchURL,
                         zenithRetouchURL: zenithRetouchURL,
-                        isAdjustingNadir: isAdjustingNadir,
-                        adjustedPole: adjustedPole,
-                        nadirAdjustment: nadirAdjustment,
-                        nadirContentBounds: nadirContentBounds,
                         initialViewpoint: initialViewpoint,
-                        onNadirAdjustmentChange: onNadirAdjustmentChange,
                         onViewpointChange: onViewpointChange
                     )
                 } else if let selectedSource {

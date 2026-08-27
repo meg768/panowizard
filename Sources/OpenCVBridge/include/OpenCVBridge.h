@@ -192,12 +192,6 @@ int PWPrepareNadirRepairBlend(
     double horizontalFieldOfView,
     double polePitchDegrees,
     const PWNadirRegistration *registration,
-    double translationX,
-    double translationY,
-    double rotationDegrees,
-    double scale,
-    const double *cornerOffsets,
-    const double *contentBounds,
     const char *baseOutputPath,
     const char *repairOutputPath,
     char **errorMessage

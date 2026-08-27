@@ -2238,9 +2238,6 @@ struct HuginOpenCVPanoramaEngine: PanoramaEngine {
             matchedFeatureCount: remapped.count,
             localViewFieldOfView: 120,
             sourceHorizontalFieldOfView: horizontalFieldOfView,
-            contentBounds: OpenCVNadirRepairRegistrar.alphaContentBounds(
-                at: outputURL
-            ),
             controlPoints: localPoints,
             sphericalProjection: true
         )

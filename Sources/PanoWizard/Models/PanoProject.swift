@@ -253,16 +253,6 @@ struct PanoProject: Codable, Equatable, Sendable {
         zenithRepairPlacement?.sphericalProjection = nil
     }
 
-    mutating func setNadirRepairAdjustment(
-        _ adjustment: NadirRepairAdjustment
-    ) {
-        guard var placement = nadirRepairPlacement else { return }
-        placement.manualAdjustment = adjustment.isIdentity ? nil : adjustment
-        placement.blendedPreview = false
-        nadirRepairPlacement = placement
-        modifiedAt = Self.secondPrecision(.now)
-    }
-
     mutating func setNadirRepairPreviewBlended(_ isBlended: Bool) {
         guard var placement = nadirRepairPlacement else { return }
         placement.blendedPreview = isBlended
@@ -270,33 +260,9 @@ struct PanoProject: Codable, Equatable, Sendable {
         modifiedAt = Self.secondPrecision(.now)
     }
 
-    mutating func setNadirRepairContentBounds(_ bounds: [Double]?) {
-        guard var placement = nadirRepairPlacement else { return }
-        placement.contentBounds = bounds
-        nadirRepairPlacement = placement
-        modifiedAt = Self.secondPrecision(.now)
-    }
-
-    mutating func setZenithRepairAdjustment(
-        _ adjustment: NadirRepairAdjustment
-    ) {
-        guard var placement = zenithRepairPlacement else { return }
-        placement.manualAdjustment = adjustment.isIdentity ? nil : adjustment
-        placement.blendedPreview = false
-        zenithRepairPlacement = placement
-        modifiedAt = Self.secondPrecision(.now)
-    }
-
     mutating func setZenithRepairPreviewBlended(_ isBlended: Bool) {
         guard var placement = zenithRepairPlacement else { return }
         placement.blendedPreview = isBlended
-        zenithRepairPlacement = placement
-        modifiedAt = Self.secondPrecision(.now)
-    }
-
-    mutating func setZenithRepairContentBounds(_ bounds: [Double]?) {
-        guard var placement = zenithRepairPlacement else { return }
-        placement.contentBounds = bounds
         zenithRepairPlacement = placement
         modifiedAt = Self.secondPrecision(.now)
     }

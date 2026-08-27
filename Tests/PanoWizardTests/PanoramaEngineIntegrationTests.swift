@@ -1120,19 +1120,7 @@ struct PanoramaEngineIntegrationTests {
 
         let package = URL(fileURLWithPath: packagePath)
         let project = try PanoProjectDocument(contentsOf: package).project
-        var placement = try #require(project.nadirRepairPlacement)
-        var adjustment = placement.manualAdjustment ?? .identity
-        adjustment.cornerOffsets = [
-            -4, 3,
-            5, -2,
-            6, 4,
-            -3, 5
-        ]
-        placement.manualAdjustment = adjustment
-        placement.contentBounds =
-            OpenCVNadirRepairRegistrar.alphaContentBounds(
-                at: package.appending(path: "panorama/nadir-overlay.png")
-            ) ?? [0.2, 0.2, 0.6, 0.6]
+        let placement = try #require(project.nadirRepairPlacement)
         let repairImage = try #require(
             project.images.first { $0.id == placement.imageID }
         )
@@ -1472,7 +1460,6 @@ struct PanoramaEngineIntegrationTests {
             #expect(repair.placement.imageID == repairImage.id)
             #expect(repair.placement.localHomography.count == 9)
             #expect(repair.placement.matchedFeatureCount >= 12)
-            #expect(repair.placement.contentBounds?.count == 4)
             #expect(
                 FileManager.default.fileExists(
                     atPath: repair.overlayURL.path(percentEncoded: false)

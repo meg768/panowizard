@@ -80,12 +80,18 @@ Maskerna hör till en specifik källbild och påverkar stitchningen:
 - suddgummit tar bort maskdata.
 
 Maskerna är separata från en färdig retusch och sparas i projektpaketet.
+En reparationsbild maskeras genom att välja den direkt i källbildslistan. Det
+finns ingen separat maskgenväg eller manuell transform av det placerade lagret.
 
 ## Retusch
 
 Nadir och zenit kan exporteras som plana 2048 × 2048-pixlars 90°-plattor,
 redigeras externt och importeras igen. Importerad retusch blandas mjukt mot det
 färdiga panoramat och följer med i projektet.
+
+Om en reparationsbild positioneras fel betraktas det som ett fel i PanoWizards
+geometri och ska rättas där. För lokal pixelretusch används AI-flödet eller en
+extern bildredigerare via export/import.
 
 **AI-retuschera…** använder samma platta, skickar den tillsammans med
 instruktionen till OpenAI Images API och visar en före/efter-förhandsvisning.
