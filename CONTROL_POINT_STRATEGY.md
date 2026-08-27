@@ -99,6 +99,10 @@ aldrig dra i panoramats kameraposer.
   registrering mot det redan renderade panoramat.
 - En isolerad automatisk polbild får använda den lokala reservvägen endast när
   den frysta riggen uppfyller de konservativa villkoren ovan.
+- En sfäriskt placerad automatisk polbild valideras mot texturen i det frysta
+  panoramat. Lokal registrering får korrigera rotationen runt polaxeln endast
+  med tydligt starkare bildstöd och en stor faktisk rotationskonflikt. Manuellt
+  klassade reparationer ändras inte av denna kontroll.
 
 Masken och blandningen bestämmer vilket innehåll som används; de ändrar inte
 den frysta geometrin.
@@ -118,6 +122,9 @@ Det finns två kompletterande nivåer:
   utvalda motorintegrationer.
 - Panorama A–R granskas manuellt i den sfäriska appvyn för sömmar, riktning,
   lokala strukturer, poler och visuell kontinuitet.
+
+Baslinjen `f6bc860` passerade båda nivåerna: 94 automatiska tester i 7 sviter
+och en full manuell A–R-granskning med visuellt accepterade resultat.
 
 En grön automatisk testsvit betyder inte att A–R har visuell regressionstestats.
 När geometri eller reparationsklassning ändras ska relevanta problemfall köras

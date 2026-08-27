@@ -12,6 +12,13 @@ Den tekniska strategin för kontrollpunkter och positionering finns i
 [CONTROL_POINT_STRATEGY.md](CONTROL_POINT_STRATEGY.md). Aktuella
 utvecklarbeslut och arkitektur finns i [CODEX.md](CODEX.md).
 
+## Status
+
+Funktionsbaslinjen i commit `f6bc860` är manuellt verifierad med panorama A–R.
+Samtliga går igenom och slutresultaten är visuellt accepterade som PTGui-klass.
+Det manuella korpuset är produktens viktigaste visuella regressionstest; den
+automatiska testsviten kompletterar det med deterministiska kontroller.
+
 ## Krav
 
 - macOS 26
@@ -88,12 +95,13 @@ Ingenting aktiveras förrän användaren väljer **Använd**.
 - Nadir och zenit har var sin projektspecifik prompt i `.pw`-filen.
 - Bilden lämnar datorn först när användaren startar AI-retuschen.
 - API-anropet använder användarens OpenAI-konto och kan medföra kostnad.
-- Hela plattan kan i nuläget förändras av modellen. Prompten bör därför uttryckligen
-  nämna objekt som måste bevaras.
+- Hela plattan kan i nuläget förändras av modellen. Prompten bör därför
+  uttryckligen nämna objekt som måste bevaras.
 
-Den planerade generella AI-patchmotorn för valfria markerade områden i
-förhandsvisningen är ännu inte implementerad. Dagens AI-retusch gäller bara
-nadir och zenit.
+Dagens avsiktliga produktgräns är nadir och zenit. En möjlig nästa förbättring är
+en mask över AI-resultatet så att bara en vald del av polplattan accepteras.
+Godtyckliga AI-patchar i valfri panoramariktning ingår inte i den nuvarande
+planen.
 
 ## Projektformat
 
@@ -140,6 +148,7 @@ genererade panoramabilden för snabb återöppning.
 metadata/gruppering, mask- och projektionsmatematik, retusch, API-anropsformat
 och utvalda integrationer i panoramamaskinen.
 
-Panorama A–R är däremot ett manuellt visuellt regressionskorpus. Den automatiska
-testsviten öppnar inte varje sådant panorama och kan inte avgöra om en söm eller
-lokal detalj ser bra ut i en 360°-visare.
+Panorama A–R är däremot ett manuellt visuellt regressionskorpus. Vid milstolpen
+`f6bc860` hade samtliga granskats och godkänts. Den automatiska testsviten öppnar
+inte varje sådant panorama och kan inte avgöra om en söm eller lokal detalj ser
+bra ut i en 360°-visare.

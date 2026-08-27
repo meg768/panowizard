@@ -16,13 +16,13 @@ för exakt arbetskopiestatus mellan arbetspass och är avsiktligt inte incheckad
 ## Produktläge
 
 PanoWizard är en SwiftUI-baserad dokumentapp för fullsfäriska fisheye-
-panoraman. Panorama A–R utgör det manuella visuella regressionsmaterialet.
-Automatiska tester kompletterar men ersätter inte den granskningen.
+panoraman. Funktionsbaslinjen `f6bc860` omfattar stabiliserad automatisk
+polreparation, relativa källsökvägar och OpenAI-retusch för nadir/zenit.
 
-Den senaste incheckade baslinjen på `main` är P-stödet i commit `cb81569`
-(`Support isolated automatic pole repairs`). Arbetskopian innehåller därefter
-vidare arbete för Panorama Q, relativa källsökvägar och OpenAI-retusch. Se
-`SESSION_CONTEXT.md` innan commit, återställning eller större refaktorering.
+Panorama A–R är manuellt genomgångna på denna baslinje. Samtliga går igenom och
+har visuellt accepterats som PTGui-klass. Automatiska tester kompletterar men
+ersätter inte den granskningen. `SESSION_CONTEXT.md` används bara för lokal,
+tidskänslig arbetsstatus efter den incheckade baslinjen.
 
 ## Hårda produktbeslut
 
@@ -42,6 +42,8 @@ vidare arbete för Panorama Q, relativa källsökvägar och OpenAI-retusch. Se
 - API-nycklar hör hemma i macOS Nyckelring, aldrig i projektfilen.
 - AI är ett valfritt eftersteg. Den får inte flytta kontrollpunkter eller
   kameraposer.
+- AI-retusch är tills vidare begränsad till nadir och zenit. En utvidgning till
+  godtyckliga panoramariktningar kräver ett nytt uttryckligt produktbeslut.
 - Commit och push görs bara på uttrycklig begäran.
 
 ## Kodkarta
@@ -88,9 +90,9 @@ warpning, söm/blandning eller efterretusch.
   förhandsvisningen.
 - `Views/PanoramaRetouchView.swift` hanterar polretusch och AI-dialogen.
 
-Röd och grön mask är källbildsdata i källans koordinater. En framtida orange
-AI-mask är panoramadata i sfäriska koordinater och ska inte återanvända samma
-lagring trots att penselinteraktionen kan delas.
+Röd och grön mask är källbildsdata i källans koordinater. Om AI-resultatet får
+en separat acceptansmask ska den höra till den färdiga polplattan och inte
+återanvända källmaskernas lagring.
 
 ### Retusch och OpenAI
 
@@ -108,27 +110,22 @@ Nadir och zenit har separata prompter i `PanoProject`. Prompten sparas när en
 generering startar så att varje panorama kan återanvända och modifiera sin egen
 instruktion. API-nyckeln är däremot global för appen och stannar i Nyckelring.
 
-## Nästa produktspår: generell sfärisk AI-patch
+## Produktgräns för AI-retusch
 
-Det här är överenskommen riktning men inte implementerad funktionalitet:
+Den accepterade KISS-lösningen är dagens nadir-/zenitflöde. Export/import ska
+finnas kvar som manuell reserv och AI-resultatet ska fortsätta vara ett
+icke-destruktivt eftersteg ovanpå det frysta panoramat.
 
-1. Användaren granskar det färdiga panoramat under **Förhandsvisa**.
-2. Ett felområde målas med en orange reparationsmask.
-3. PanoWizard skapar en lokal tangentbild med extra omgivande kontext och
-   projicerar masken till samma bild.
-4. Bild och mask skickas till edit-API:t.
-5. Endast pixlar innanför den exakta masken får hämtas från AI-resultatet.
-6. Patch, alfamask, sfärisk bas/centrum, synfält, prompt och lagerordning sparas
-   icke-destruktivt i `.pw`.
+Den närmaste tänkbara förbättringen är en separat acceptansmask över den
+genererade polplattan. Den skulle låta användaren välja exakt vilken del av
+AI-resultatet som blandas in och därmed bevara korrekt omgivande innehåll.
+Masken ska i så fall sparas per pol i `.pw` och vara skild från källbildernas
+röda/gröna masker.
 
-Sfärisk position ska representeras med 3D-enhetsriktningar, inte bara XY i den
-equirektangulära bilden. Då fungerar samma modell över 0/360-sömmen och vid
-polerna. Stora eller åtskilda markeringar ska delas i lokala patchar. En ny
-stitch måste markera befintliga patchar som inaktuella för granskning.
-
-Behåll dagens nadir-/zenitretusch och export/import tills patchmotorn har
-implementerats och manuellt bevisats. Starta inte denna ombyggnad enbart för att
-den står beskriven här; den kräver en ny uttrycklig arbetsuppgift.
+En generell patchmotor för godtycklig panoramariktning är avsiktligt utanför
+nuvarande scope. Den kräver tangentprojektion, sfärisk lagring, hantering av
+0/360-sömmen och invalidation efter ny stitch. Implementera inte den utan ett
+nytt uttryckligt produktbeslut.
 
 ## Verifiering
 
@@ -148,3 +145,6 @@ utökade attribut och ad hoc-signerar appen. File Provider kan återinföra
 Vid ändringar i CP-generering, klassning, optimering eller reparation krävs även
 relevanta manuella panorama och slutligen A–R innan en ny baslinje deklareras.
 Dokumentationsändringar i sig kräver inte ett nytt appbygge.
+
+Baslinjen `f6bc860` passerade 94 automatiska tester i 7 sviter och därefter en
+manuell visuell genomgång av hela A–R.
