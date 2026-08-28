@@ -1617,17 +1617,12 @@ final class AppModel {
         }
     }
 
-    func createAIRetouchPreview(
-        for pole: PanoramaPole,
-        prompt: String,
-        apiKey: String
-    ) async throws -> AIRetouchPreview {
+    func createAIRetouchSource(
+        for pole: PanoramaPole
+    ) async throws -> AIRetouchSource {
         guard let panoramaURL = stitchedResultURL, phase == .ready else {
             throw AIRetouchError.panoramaUnavailable
         }
-        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPrompt.isEmpty else { throw AIRetouchError.emptyPrompt }
-
         let repairOverlayURL = pole == .nadir
             ? (project.nadirRepairPlacement == nil ? nil : nadirOverlayURL)
             : (project.zenithRepairPlacement == nil ? nil : zenithOverlayURL)
@@ -1637,8 +1632,6 @@ final class AppModel {
             directoryHint: .isDirectory
         )
         let sourceURL = directory.appending(path: "\(pole.rawValue)-source.png")
-        let editedURL = directory.appending(path: "\(pole.rawValue)-edited.png")
-        let preparedURL = directory.appending(path: "\(pole.rawValue)-prepared.png")
 
         phase = .retouching
         defer {
@@ -1648,22 +1641,77 @@ final class AppModel {
             at: directory,
             withIntermediateDirectories: true
         )
-        try await Task.detached(priority: .userInitiated) {
-            try PoleRetouchService().exportPlate(
-                panoramaURL: panoramaURL,
-                repairOverlayURL: repairOverlayURL,
-                existingRetouchURL: existingRetouchURL,
+        do {
+            try await Task.detached(priority: .userInitiated) {
+                try PoleRetouchService().exportPlate(
+                    panoramaURL: panoramaURL,
+                    repairOverlayURL: repairOverlayURL,
+                    existingRetouchURL: existingRetouchURL,
+                    pole: pole,
+                    to: sourceURL
+                )
+            }.value
+            try Task.checkCancellation()
+            return AIRetouchSource(
                 pole: pole,
-                to: sourceURL
+                directoryURL: directory,
+                sourceURL: sourceURL
             )
-        }.value
-        try Task.checkCancellation()
+        } catch {
+            try? FileManager.default.removeItem(at: directory)
+            throw error
+        }
+    }
 
-        let sourceData = try await Task.detached(priority: .userInitiated) {
-            try Data(contentsOf: sourceURL)
+    func createAIRetouchPreview(
+        source: AIRetouchSource,
+        for pole: PanoramaPole,
+        maskData: Data?,
+        prompt: String,
+        apiKey: String
+    ) async throws -> AIRetouchPreview {
+        guard stitchedResultURL != nil,
+              phase == .ready,
+              source.pole == pole,
+              FileManager.default.fileExists(atPath: source.sourceURL.path)
+        else {
+            throw AIRetouchError.panoramaUnavailable
+        }
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPrompt.isEmpty else { throw AIRetouchError.emptyPrompt }
+
+        let directory = source.directoryURL.appending(
+            path: "Previews/\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        let rawEditedURL = directory.appending(path: "\(pole.rawValue)-raw.png")
+        let editedURL = directory.appending(path: "\(pole.rawValue)-edited.png")
+        let preparedURL = directory.appending(path: "\(pole.rawValue)-prepared.png")
+        let apiMaskURL = directory.appending(path: "\(pole.rawValue)-mask.png")
+
+        phase = .retouching
+        defer {
+            if phase == .retouching { phase = .ready }
+        }
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        let requestData = try await Task.detached(priority: .userInitiated) {
+            let sourceData = try Data(contentsOf: source.sourceURL)
+            guard let maskData else {
+                return (sourceData, Optional<Data>.none)
+            }
+            try PoleRetouchService().makeOpenAIEditMask(
+                from: maskData,
+                pole: pole,
+                to: apiMaskURL
+            )
+            return (sourceData, try Data(contentsOf: apiMaskURL))
         }.value
         let editedData = try await OpenAIImageEditService(apiKey: apiKey).edit(
-            imageData: sourceData,
+            imageData: requestData.0,
+            maskData: requestData.1,
             filename: "\(pole.rawValue).png",
             prompt: trimmedPrompt,
             size: PoleRetouchService.plateSize
@@ -1671,16 +1719,29 @@ final class AppModel {
         try Task.checkCancellation()
 
         try await Task.detached(priority: .userInitiated) {
-            try editedData.write(to: editedURL, options: .atomic)
-            try PoleRetouchService().prepareImportedPlate(
-                from: editedURL,
-                pole: pole,
-                to: preparedURL
-            )
+            try editedData.write(to: rawEditedURL, options: .atomic)
+            if let maskData {
+                try PoleRetouchService().prepareMaskedAIEdit(
+                    sourceURL: source.sourceURL,
+                    editedURL: rawEditedURL,
+                    userMaskData: maskData,
+                    pole: pole,
+                    previewURL: editedURL,
+                    preparedURL: preparedURL
+                )
+            } else {
+                try editedData.write(to: editedURL, options: .atomic)
+                try PoleRetouchService().prepareImportedPlate(
+                    from: rawEditedURL,
+                    pole: pole,
+                    to: preparedURL
+                )
+            }
         }.value
         return AIRetouchPreview(
             pole: pole,
-            sourceURL: sourceURL,
+            directoryURL: directory,
+            sourceURL: source.sourceURL,
             editedURL: editedURL,
             preparedURL: preparedURL
         )
@@ -1712,9 +1773,11 @@ final class AppModel {
     }
 
     func discardAIRetouchPreview(_ preview: AIRetouchPreview) {
-        try? FileManager.default.removeItem(
-            at: preview.sourceURL.deletingLastPathComponent()
-        )
+        try? FileManager.default.removeItem(at: preview.directoryURL)
+    }
+
+    func discardAIRetouchSource(_ source: AIRetouchSource) {
+        try? FileManager.default.removeItem(at: source.directoryURL)
     }
 
     func removeRetouch(for pole: PanoramaPole) {
@@ -1753,71 +1816,6 @@ final class AppModel {
             } catch {
                 phase = .failed(error.localizedDescription)
             }
-        }
-    }
-
-    func interactiveHTMLArchiveForSharing(
-        initialViewpoint: PanoramaViewpoint
-    ) async throws -> URL {
-        guard let panoramaURL = stitchedResultURL, canExportHTML else {
-            throw PanoramaEngineError.stitchingFailed(
-                "Panoramat är inte färdigt för export."
-            )
-        }
-        let directory = FileManager.default.temporaryDirectory.appending(
-            path: "PanoWizard/Exports",
-            directoryHint: .isDirectory
-        )
-        try FileManager.default.createDirectory(
-            at: directory,
-            withIntermediateDirectories: true
-        )
-        let safeTitle = project.title
-            .replacingOccurrences(of: "/", with: "-")
-            .replacingOccurrences(of: ":", with: "-")
-        let destinationURL = directory.appending(
-            path: "\(safeTitle)-\(UUID().uuidString.prefix(8)).html"
-        )
-        phase = .exporting
-        do {
-            try await exporter.exportHTML(
-                panoramaURL: panoramaURL,
-                nadirOverlayURL: project.nadirRepairPlacement == nil
-                    ? nil
-                    : nadirOverlayURL,
-                zenithOverlayURL: project.zenithRepairPlacement == nil
-                    ? nil
-                    : zenithOverlayURL,
-                nadirRetouchURL: nadirRetouchURL,
-                zenithRetouchURL: zenithRetouchURL,
-                title: project.title,
-                initialViewpoint: initialViewpoint,
-                to: destinationURL
-            )
-            let archiveURL = directory.appending(
-                path: "\(safeTitle)-\(UUID().uuidString.prefix(8)).zip"
-            )
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-            process.arguments = [
-                "-c", "-k", "--sequesterRsrc", "--keepParent",
-                destinationURL.path(percentEncoded: false),
-                archiveURL.path(percentEncoded: false)
-            ]
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0,
-                  FileManager.default.fileExists(atPath: archiveURL.path)
-            else {
-                throw PanoramaEngineError.stitchingFailed(
-                    "HTML-filen kunde inte packas för delning."
-                )
-            }
-            phase = .ready
-            return archiveURL
-        } catch {
-            phase = .failed(error.localizedDescription)
-            throw error
         }
     }
 

@@ -107,16 +107,15 @@ struct StatusBar: View {
         }
         let action: String
         if model.sourceMaskTool == .rectangle {
-            action = "Dra över det rektangulära området"
+            action = "markerar ett rektangulärt område"
         } else if model.sourceMaskIntent == .erase {
-            action = "Måla för att sudda masken"
+            action = "suddar masken"
         } else if model.sourceMaskIntent == .protect {
-            action = "Måla grönt över sådant som måste hämtas från bilden"
-        } else if model.sourceMaskIntent == .erase {
-            action = "Måla vitt för att sudda masken"
+            action = "målar en grön skyddsmask"
         } else {
-            action = "Måla rött över sådant som inte ska användas"
+            action = "målar en röd exkluderingsmask"
         }
-        return "\(action) · två fingrar för att flytta · ⇧ + två fingrar för att zooma"
+        return "Dra panorerar · rulla zoomar · ⌘-dra \(action) · "
+            + "⌘⌥-dra suddar"
     }
 }

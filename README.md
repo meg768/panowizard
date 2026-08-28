@@ -69,7 +69,8 @@ uttryckligt kommando för nya automatiska punkter ersätter nätet.
 
 Den manuella editorn kan visa, lägga till, flytta och ta bort punktpar. Det går
 också att föreslå fler punkter för det synliga bildparet utan att radera andra
-punkter.
+punkter. Drag panorerar och scroll/två fingrar zoomar. ⌘-klick lägger till en
+punkt, ⌘-drag på en befintlig punkt flyttar den och ⌘⌥-klick tar bort den.
 
 ### Källmasker
 
@@ -82,6 +83,7 @@ Maskerna hör till en specifik källbild och påverkar stitchningen:
 Maskerna är separata från en färdig retusch och sparas i projektpaketet.
 En reparationsbild maskeras genom att välja den direkt i källbildslistan. Det
 finns ingen separat maskgenväg eller manuell transform av det placerade lagret.
+Drag panorerar, scroll/två fingrar zoomar, ⌘-drag målar och ⌘⌥-drag suddar.
 
 ## Retusch
 
@@ -93,19 +95,32 @@ Om en reparationsbild positioneras fel betraktas det som ett fel i PanoWizards
 geometri och ska rättas där. För lokal pixelretusch används AI-flödet eller en
 extern bildredigerare via export/import.
 
-**AI-retuschera…** använder samma platta, skickar den tillsammans med
-instruktionen till OpenAI Images API och visar en före/efter-förhandsvisning.
-Ingenting aktiveras förrän användaren väljer **Använd**.
+**AI-retuschera…** visar samma platta direkt i dialogen. Användaren kan valfritt
+måla området som ska rekonstrueras med en enkel pensel; masken visas röd och
+⌘⌥-drag suddar. Vanligt drag panorerar, scroll/två fingrar zoomar och ⌘-drag
+målar. Plattan och masken skickas tillsammans med instruktionen till OpenAI
+Images API och resultatet visas före användning.
 
-- API-nyckeln lagras i macOS Nyckelring, aldrig i `.pw`-filen.
+När en mask finns compositar PanoWizard resultatet lokalt med ungefär 8 px
+feathering. Den aktiva retuschen är transparent utanför masken och dess
+featherkant, så modellen kan aldrig ersätta resten av kubsidan. Utan mask används
+det tidigare helbildsflödet. Ingenting aktiveras förrän användaren väljer
+**Använd**.
+
+- API-nyckeln anges eller ändras direkt från AI-retuschdialogen och lagras som
+  en lokal appinställning, aldrig i `.pw`-filen.
 - Nadir och zenit har var sin projektspecifik prompt i `.pw`-filen.
 - Bilden lämnar datorn först när användaren startar AI-retuschen.
 - API-anropet använder användarens OpenAI-konto och kan medföra kostnad.
-- Hela plattan kan i nuläget förändras av modellen. Prompten bör därför
-  uttryckligen nämna objekt som måste bevaras.
+- Före- och efterbilden kan zoomas och panoreras med samma principer som
+  kontrollpunktseditorn. Penseln har fast storlek på skärmen; ⌘Z ångrar senaste
+  maskändringen och **Rensa mask** tar bort masken.
+
+Den sfäriska förhandsvisningen och exporterad interaktiv HTML följer samma
+navigeringsdel av modellen: drag tittar runt och scroll/två fingrar zoomar.
 
 Dagens avsiktliga produktgräns är nadir och zenit. En möjlig nästa förbättring är
-en mask över AI-resultatet så att bara en vald del av polplattan accepteras.
+att spara arbetsmasken i projektet om den behöver återanvändas mellan dialoger.
 Godtyckliga AI-patchar i valfri panoramariktning ingår inte i den nuvarande
 planen.
 
@@ -134,9 +149,10 @@ försöker inte hitta en gammal absolut sökväg.
 
 ## Export
 
-PanoWizard kan exportera den equirektangulära bilden med aktuell retusch samt en
-HTML-visning med vald startvinkel. Det sparade projektet behåller även den senast
-genererade panoramabilden för snabb återöppning.
+Knappen **Spara panorama** samlar all slutexport. JPEG, PNG och TIFF sparas som
+equirektangulära 2:1-bilder med aktuell retusch. Interaktiv HTML sparas som en
+självständig webbsida med vald startvinkel. Det sparade projektet behåller även
+den senast genererade panoramabilden för snabb återöppning.
 
 ## Arkitektur i korthet
 

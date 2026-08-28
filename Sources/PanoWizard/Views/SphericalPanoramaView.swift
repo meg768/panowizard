@@ -133,7 +133,9 @@ private final class PanoramaMTKView: MTKView {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        panoramaRenderer?.zoom(by: Float(event.scrollingDeltaY))
+        panoramaRenderer?.zoom(by: Float(
+            ImageSurfaceScroll.dominantDelta(for: event)
+        ))
     }
 
     override func magnify(with event: NSEvent) {
@@ -288,7 +290,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
 
     func zoom(by delta: Float) {
         verticalFieldOfView = min(
-            max(verticalFieldOfView - delta * 0.006, 30 * .pi / 180),
+            max(verticalFieldOfView + delta * 0.006, 30 * .pi / 180),
             150 * .pi / 180
         )
         reportViewpoint()

@@ -54,7 +54,7 @@ struct ContentView: View {
                 canShowPanorama: model.stitchedResultURL != nil,
                 canStitch: model.canStitch,
                 createPanorama: model.stitch,
-                showSettings: { model.selection = .settings },
+                showPanoramaSettings: { model.selection = .settings },
                 showPreview: { model.selection = .panorama },
                 showExport: { model.selection = .export }
             )
@@ -211,20 +211,38 @@ struct ContentView: View {
     @ViewBuilder
     private var exportToolbarCenter: some View {
         if let panoramaURL = model.stitchedResultURL {
-            Button {
-                exportController.exportJPEG(
-                    from: panoramaURL,
-                    nadirRetouchURL: model.nadirRetouchURL,
-                    zenithRetouchURL: model.zenithRetouchURL,
-                    projectName: projectName,
-                    projectTitle: model.project.title,
-                    projectDirectoryURL: projectDirectoryURL
-                )
+            Menu {
+                ForEach(PanoramaImageFormat.allCases, id: \.self) { format in
+                    Button("Som \(format.rawValue)…") {
+                        exportController.exportImage(
+                            format: format,
+                            from: panoramaURL,
+                            nadirRetouchURL: model.nadirRetouchURL,
+                            zenithRetouchURL: model.zenithRetouchURL,
+                            projectName: projectName,
+                            projectTitle: model.project.title,
+                            projectDirectoryURL: projectDirectoryURL
+                        )
+                    }
+                }
+
+                Divider()
+
+                Button("Som interaktiv HTML…") {
+                    exportController.exportHTML(
+                        model: model,
+                        projectName: projectName,
+                        projectDirectoryURL: projectDirectoryURL,
+                        viewpoint: model.panoramaViewpoint
+                    )
+                }
+                .disabled(!model.canExportHTML)
             } label: {
-                Label("Spara JPEG…", systemImage: "photo")
+                Label("Spara panorama", systemImage: "square.and.arrow.down")
             }
+            .menuStyle(.button)
             .buttonStyle(WorkspaceToolbarPillStyle())
-            .help("Spara panoramabilden med valda inställningar")
+            .help("Spara panoramat som bild eller interaktiv HTML")
         }
     }
 
@@ -376,42 +394,7 @@ struct ContentView: View {
 
     private var toolbarOverflow: some View {
         Menu {
-            if model.selection == .export,
-               let panoramaURL = model.stitchedResultURL {
-                Button("Dela JPEG…") {
-                    exportController.shareJPEG(
-                        sourceURL: panoramaURL,
-                        nadirRetouchURL: model.nadirRetouchURL,
-                        zenithRetouchURL: model.zenithRetouchURL
-                    )
-                }
-
-                Divider()
-
-                Button("Spara HTML…") {
-                    exportController.exportHTML(
-                        model: model,
-                        projectName: projectName,
-                        projectDirectoryURL: projectDirectoryURL,
-                        viewpoint: model.panoramaViewpoint
-                    )
-                }
-                .disabled(!model.canExportHTML)
-                Button(
-                    exportController.isPreparingHTMLShare
-                        ? "Förbereder HTML…"
-                        : "Dela HTML (.zip)…"
-                ) {
-                    exportController.shareHTML(
-                        model: model,
-                        viewpoint: model.panoramaViewpoint
-                    )
-                }
-                .disabled(
-                    !model.canExportHTML
-                        || exportController.isPreparingHTMLShare
-                )
-            } else if case .retouch(let pole) = model.selection {
+            if case .retouch(let pole) = model.selection {
                 Button(
                     "Ta bort \(pole.displayName.lowercased())retusch",
                     role: .destructive
@@ -474,7 +457,7 @@ struct ContentView: View {
 
     private var showsToolbarOverflow: Bool {
         if model.selection == .export {
-            return model.stitchedResultURL != nil
+            return false
         }
         if case .retouch(let pole) = model.selection {
             return model.retouchURL(for: pole) != nil

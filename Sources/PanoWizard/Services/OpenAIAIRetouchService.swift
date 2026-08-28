@@ -1,8 +1,14 @@
 import Foundation
-import Security
+
+struct AIRetouchSource: Sendable {
+    let pole: PanoramaPole
+    let directoryURL: URL
+    let sourceURL: URL
+}
 
 struct AIRetouchPreview: Sendable {
     let pole: PanoramaPole
+    let directoryURL: URL
     let sourceURL: URL
     let editedURL: URL
     let preparedURL: URL
@@ -27,7 +33,6 @@ enum OpenAIImageEditError: LocalizedError, Equatable {
     case invalidResponse
     case invalidImageData
     case api(statusCode: Int, message: String)
-    case keychain(status: OSStatus)
 
     var errorDescription: String? {
         switch self {
@@ -39,57 +44,34 @@ enum OpenAIImageEditError: LocalizedError, Equatable {
             "OpenAI-svaret innehöll ingen läsbar bild."
         case let .api(statusCode, message):
             "OpenAI-fel \(statusCode): \(message)"
-        case .keychain(let status):
-            "API-nyckeln kunde inte sparas i Nyckelring (fel \(status))."
         }
     }
 }
 
 struct OpenAIAPIKeyStore: Sendable {
-    private static let service = "se.panowizard.openai"
-    private static let account = "api-key"
+    private static let defaultsKey = "PanoWizard.ChatGPTAPIKey"
 
     func load() -> String? {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: Self.service,
-            kSecAttrAccount: Self.account,
-            kSecReturnData: true,
-            kSecMatchLimit: kSecMatchLimitOne
-        ]
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data,
-              let key = String(data: data, encoding: .utf8),
-              !key.isEmpty else { return nil }
-        return key
+        let key = UserDefaults.standard.string(forKey: Self.defaultsKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return key?.isEmpty == false ? key : nil
     }
 
     func save(_ key: String) throws {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw OpenAIImageEditError.missingAPIKey }
-        let data = Data(trimmed.utf8)
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: Self.service,
-            kSecAttrAccount: Self.account
-        ]
-        let updateStatus = SecItemUpdate(
-            query as CFDictionary,
-            [kSecValueData: data] as CFDictionary
-        )
-        if updateStatus == errSecSuccess { return }
-        guard updateStatus == errSecItemNotFound else {
-            throw OpenAIImageEditError.keychain(status: updateStatus)
-        }
+        UserDefaults.standard.set(trimmed, forKey: Self.defaultsKey)
+    }
 
-        var item = query
-        item[kSecValueData] = data
-        item[kSecAttrAccessible] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        let addStatus = SecItemAdd(item as CFDictionary, nil)
-        guard addStatus == errSecSuccess else {
-            throw OpenAIImageEditError.keychain(status: addStatus)
-        }
+    func remove() throws {
+        UserDefaults.standard.removeObject(forKey: Self.defaultsKey)
+    }
+
+    static func redactedDescription(for key: String?) -> String? {
+        guard let key else { return nil }
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return "\(trimmed.prefix(3))…\(trimmed.suffix(4))"
     }
 }
 
@@ -107,6 +89,7 @@ struct OpenAIImageEditService: Sendable {
 
     func edit(
         imageData: Data,
+        maskData: Data? = nil,
         filename: String,
         prompt: String,
         size: Int
@@ -115,6 +98,7 @@ struct OpenAIImageEditService: Sendable {
         let request = try Self.makeRequest(
             apiKey: apiKey,
             imageData: imageData,
+            maskData: maskData,
             filename: filename,
             prompt: prompt,
             size: size
@@ -132,6 +116,7 @@ struct OpenAIImageEditService: Sendable {
     static func makeRequest(
         apiKey: String,
         imageData: Data,
+        maskData: Data? = nil,
         filename: String,
         prompt: String,
         size: Int,
@@ -165,6 +150,16 @@ struct OpenAIImageEditService: Sendable {
             boundary: boundary,
             to: &body
         )
+        if let maskData {
+            appendFile(
+                name: "mask",
+                filename: "mask.png",
+                contentType: "image/png",
+                data: maskData,
+                boundary: boundary,
+                to: &body
+            )
+        }
         body.appendUTF8("--\(boundary)--\r\n")
 
         var request = URLRequest(url: endpoint)

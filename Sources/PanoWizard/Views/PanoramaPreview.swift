@@ -113,11 +113,19 @@ private struct SourceMaskEditor: View {
     @State private var magnificationStartZoom: Double?
     @State private var scrollPosition = ScrollPosition()
     @State private var pendingViewportCenter: UnitPoint?
+    @State private var pointerGesture: PointerGesture?
+    @State private var modifierInteraction = ImageSurfaceInteraction.navigate
+    @State private var lastHoverPoint: CGPoint?
+    @State private var activeGestureErases = false
 
     private let zoomAnchorID = "source-image-zoom-anchor"
     /// Brush size in screen points. Zoom changes how many source pixels those
     /// points cover, not the apparent size of the brush cursor.
     private let screenBrushDiameter: CGFloat = 48
+
+    private enum PointerGesture {
+        case edit
+    }
 
     private var zoom: Double { viewport.zoom }
 
@@ -189,7 +197,7 @@ private struct SourceMaskEditor: View {
                                     )
                                     let color = strokeColor
                                     let shape = Path(rect)
-                                    if isErasing {
+                                    if previewIsErasing {
                                         context.clip(to: shape)
                                         context.draw(
                                             Image(decorative: sourceImage, scale: 1),
@@ -227,7 +235,7 @@ private struct SourceMaskEditor: View {
                                     lineWidth: max(displayedBrushRadius * 2, 1),
                                     lineCap: .round, lineJoin: .round
                                 )
-                                if isErasing {
+                                if previewIsErasing {
                                     context.clip(to: path.strokedPath(style))
                                     context.draw(
                                         Image(decorative: sourceImage, scale: 1),
@@ -254,6 +262,13 @@ private struct SourceMaskEditor: View {
                                     crosshair.addLine(to: CGPoint(x: hoverPoint.x, y: hoverPoint.y + arm))
                                     context.stroke(crosshair, with: .color(.black), lineWidth: 3)
                                     context.stroke(crosshair, with: .color(.white), lineWidth: 1)
+                                    if previewIsErasing {
+                                        drawEraseIndicator(
+                                            in: context,
+                                            center: hoverPoint,
+                                            radius: 10
+                                        )
+                                    }
                                     return
                                 }
                                 let diameter = max(displayedBrushRadius * 2, 1)
@@ -283,6 +298,13 @@ private struct SourceMaskEditor: View {
                                     )),
                                     with: .color(.white)
                                 )
+                                if previewIsErasing {
+                                    drawEraseIndicator(
+                                        in: context,
+                                        center: hoverPoint,
+                                        radius: displayedBrushRadius * 0.7
+                                    )
+                                }
                             }
                             .allowsHitTesting(false)
 
@@ -295,10 +317,28 @@ private struct SourceMaskEditor: View {
                                 .id(zoomAnchorID)
                         }
                         .frame(width: displaySize.width, height: displaySize.height)
+                        .background {
+                            NativeImagePanMonitor()
+                        }
                         .contentShape(Rectangle())
-                        .gesture(
+                        .simultaneousGesture(
                             DragGesture(minimumDistance: 0)
                                 .onChanged { value in
+                                    if pointerGesture == nil {
+                                        let interaction = ImageSurfaceInteraction(
+                                            modifierFlags: NSEvent.modifierFlags
+                                        )
+                                        modifierInteraction = interaction
+                                        switch interaction {
+                                        case .navigate:
+                                            return
+                                        case .edit, .remove:
+                                            pointerGesture = .edit
+                                            activeGestureErases =
+                                                interaction == .remove
+                                        }
+                                    }
+                                    guard case .edit = pointerGesture else { return }
                                     hoverPoint = value.location
                                     let point = MaskPoint(
                                         x: value.location.x / displaySize.width,
@@ -314,22 +354,30 @@ private struct SourceMaskEditor: View {
                                     }
                                 }
                                 .onEnded { _ in
-                                    if maskTool == .rectangle {
-                                        commitShape(sourceImage: sourceImage)
-                                    } else {
-                                        commitStroke(
-                                            sourceImage: sourceImage,
-                                            displayScale: displayScale
-                                        )
+                                    if case .edit = pointerGesture {
+                                        if maskTool == .rectangle {
+                                            commitShape(sourceImage: sourceImage)
+                                        } else {
+                                            commitStroke(
+                                                sourceImage: sourceImage,
+                                                displayScale: displayScale
+                                            )
+                                        }
                                     }
+                                    pointerGesture = nil
+                                    activeGestureErases = false
                                 }
                         )
                         .onContinuousHover { phase in
                             switch phase {
                             case .active(let location):
-                                hoverPoint = location
-                                hideSystemCursor()
+                                modifierInteraction = ImageSurfaceInteraction(
+                                    modifierFlags: NSEvent.modifierFlags
+                                )
+                                lastHoverPoint = location
+                                updateCursorFeedback()
                             case .ended:
+                                lastHoverPoint = nil
                                 hoverPoint = nil
                                 showSystemCursor()
                             }
@@ -340,7 +388,10 @@ private struct SourceMaskEditor: View {
                         )
                     }
                     .scrollIndicators(.visible)
-                    .scrollDisabled(false)
+                    .scrollDisabled(
+                        modifierInteraction != .navigate
+                            || pointerGesture != nil
+                    )
                     .scrollPosition($scrollPosition)
                     .onScrollGeometryChange(for: ScrollGeometry.self) { geometry in
                         geometry
@@ -372,10 +423,16 @@ private struct SourceMaskEditor: View {
         }
         .background(.background)
         .background {
-            ScrollWheelZoomMonitor { delta, anchor in
-                zoomAnchor = anchor
-                pendingZoomAnchor = anchor
-                setZoom(zoom * exp(-delta * 0.01))
+            ZStack {
+                ScrollWheelZoomMonitor { delta, anchor in
+                    zoomAnchor = anchor
+                    pendingZoomAnchor = anchor
+                    setZoom(zoom * exp(-delta * 0.01))
+                }
+                ImageSurfaceModifierMonitor { interaction in
+                    modifierInteraction = interaction
+                    updateCursorFeedback()
+                }
             }
         }
         .task(id: image.id) {
@@ -386,6 +443,8 @@ private struct SourceMaskEditor: View {
             activeStroke = []
             circleStart = nil
             circleEnd = nil
+            pointerGesture = nil
+            activeGestureErases = false
         }
         .onChange(of: maskData) {
             maskImage = Self.loadImage(data: maskData)
@@ -397,7 +456,7 @@ private struct SourceMaskEditor: View {
             activeStroke = []
             circleStart = nil
             circleEnd = nil
-            showSystemCursor()
+            updateCursorFeedback()
         }
         .onDisappear {
             showSystemCursor()
@@ -441,10 +500,14 @@ private struct SourceMaskEditor: View {
         viewport.center = center
     }
 
-    private var isErasing: Bool { maskIntent == .erase }
+    private var previewIsErasing: Bool {
+        activeGestureErases
+            || modifierInteraction == .remove
+            || maskIntent == .erase
+    }
 
     private var strokeColor: Color {
-        if isErasing { return .white }
+        if previewIsErasing { return .white }
         switch maskIntent {
         case .exclude: return .red
         case .protect: return .green
@@ -465,7 +528,10 @@ private struct SourceMaskEditor: View {
                 width: sourceImage.width, height: sourceImage.height
             )
         }
-        applyToAllMasks(apply: apply)
+        applyToAllMasks(
+            erasing: activeGestureErases || maskIntent == .erase,
+            apply: apply
+        )
         activeStroke = []
     }
 
@@ -491,13 +557,17 @@ private struct SourceMaskEditor: View {
                 width: sourceImage.width, height: sourceImage.height
             )
         }
-        applyToAllMasks(apply: apply)
+        applyToAllMasks(
+            erasing: activeGestureErases || maskIntent == .erase,
+            apply: apply
+        )
     }
 
     private func applyToAllMasks(
+        erasing: Bool,
         apply: (Data?, Bool, AppModel.SourceMaskIntent) -> Data?
     ) {
-        let eraseAll = maskIntent == .erase
+        let eraseAll = erasing
         let red = apply(maskData, eraseAll || maskIntent != .exclude, .exclude)
         let green = apply(
             protectedMaskData, eraseAll || maskIntent != .protect, .protect
@@ -515,6 +585,30 @@ private struct SourceMaskEditor: View {
         guard isSystemCursorHidden else { return }
         NSCursor.unhide()
         isSystemCursorHidden = false
+    }
+
+    private func updateCursorFeedback() {
+        guard let lastHoverPoint else { return }
+        if modifierInteraction == .navigate {
+            hoverPoint = nil
+            showSystemCursor()
+            NSCursor.openHand.set()
+        } else {
+            hoverPoint = lastHoverPoint
+            hideSystemCursor()
+        }
+    }
+
+    private func drawEraseIndicator(
+        in context: GraphicsContext,
+        center: CGPoint,
+        radius: CGFloat
+    ) {
+        var slash = Path()
+        slash.move(to: CGPoint(x: center.x - radius, y: center.y - radius))
+        slash.addLine(to: CGPoint(x: center.x + radius, y: center.y + radius))
+        context.stroke(slash, with: .color(.black.opacity(0.85)), lineWidth: 3)
+        context.stroke(slash, with: .color(.white), lineWidth: 1)
     }
 
     private func aspectFitSize(
@@ -594,18 +688,10 @@ private struct ScrollWheelZoomMonitor: NSViewRepresentable {
             monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) {
                 [weak self] event in
                 guard let self,
-                      event.modifierFlags.contains(.option)
-                        || event.modifierFlags.contains(.shift),
                       self.windowNumber == event.windowNumber,
                       self.hitRectInWindow.contains(event.locationInWindow)
                 else { return event }
-                let delta = abs(event.scrollingDeltaY)
-                    >= abs(event.scrollingDeltaX)
-                    ? event.scrollingDeltaY
-                    : event.scrollingDeltaX
-                let physicalDelta = event.isDirectionInvertedFromDevice
-                    ? -delta
-                    : delta
+                let physicalDelta = ImageSurfaceScroll.dominantDelta(for: event)
                 let anchor = UnitPoint(
                     x: min(max(
                         (event.locationInWindow.x - self.hitRectInWindow.minX)
@@ -616,7 +702,7 @@ private struct ScrollWheelZoomMonitor: NSViewRepresentable {
                             / max(self.hitRectInWindow.height, 1), 0
                     ), 1)
                 )
-                guard abs(delta) > 0.01 else { return nil }
+                guard abs(physicalDelta) > 0.01 else { return nil }
                 self.onScroll(physicalDelta, anchor)
                 return nil
             }
@@ -628,6 +714,188 @@ private struct ScrollWheelZoomMonitor: NSViewRepresentable {
         }
 
         deinit { uninstall() }
+    }
+}
+
+private struct ImageSurfaceModifierMonitor: NSViewRepresentable {
+    let onChange: (ImageSurfaceInteraction) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onChange: onChange)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        context.coordinator.install()
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        context.coordinator.onChange = onChange
+        context.coordinator.windowNumber = view.window?.windowNumber
+    }
+
+    static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
+        coordinator.uninstall()
+    }
+
+    final class Coordinator {
+        var onChange: (ImageSurfaceInteraction) -> Void
+        var windowNumber: Int?
+        private var monitor: Any?
+
+        init(onChange: @escaping (ImageSurfaceInteraction) -> Void) {
+            self.onChange = onChange
+        }
+
+        func install() {
+            monitor = NSEvent.addLocalMonitorForEvents(
+                matching: .flagsChanged
+            ) { [weak self] event in
+                guard let self,
+                      event.windowNumber == 0
+                        || self.windowNumber == event.windowNumber else {
+                    return event
+                }
+                self.onChange(ImageSurfaceInteraction(
+                    modifierFlags: event.modifierFlags
+                ))
+                return event
+            }
+        }
+
+        func uninstall() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+
+        deinit { uninstall() }
+    }
+}
+
+private struct NativeImagePanMonitor: NSViewRepresentable {
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> AttachmentView {
+        let view = AttachmentView()
+        view.onHierarchyChange = { [weak coordinator = context.coordinator,
+                                    weak view] in
+            guard let coordinator, let view else { return }
+            coordinator.scrollView = view.enclosingScrollView
+        }
+        context.coordinator.install()
+        return view
+    }
+
+    func updateNSView(_ view: AttachmentView, context: Context) {
+        context.coordinator.scrollView = view.enclosingScrollView
+    }
+
+    static func dismantleNSView(
+        _ view: AttachmentView,
+        coordinator: Coordinator
+    ) {
+        coordinator.uninstall()
+    }
+
+    final class AttachmentView: NSView {
+        var onHierarchyChange: (() -> Void)?
+
+        override func viewDidMoveToSuperview() {
+            super.viewDidMoveToSuperview()
+            onHierarchyChange?()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            onHierarchyChange?()
+        }
+    }
+
+    @MainActor
+    final class Coordinator {
+        weak var scrollView: NSScrollView?
+        private var monitor: Any?
+        private var panOrigin: CGPoint?
+        private var panStart: CGPoint?
+        private var pushedCursor = false
+
+        func install() {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(
+                matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+            ) { [weak self] event in
+                self?.handle(event) ?? event
+            }
+        }
+
+        func uninstall() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+            finishPan()
+        }
+
+        private func handle(_ event: NSEvent) -> NSEvent? {
+            if event.type == .leftMouseUp, panOrigin != nil {
+                finishPan()
+                return nil
+            }
+            if event.type == .leftMouseDown, panOrigin != nil {
+                finishPan()
+            }
+            guard let scrollView,
+                  let window = scrollView.window else { return event }
+            switch event.type {
+            case .leftMouseDown:
+                guard event.window === window,
+                      ImageSurfaceInteraction(
+                        modifierFlags: event.modifierFlags
+                      ) == .navigate,
+                      scrollView.contentView.convert(
+                        scrollView.contentView.bounds,
+                        to: nil
+                      ).contains(event.locationInWindow) else {
+                    return event
+                }
+                panOrigin = scrollView.contentView.bounds.origin
+                panStart = event.locationInWindow
+                NSCursor.closedHand.push()
+                pushedCursor = true
+                return nil
+            case .leftMouseDragged:
+                guard let panOrigin, let panStart else { return event }
+                let translation = CGPoint(
+                    x: event.locationInWindow.x - panStart.x,
+                    y: event.locationInWindow.y - panStart.y
+                )
+                let proposed = CGRect(
+                    origin: CGPoint(
+                        x: panOrigin.x - translation.x,
+                        y: panOrigin.y + translation.y
+                    ),
+                    size: scrollView.contentView.bounds.size
+                )
+                let constrained = scrollView.contentView.constrainBoundsRect(
+                    proposed
+                )
+                scrollView.contentView.scroll(to: constrained.origin)
+                scrollView.reflectScrolledClipView(scrollView.contentView)
+                return nil
+            case .leftMouseUp:
+                return event
+            default:
+                return event
+            }
+        }
+
+        private func finishPan() {
+            panOrigin = nil
+            panStart = nil
+            if pushedCursor { NSCursor.pop() }
+            pushedCursor = false
+        }
     }
 }
 

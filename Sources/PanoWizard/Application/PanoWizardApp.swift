@@ -147,7 +147,7 @@ struct PanoramaCommandActions {
     let canShowPanorama: Bool
     let canStitch: Bool
     let createPanorama: () -> Void
-    let showSettings: () -> Void
+    let showPanoramaSettings: () -> Void
     let showPreview: () -> Void
     let showExport: () -> Void
 }
@@ -250,8 +250,8 @@ private struct PanoramaMenuCommands: Commands {
 
             Divider()
 
-            Button("Inställningar") {
-                actions?.showSettings()
+            Button("Panoramainställningar") {
+                actions?.showPanoramaSettings()
             }
             .keyboardShortcut(",", modifiers: .option)
             .disabled(actions?.canOpenProjectViews != true)

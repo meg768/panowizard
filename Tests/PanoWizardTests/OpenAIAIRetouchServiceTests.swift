@@ -4,6 +4,17 @@ import Testing
 
 struct OpenAIAIRetouchServiceTests {
     @Test
+    func redactsStoredAPIKeyForDisplay() {
+        #expect(
+            OpenAIAPIKeyStore.redactedDescription(
+                for: "  sk-project-example-G00A\n"
+            ) == "sk-…G00A"
+        )
+        #expect(OpenAIAPIKeyStore.redactedDescription(for: "  ") == nil)
+        #expect(OpenAIAPIKeyStore.redactedDescription(for: nil) == nil)
+    }
+
+    @Test
     func buildsDocumentedMultipartImageEditRequest() throws {
         let request = try OpenAIImageEditService.makeRequest(
             apiKey: " test-key \n",
@@ -28,7 +39,27 @@ struct OpenAIAIRetouchServiceTests {
         #expect(body.contains("name=\"quality\"\r\n\r\nhigh"))
         #expect(body.contains("name=\"output_format\"\r\n\r\npng"))
         #expect(body.contains("name=\"image[]\"; filename=\"nadir.png\""))
+        #expect(!body.contains("name=\"mask\""))
         #expect(body.hasSuffix("--test-boundary--\r\n"))
+    }
+
+    @Test
+    func includesOptionalMaskInMultipartImageEditRequest() throws {
+        let request = try OpenAIImageEditService.makeRequest(
+            apiKey: "test-key",
+            imageData: Data([0x01]),
+            maskData: Data([0x02, 0x03]),
+            filename: "zenith.png",
+            prompt: "Rekonstruera masken",
+            size: 2_048,
+            boundary: "mask-boundary"
+        )
+
+        let body = String(decoding: request.httpBody ?? Data(), as: UTF8.self)
+        #expect(body.contains("name=\"image[]\"; filename=\"zenith.png\""))
+        #expect(body.contains("name=\"mask\"; filename=\"mask.png\""))
+        #expect(body.contains("Content-Type: image/png"))
+        #expect(body.hasSuffix("--mask-boundary--\r\n"))
     }
 
     @Test

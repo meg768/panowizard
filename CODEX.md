@@ -39,7 +39,10 @@ tidskänslig arbetsstatus efter den incheckade baslinjen.
 - Enblend använder alltid `nearest-feature-transform`.
 - `.pw` lagrar relativa källsökvägar utan absolut reserv. Saknade bilder tas bort
   när projektet öppnas; appen söker inte efter dem.
-- API-nycklar hör hemma i macOS Nyckelring, aldrig i projektfilen.
+- API-nyckeln hanteras direkt från AI-retuschdialogen och lagras som en vanlig
+  lokal appinställning, aldrig i projektfilen. Använd inte macOS Nyckelring;
+  ad-hoc-byggen utlöser då systemets lösenordsdialog. Det finns ingen global
+  inställningsdialog så länge API-nyckeln är den enda appinställningen.
 - AI är ett valfritt eftersteg. Den får inte flytta kontrollpunkter eller
   kameraposer.
 - AI-retusch är tills vidare begränsad till nadir och zenit. En utvidgning till
@@ -91,29 +94,37 @@ warpning, söm/blandning eller efterretusch.
   editorer.
 - `Views/ControlPointInspector.swift` är den manuella CP-editorn.
 - `Views/PanoramaPreview.swift` innehåller källbildsmaskeringen.
+- `Views/ImageSurfaceInteraction.swift` normaliserar modifierare och fysisk
+  scrollriktning för bildytorna.
 - `Views/SphericalPanoramaView.swift` renderar den sfäriska Metal-
   förhandsvisningen utan redigerbar overlaygeometri.
 - `Views/PanoramaRetouchView.swift` hanterar polretusch och AI-dialogen.
 
-Röd och grön mask är källbildsdata i källans koordinater. Om AI-resultatet får
-en separat acceptansmask ska den höra till den färdiga polplattan och inte
-återanvända källmaskernas lagring.
+Röd och grön källmask är källbildsdata i källans koordinater. AI-dialogens röda
+arbetsmask hör i stället till den färdiga polplattan. Den återanvänder
+`SourceMaskRasterizer` för penseldragen men sparas inte som källmask eller i
+projektet; den förberedda retuschen blir transparent utanför maskområdet.
 
 ### Retusch och OpenAI
 
 - `Services/NadirRetouchService.swift` (`PoleRetouchService`) projicerar en
   2048 × 2048 stor 90°-platta vid nadir eller zenit och blandar tillbaka den.
-- `Services/OpenAIAIRetouchService.swift` lagrar API-nyckeln i Nyckelring och
-  anropar OpenAI Images API med `gpt-image-2`.
+- `Services/OpenAIAIRetouchService.swift` lagrar API-nyckeln i `UserDefaults`
+  och anropar OpenAI Images API med `gpt-image-2`.
+- `Views/OpenAIAPIKeySheet.swift` lägger till, ersätter eller tar bort den
+  globala OpenAI-nyckeln från AI-retuschdialogens diskreta nyckelrad. Appmenyn
+  har inget separat **Inställningar…**-kommando.
 
-Nuvarande AI-flöde skickar hela den sammansatta polplattan. Resultatet visas
-före användning, men när användaren accepterar det används hela plattan med en
-fjädrad ytterkant. Modellen kan alltså förändra korrekt innehåll inne i plattan.
-Detta är en känd produktbegränsning, inte ett geometri- eller CP-fel.
+AI-flödet visar den sammansatta polplattan direkt i dialogen och har en valfri
+enkel penselmask. Med mask får API:t hela plattan som bildkontext och en separat
+PNG-mask. Eftersom GPT Image behandlar masken som vägledning compositar
+PanoWizard därefter resultatet lokalt: endast masken och en 8 px featherkant
+blir en aktiv, delvis transparent polretusch. Utan mask används det tidigare
+helbildsflödet.
 
 Nadir och zenit har separata prompter i `PanoProject`. Prompten sparas när en
 generering startar så att varje panorama kan återanvända och modifiera sin egen
-instruktion. API-nyckeln är däremot global för appen och stannar i Nyckelring.
+instruktion. API-nyckeln är däremot global och lokal för appen.
 
 ## Produktgräns för AI-retusch
 
@@ -121,11 +132,14 @@ Den accepterade KISS-lösningen är dagens nadir-/zenitflöde. Export/import ska
 finnas kvar som manuell reserv och AI-resultatet ska fortsätta vara ett
 icke-destruktivt eftersteg ovanpå det frysta panoramat.
 
-Den närmaste tänkbara förbättringen är en separat acceptansmask över den
-genererade polplattan. Den skulle låta användaren välja exakt vilken del av
-AI-resultatet som blandas in och därmed bevara korrekt omgivande innehåll.
-Masken ska i så fall sparas per pol i `.pw` och vara skild från källbildernas
-röda/gröna masker.
+Den första acceptansmasken är avsiktligt minimal: en fast skärmbaserad pensel,
+⌘-målning, ⌘⌥-suddning, ett stegvist undo och rensning. Före och Efter har
+tillfällig zoom och pan enligt den gemensamma bildytemodellen: drag navigerar,
+scroll zoomar, ⌘ ändrar och ⌘⌥ tar bort. Samma modell används av källmask- och
+CP-editorerna; HTML/Metal-panoramat använder navigeringsdelen. Masken är
+tillfällig för dialogen; bara den accepterade retuschen sparas i `.pw`. Ett
+framtida uttryckligt beslut krävs om själva arbetsmasken ska sparas per pol
+mellan sessioner.
 
 En generell patchmotor för godtycklig panoramariktning är avsiktligt utanför
 nuvarande scope. Den kräver tangentprojektion, sfärisk lagring, hantering av

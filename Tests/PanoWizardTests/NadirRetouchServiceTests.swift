@@ -73,6 +73,92 @@ struct PoleRetouchServiceTests {
     }
 
     @Test
+    func convertsPaintedAreaToTransparentOpenAIMask() throws {
+        let directory = try temporaryDirectory()
+        let apiMaskURL = directory.appending(path: "api-mask.png")
+        let userMask = try #require(SourceMaskRasterizer.applyingRectangle(
+            from: MaskPoint(x: 0.35, y: 0.35),
+            to: MaskPoint(x: 0.65, y: 0.65),
+            erasing: false,
+            to: nil,
+            width: 64,
+            height: 64
+        ))
+
+        try PoleRetouchService().makeOpenAIEditMask(
+            from: userMask,
+            pole: .nadir,
+            to: apiMaskURL,
+            expectedSize: 64
+        )
+
+        let apiMask = try pixels(at: apiMaskURL)
+        #expect(apiMask.width == 64)
+        #expect(apiMask.height == 64)
+        #expect(apiMask.pixel(x: 32, y: 32).3 == 0)
+        #expect(apiMask.pixel(x: 4, y: 4).3 == 255)
+    }
+
+    @Test
+    func maskedAIEditPreservesPixelsOutsideFeatheredArea() throws {
+        let directory = try temporaryDirectory()
+        let sourceURL = directory.appending(path: "source.png")
+        let generatedURL = directory.appending(path: "generated.png")
+        let previewURL = directory.appending(path: "preview.png")
+        let preparedURL = directory.appending(path: "prepared.png")
+        let panoramaURL = directory.appending(path: "panorama.png")
+        let flattenedURL = directory.appending(path: "flattened.png")
+        try writeImage(width: 64, height: 64, to: sourceURL) { _, _ in
+            (12, 34, 56, 255)
+        }
+        try writeImage(width: 64, height: 64, to: generatedURL) { _, _ in
+            (240, 10, 20, 255)
+        }
+        let userMask = try #require(SourceMaskRasterizer.applyingRectangle(
+            from: MaskPoint(x: 0.375, y: 0.375),
+            to: MaskPoint(x: 0.625, y: 0.625),
+            erasing: false,
+            to: nil,
+            width: 64,
+            height: 64
+        ))
+
+        try PoleRetouchService().prepareMaskedAIEdit(
+            sourceURL: sourceURL,
+            editedURL: generatedURL,
+            userMaskData: userMask,
+            pole: .zenith,
+            previewURL: previewURL,
+            preparedURL: preparedURL,
+            expectedSize: 64,
+            featherRadius: 4
+        )
+
+        let preview = try pixels(at: previewURL)
+        let prepared = try pixels(at: preparedURL)
+        #expect(preview.width == 64)
+        #expect(preview.height == 64)
+        #expect(preview.pixel(x: 4, y: 4) == (12, 34, 56, 255))
+        #expect(preview.pixel(x: 32, y: 32).0 >= 235)
+        #expect(prepared.pixel(x: 4, y: 4).3 == 0)
+        #expect(prepared.pixel(x: 32, y: 32).3 >= 250)
+        #expect((1...254).contains(Int(prepared.pixel(x: 23, y: 32).3)))
+
+        try writeImage(width: 360, height: 180, to: panoramaURL) { _, _ in
+            (0, 0, 0, 255)
+        }
+        try PoleRetouchService().flattenRetouches(
+            panoramaURL: panoramaURL,
+            nadirRetouchURL: nil,
+            zenithRetouchURL: preparedURL,
+            to: flattenedURL
+        )
+        let flattened = try pixels(at: flattenedURL)
+        #expect(flattened.pixel(x: 180, y: 0).0 >= 230)
+        #expect(flattened.pixel(x: 180, y: 30).0 == 0)
+    }
+
+    @Test
     func flattenedRetouchAffectsNadirButNotHorizon() throws {
         let directory = try temporaryDirectory()
         let panoramaURL = directory.appending(path: "panorama.png")

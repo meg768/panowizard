@@ -9,7 +9,28 @@ final class PanoramaExportController {
     var jpegQuality = 0.92
     var maximumWidth = 0
     var errorMessage: String?
-    var isPreparingHTMLShare = false
+}
+
+enum PanoramaImageFormat: String, CaseIterable {
+    case jpeg = "JPEG"
+    case png = "PNG"
+    case tiff = "TIFF"
+
+    var contentType: UTType {
+        switch self {
+        case .jpeg: .jpeg
+        case .png: .png
+        case .tiff: .tiff
+        }
+    }
+
+    var filenameExtension: String {
+        switch self {
+        case .jpeg: "jpg"
+        case .png: "png"
+        case .tiff: "tiff"
+        }
+    }
 }
 
 struct PanoramaExportView: View {
@@ -20,13 +41,13 @@ struct PanoramaExportView: View {
         if model.stitchedResultURL != nil {
             Form {
                 Section("Panoramabild") {
-                    LabeledContent("Format", value: "Equirektangulär JPEG · 2:1")
+                    LabeledContent("Format", value: "Equirektangulär · 2:1")
                     Picker("Storlek", selection: $controller.maximumWidth) {
                         Text("Original").tag(0)
                         Text("4096 px").tag(4_096)
                         Text("2048 px").tag(2_048)
                     }
-                    Picker("Kvalitet", selection: $controller.jpegQuality) {
+                    Picker("JPEG-kvalitet", selection: $controller.jpegQuality) {
                         Text("Normal").tag(0.82)
                         Text("Hög").tag(0.92)
                         Text("Maximal").tag(0.98)
@@ -119,83 +140,8 @@ extension PanoramaExportController {
         model.exportHTML(to: url, initialViewpoint: viewpoint)
     }
 
-    func shareHTML(model: AppModel, viewpoint: PanoramaViewpoint) {
-        isPreparingHTMLShare = true
-        Task {
-            do {
-                let url = try await model.interactiveHTMLArchiveForSharing(
-                    initialViewpoint: viewpoint
-                )
-                isPreparingHTMLShare = false
-                guard let view = NSApp.keyWindow?.contentView else { return }
-                // Mail may interpret a bare HTML document as message content
-                // and rewrite it to a local file:// link. A ZIP is always
-                // transferred as a real attachment.
-                NSSharingServicePicker(items: [url as NSURL]).show(
-                    relativeTo: view.bounds,
-                    of: view,
-                    preferredEdge: .minY
-                )
-            } catch {
-                isPreparingHTMLShare = false
-                errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    func shareJPEG(
-        sourceURL: URL,
-        nadirRetouchURL: URL?,
-        zenithRetouchURL: URL?
-    ) {
-        Task {
-            do {
-                let directory = FileManager.default.temporaryDirectory
-                    .appending(path: "PanoWizard/Exports", directoryHint: .isDirectory)
-                try FileManager.default.createDirectory(
-                    at: directory,
-                    withIntermediateDirectories: true
-                )
-                let intermediateURL = directory.appending(
-                    path: "\(UUID().uuidString)-retouched-panorama.png"
-                )
-                let shareURL = directory.appending(
-                    path: "\(UUID().uuidString)-panorama.jpg"
-                )
-                let exportSourceURL: URL
-                if nadirRetouchURL != nil || zenithRetouchURL != nil {
-                    try await Task.detached(priority: .userInitiated) {
-                        try PoleRetouchService().flattenRetouches(
-                            panoramaURL: sourceURL,
-                            nadirRetouchURL: nadirRetouchURL,
-                            zenithRetouchURL: zenithRetouchURL,
-                            to: intermediateURL
-                        )
-                    }.value
-                    exportSourceURL = intermediateURL
-                } else {
-                    exportSourceURL = sourceURL
-                }
-                try Self.writeJPEG(
-                    from: exportSourceURL,
-                    to: shareURL,
-                    maximumWidth: maximumWidth,
-                    quality: jpegQuality
-                )
-                try? FileManager.default.removeItem(at: intermediateURL)
-                guard let view = NSApp.keyWindow?.contentView else { return }
-                NSSharingServicePicker(items: [shareURL as NSURL]).show(
-                    relativeTo: view.bounds,
-                    of: view,
-                    preferredEdge: .minY
-                )
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    func exportJPEG(
+    func exportImage(
+        format: PanoramaImageFormat,
         from sourceURL: URL,
         nadirRetouchURL: URL?,
         zenithRetouchURL: URL?,
@@ -204,7 +150,7 @@ extension PanoramaExportController {
         projectDirectoryURL: URL?
     ) {
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.jpeg]
+        panel.allowedContentTypes = [format.contentType]
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
         panel.directoryURL = projectDirectoryURL
@@ -212,9 +158,9 @@ extension PanoramaExportController {
             projectName: projectName,
             projectTitle: projectTitle
         )
-        panel.nameFieldStringValue = "\(name).jpg"
-        panel.title = "Exportera panoramabild"
-        panel.prompt = "Exportera"
+        panel.nameFieldStringValue = "\(name).\(format.filenameExtension)"
+        panel.title = "Spara panorama som \(format.rawValue)"
+        panel.prompt = "Spara"
         guard panel.runModal() == .OK, let destinationURL = panel.url else {
             return
         }
@@ -243,9 +189,10 @@ extension PanoramaExportController {
                         try? FileManager.default.removeItem(at: exportSourceURL)
                     }
                 }
-                try Self.writeJPEG(
+                try Self.writeImage(
                     from: exportSourceURL,
                     to: destinationURL,
+                    format: format,
                     maximumWidth: maximumWidth,
                     quality: quality
                 )
@@ -255,9 +202,10 @@ extension PanoramaExportController {
         }
     }
 
-    private static func writeJPEG(
+    private static func writeImage(
         from sourceURL: URL,
         to destinationURL: URL,
+        format: PanoramaImageFormat,
         maximumWidth: Int,
         quality: Double
     ) throws {
@@ -276,13 +224,19 @@ extension PanoramaExportController {
         guard let image,
               let destination = CGImageDestinationCreateWithURL(
                   destinationURL as CFURL,
-                  UTType.jpeg.identifier as CFString,
+                  format.contentType.identifier as CFString,
                   1,
                   nil
               ) else { throw CocoaError(.fileWriteUnknown) }
-        CGImageDestinationAddImage(destination, image, [
-            kCGImageDestinationLossyCompressionQuality: quality
-        ] as CFDictionary)
+        let properties: CFDictionary?
+        if format == .jpeg {
+            properties = [
+                kCGImageDestinationLossyCompressionQuality: quality
+            ] as CFDictionary
+        } else {
+            properties = nil
+        }
+        CGImageDestinationAddImage(destination, image, properties)
         guard CGImageDestinationFinalize(destination) else {
             throw CocoaError(.fileWriteUnknown)
         }

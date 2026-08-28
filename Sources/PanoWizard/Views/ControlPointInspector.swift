@@ -365,8 +365,12 @@ struct ControlPointEditor: View {
 
     private func removeSelectedPoint() {
         guard let selectedPointID else { return }
+        removePoint(selectedPointID)
+    }
+
+    private func removePoint(_ pointID: DiagnosticControlPoint.ID) {
         let selectedIndex = displayedPoints.firstIndex {
-            $0.id == selectedPointID
+            $0.id == pointID
         }
         let nextPointID = selectedIndex.flatMap { index in
             if index + 1 < displayedPoints.count {
@@ -379,7 +383,7 @@ struct ControlPointEditor: View {
         }
         pendingSelectionAfterDelete = nextPointID
         self.selectedPointID = nextPointID
-        onRemovePoint(selectedPointID)
+        onRemovePoint(pointID)
     }
 
     private func selectAdjacentPoint(backwards: Bool) {
@@ -432,6 +436,7 @@ struct ControlPointEditor: View {
                 )
             },
             onMovePoint: onMovePoint,
+            onRemovePoint: removePoint,
             onAddPoint: { point in
                 isAddingPoint = false
                 let newPointID = onAddPoint(point, imageIndex)
@@ -577,6 +582,7 @@ private struct ControlPointImage: View {
     let onMagnifyPoint: (DiagnosticControlPoint.ID?) -> Void
     let onCommandPreview: (CGPoint?) -> Void
     let onMovePoint: (DiagnosticControlPoint.ID, Int, CGPoint) -> Void
+    let onRemovePoint: (DiagnosticControlPoint.ID) -> Void
     let onAddPoint: (CGPoint) -> Void
     @State private var sourceImage: CGImage?
     @State private var viewport = ControlPointViewportController()
@@ -657,8 +663,6 @@ private struct ControlPointImage: View {
                         controller: viewport,
                         protectedPoints: markerLocations,
                         fitMagnification: fitMagnification,
-                        backgroundPanEnabled:
-                            !(isAddingPoint && allowsAdding),
                         onCommandClick: { location in
                             onAddPoint(originalCoordinate(
                                 for: sourceCoordinate(
@@ -669,6 +673,9 @@ private struct ControlPointImage: View {
                                 ),
                                 in: controlPointCoordinateSize
                             ))
+                        },
+                        onPointSelected: { pointID in
+                            onSelectPoint(pointID)
                         },
                         onPointMouseDown: { pointID in
                             viewport.beginPointMove()
@@ -693,7 +700,8 @@ private struct ControlPointImage: View {
                         onPointMouseUp: {
                             viewport.endPointMove()
                             onMagnifyPoint(nil)
-                        }
+                        },
+                        onPointRemoved: onRemovePoint
                     ) {
                         ZStack {
                                 Image(decorative: displayedSourceImage, scale: 1)
@@ -1140,24 +1148,39 @@ private final class ControlPointViewportController: ObservableObject {
 
 private final class ControlPointNSScrollView: NSScrollView {
     weak var viewportController: ControlPointViewportController?
+    var interaction = ImageSurfaceInteraction.navigate {
+        didSet {
+            guard interaction != oldValue else { return }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+    var isDraggingNavigation = false {
+        didSet {
+            guard isDraggingNavigation != oldValue else { return }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        let cursor: NSCursor = if isDraggingNavigation {
+            .closedHand
+        } else {
+            switch interaction {
+            case .navigate: .openHand
+            case .edit: .crosshair
+            case .remove: .disappearingItem
+            }
+        }
+        addCursorRect(contentView.frame, cursor: cursor)
+    }
 
     override func scrollWheel(with event: NSEvent) {
-        let zoomDelta = abs(event.scrollingDeltaY) >= abs(event.scrollingDeltaX)
-            ? event.scrollingDeltaY
-            : event.scrollingDeltaX
-        guard event.modifierFlags.contains(.option)
-                || event.modifierFlags.contains(.shift),
-              abs(zoomDelta) > 0.01,
-              let documentView else {
-            super.scrollWheel(with: event)
-            return
-        }
+        let zoomDelta = ImageSurfaceScroll.dominantDelta(for: event)
+        guard abs(zoomDelta) > 0.01, let documentView else { return }
         let anchor = documentView.convert(event.locationInWindow, from: nil)
-        let physicalDelta = event.isDirectionInvertedFromDevice
-            ? -zoomDelta
-            : zoomDelta
         let proposedTarget = magnification
-            * exp(-physicalDelta * 0.008)
+            * exp(-zoomDelta * 0.008)
         let target = min(max(
             proposedTarget,
             minMagnification
@@ -1199,32 +1222,35 @@ private struct ControlPointNativeScrollView<Content: View>:
     let controller: ControlPointViewportController
     let protectedPoints: [ControlPointHitTarget]
     let fitMagnification: Double
-    let backgroundPanEnabled: Bool
     let onCommandClick: (CGPoint) -> Void
+    let onPointSelected: (DiagnosticControlPoint.ID) -> Void
     let onPointMouseDown: (DiagnosticControlPoint.ID) -> Void
     let onPointDragged: (DiagnosticControlPoint.ID, CGPoint) -> Void
     let onPointMouseUp: () -> Void
+    let onPointRemoved: (DiagnosticControlPoint.ID) -> Void
     let content: Content
 
     init(
         controller: ControlPointViewportController,
         protectedPoints: [ControlPointHitTarget],
         fitMagnification: Double,
-        backgroundPanEnabled: Bool,
         onCommandClick: @escaping (CGPoint) -> Void,
+        onPointSelected: @escaping (DiagnosticControlPoint.ID) -> Void,
         onPointMouseDown: @escaping (DiagnosticControlPoint.ID) -> Void,
         onPointDragged: @escaping (DiagnosticControlPoint.ID, CGPoint) -> Void,
         onPointMouseUp: @escaping () -> Void,
+        onPointRemoved: @escaping (DiagnosticControlPoint.ID) -> Void,
         @ViewBuilder content: () -> Content
     ) {
         self.controller = controller
         self.protectedPoints = protectedPoints
         self.fitMagnification = fitMagnification
-        self.backgroundPanEnabled = backgroundPanEnabled
         self.onCommandClick = onCommandClick
+        self.onPointSelected = onPointSelected
         self.onPointMouseDown = onPointMouseDown
         self.onPointDragged = onPointDragged
         self.onPointMouseUp = onPointMouseUp
+        self.onPointRemoved = onPointRemoved
         self.content = content()
     }
 
@@ -1258,10 +1284,11 @@ private struct ControlPointNativeScrollView<Content: View>:
         controller.configureFitMagnification(fitMagnification)
         context.coordinator.scrollView = scrollView
         context.coordinator.protectedPoints = protectedPoints
+        context.coordinator.onPointSelected = onPointSelected
         context.coordinator.onPointMouseDown = onPointMouseDown
         context.coordinator.onPointDragged = onPointDragged
         context.coordinator.onPointMouseUp = onPointMouseUp
-        context.coordinator.backgroundPanEnabled = backgroundPanEnabled
+        context.coordinator.onPointRemoved = onPointRemoved
         context.coordinator.onCommandClick = onCommandClick
         context.coordinator.installMouseMonitor()
         return scrollView
@@ -1299,10 +1326,11 @@ private struct ControlPointNativeScrollView<Content: View>:
         }
         context.coordinator.scrollView = scrollView
         context.coordinator.protectedPoints = protectedPoints
+        context.coordinator.onPointSelected = onPointSelected
         context.coordinator.onPointMouseDown = onPointMouseDown
         context.coordinator.onPointDragged = onPointDragged
         context.coordinator.onPointMouseUp = onPointMouseUp
-        context.coordinator.backgroundPanEnabled = backgroundPanEnabled
+        context.coordinator.onPointRemoved = onPointRemoved
         context.coordinator.onCommandClick = onCommandClick
     }
 
@@ -1316,15 +1344,16 @@ private struct ControlPointNativeScrollView<Content: View>:
     @MainActor
     final class Coordinator: NSObject {
         let controller: ControlPointViewportController
-        weak var scrollView: NSScrollView?
+        weak var scrollView: ControlPointNSScrollView?
         var protectedPoints: [ControlPointHitTarget] = []
+        var onPointSelected: (DiagnosticControlPoint.ID) -> Void = { _ in }
         var onPointMouseDown: (DiagnosticControlPoint.ID) -> Void = { _ in }
         var onPointDragged: (DiagnosticControlPoint.ID, CGPoint) -> Void = {
             _, _ in
         }
         var onPointMouseUp: () -> Void = {}
+        var onPointRemoved: (DiagnosticControlPoint.ID) -> Void = { _ in }
         var onCommandClick: (CGPoint) -> Void = { _ in }
-        var backgroundPanEnabled = true
         private var mouseMonitor: Any?
         private var activePointID: DiagnosticControlPoint.ID?
 
@@ -1335,7 +1364,13 @@ private struct ControlPointNativeScrollView<Content: View>:
         func installMouseMonitor() {
             guard mouseMonitor == nil else { return }
             mouseMonitor = NSEvent.addLocalMonitorForEvents(
-                matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+                matching: [
+                    .leftMouseDown,
+                    .leftMouseDragged,
+                    .leftMouseUp,
+                    .mouseMoved,
+                    .flagsChanged
+                ]
             ) { [weak self] event in
                 self?.handleMouseEvent(event) ?? event
             }
@@ -1363,8 +1398,24 @@ private struct ControlPointNativeScrollView<Content: View>:
                 finishActiveMouseOperation()
             }
             guard let scrollView,
-                  event.window === scrollView.window,
                   let documentView = scrollView.documentView else {
+                return event
+            }
+            if event.type == .flagsChanged {
+                guard event.window == nil
+                        || event.window === scrollView.window else {
+                    return event
+                }
+                scrollView.interaction = ImageSurfaceInteraction(
+                    modifierFlags: event.modifierFlags
+                )
+                return event
+            }
+            guard event.window === scrollView.window else { return event }
+            scrollView.interaction = ImageSurfaceInteraction(
+                modifierFlags: event.modifierFlags
+            )
+            if event.type == .mouseMoved {
                 return event
             }
             var location = documentView.convert(event.locationInWindow, from: nil)
@@ -1380,23 +1431,32 @@ private struct ControlPointNativeScrollView<Content: View>:
                 guard scrollView.bounds.contains(pointInScrollView) else {
                     return event
                 }
-                if event.modifierFlags.contains(.command) {
-                    onCommandClick(location)
-                    return nil
-                }
                 let hitRadius = 24 / max(scrollView.magnification, 0.001)
-                if let target = protectedPoints.min(by: {
+                let target = protectedPoints.min(by: {
                     hypot($0.position.x - location.x, $0.position.y - location.y)
                         < hypot($1.position.x - location.x, $1.position.y - location.y)
-                }), hypot(
-                    target.position.x - location.x,
-                    target.position.y - location.y
-                ) <= hitRadius {
+                }).flatMap { candidate in
+                    hypot(
+                        candidate.position.x - location.x,
+                        candidate.position.y - location.y
+                    ) <= hitRadius ? candidate : nil
+                }
+                switch scrollView.interaction {
+                case .navigate:
+                    if let target { onPointSelected(target.id) }
+                    return event
+                case .edit:
+                    guard let target else {
+                        onCommandClick(location)
+                        return nil
+                    }
                     activePointID = target.id
                     onPointMouseDown(target.id)
                     return nil
+                case .remove:
+                    if let target { onPointRemoved(target.id) }
+                    return nil
                 }
-                return event
             case .leftMouseDragged:
                 if let activePointID {
                     onPointDragged(activePointID, location)
@@ -1418,9 +1478,14 @@ private struct ControlPointNativeScrollView<Content: View>:
         }
 
         @objc func panBackground(_ gesture: NSPanGestureRecognizer) {
-            guard activePointID == nil, let scrollView else { return }
+            guard activePointID == nil,
+                  let scrollView,
+                  ImageSurfaceInteraction(
+                    modifierFlags: NSEvent.modifierFlags
+                  ) == .navigate else { return }
             switch gesture.state {
             case .began:
+                scrollView.isDraggingNavigation = true
                 controller.beginPan()
             case .changed:
                 let translation = gesture.translation(in: scrollView)
@@ -1429,6 +1494,7 @@ private struct ControlPointNativeScrollView<Content: View>:
                     height: translation.y
                 ))
             case .ended, .cancelled, .failed:
+                scrollView.isDraggingNavigation = false
                 controller.endPan()
             default:
                 break
