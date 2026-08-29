@@ -39,6 +39,13 @@ struct PanoramaSidebar: View {
                                 model.selection = .panorama
                             }
                             PanoramaNavigationRow(
+                                title: "Retuschering",
+                                systemImage: "paintbrush.pointed",
+                                isSelected: model.selection == .retouch
+                            ) {
+                                model.selection = .retouch
+                            }
+                            PanoramaNavigationRow(
                                 title: "Exportera",
                                 systemImage: "square.and.arrow.up",
                                 isSelected: model.selection == .export
@@ -47,25 +54,6 @@ struct PanoramaSidebar: View {
                             }
                         } header: {
                             SidebarSectionHeader("Panorama")
-                        }
-
-                        Section {
-                            PanoramaNavigationRow(
-                                title: "Nadir",
-                                systemImage: "arrow.down.to.line",
-                                isSelected: model.selection == .retouch(.nadir)
-                            ) {
-                                model.selection = .retouch(.nadir)
-                            }
-                            PanoramaNavigationRow(
-                                title: "Zenit",
-                                systemImage: "arrow.up.to.line",
-                                isSelected: model.selection == .retouch(.zenith)
-                            ) {
-                                model.selection = .retouch(.zenith)
-                            }
-                        } header: {
-                            SidebarSectionHeader("Retuschering")
                         }
                     }
                 }

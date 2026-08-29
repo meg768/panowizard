@@ -5,7 +5,7 @@ import Observation
 enum ProjectSelection: Hashable {
     case panorama
     case settings
-    case retouch(PanoramaPole)
+    case retouch
     case export
     case source(SourceImage.ID)
     case controlPoints

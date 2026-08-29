@@ -86,8 +86,17 @@ struct ContentView: View {
                         model: model,
                         controller: exportController
                     )
-                } else if case .retouch(let pole) = model.selection {
-                    PanoramaRetouchView(model: model, pole: pole)
+                } else if model.selection == .retouch {
+                    PanoramaRetouchView(
+                        model: model,
+                        projectDirectoryURL: projectDirectoryURL,
+                        controller: retouchController,
+                        onAIRetouch: { pole in
+                            aiRetouchPresentation = AIRetouchPresentation(
+                                pole: pole
+                            )
+                        }
+                    )
                 } else if model.selection == .controlPoints {
                     if let diagnostics = model.controlPointEditorDiagnostics,
                        diagnostics.images.count >= 2 {
@@ -198,8 +207,6 @@ struct ContentView: View {
         HStack(spacing: 6) {
             if model.selection == .export {
                 exportToolbarCenter
-            } else if case .retouch(let pole) = model.selection {
-                retouchToolbarCenter(pole)
             } else if model.selection == .controlPoints {
                 controlPointToolbarCenter
             } else if model.selectedSourceImage != nil {
@@ -243,39 +250,6 @@ struct ContentView: View {
             .menuStyle(.button)
             .buttonStyle(WorkspaceToolbarPillStyle())
             .help("Spara panoramat som bild eller interaktiv HTML")
-        }
-    }
-
-    @ViewBuilder
-    private func retouchToolbarCenter(_ pole: PanoramaPole) -> some View {
-        if model.stitchedResultURL != nil {
-            Button {
-                aiRetouchPresentation = AIRetouchPresentation(pole: pole)
-            } label: {
-                Label("AI-retuschera…", systemImage: "wand.and.sparkles")
-            }
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .disabled(model.phase != .ready)
-
-            Button {
-                retouchController.exportPlate(
-                    model: model,
-                    pole: pole,
-                    projectDirectoryURL: projectDirectoryURL
-                )
-            } label: {
-                Label("Exportera 90°-platta…", systemImage: "square.and.arrow.up")
-            }
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .disabled(model.phase != .ready)
-
-            Button {
-                retouchController.importPlate(model: model, pole: pole)
-            } label: {
-                Label("Importera retusch…", systemImage: "square.and.arrow.down")
-            }
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .disabled(model.phase != .ready)
         }
     }
 
@@ -394,15 +368,7 @@ struct ContentView: View {
 
     private var toolbarOverflow: some View {
         Menu {
-            if case .retouch(let pole) = model.selection {
-                Button(
-                    "Ta bort \(pole.displayName.lowercased())retusch",
-                    role: .destructive
-                ) {
-                    model.removeRetouch(for: pole)
-                }
-                .disabled(model.retouchURL(for: pole) == nil)
-            } else if model.selection == .controlPoints,
+            if model.selection == .controlPoints,
                let actions = controlPointActions {
                 Button("Generera om alla kontrollpunkter…") {
                     actions.requestRegenerateProjectPoints()
@@ -458,9 +424,6 @@ struct ContentView: View {
     private var showsToolbarOverflow: Bool {
         if model.selection == .export {
             return false
-        }
-        if case .retouch(let pole) = model.selection {
-            return model.retouchURL(for: pole) != nil
         }
         if model.selection == .controlPoints {
             return controlPointActions != nil

@@ -87,6 +87,10 @@ Drag panorerar, scroll/två fingrar zoomar, ⌘-drag målar och ⌘⌥-drag sudd
 
 ## Retusch
 
+**Retuschering** ligger som ett samlat steg under **Panorama**. Samma vy visar
+separata sektioner för nadir och zenit med status samt AI-retusch, export,
+import och borttagning av respektive retusch.
+
 Nadir och zenit kan exporteras som plana 2048 × 2048-pixlars 90°-plattor,
 redigeras externt och importeras igen. Importerad retusch blandas mjukt mot det
 färdiga panoramat och följer med i projektet.

@@ -98,7 +98,9 @@ warpning, söm/blandning eller efterretusch.
   scrollriktning för bildytorna.
 - `Views/SphericalPanoramaView.swift` renderar den sfäriska Metal-
   förhandsvisningen utan redigerbar overlaygeometri.
-- `Views/PanoramaRetouchView.swift` hanterar polretusch och AI-dialogen.
+- `Views/PanoramaRetouchView.swift` samlar nadir- och zenitretusch i ett
+  gemensamt steg under Panorama och hanterar respektive arbetsflöde samt
+  AI-dialogen.
 
 Röd och grön källmask är källbildsdata i källans koordinater. AI-dialogens röda
 arbetsmask hör i stället till den färdiga polplattan. Den återanvänder
