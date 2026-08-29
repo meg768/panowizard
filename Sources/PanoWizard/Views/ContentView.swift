@@ -75,7 +75,7 @@ struct ContentView: View {
     }
 
     private var detailWorkspace: some View {
-        DetailWorkspace {
+        DetailWorkspace(showsControls: showsWorkspaceToolRow) {
             workspaceToolRow
         } content: {
             ZStack {
@@ -84,7 +84,9 @@ struct ContentView: View {
                 } else if model.selection == .export {
                     PanoramaExportView(
                         model: model,
-                        controller: exportController
+                        controller: exportController,
+                        projectName: projectName,
+                        projectDirectoryURL: projectDirectoryURL
                     )
                 } else if model.selection == .retouch {
                     PanoramaRetouchView(
@@ -205,51 +207,11 @@ struct ContentView: View {
     @ViewBuilder
     private var toolbarCenter: some View {
         HStack(spacing: 6) {
-            if model.selection == .export {
-                exportToolbarCenter
-            } else if model.selection == .controlPoints {
+            if model.selection == .controlPoints {
                 controlPointToolbarCenter
             } else if model.selectedSourceImage != nil {
                 sourceMaskToolbarCenter
             }
-        }
-    }
-
-    @ViewBuilder
-    private var exportToolbarCenter: some View {
-        if let panoramaURL = model.stitchedResultURL {
-            Menu {
-                ForEach(PanoramaImageFormat.allCases, id: \.self) { format in
-                    Button("Som \(format.rawValue)…") {
-                        exportController.exportImage(
-                            format: format,
-                            from: panoramaURL,
-                            nadirRetouchURL: model.nadirRetouchURL,
-                            zenithRetouchURL: model.zenithRetouchURL,
-                            projectName: projectName,
-                            projectTitle: model.project.title,
-                            projectDirectoryURL: projectDirectoryURL
-                        )
-                    }
-                }
-
-                Divider()
-
-                Button("Som interaktiv HTML…") {
-                    exportController.exportHTML(
-                        model: model,
-                        projectName: projectName,
-                        projectDirectoryURL: projectDirectoryURL,
-                        viewpoint: model.panoramaViewpoint
-                    )
-                }
-                .disabled(!model.canExportHTML)
-            } label: {
-                Label("Spara panorama", systemImage: "square.and.arrow.down")
-            }
-            .menuStyle(.button)
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .help("Spara panoramat som bild eller interaktiv HTML")
         }
     }
 
@@ -332,20 +294,6 @@ struct ContentView: View {
         HStack(spacing: 6) {
             primaryToolbarAction
 
-            if model.selection != .export && hasStitchableSources {
-                Button {
-                    model.stitch()
-                } label: {
-                    Label("Skapa panorama", systemImage: "pano")
-                }
-                .buttonStyle(WorkspaceToolbarPillStyle())
-                .disabled(!model.canStitch)
-                .help(
-                    "Skapa panorama med aktuella kontrollpunkter och masker"
-                )
-                .layoutPriority(1)
-            }
-
             if showsToolbarOverflow {
                 toolbarOverflow
             }
@@ -415,12 +363,6 @@ struct ContentView: View {
         .help("Vymeny")
     }
 
-    private var hasStitchableSources: Bool {
-        model.project.images.filter {
-            $0.isEnabled && $0.effectiveRole == .alignment
-        }.count >= 2
-    }
-
     private var showsToolbarOverflow: Bool {
         if model.selection == .export {
             return false
@@ -429,6 +371,10 @@ struct ContentView: View {
             return controlPointActions != nil
         }
         return model.selectedSourceImage != nil
+    }
+
+    private var showsWorkspaceToolRow: Bool {
+        showsToolbarOverflow
     }
 
     private var maskIntentTitle: String {

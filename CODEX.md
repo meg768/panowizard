@@ -92,6 +92,10 @@ warpning, söm/blandning eller efterretusch.
   temporära renderingsfiler.
 - `Views/ContentView.swift` sätter samman sidofält, verktygsfält och aktiva
   editorer.
+- `Views/DetailWorkspace.swift` visar den lokala verktygsraden endast när den
+  aktiva vyn faktiskt har verktygsradsåtgärder.
+- `Views/PanoramaExportView.swift` visar JPEG-, PNG-, TIFF- och HTML-export
+  direkt i respektive formulärsektion.
 - `Views/ControlPointInspector.swift` är den manuella CP-editorn.
 - `Views/PanoramaPreview.swift` innehåller källbildsmaskeringen.
 - `Views/ImageSurfaceInteraction.swift` normaliserar modifierare och fysisk

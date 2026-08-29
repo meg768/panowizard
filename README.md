@@ -153,8 +153,9 @@ försöker inte hitta en gammal absolut sökväg.
 
 ## Export
 
-Knappen **Spara panorama** samlar all slutexport. JPEG, PNG och TIFF sparas som
-equirektangulära 2:1-bilder med aktuell retusch. Interaktiv HTML sparas som en
+**Exportera** har direkta knappar för JPEG, PNG och TIFF tillsammans med
+storleks- och JPEG-kvalitetsvalen. Bildformaten sparas som equirektangulära
+2:1-bilder med aktuell retusch. En separat knapp sparar interaktiv HTML som en
 självständig webbsida med vald startvinkel. Det sparade projektet behåller även
 den senast genererade panoramabilden för snabb återöppning.
 

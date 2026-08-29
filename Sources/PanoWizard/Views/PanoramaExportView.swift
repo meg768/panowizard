@@ -36,9 +36,11 @@ enum PanoramaImageFormat: String, CaseIterable {
 struct PanoramaExportView: View {
     @Bindable var model: AppModel
     @Bindable var controller: PanoramaExportController
+    let projectName: String?
+    let projectDirectoryURL: URL?
 
     var body: some View {
-        if model.stitchedResultURL != nil {
+        if let panoramaURL = model.stitchedResultURL {
             Form {
                 Section("Panoramabild") {
                     LabeledContent("Format", value: "Equirektangulär · 2:1")
@@ -52,6 +54,31 @@ struct PanoramaExportView: View {
                         Text("Hög").tag(0.92)
                         Text("Maximal").tag(0.98)
                     }
+
+                    HStack(spacing: 8) {
+                        ForEach(
+                            PanoramaImageFormat.allCases,
+                            id: \.self
+                        ) { format in
+                            Button {
+                                controller.exportImage(
+                                    format: format,
+                                    from: panoramaURL,
+                                    nadirRetouchURL: model.nadirRetouchURL,
+                                    zenithRetouchURL: model.zenithRetouchURL,
+                                    projectName: projectName,
+                                    projectTitle: model.project.title,
+                                    projectDirectoryURL: projectDirectoryURL
+                                )
+                            } label: {
+                                Label(
+                                    "Spara \(format.rawValue)…",
+                                    systemImage: "square.and.arrow.down"
+                                )
+                            }
+                        }
+                    }
+                    .buttonStyle(WorkspaceToolbarPillStyle())
                 }
 
                 Section("Interaktivt panorama") {
@@ -60,6 +87,22 @@ struct PanoramaExportView: View {
                             + "webbläsare utan andra tillhörande filer."
                     )
                     .foregroundStyle(.secondary)
+
+                    Button {
+                        controller.exportHTML(
+                            model: model,
+                            projectName: projectName,
+                            projectDirectoryURL: projectDirectoryURL,
+                            viewpoint: model.panoramaViewpoint
+                        )
+                    } label: {
+                        Label(
+                            "Spara HTML…",
+                            systemImage: "square.and.arrow.down"
+                        )
+                    }
+                    .buttonStyle(WorkspaceToolbarPillStyle())
+                    .disabled(!model.canExportHTML)
                 }
 
                 if model.project.nadirRepairPlacement != nil,

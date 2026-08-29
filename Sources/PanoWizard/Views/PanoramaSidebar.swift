@@ -53,7 +53,19 @@ struct PanoramaSidebar: View {
                                 model.selection = .export
                             }
                         } header: {
-                            SidebarSectionHeader("Panorama")
+                            SidebarSectionHeader("Panorama") {
+                                Button {
+                                    model.stitch()
+                                } label: {
+                                    Label("Skapa", systemImage: "pano")
+                                }
+                                .buttonStyle(WorkspaceToolbarPillStyle())
+                                .disabled(!model.canStitch)
+                                .help(
+                                    "Skapa panorama med aktuella "
+                                        + "kontrollpunkter och masker"
+                                )
+                            }
                         }
                     }
                 }
@@ -152,10 +164,10 @@ private struct SidebarSectionHeader<Trailing: View>: View {
             Text(title)
                 .font(.headline)
                 .foregroundStyle(.primary)
-                .textCase(nil)
             Spacer(minLength: 12)
             trailing
         }
+        .textCase(nil)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 4)
         .padding(.top, 4)
