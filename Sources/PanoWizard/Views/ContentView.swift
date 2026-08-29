@@ -217,40 +217,103 @@ struct ContentView: View {
 
     @ViewBuilder
     private var sourceMaskToolbarCenter: some View {
-        Menu {
-            Button("Pensel") {
-                model.sourceMaskTool = .brush
-            }
-            Button("Rektangel") {
-                model.sourceMaskTool = .rectangle
-            }
-        } label: {
-            Label(
-                model.sourceMaskTool == .brush ? "Pensel" : "Rektangel",
-                systemImage: model.sourceMaskTool == .brush
-                    ? "paintbrush.pointed" : "rectangle"
-            )
-        }
-        .menuStyle(.button)
-        .buttonStyle(WorkspaceToolbarPillStyle())
-        .help("Välj hur masken ska målas")
+        HStack(spacing: 5) {
+            HStack(spacing: 2) {
+                Button {
+                    model.sourceMaskTool = .brush
+                } label: {
+                    Label("Pensel", systemImage: "paintbrush.pointed")
+                }
+                .buttonStyle(MaskToolbarButtonStyle(
+                    isSelected: model.sourceMaskTool == .brush,
+                    showsTitle: true
+                ))
+                .help("Pensel")
 
-        Menu {
-            Button("Uteslut ur panoramat") {
-                model.sourceMaskIntent = .exclude
+                Button {
+                    model.sourceMaskTool = .rectangle
+                } label: {
+                    Label("Rektangel", systemImage: "rectangle.dashed")
+                }
+                .buttonStyle(MaskToolbarButtonStyle(
+                    isSelected: model.sourceMaskTool == .rectangle,
+                    showsTitle: true
+                ))
+                .help("Rektangel")
             }
-            Button("Skydda i panoramat") {
-                model.sourceMaskIntent = .protect
+
+            maskToolbarDivider
+
+            HStack(spacing: 2) {
+                Button {
+                    model.sourceMaskIntent = .exclude
+                } label: {
+                    Label {
+                        Text("Uteslut")
+                    } icon: {
+                        Image(systemName: "circle.fill")
+                            .foregroundStyle(.red)
+                    }
+                }
+                .buttonStyle(MaskToolbarButtonStyle(
+                    isSelected: model.sourceMaskIntent == .exclude,
+                    showsTitle: true
+                ))
+                .help("Uteslut")
+
+                Button {
+                    model.sourceMaskIntent = .protect
+                } label: {
+                    Label {
+                        Text("Skydda")
+                    } icon: {
+                        Image(systemName: "circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                }
+                .buttonStyle(MaskToolbarButtonStyle(
+                    isSelected: model.sourceMaskIntent == .protect,
+                    showsTitle: true
+                ))
+                .help("Skydda")
             }
-            Button("Sudda mask") {
-                model.sourceMaskIntent = .erase
+
+            maskToolbarDivider
+
+            HStack(spacing: 2) {
+                Button {
+                    model.invertSelectedMask()
+                } label: {
+                    Label(
+                        "Invertera aktuell mask",
+                        systemImage: "circle.lefthalf.filled"
+                    )
+                }
+                .buttonStyle(MaskToolbarButtonStyle())
+                .disabled(selectedMaskData == nil)
+                .help("Invertera aktuell mask")
+
+                Button(role: .destructive) {
+                    model.clearSelectedMask()
+                } label: {
+                    Label("Nollställ aktuell mask", systemImage: "trash")
+                }
+                .buttonStyle(MaskToolbarButtonStyle())
+                .disabled(selectedMaskData == nil)
+                .help("Nollställ aktuell mask")
             }
-        } label: {
-            Label(maskIntentTitle, systemImage: maskIntentSystemImage)
         }
-        .menuStyle(.button)
-        .buttonStyle(WorkspaceToolbarPillStyle())
-        .help("Välj vad masken ska göra")
+    }
+
+    private var maskToolbarDivider: some View {
+        Divider()
+            .frame(height: 18)
+            .padding(.horizontal, 3)
+    }
+
+    private var selectedMaskData: Data? {
+        guard let image = model.selectedSourceImage else { return nil }
+        return model.maskData(for: image.id)
     }
 
     @ViewBuilder
@@ -288,7 +351,6 @@ struct ContentView: View {
             .help("Optimera kontrollpunkterna (⌥O)")
         }
     }
-
     @ViewBuilder
     private var toolbarTrailing: some View {
         HStack(spacing: 6) {
@@ -316,8 +378,7 @@ struct ContentView: View {
 
     private var toolbarOverflow: some View {
         Menu {
-            if model.selection == .controlPoints,
-               let actions = controlPointActions {
+            if let actions = controlPointActions {
                 Button("Generera om alla kontrollpunkter…") {
                     actions.requestRegenerateProjectPoints()
                 }
@@ -340,19 +401,6 @@ struct ContentView: View {
                     actions.requestRemoveProjectPoints()
                 }
                 .disabled(!actions.canRemoveProjectPoints)
-            } else {
-                if let image = model.selectedSourceImage {
-                    Button("Invertera aktuell mask") {
-                        model.invertSelectedMask()
-                    }
-                    .disabled(model.maskData(for: image.id) == nil)
-                    Button("Nollställ aktuell mask", role: .destructive) {
-                        model.clearSelectedMask()
-                    }
-                    .disabled(model.maskData(for: image.id) == nil)
-
-                }
-
             }
         } label: {
             Text("•••")
@@ -364,35 +412,94 @@ struct ContentView: View {
     }
 
     private var showsToolbarOverflow: Bool {
-        if model.selection == .export {
-            return false
-        }
-        if model.selection == .controlPoints {
-            return controlPointActions != nil
-        }
-        return model.selectedSourceImage != nil
+        model.selection == .controlPoints && controlPointActions != nil
     }
 
     private var showsWorkspaceToolRow: Bool {
-        showsToolbarOverflow
+        model.selectedSourceImage != nil || showsToolbarOverflow
     }
 
-    private var maskIntentTitle: String {
-        switch model.sourceMaskIntent {
-        case .exclude: "Uteslut"
-        case .protect: "Skydda"
-        case .erase: "Sudda"
+}
+
+private struct MaskToolbarButtonStyle: ButtonStyle {
+    var isSelected = false
+    var showsTitle = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        MaskToolbarButtonBody(
+            configuration: configuration,
+            isSelected: isSelected,
+            showsTitle: showsTitle
+        )
+    }
+}
+
+private struct MaskToolbarButtonBody: View {
+    let configuration: ButtonStyle.Configuration
+    let isSelected: Bool
+    let showsTitle: Bool
+
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
+
+    var body: some View {
+        styledLabel
+            .foregroundStyle(.primary)
+            .background(
+                backgroundColor,
+                in: RoundedRectangle(cornerRadius: cornerRadius)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .strokeBorder(borderColor, lineWidth: 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .opacity(isEnabled ? 1 : 0.42)
+            .onHover { hovering in
+                guard isEnabled else { return }
+                isHovering = hovering
+            }
+            .animation(.easeOut(duration: 0.12), value: isHovering)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+
+    @ViewBuilder
+    private var styledLabel: some View {
+        if showsTitle {
+            configuration.label
+                .labelStyle(.titleAndIcon)
+                .font(.system(size: 13, weight: .medium))
+                .lineLimit(1)
+                .padding(.horizontal, 11)
+                .frame(height: 32)
+        } else {
+            configuration.label
+                .labelStyle(.iconOnly)
+                .font(.system(size: 14, weight: .medium))
+                .frame(width: 32, height: 32)
         }
     }
 
-    private var maskIntentSystemImage: String {
-        switch model.sourceMaskIntent {
-        case .exclude: "eye.slash"
-        case .protect: "shield"
-        case .erase: "eraser"
-        }
+    private var cornerRadius: CGFloat {
+        showsTitle ? 16 : 6
     }
 
+    private var backgroundColor: Color {
+        if configuration.isPressed {
+            return Color.primary.opacity(0.18)
+        }
+        if isSelected {
+            return Color.primary.opacity(0.14)
+        }
+        return Color.primary.opacity(isHovering ? 0.1 : 0.055)
+    }
+
+    private var borderColor: Color {
+        if isSelected {
+            return Color.primary.opacity(0.3)
+        }
+        return Color.primary.opacity(isHovering ? 0.24 : 0.12)
+    }
 }
 
 private struct PanoramaSettingsView: View {
