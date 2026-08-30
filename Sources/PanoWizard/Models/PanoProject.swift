@@ -284,6 +284,16 @@ struct PanoProject: Codable, Equatable, Sendable {
         modifiedAt = Self.secondPrecision(.now)
     }
 
+    mutating func clearAIRetouchPrompt(for pole: PanoramaPole) {
+        guard aiRetouchPrompt(for: pole) != nil else { return }
+        if pole == .nadir {
+            nadirAIRetouchPrompt = nil
+        } else {
+            zenithAIRetouchPrompt = nil
+        }
+        modifiedAt = Self.secondPrecision(.now)
+    }
+
     private static func secondPrecision(_ date: Date) -> Date {
         Date(timeIntervalSince1970: date.timeIntervalSince1970.rounded(.down))
     }

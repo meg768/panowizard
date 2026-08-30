@@ -32,104 +32,6 @@ struct PoleRetouchService: Sendable {
     private static let retouchProjectionScale = 0.5
     private static let edgeFeatherFraction = 0.06
 
-    func makeOpenAIEditMask(
-        from userMaskData: Data,
-        pole: PanoramaPole,
-        to destinationURL: URL,
-        expectedSize: Int = Self.plateSize
-    ) throws {
-        let userMask = try RGBAImage(data: userMaskData)
-        guard userMask.width == expectedSize,
-              userMask.height == expectedSize else {
-            throw PoleRetouchError.invalidDimensions(
-                pole: pole,
-                expected: expectedSize,
-                width: userMask.width,
-                height: userMask.height
-            )
-        }
-        var apiMask = RGBAImage(width: expectedSize, height: expectedSize)
-        for y in 0..<expectedSize {
-            for x in 0..<expectedSize {
-                let alpha = 1 - userMask.pixel(x: x, y: y).a
-                apiMask.setPixel(
-                    Pixel(r: alpha, g: alpha, b: alpha, a: alpha),
-                    x: x,
-                    y: y
-                )
-            }
-        }
-        try apiMask.writePNG(to: destinationURL)
-    }
-
-    func prepareMaskedAIEdit(
-        sourceURL: URL,
-        editedURL: URL,
-        userMaskData: Data,
-        pole: PanoramaPole,
-        previewURL: URL,
-        preparedURL: URL,
-        expectedSize: Int = Self.plateSize,
-        featherRadius: Int = 8
-    ) throws {
-        let source = try RGBAImage(contentsOf: sourceURL)
-        let edited = try RGBAImage(contentsOf: editedURL)
-        let userMask = try RGBAImage(data: userMaskData)
-        for image in [source, edited, userMask] {
-            guard image.width == expectedSize, image.height == expectedSize else {
-                throw PoleRetouchError.invalidDimensions(
-                    pole: pole,
-                    expected: expectedSize,
-                    width: image.width,
-                    height: image.height
-                )
-            }
-        }
-
-        let maskAlpha = Self.featheredMaskAlpha(
-            userMask,
-            radius: featherRadius
-        )
-        let edgeFeatherWidth = Double(expectedSize) * Self.edgeFeatherFraction
-        var preview = RGBAImage(width: expectedSize, height: expectedSize)
-        var prepared = RGBAImage(width: expectedSize, height: expectedSize)
-        for y in 0..<expectedSize {
-            for x in 0..<expectedSize {
-                let index = y * expectedSize + x
-                let edgeDistance = Double(
-                    min(x, y, expectedSize - 1 - x, expectedSize - 1 - y)
-                )
-                let edgeT = min(max(edgeDistance / edgeFeatherWidth, 0), 1)
-                let edgeAlpha = edgeT * edgeT * (3 - 2 * edgeT)
-                let alpha = maskAlpha[index] * edgeAlpha
-                let original = source.pixel(x: x, y: y)
-                let generated = edited.pixel(x: x, y: y)
-                preview.setPixel(
-                    Pixel(
-                        r: generated.r * alpha + original.r * (1 - alpha),
-                        g: generated.g * alpha + original.g * (1 - alpha),
-                        b: generated.b * alpha + original.b * (1 - alpha),
-                        a: 1
-                    ),
-                    x: x,
-                    y: y
-                )
-                prepared.setPixel(
-                    Pixel(
-                        r: generated.r * alpha,
-                        g: generated.g * alpha,
-                        b: generated.b * alpha,
-                        a: alpha
-                    ),
-                    x: x,
-                    y: y
-                )
-            }
-        }
-        try preview.writePNG(to: previewURL)
-        try prepared.writePNG(to: preparedURL)
-    }
-
     func exportPlate(
         panoramaURL: URL,
         repairOverlayURL: URL?,
@@ -269,60 +171,6 @@ struct PoleRetouchService: Sendable {
         )
     }
 
-    private static func featheredMaskAlpha(
-        _ mask: RGBAImage,
-        radius: Int
-    ) -> [Double] {
-        let input = (0..<mask.height).flatMap { y in
-            (0..<mask.width).map { x in mask.pixel(x: x, y: y).a }
-        }
-        guard radius > 0 else { return input }
-        let kernelSize = radius * 2 + 1
-        var horizontal = [Double](repeating: 0, count: input.count)
-        for y in 0..<mask.height {
-            var sum = 0.0
-            for offset in -radius...radius where mask.width > 0 {
-                let x = offset
-                if mask.width > x, x >= 0 {
-                    sum += input[y * mask.width + x]
-                }
-            }
-            for x in 0..<mask.width {
-                horizontal[y * mask.width + x] = sum / Double(kernelSize)
-                let leaving = x - radius
-                let entering = x + radius + 1
-                if leaving >= 0 {
-                    sum -= input[y * mask.width + leaving]
-                }
-                if entering < mask.width {
-                    sum += input[y * mask.width + entering]
-                }
-            }
-        }
-
-        var output = [Double](repeating: 0, count: input.count)
-        for x in 0..<mask.width {
-            var sum = 0.0
-            for offset in -radius...radius {
-                let y = offset
-                if mask.height > y, y >= 0 {
-                    sum += horizontal[y * mask.width + x]
-                }
-            }
-            for y in 0..<mask.height {
-                output[y * mask.width + x] = sum / Double(kernelSize)
-                let leaving = y - radius
-                let entering = y + radius + 1
-                if leaving >= 0 {
-                    sum -= horizontal[leaving * mask.width + x]
-                }
-                if entering < mask.height {
-                    sum += horizontal[entering * mask.width + x]
-                }
-            }
-        }
-        return output
-    }
 }
 
 private struct Pixel {
@@ -345,30 +193,6 @@ private struct RGBAImage {
 
     init(contentsOf url: URL) throws {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-        else { throw PoleRetouchError.unreadableImage }
-        width = image.width
-        height = image.height
-        bytes = Array(repeating: 0, count: width * height * 4)
-        let rendered = bytes.withUnsafeMutableBytes { buffer in
-            guard let data = buffer.baseAddress,
-                  let context = Self.context(
-                      data: data,
-                      width: width,
-                      height: height
-                  ) else { return false }
-            context.interpolationQuality = .high
-            context.draw(
-                image,
-                in: CGRect(x: 0, y: 0, width: width, height: height)
-            )
-            return true
-        }
-        guard rendered else { throw PoleRetouchError.unreadableImage }
-    }
-
-    init(data: Data) throws {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
         else { throw PoleRetouchError.unreadableImage }
         width = image.width

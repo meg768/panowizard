@@ -99,34 +99,26 @@ Om en reparationsbild positioneras fel betraktas det som ett fel i PanoWizards
 geometri och ska rättas där. För lokal pixelretusch används AI-flödet eller en
 extern bildredigerare via export/import.
 
-**AI-retuschera…** visar samma platta direkt i dialogen. Användaren kan valfritt
-måla området som ska rekonstrueras med en enkel pensel; masken visas röd och
-⌘⌥-drag suddar. Vanligt drag panorerar, scroll/två fingrar zoomar och ⌘-drag
-målar. Plattan och masken skickas tillsammans med instruktionen till OpenAI
-Images API och resultatet visas före användning.
-
-När en mask finns compositar PanoWizard resultatet lokalt med ungefär 8 px
-feathering. Den aktiva retuschen är transparent utanför masken och dess
-featherkant, så modellen kan aldrig ersätta resten av kubsidan. Utan mask används
-det tidigare helbildsflödet. Ingenting aktiveras förrän användaren väljer
-**Använd**.
+**AI-retuschera…** visar samma platta direkt i dialogen. Hela plattan skickas
+tillsammans med den redigerbara, polspecifika instruktionen till OpenAI Images
+API. Hela resultatet visas före användning och ingenting aktiveras förrän
+användaren väljer **Använd**.
 
 - API-nyckeln anges eller ändras direkt från AI-retuschdialogen och lagras som
   en lokal appinställning, aldrig i `.pw`-filen.
 - Nadir och zenit har var sin projektspecifik prompt i `.pw`-filen.
+- **Ta bort retusch** rensar även den sparade prompten för samma pol, så nästa
+  retusch använder appversionens aktuella standardprompt.
 - Bilden lämnar datorn först när användaren startar AI-retuschen.
 - API-anropet använder användarens OpenAI-konto och kan medföra kostnad.
 - Före- och efterbilden kan zoomas och panoreras med samma principer som
-  kontrollpunktseditorn. Penseln har fast storlek på skärmen; ⌘Z ångrar senaste
-  maskändringen och **Rensa mask** tar bort masken.
+  kontrollpunktseditorn.
 
 Den sfäriska förhandsvisningen och exporterad interaktiv HTML följer samma
 navigeringsdel av modellen: drag tittar runt och scroll/två fingrar zoomar.
 
-Dagens avsiktliga produktgräns är nadir och zenit. En möjlig nästa förbättring är
-att spara arbetsmasken i projektet om den behöver återanvändas mellan dialoger.
-Godtyckliga AI-patchar i valfri panoramariktning ingår inte i den nuvarande
-planen.
+Dagens avsiktliga produktgräns är nadir och zenit. Godtyckliga AI-patchar i
+valfri panoramariktning ingår inte i den nuvarande planen.
 
 ## Projektformat
 

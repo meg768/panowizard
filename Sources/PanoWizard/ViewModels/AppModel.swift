@@ -1666,7 +1666,6 @@ final class AppModel {
     func createAIRetouchPreview(
         source: AIRetouchSource,
         for pole: PanoramaPole,
-        maskData: Data?,
         prompt: String,
         apiKey: String
     ) async throws -> AIRetouchPreview {
@@ -1684,10 +1683,8 @@ final class AppModel {
             path: "Previews/\(UUID().uuidString)",
             directoryHint: .isDirectory
         )
-        let rawEditedURL = directory.appending(path: "\(pole.rawValue)-raw.png")
         let editedURL = directory.appending(path: "\(pole.rawValue)-edited.png")
         let preparedURL = directory.appending(path: "\(pole.rawValue)-prepared.png")
-        let apiMaskURL = directory.appending(path: "\(pole.rawValue)-mask.png")
 
         phase = .retouching
         defer {
@@ -1697,21 +1694,11 @@ final class AppModel {
             at: directory,
             withIntermediateDirectories: true
         )
-        let requestData = try await Task.detached(priority: .userInitiated) {
-            let sourceData = try Data(contentsOf: source.sourceURL)
-            guard let maskData else {
-                return (sourceData, Optional<Data>.none)
-            }
-            try PoleRetouchService().makeOpenAIEditMask(
-                from: maskData,
-                pole: pole,
-                to: apiMaskURL
-            )
-            return (sourceData, try Data(contentsOf: apiMaskURL))
+        let sourceData = try await Task.detached(priority: .userInitiated) {
+            try Data(contentsOf: source.sourceURL)
         }.value
         let editedData = try await OpenAIImageEditService(apiKey: apiKey).edit(
-            imageData: requestData.0,
-            maskData: requestData.1,
+            imageData: sourceData,
             filename: "\(pole.rawValue).png",
             prompt: trimmedPrompt,
             size: PoleRetouchService.plateSize
@@ -1719,29 +1706,16 @@ final class AppModel {
         try Task.checkCancellation()
 
         try await Task.detached(priority: .userInitiated) {
-            try editedData.write(to: rawEditedURL, options: .atomic)
-            if let maskData {
-                try PoleRetouchService().prepareMaskedAIEdit(
-                    sourceURL: source.sourceURL,
-                    editedURL: rawEditedURL,
-                    userMaskData: maskData,
-                    pole: pole,
-                    previewURL: editedURL,
-                    preparedURL: preparedURL
-                )
-            } else {
-                try editedData.write(to: editedURL, options: .atomic)
-                try PoleRetouchService().prepareImportedPlate(
-                    from: rawEditedURL,
-                    pole: pole,
-                    to: preparedURL
-                )
-            }
+            try editedData.write(to: editedURL, options: .atomic)
+            try PoleRetouchService().prepareImportedPlate(
+                from: editedURL,
+                pole: pole,
+                to: preparedURL
+            )
         }.value
         return AIRetouchPreview(
             pole: pole,
             directoryURL: directory,
-            sourceURL: source.sourceURL,
             editedURL: editedURL,
             preparedURL: preparedURL
         )
@@ -1781,12 +1755,14 @@ final class AppModel {
     }
 
     func removeRetouch(for pole: PanoramaPole) {
-        guard retouchURL(for: pole) != nil else { return }
+        guard let retouchURL = retouchURL(for: pole) else { return }
         if pole == .nadir {
             nadirRetouchURL = nil
         } else {
             zenithRetouchURL = nil
         }
+        try? FileManager.default.removeItem(at: retouchURL)
+        project.clearAIRetouchPrompt(for: pole)
         panoramaRevision += 1
     }
 

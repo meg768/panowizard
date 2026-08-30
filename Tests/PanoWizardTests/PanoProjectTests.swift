@@ -88,6 +88,35 @@ struct PanoProjectTests {
     }
 
     @Test
+    @MainActor
+    func removingRetouchClearsItsStoredPrompt() throws {
+        let model = AppModel.live(
+            project: PanoProject(
+                nadirAIRetouchPrompt: "Gammal nadirprompt",
+                zenithAIRetouchPrompt: "Gammal zenitprompt"
+            ),
+            nadirRetouchData: Data([1, 2, 3]),
+            zenithRetouchData: Data([4, 5, 6])
+        )
+        let nadirURL = try #require(model.nadirRetouchURL)
+        let zenithURL = try #require(model.zenithRetouchURL)
+
+        model.removeRetouch(for: .nadir)
+
+        #expect(model.nadirRetouchURL == nil)
+        #expect(model.project.nadirAIRetouchPrompt == nil)
+        #expect(model.zenithRetouchURL == zenithURL)
+        #expect(model.project.zenithAIRetouchPrompt == "Gammal zenitprompt")
+        #expect(!FileManager.default.fileExists(atPath: nadirURL.path))
+
+        model.removeRetouch(for: .zenith)
+
+        #expect(model.zenithRetouchURL == nil)
+        #expect(model.project.zenithAIRetouchPrompt == nil)
+        #expect(!FileManager.default.fileExists(atPath: zenithURL.path))
+    }
+
+    @Test
     func atomicDocumentSaveReplacesTheEntireProjectPackage() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)

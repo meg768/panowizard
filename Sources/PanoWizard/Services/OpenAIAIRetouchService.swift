@@ -9,7 +9,6 @@ struct AIRetouchSource: Sendable {
 struct AIRetouchPreview: Sendable {
     let pole: PanoramaPole
     let directoryURL: URL
-    let sourceURL: URL
     let editedURL: URL
     let preparedURL: URL
 }
@@ -89,7 +88,6 @@ struct OpenAIImageEditService: Sendable {
 
     func edit(
         imageData: Data,
-        maskData: Data? = nil,
         filename: String,
         prompt: String,
         size: Int
@@ -98,7 +96,6 @@ struct OpenAIImageEditService: Sendable {
         let request = try Self.makeRequest(
             apiKey: apiKey,
             imageData: imageData,
-            maskData: maskData,
             filename: filename,
             prompt: prompt,
             size: size
@@ -116,7 +113,6 @@ struct OpenAIImageEditService: Sendable {
     static func makeRequest(
         apiKey: String,
         imageData: Data,
-        maskData: Data? = nil,
         filename: String,
         prompt: String,
         size: Int,
@@ -150,16 +146,6 @@ struct OpenAIImageEditService: Sendable {
             boundary: boundary,
             to: &body
         )
-        if let maskData {
-            appendFile(
-                name: "mask",
-                filename: "mask.png",
-                contentType: "image/png",
-                data: maskData,
-                boundary: boundary,
-                to: &body
-            )
-        }
         body.appendUTF8("--\(boundary)--\r\n")
 
         var request = URLRequest(url: endpoint)

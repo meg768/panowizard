@@ -106,10 +106,8 @@ warpning, söm/blandning eller efterretusch.
   gemensamt steg under Panorama och hanterar respektive arbetsflöde samt
   AI-dialogen.
 
-Röd och grön källmask är källbildsdata i källans koordinater. AI-dialogens röda
-arbetsmask hör i stället till den färdiga polplattan. Den återanvänder
-`SourceMaskRasterizer` för penseldragen men sparas inte som källmask eller i
-projektet; den förberedda retuschen blir transparent utanför maskområdet.
+Röd och grön källmask är källbildsdata i källans koordinater och är helt
+separerad från AI-retuschen. AI-dialogen använder ingen arbetsmask.
 
 ### Retusch och OpenAI
 
@@ -121,16 +119,15 @@ projektet; den förberedda retuschen blir transparent utanför maskområdet.
   globala OpenAI-nyckeln från AI-retuschdialogens diskreta nyckelrad. Appmenyn
   har inget separat **Inställningar…**-kommando.
 
-AI-flödet visar den sammansatta polplattan direkt i dialogen och har en valfri
-enkel penselmask. Med mask får API:t hela plattan som bildkontext och en separat
-PNG-mask. Eftersom GPT Image behandlar masken som vägledning compositar
-PanoWizard därefter resultatet lokalt: endast masken och en 8 px featherkant
-blir en aktiv, delvis transparent polretusch. Utan mask används det tidigare
-helbildsflödet.
+AI-flödet visar den sammansatta polplattan direkt i dialogen och skickar hela
+plattan till OpenAI utan mask. Hela modellresultatet används i den etablerade
+helbildsvägen; det finns ingen maskbaserad lokal compositing eller feathering.
 
 Nadir och zenit har separata prompter i `PanoProject`. Prompten sparas när en
 generering startar så att varje panorama kan återanvända och modifiera sin egen
-instruktion. API-nyckeln är däremot global och lokal för appen.
+instruktion. När en retusch tas bort rensas även den sparade prompten för samma
+pol, så nästa dialog använder appversionens aktuella standardprompt. API-nyckeln
+är däremot global och lokal för appen.
 
 ## Produktgräns för AI-retusch
 
@@ -138,14 +135,9 @@ Den accepterade KISS-lösningen är dagens nadir-/zenitflöde. Export/import ska
 finnas kvar som manuell reserv och AI-resultatet ska fortsätta vara ett
 icke-destruktivt eftersteg ovanpå det frysta panoramat.
 
-Den första acceptansmasken är avsiktligt minimal: en fast skärmbaserad pensel,
-⌘-målning, ⌘⌥-suddning, ett stegvist undo och rensning. Före och Efter har
-tillfällig zoom och pan enligt den gemensamma bildytemodellen: drag navigerar,
-scroll zoomar, ⌘ ändrar och ⌘⌥ tar bort. Samma modell används av källmask- och
-CP-editorerna; HTML/Metal-panoramat använder navigeringsdelen. Masken är
-tillfällig för dialogen; bara den accepterade retuschen sparas i `.pw`. Ett
-framtida uttryckligt beslut krävs om själva arbetsmasken ska sparas per pol
-mellan sessioner.
+Före och Efter har tillfällig zoom och pan enligt den gemensamma
+bildytemodellen: drag navigerar och scroll zoomar. AI-retuschdialogen har ingen
+maskredigering. Bara den accepterade retuschen sparas i `.pw`.
 
 En generell patchmotor för godtycklig panoramariktning är avsiktligt utanför
 nuvarande scope. Den kräver tangentprojektion, sfärisk lagring, hantering av
