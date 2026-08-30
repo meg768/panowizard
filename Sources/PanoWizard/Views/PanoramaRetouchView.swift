@@ -180,6 +180,8 @@ struct AIRetouchSheet: View {
                 .foregroundStyle(.secondary)
             }
 
+            apiKeyRow
+
             HStack(alignment: .top, spacing: 16) {
                 AIRetouchImagePane(
                     title: "Före",
@@ -222,17 +224,6 @@ struct AIRetouchSheet: View {
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 82, maxHeight: 110)
                     .padding(6)
-            }
-
-            apiKeyRow
-
-            if isWorking {
-                HStack(spacing: 10) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("OpenAI retuscherar bilden… Det kan ta upp till två minuter.")
-                        .foregroundStyle(.secondary)
-                }
             }
 
             if let errorMessage {
@@ -281,6 +272,9 @@ struct AIRetouchSheet: View {
             OpenAIAPIKeySheet {
                 storedAPIKey = keyStore.load()
             }
+        }
+        .sheet(isPresented: $isWorking) {
+            AIRetouchProgressSheet(onCancel: cancelGeneration)
         }
         .onDisappear {
             generationTask?.cancel()
@@ -346,6 +340,7 @@ struct AIRetouchSheet: View {
             } catch is CancellationError {
                 return
             } catch {
+                guard !Task.isCancelled else { return }
                 errorMessage = error.localizedDescription
             }
         }
@@ -370,6 +365,10 @@ struct AIRetouchSheet: View {
             self.preview = nil
         }
         dismiss()
+    }
+
+    private func cancelGeneration() {
+        generationTask?.cancel()
     }
 
     private var apiKeyRow: some View {
@@ -439,6 +438,29 @@ struct AIRetouchSheet: View {
             + "originalfotografiet taget från samma position, men utan "
             + "kamerautrustningen eller fotograferingsartefakterna. Gör inga "
             + "andra förändringar."
+    }
+}
+
+private struct AIRetouchProgressSheet: View {
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .controlSize(.small)
+
+            VStack(spacing: 4) {
+                Text("OpenAI retuscherar bilden…")
+                    .font(.headline)
+                Text("Det kan ta upp till två minuter.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Button("Avbryt", role: .cancel, action: onCancel)
+        }
+        .padding(24)
+        .frame(width: 320)
+        .interactiveDismissDisabled()
     }
 }
 
