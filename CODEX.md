@@ -42,7 +42,9 @@ tidskänslig arbetsstatus efter den incheckade baslinjen.
 - API-nyckeln hanteras direkt från AI-retuschdialogen och lagras som en vanlig
   lokal appinställning, aldrig i projektfilen. Använd inte macOS Nyckelring;
   ad-hoc-byggen utlöser då systemets lösenordsdialog. Det finns ingen global
-  inställningsdialog så länge API-nyckeln är den enda appinställningen.
+  inställningsdialog så länge API-nyckeln är den enda appinställningen. En
+  sekundär knapp längst ned öppnar det befintliga nyckelsheeten; den sparade
+  nyckeln visas inte i retuschvyn. Försök utan nyckel visar endast en OK-alert.
 - AI är ett valfritt eftersteg. Den får inte flytta kontrollpunkter eller
   kameraposer.
 - AI-retusch är tills vidare begränsad till nadir och zenit. En utvidgning till

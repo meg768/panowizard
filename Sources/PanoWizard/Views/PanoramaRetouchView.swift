@@ -156,6 +156,7 @@ struct AIRetouchSheet: View {
     @State private var isWorking = false
     @State private var storedAPIKey: String?
     @State private var isAPIKeySheetPresented = false
+    @State private var isMissingAPIKeyAlertPresented = false
 
     private let keyStore = OpenAIAPIKeyStore()
 
@@ -179,8 +180,6 @@ struct AIRetouchSheet: View {
                 )
                 .foregroundStyle(.secondary)
             }
-
-            apiKeyRow
 
             HStack(alignment: .top, spacing: 16) {
                 AIRetouchImagePane(
@@ -237,6 +236,13 @@ struct AIRetouchSheet: View {
                     cancelAndDismiss()
                 }
                 Spacer()
+                Button(
+                    storedAPIKey == nil
+                        ? "Skapa API-nyckel…"
+                        : "Ändra API-nyckel…"
+                ) {
+                    isAPIKeySheetPresented = true
+                }
                 if preview != nil {
                     Button("Försök igen") {
                         generate()
@@ -276,6 +282,17 @@ struct AIRetouchSheet: View {
         .sheet(isPresented: $isWorking) {
             AIRetouchProgressSheet(onCancel: cancelGeneration)
         }
+        .alert(
+            "API-nyckel saknas",
+            isPresented: $isMissingAPIKeyAlertPresented
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(
+                "Du behöver skapa en OpenAI API-nyckel innan du kan använda "
+                    + "AI-retuschering."
+            )
+        }
         .onDisappear {
             generationTask?.cancel()
             if let preview {
@@ -288,8 +305,7 @@ struct AIRetouchSheet: View {
     }
 
     private var canGenerate: Bool {
-        storedAPIKey != nil
-            && source != nil
+        source != nil
             && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -305,13 +321,13 @@ struct AIRetouchSheet: View {
     }
 
     private func generate() {
-        errorMessage = nil
-        model.setAIRetouchPrompt(prompt, for: pole)
         guard let apiKey = keyStore.load() else {
             storedAPIKey = nil
-            errorMessage = OpenAIImageEditError.missingAPIKey.localizedDescription
+            isMissingAPIKeyAlertPresented = true
             return
         }
+        errorMessage = nil
+        model.setAIRetouchPrompt(prompt, for: pole)
         guard let source else {
             errorMessage = AIRetouchError.panoramaUnavailable.localizedDescription
             return
@@ -369,35 +385,6 @@ struct AIRetouchSheet: View {
 
     private func cancelGeneration() {
         generationTask?.cancel()
-    }
-
-    private var apiKeyRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "key.horizontal")
-                .foregroundStyle(.secondary)
-            if let description = OpenAIAPIKeyStore.redactedDescription(
-                for: storedAPIKey
-            ) {
-                Text("OpenAI API-nyckel")
-                    .foregroundStyle(.secondary)
-                Text(description)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                Spacer()
-                Button("Ändra…") {
-                    isAPIKeySheetPresented = true
-                }
-            } else {
-                Text("OpenAI API-nyckel saknas")
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Ange…") {
-                    isAPIKeySheetPresented = true
-                }
-            }
-        }
-        .controlSize(.small)
-        .padding(.horizontal, 4)
     }
 
     private static func defaultPrompt(for pole: PanoramaPole) -> String {

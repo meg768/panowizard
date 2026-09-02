@@ -105,7 +105,8 @@ API. Hela resultatet visas före användning och ingenting aktiveras förrän
 användaren väljer **Använd**.
 
 - API-nyckeln anges eller ändras direkt från AI-retuschdialogen och lagras som
-  en lokal appinställning, aldrig i `.pw`-filen.
+  en lokal appinställning, aldrig i `.pw`-filen. En sekundär knapp längst ned
+  öppnar nyckelflödet; själva nyckeln visas inte i retuschvyn.
 - Nadir och zenit har var sin projektspecifik prompt i `.pw`-filen.
 - **Ta bort retusch** rensar även den sparade prompten för samma pol, så nästa
   retusch använder appversionens aktuella standardprompt.
