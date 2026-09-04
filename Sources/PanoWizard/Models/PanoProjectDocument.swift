@@ -64,7 +64,8 @@ struct PanoProjectDocument: FileDocument, Equatable {
         decoder.dateDecodingStrategy = .iso8601
         project = try decoder.decode(PanoProject.self, from: projectData)
 
-        guard project.formatVersion == PanoProject.currentFormatVersion else {
+        guard project.formatVersion >= PanoProject.oldestReadableFormatVersion,
+              project.formatVersion <= PanoProject.currentFormatVersion else {
             throw CocoaError(
                 .fileReadUnsupportedScheme,
                 userInfo: [
@@ -73,6 +74,7 @@ struct PanoProjectDocument: FileDocument, Equatable {
                 ]
             )
         }
+        project.migrateToCurrentFormat()
         masks = [:]
         if let maskWrappers = wrappers["masks"]?.fileWrappers {
             for (filename, wrapper) in maskWrappers {
@@ -234,17 +236,6 @@ struct PanoProjectDocument: FileDocument, Equatable {
             guard let relativePath = relativePaths[imageID] else { continue }
             storedProject.images[index].url = Self.relativeURL(relativePath)
         }
-        if var cachedLines = storedProject.cachedRigImageLines {
-            for (key, line) in cachedLines {
-                guard let imageID = UUID(uuidString: key),
-                      let relativePath = relativePaths[imageID] else { continue }
-                cachedLines[key] = Self.replacingCachedFilename(
-                    relativePath,
-                    in: line
-                )
-            }
-            storedProject.cachedRigImageLines = cachedLines
-        }
         return storedProject
     }
 
@@ -276,21 +267,4 @@ struct PanoProjectDocument: FileDocument, Equatable {
         return URL(string: encoded)!
     }
 
-    private static func replacingCachedFilename(
-        _ filename: String,
-        in line: String
-    ) -> String {
-        let escaped = filename
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        guard let expression = try? NSRegularExpression(
-            pattern: #" n"[^"]*""#
-        ), let match = expression.firstMatch(
-            in: line,
-            range: NSRange(line.startIndex..., in: line)
-        ), let range = Range(match.range, in: line) else { return line }
-        var result = line
-        result.replaceSubrange(range, with: " n\"\(escaped)\"")
-        return result
-    }
 }

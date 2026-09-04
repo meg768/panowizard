@@ -29,6 +29,7 @@ let package = Package(
                     "-lopencv_imgcodecs",
                     "-lopencv_imgproc",
                     "-lopencv_geometry",
+                    "-lopencv_stitching",
                     "-lopencv_flann",
                     "-lopencv_core",
                     "-Xlinker", "-rpath",

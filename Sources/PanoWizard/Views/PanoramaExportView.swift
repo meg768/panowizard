@@ -105,17 +105,6 @@ struct PanoramaExportView: View {
                     .disabled(!model.canExportHTML)
                 }
 
-                if model.project.nadirRepairPlacement != nil,
-                   !model.isNadirPreviewBlended {
-                    Section {
-                        Label(
-                            "Nadirreparationen måste blandas färdigt i "
-                                + "Förhandsvisning före HTML-export.",
-                            systemImage: "exclamationmark.triangle.fill"
-                        )
-                        .foregroundStyle(.orange)
-                    }
-                }
             }
             .formStyle(.grouped)
             .alert("Exporten misslyckades", isPresented: Binding(
@@ -142,7 +131,7 @@ struct PanoramaExportView: View {
                 }
                 .buttonStyle(WorkspaceToolbarPillStyle())
                 .disabled(!model.canStitch)
-                .help("Skapa panorama med nuvarande kontrollpunkter och masker")
+                .help("Skapa panorama med nuvarande bilder och masker")
             }
         }
     }

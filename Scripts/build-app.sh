@@ -43,10 +43,6 @@ for library in "$project_directory"/Vendor/OpenCV/lib/*.500.dylib; do
     install -m 755 "$library" "$frameworks_directory/${library:t}"
 done
 
-ditto \
-    "$project_directory/Vendor/Hugin" \
-    "$resources_directory/Hugin"
-
 xattr -cr "$staging_app_bundle"
 codesign --force --deep --sign - --timestamp=none "$staging_app_bundle"
 codesign --verify --deep --strict "$staging_app_bundle"
@@ -62,6 +58,7 @@ for attempt in {1..40}; do
     xattr -cr "$app_bundle"
     find "$app_bundle" -exec xattr -d com.apple.FinderInfo {} + \
         2>/dev/null || true
+    codesign --force --deep --sign - --timestamp=none "$app_bundle"
     if codesign --verify --deep --strict "$app_bundle"; then
         verified=true
         break

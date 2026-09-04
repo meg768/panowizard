@@ -1,35 +1,12 @@
 import Foundation
 
 struct SourceImage: Codable, Identifiable, Hashable, Sendable {
-    enum Direction: String, Codable, CaseIterable, Sendable {
-        case horizontal
-        case zenith
-        case nadir
-
-        var displayName: String {
-            switch self {
-            case .horizontal: "Horisontell"
-            case .zenith: "Zenit"
-            case .nadir: "Nadir"
-            }
-        }
+    enum Direction: String, Codable, Sendable {
+        case horizontal, zenith, nadir
     }
 
     enum Role: String, Codable, Sendable {
-        case automatic
-        case alignment
-        case fillOnly
-
-        var displayName: String {
-            switch self {
-            case .automatic:
-                "Automatisk positionering"
-            case .alignment:
-                "Ingår i positionering"
-            case .fillOnly:
-                "Reparation"
-            }
-        }
+        case automatic, alignment, fillOnly
     }
 
     let id: UUID
@@ -81,10 +58,6 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
         role == .automatic ? automaticRole ?? .alignment : role
     }
 
-    var effectiveDirection: Direction {
-        role == .automatic ? automaticDirection ?? direction : direction
-    }
-
     private enum CodingKeys: String, CodingKey {
         case id, url, captureDate, pixelWidth, pixelHeight, cameraModel, lens
         case direction, role, automaticRole, automaticDirection, isEnabled
@@ -99,8 +72,9 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
         pixelHeight = try values.decode(Int.self, forKey: .pixelHeight)
         cameraModel = try values.decodeIfPresent(String.self, forKey: .cameraModel)
         lens = try values.decode(LensDescription.self, forKey: .lens)
-        direction = try values.decode(Direction.self, forKey: .direction)
-        role = try values.decode(Role.self, forKey: .role)
+        direction = try values.decodeIfPresent(Direction.self, forKey: .direction)
+            ?? .horizontal
+        role = try values.decodeIfPresent(Role.self, forKey: .role) ?? .automatic
         automaticRole = try values.decodeIfPresent(
             Role.self, forKey: .automaticRole
         )
@@ -110,9 +84,4 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
         isEnabled = try values.decodeIfPresent(Bool.self, forKey: .isEnabled)
             ?? true
     }
-}
-
-struct AutomaticPositioningDecision: Equatable, Sendable {
-    let role: SourceImage.Role
-    let direction: SourceImage.Direction
 }

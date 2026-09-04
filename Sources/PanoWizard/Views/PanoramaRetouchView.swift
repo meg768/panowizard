@@ -49,7 +49,7 @@ struct PanoramaRetouchView: View {
                 Section {
                     Text(
                         "Retuscher sparas separat i projektet och ändrar inte "
-                            + "källbilder, kontrollpunkter eller panoramageometri."
+                            + "källbilder, masker eller panoramageometri."
                     )
                     .foregroundStyle(.secondary)
                 }
@@ -127,8 +127,8 @@ struct PanoramaRetouchView: View {
 
             if model.retouchURL(for: pole) != nil {
                 Label(
-                    "Retuschen visas ovanpå den vanliga "
-                        + "\(pole.displayName.lowercased())reparationen.",
+                    "Retuschen visas ovanpå panoramat vid "
+                        + "\(pole.displayName.lowercased()).",
                     systemImage: "checkmark.circle.fill"
                 )
                 .foregroundStyle(.green)

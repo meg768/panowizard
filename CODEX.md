@@ -1,169 +1,88 @@
-# PanoWizard – utvecklarguide
+# PanoWizard – utvecklaranvisningar
 
-Det här är den korta, versionshanterade utvecklarkontexten. Den ska beskriva
-dagens principer och arkitektur, inte återge varje felsökningspass. Äldre
-experiment finns kvar i Git-historiken. Den lokala `SESSION_CONTEXT.md` används
-för exakt arbetskopiestatus mellan arbetspass och är avsiktligt inte incheckad.
+## Produktgränser
 
-## Läsordning
+- PanoWizard är en native SwiftUI-app för macOS.
+- `TrialOpenCVPanoramaEngine` är den enda panoramamotorn.
+- Panoramamotorn får bara använda originalbilder och individuella masker.
+- Utdata ska alltid vara en komplett equirektangulär 360° × 180°-bild i 2:1.
+- Bildimport, dokument, källsortering, masker, viewer, export, progress och
+  avbrytning ska hållas oberoende av motorns interna feature-matchningar.
+- Interna features, matchningar och linsparametrar är inte redigerbart UI.
 
-1. [README.md](README.md) – produkt, användning, projektformat och bygge.
-2. [CONTROL_POINT_STRATEGY.md](CONTROL_POINT_STRATEGY.md) – kontraktet för
-   geometri, kontrollpunkter och reparationer.
-3. Den här filen – kodkarta, hårda beslut och nästa produktspår.
-4. `SESSION_CONTEXT.md` – lokal, tidskänslig överlämning.
+AI-retuschering är ett uttryckligt, separat eftersteg och är aldrig en del av
+panoramamotorn. Den får inte användas för stitchning, geometri, sömval eller för
+att fylla maskerade områden.
 
-## Produktläge
+## Arkitektur
 
-PanoWizard är en SwiftUI-baserad dokumentapp för fullsfäriska fisheye-
-panoraman. Funktionsbaslinjen `f6bc860` omfattar stabiliserad automatisk
-polreparation, relativa källsökvägar och OpenAI-retusch för nadir/zenit.
+- `Models/PanoProject.swift` definierar det kompakta projektformatet v7.
+- `Services/TrialPanoramaEngine.swift` förbereder källor/masker, äger cache-id,
+  vidarebefordrar progress/avbrytning och anropar C-bryggan.
+- `Sources/OpenCVBridge/TrialPanoramaBridge.cpp` innehåller hela native-motorn.
+- `Services/MaskedSourceImageWriter.swift` skriver orienterade TIFF-källor där
+  röda masker ligger i alpha.
+- gröna skyddsmasker skickas separat och påverkar sömprioriteringen.
+- `ViewModels/AppModel.swift` kopplar motorn till dokument- och UI-livscykeln.
 
-Panorama A–R är manuellt genomgångna på denna baslinje. Samtliga går igenom och
-har visuellt accepterats som PTGui-klass. Automatiska tester kompletterar men
-ersätter inte den granskningen. `SESSION_CONTEXT.md` används bara för lokal,
-tidskänslig arbetsstatus efter den incheckade baslinjen.
+Motorkoden ska förbli fristående från SwiftUI och dokumentlagring. Lägg inte in
+panorama-, kamera- eller testmappsspecifika specialfall.
 
-## Hårda produktbeslut
+## Projektkompatibilitet
 
-- KISS och macOS-standardkomponenter går före specialbyggd UI-mekanik.
-- Projekt sparas via användarens vanliga dokumentkommando, inte genom dold
-  autosave efter varje redigering.
-- Nadir/zenit är riktningar. **Ingår i positionering** och **Reparation** är
-  geometriska roller.
-- Osäkra automatiska bilder stannar i positioneringen; klassning till reparation
-  kräver positiv geometrisk evidens.
-- Manuella eller sparade kontrollpunkter är auktoritativa och ersätts bara av ett
-  uttryckligt kommando.
-- Riggen fryses innan en handhållen reparation registreras.
-- Enblend använder alltid `nearest-feature-transform`.
-- `.pw` lagrar relativa källsökvägar utan absolut reserv. Saknade bilder tas bort
-  när projektet öppnas; appen söker inte efter dem.
-- API-nyckeln hanteras direkt från AI-retuschdialogen och lagras som en vanlig
-  lokal appinställning, aldrig i projektfilen. Använd inte macOS Nyckelring;
-  ad-hoc-byggen utlöser då systemets lösenordsdialog. Det finns ingen global
-  inställningsdialog så länge API-nyckeln är den enda appinställningen. En
-  sekundär knapp längst ned öppnar det befintliga nyckelsheeten; den sparade
-  nyckeln visas inte i retuschvyn. Försök utan nyckel visar endast en OK-alert.
-- AI är ett valfritt eftersteg. Den får inte flytta kontrollpunkter eller
-  kameraposer.
-- AI-retusch är tills vidare begränsad till nadir och zenit. En utvidgning till
-  godtyckliga panoramariktningar kräver ett nytt uttryckligt produktbeslut.
-- Reparationslager kan inte flyttas, roteras, skalas eller perspektivjusteras
-  manuellt. Fel position är ett motorfel; fel innehåll löses med källmask eller
-  polretusch.
-- Reparationsbilden maskeras genom att välja den i källbildslistan. Lägg inte
-  tillbaka en separat **Maskera reparation**-genväg.
-- Commit och push görs bara på uttrycklig begäran.
-
-## Kodkarta
-
-### Dokument och modell
-
-- `Models/PanoProject.swift` innehåller det beständiga projektformatet,
-  stitchinställningar, kontrollpunkter, reparationsplaceringar, sparad
-  förhandsvisningsvinkel och projektspecifika AI-prompter.
-- `Models/SourceImage.swift` definierar källa, roll, riktning och automatisk
-  klassning.
-- `Models/PanoProjectDocument.swift` läser och skriver `.pw`-paketet, gör
-  källsökvägar relativa och rensar saknade källor med tillhörande data.
-
-Projektformatet är versionsstyrt. En ändring som påverkar avkodning eller
-betydelse ska överväga formatmigrering och alltid få round-trip-tester.
-
-### Positionering och rendering
-
-- `Services/OpenCVControlPointMatcher.swift` och `Sources/OpenCVBridge/` skapar
-  och filtrerar automatiska punkter.
-- `Services/HuginProjectFile.swift` bygger Hugin-projekt och tillämpar
-  lins-/poseparametrar.
-- `Services/PanoramaEngine.swift` klassar automatiska roller, stabiliserar
-  grafen, kör Hugin/Nona/Enblend och registrerar reparationsbilder.
-- `Services/OpenCVNadirRepairRegistrar.swift` hanterar lokal registrering och
-  reparationsöverlägg.
-- `Services/HuginToolchain.swift` använder de inbäddade verktygen i
-  `Vendor/Hugin` under utveckling och motsvarande resurser i appaketet.
-
-`PanoramaEngine` är medvetet konservativ. Innan en ny heuristic läggs till ska
-man först avgöra om felet hör till CP-matchning, graf/topologi, optimering,
-warpning, söm/blandning eller efterretusch.
-
-### UI och tillstånd
-
-- `ViewModels/AppModel.swift` äger dokumentets arbetsflöde, asynkrona faser och
-  temporära renderingsfiler.
-- `Views/ContentView.swift` sätter samman sidofält, verktygsfält och aktiva
-  editorer.
-- `Views/DetailWorkspace.swift` visar den lokala verktygsraden endast när den
-  aktiva vyn faktiskt har verktygsradsåtgärder.
-- `Views/PanoramaExportView.swift` visar JPEG-, PNG-, TIFF- och HTML-export
-  direkt i respektive formulärsektion.
-- `Views/ControlPointInspector.swift` är den manuella CP-editorn.
-- `Views/PanoramaPreview.swift` innehåller källbildsmaskeringen.
-- `Views/ImageSurfaceInteraction.swift` normaliserar modifierare och fysisk
-  scrollriktning för bildytorna.
-- `Views/SphericalPanoramaView.swift` renderar den sfäriska Metal-
-  förhandsvisningen utan redigerbar overlaygeometri.
-- `Views/PanoramaRetouchView.swift` samlar nadir- och zenitretusch i ett
-  gemensamt steg under Panorama och hanterar respektive arbetsflöde samt
-  AI-dialogen.
-
-Röd och grön källmask är källbildsdata i källans koordinater och är helt
-separerad från AI-retuschen. AI-dialogen använder ingen arbetsmask.
-
-### Retusch och OpenAI
-
-- `Services/NadirRetouchService.swift` (`PoleRetouchService`) projicerar en
-  2048 × 2048 stor 90°-platta vid nadir eller zenit och blandar tillbaka den.
-- `Services/OpenAIAIRetouchService.swift` lagrar API-nyckeln i `UserDefaults`
-  och anropar OpenAI Images API med `gpt-image-2`.
-- `Views/OpenAIAPIKeySheet.swift` lägger till, ersätter eller tar bort den
-  globala OpenAI-nyckeln från AI-retuschdialogens diskreta nyckelrad. Appmenyn
-  har inget separat **Inställningar…**-kommando.
-
-AI-flödet visar den sammansatta polplattan direkt i dialogen och skickar hela
-plattan till OpenAI utan mask. Hela modellresultatet används i den etablerade
-helbildsvägen; det finns ingen maskbaserad lokal compositing eller feathering.
-
-Nadir och zenit har separata prompter i `PanoProject`. Prompten sparas när en
-generering startar så att varje panorama kan återanvända och modifiera sin egen
-instruktion. När en retusch tas bort rensas även den sparade prompten för samma
-pol, så nästa dialog använder appversionens aktuella standardprompt. API-nyckeln
-är däremot global och lokal för appen.
-
-## Produktgräns för AI-retusch
-
-Den accepterade KISS-lösningen är dagens nadir-/zenitflöde. Export/import ska
-finnas kvar som manuell reserv och AI-resultatet ska fortsätta vara ett
-icke-destruktivt eftersteg ovanpå det frysta panoramat.
-
-Före och Efter har tillfällig zoom och pan enligt den gemensamma
-bildytemodellen: drag navigerar och scroll zoomar. AI-retuschdialogen har ingen
-maskredigering. Bara den accepterade retuschen sparas i `.pw`.
-
-En generell patchmotor för godtycklig panoramariktning är avsiktligt utanför
-nuvarande scope. Den kräver tangentprojektion, sfärisk lagring, hantering av
-0/360-sömmen och invalidation efter ny stitch. Implementera inte den utan ett
-nytt uttryckligt produktbeslut.
+Format v7 lagrar källor, aktivering, maskpaket, preview-vy och retuschprompt.
+Avkodaren accepterar v6 och ignorerar okända föråldrade fält. Gamla dokument
+ska öppnas utan att det tidigare arbetsflödet återkommer.
 
 ## Verifiering
 
-Minimikontroll efter kodändringar:
+Efter ändringar i motorn:
 
-```sh
-swift test
-git diff --check
-./Scripts/build-app.sh
-codesign --verify --deep --strict build/PanoWizard.app
-```
+1. Kör `swift build`.
+2. Kör berörda fokuserade tester.
+3. Bygg appaketet med `./Scripts/build-app.sh` när paketering eller länkar ändras.
+4. Beskriv alltid en större panoramaregression innan hela bildmaterialet körs.
 
-`build-app.sh` bygger `arm64` release, bäddar in OpenCV och Hugin, rensar
-utökade attribut och ad hoc-signerar appen. File Provider kan återinföra
-`com.apple.FinderInfo`; skriptet har därför en kort verifieringsloop.
+Använd endast originalbilder som indata i bildregressioner. Filer som råkar ligga
+i samma mapp men inte är källbilder ska aldrig autodetekteras som motordata.
 
-Vid ändringar i CP-generering, klassning, optimering eller reparation krävs även
-relevanta manuella panorama och slutligen A–R innan en ny baslinje deklareras.
-Dokumentationsändringar i sig kräver inte ett nytt appbygge.
+Panorama C är det visuella regressionsankaret för parallax och sömmar. Läs
+`TRIAL_ENGINE.md` före ändringar i GraphCut, central täckning eller feathering.
+Ett godkänt C-resultat måste samtidigt behålla raka skidstavar och liftlinor,
+en hel fotograf utan halo samt hela skidåkare i bakgrunden.
 
-Baslinjen `f6bc860` passerade 94 automatiska tester i 7 sviter och därefter en
-manuell visuell genomgång av hela A–R.
+## Aktuell handoff (2026-09-04)
+
+- Den native OpenCV-motorn använder cacheversion `trial-native-cycle-v1`.
+- Cykelåterhämtningen i `TrialPanoramaBridge.cpp` ska lämnas orörd. MST är
+  kandidat A. Kandidat B skapas bara när A:s outlier-filtrering bryter en stark
+  cykel, använder samma frysta `TrialOptimizationSample`, optimeras med samma
+  optimizer och jämförs mot samma ofiltrerade valideringsmängd. Flest
+  observationer inom residualgränsen vinner, därefter lägst robust fel.
+- Panorama L väljer kandidat B och är visuellt korrekt efter denna ändring.
+  Backa inte L-fixen för att lösa andra problem.
+- Panorama A aktiverar kontrollen för cykeln `0-6-5-9-0`, eftersom MST-kanten
+  `5-9` går från 13 frysta observationer till 0 efter första fitten. B förlorar
+  dock mot A: 796 mot 799 förklarade observationer. Återhämtningsgrenen kostar
+  cirka 0,15 sekunder och orsakar inte A:s tidigare sömstopp.
+- GraphCut-prestandafelet var att alla fulla 2048×1024-warpytor skickades med
+  hörnet `(0,0)`. OpenCV byggde då en miljonnodsgraf för varje bildpar oavsett
+  verklig masköverlapp. Varje källa beskärs nu oberoende till sin mask-support
+  plus 10 pixlars kontext och skickas med sitt verkliga panoramahörn. Det är
+  viktigt att inte beskära båda bilderna till samma överlappsrektangel: den
+  gemensamma konstgjorda kanten kan då bli en synlig GraphCut-söm.
+- Endast panorama A verifierades efter ROI-ändringen. Releasevärden med sparad
+  alignment: sömberäkning 3,533 s, hela renderingen 19,145 s, coverage
+  96,821296 %, 266649 maskorsakade hålpixlar. Debug- och releasebilderna var
+  byte-identiska och resultatet såg visuellt korrekt ut.
+- Inga andra panorama och ingen regressionstestsvit har körts efter ändringen.
+  Användaren kör panorama manuellt och återkommer med problembarn; kör inte en
+  bred bildregression utan uttrycklig begäran.
+- Panorama D visade att centralitetsfiltret med tolerans 0,12 kan krympa
+  bild 0/3:s sömkorridor så mycket att GraphCut går genom den parallaxade
+  kustlinjen. Ett försök med den ursprungliga, obegränsade masköverlappningen
+  gav sammanhängande kust men ett tydligare fotavtryck från den utfrätta
+  källbilden och upplevdes som sämre. Den återhämtningskandidaten är helt
+  borttagen igen. Gör ingen ny D-ändring utan att samtidigt hantera både
+  geometrisk sömplacering och den utfrätta himlens radiometriska övergång.
+- Senast byggda och lokalt signerade app finns i `build/PanoWizard.app`.

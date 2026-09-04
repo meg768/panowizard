@@ -6,217 +6,34 @@ extern "C" {
 #endif
 
 typedef struct {
-    double yaw;
-    double pitch;
-    double roll;
-} PWOrientation;
+    double coveragePercent;
+    int holeCount;
+    int usedAlignmentCache;
+} PWTrialStitchReport;
 
-typedef struct {
-    double yaw;
-    double pitch;
-    double roll;
-    int pointCount;
-    int connectedImageCount;
-    double medianResidualDegrees;
-    double p90ResidualDegrees;
-    double contaminatedRigMedianResidualDegrees;
-    double contaminatedRigP90ResidualDegrees;
-    double rigMedianResidualDegrees;
-    double rigP90ResidualDegrees;
-} PWPositioningEvidence;
+typedef void (*PWTrialProgressCallback)(
+    void *context,
+    const char *stage,
+    double fraction
+);
 
-typedef struct {
-    int firstImage;
-    int secondImage;
-    double firstX;
-    double firstY;
-    double secondX;
-    double secondY;
-} PWControlPoint;
+typedef int (*PWTrialCancellationCallback)(void *context);
 
-typedef struct {
-    int firstImage;
-    int secondImage;
-    int firstFeatureCount;
-    int secondFeatureCount;
-    int ratioMatchCount;
-    int mutualMatchCount;
-    int geometricMatchCount;
-    int selectedControlPointCount;
-    double meanReprojectionError;
-    double spatialCoverage;
-} PWControlPointPairDiagnostic;
-
-typedef struct {
-    double h00;
-    double h01;
-    double h02;
-    double h10;
-    double h11;
-    double h12;
-    double h20;
-    double h21;
-    double h22;
-    int matchedFeatureCount;
-    double localViewFieldOfView;
-} PWNadirRegistration;
-
-typedef enum {
-    PWLensModelRectilinear = 0,
-    PWLensModelNikon105DX = 1,
-    PWLensModelSigma8DX = 2
-} PWLensModel;
-
-int PWGenerateRingControlPoints(
+int PWStitchTrialPanorama(
     const char *const *imagePaths,
-    const double *nominalYaws,
-    const int *positioningImageFlags,
+    const char *const *protectedMaskPaths,
+    const unsigned char *compositionRoles,
     int imageCount,
-    double horizontalFieldOfView,
-    int lensModel,
-    PWControlPoint **controlPoints,
-    int *controlPointCount,
+    const char *alignmentCachePath,
+    const char *outputPath,
+    int outputWidth,
+    void *callbackContext,
+    PWTrialProgressCallback progressCallback,
+    PWTrialCancellationCallback cancellationCallback,
+    PWTrialStitchReport *report,
     char **errorMessage
 );
 
-int PWGeneratePairControlPoints(
-    const char *firstImagePath,
-    const char *secondImagePath,
-    int firstImageIndex,
-    int secondImageIndex,
-    int ringImageCount,
-    double horizontalFieldOfView,
-    int lensModel,
-    PWControlPoint **controlPoints,
-    int *controlPointCount,
-    char **errorMessage
-);
-
-int PWCopyLastControlPointPairDiagnostics(
-    PWControlPointPairDiagnostic **diagnostics,
-    int *diagnosticCount
-);
-
-int PWEstimateControlPointOrientations(
-    const PWControlPoint *controlPoints,
-    int controlPointCount,
-    const int *imageWidths,
-    const int *imageHeights,
-    int imageCount,
-    double horizontalFieldOfView,
-    int lensModel,
-    PWOrientation *orientations,
-    char **errorMessage
-);
-
-int PWEstimatePositioningEvidence(
-    const PWControlPoint *controlPoints,
-    int controlPointCount,
-    const int *imageWidths,
-    const int *imageHeights,
-    int imageCount,
-    double horizontalFieldOfView,
-    int lensModel,
-    PWPositioningEvidence *evidence,
-    char **errorMessage
-);
-
-int PWGenerateZenithControlPoints(
-    const char *const *ringImagePaths,
-    const PWOrientation *ringOrientations,
-    int ringImageCount,
-    const char *zenithImagePath,
-    double horizontalFieldOfView,
-    PWOrientation *zenithOrientation,
-    PWControlPoint **controlPoints,
-    int *controlPointCount,
-    char **errorMessage
-);
-
-int PWRegisterNadirRepair(
-    const char *panoramaPath,
-    const char *repairImagePath,
-    const char *repairExclusionMaskPath,
-    double horizontalFieldOfView,
-    double polePitchDegrees,
-    const char *overlayOutputPath,
-    PWNadirRegistration *registration,
-    char **errorMessage
-);
-
-int PWAlignNadirRepairToProjectedOverlay(
-    const char *projectedOverlayPath,
-    const char *repairImagePath,
-    const char *repairExclusionMaskPath,
-    double horizontalFieldOfView,
-    PWNadirRegistration *registration,
-    char **errorMessage
-);
-
-int PWSolvePoleSimilarity(
-    const PWControlPoint *controlPoints,
-    int controlPointCount,
-    PWNadirRegistration *registration,
-    double *errors,
-    char **errorMessage
-);
-
-int PWRenderNadirRepairOverlay(
-    const char *repairImagePath,
-    const char *repairExclusionMaskPath,
-    double horizontalFieldOfView,
-    const PWNadirRegistration *registration,
-    const char *overlayOutputPath,
-    char **errorMessage
-);
-
-int PWExtractPoleOverlay(
-    const char *equirectangularLayerPath,
-    double polePitchDegrees,
-    const char *overlayOutputPath,
-    char **errorMessage
-);
-
-int PWWarpPoleOverlay(
-    const char *sourceOverlayPath,
-    const PWNadirRegistration *registration,
-    const char *outputOverlayPath,
-    char **errorMessage
-);
-
-int PWPrepareNadirRepairBlend(
-    const char *panoramaPath,
-    const char *repairImagePath,
-    const char *repairExclusionMaskPath,
-    const char *projectedRepairPath,
-    double horizontalFieldOfView,
-    double polePitchDegrees,
-    const PWNadirRegistration *registration,
-    const char *baseOutputPath,
-    const char *repairOutputPath,
-    char **errorMessage
-);
-
-int PWFinishNadirRepairBlend(
-    const char *blendedLocalPath,
-    const char *repairLayerPath,
-    const char *repairSeamMaskPath,
-    const char *overlayOutputPath,
-    char **errorMessage
-);
-
-int PWWarpFisheyeFactor(
-    const char *sourcePath,
-    const char *destinationPath,
-    double sourceFactor,
-    double destinationFactor,
-    char **errorMessage
-);
-
-void PWFreeControlPoints(PWControlPoint *controlPoints);
-void PWFreeControlPointPairDiagnostics(
-    PWControlPointPairDiagnostic *diagnostics
-);
 void PWFreeString(char *string);
 
 #ifdef __cplusplus

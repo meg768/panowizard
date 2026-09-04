@@ -147,7 +147,6 @@ struct PanoramaCommandActions {
     let canShowPanorama: Bool
     let canStitch: Bool
     let createPanorama: () -> Void
-    let showPanoramaSettings: () -> Void
     let showPreview: () -> Void
     let showExport: () -> Void
 }
@@ -203,7 +202,6 @@ struct PanoWizardApp: App {
         .commands {
             ProjectDocumentMenuCommands()
             PanoramaMenuCommands()
-            ControlPointMenuCommands()
         }
     }
 }
@@ -250,12 +248,6 @@ private struct PanoramaMenuCommands: Commands {
 
             Divider()
 
-            Button("Panoramainställningar") {
-                actions?.showPanoramaSettings()
-            }
-            .keyboardShortcut(",", modifiers: .option)
-            .disabled(actions?.canOpenProjectViews != true)
-
             Button("Förhandsvisning") {
                 actions?.showPreview()
             }
@@ -267,60 +259,6 @@ private struct PanoramaMenuCommands: Commands {
             }
             .keyboardShortcut("e", modifiers: .option)
             .disabled(actions?.canShowPanorama != true)
-        }
-    }
-}
-
-private struct ControlPointMenuCommands: Commands {
-    @FocusedValue(\.controlPointCommandActions)
-    private var actions
-
-    var body: some Commands {
-        CommandMenu("Kontrollpunkter") {
-            Button(actions?.addPointTitle ?? "Lägg till punkt") {
-                actions?.toggleAddingPoint()
-            }
-            .keyboardShortcut("a", modifiers: .option)
-            .disabled(actions == nil)
-
-            Divider()
-
-            Button("Föreslå punkter") {
-                actions?.suggestPairPoints()
-            }
-            .keyboardShortcut("f", modifiers: .option)
-            .disabled(actions?.canSuggest != true)
-
-            Button("Generera om alla kontrollpunkter…") {
-                actions?.requestRegenerateProjectPoints()
-            }
-            .disabled(actions?.canRegenerateProject != true)
-
-            Divider()
-
-            Button(actions?.optimizeTitle ?? "Optimera") {
-                actions?.optimize()
-            }
-            .keyboardShortcut("o", modifiers: .option)
-            .disabled(actions?.canOptimize != true)
-
-            Divider()
-
-            Button("Radera markerad punkt") {
-                actions?.removeSelectedPoint()
-            }
-            .keyboardShortcut(.delete, modifiers: [])
-            .disabled(actions?.canRemoveSelectedPoint != true)
-
-            Button("Radera alla i aktuellt bildpar…") {
-                actions?.requestRemovePairPoints()
-            }
-            .disabled(actions?.canRemovePairPoints != true)
-
-            Button("Radera alla kontrollpunkter i projektet…") {
-                actions?.requestRemoveProjectPoints()
-            }
-            .disabled(actions?.canRemoveProjectPoints != true)
         }
     }
 }

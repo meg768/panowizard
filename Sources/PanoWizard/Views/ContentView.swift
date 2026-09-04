@@ -14,8 +14,6 @@ struct ContentView: View {
     @State private var exportController = PanoramaExportController()
     @State private var retouchController = PanoramaRetouchController()
     @State private var aiRetouchPresentation: AIRetouchPresentation?
-    @FocusedValue(\.controlPointCommandActions)
-    private var controlPointActions
     @AppStorage("PanoWizard.ProjectWindow.sidebarWidth")
     private var savedSidebarWidth = 300.0
 
@@ -54,7 +52,6 @@ struct ContentView: View {
                 canShowPanorama: model.stitchedResultURL != nil,
                 canStitch: model.canStitch,
                 createPanorama: model.stitch,
-                showPanoramaSettings: { model.selection = .settings },
                 showPreview: { model.selection = .panorama },
                 showExport: { model.selection = .export }
             )
@@ -79,9 +76,7 @@ struct ContentView: View {
             workspaceToolRow
         } content: {
             ZStack {
-                if model.selection == .settings {
-                    PanoramaSettingsView(model: model)
-                } else if model.selection == .export {
+                if model.selection == .export {
                     PanoramaExportView(
                         model: model,
                         controller: exportController,
@@ -99,59 +94,6 @@ struct ContentView: View {
                             )
                         }
                     )
-                } else if model.selection == .controlPoints {
-                    if let diagnostics = model.controlPointEditorDiagnostics,
-                       diagnostics.images.count >= 2 {
-                        let pairID = model.selectedControlPointPairID
-                            ?? diagnostics.pairs.first?.id
-                            ?? ControlPointPair.ID(firstImage: 0, secondImage: 1)
-                        ControlPointEditor(
-                            diagnostics: diagnostics,
-                            selectedPairID: pairID,
-                            leftImageIndex: model.controlPointLeftImageIndex,
-                            rightImageIndex: model.controlPointRightImageIndex,
-                            onSelectImages: model.selectControlPointImages,
-                            onMovePoint: model.moveControlPoint,
-                            onRemovePoint: model.removeControlPoint,
-                            onAddPoint: { point, imageIndex in
-                                model.addPredictedControlPoint(
-                                    to: pairID,
-                                    point: point,
-                                    in: imageIndex
-                                )
-                            },
-                            onPredictPoint: { point, imageIndex in
-                                model.predictedControlPointCounterpart(
-                                    to: pairID,
-                                    point: point,
-                                    in: imageIndex
-                                )
-                            },
-                            isSuggestingPoints: model.isSuggestingControlPoints,
-                            onSuggestPoints: {
-                                model.suggestControlPoints(for: pairID)
-                            },
-                            onRegenerateProjectPoints: {
-                                model.regenerateControlPointsForProject()
-                            },
-                            onRemoveAllPoints: {
-                                model.removeAllControlPoints(in: pairID)
-                            },
-                            onRemoveAllProjectPoints: {
-                                model.removeAllControlPoints()
-                            },
-                            onOptimize: model.optimizeEditedControlPoints,
-                            isPoleAlignment: false
-                        )
-                    } else {
-                        ContentUnavailableView(
-                            "Minst två bilder behövs",
-                            systemImage: "scope",
-                            description: Text(
-                                "Lägg till fler källbilder för att skapa kontrollpunkter."
-                            )
-                        )
-                    }
                 } else {
                     PanoramaPreview(
                         panorama: model.panorama,
@@ -197,7 +139,6 @@ struct ContentView: View {
     private var workspaceToolRow: some View {
         HStack(spacing: 6) {
             toolbarCenter
-            toolbarTrailing
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 10)
@@ -207,9 +148,7 @@ struct ContentView: View {
     @ViewBuilder
     private var toolbarCenter: some View {
         HStack(spacing: 6) {
-            if model.selection == .controlPoints {
-                controlPointToolbarCenter
-            } else if model.selectedSourceImage != nil {
+            if model.selectedSourceImage != nil {
                 sourceMaskToolbarCenter
             }
         }
@@ -316,107 +255,8 @@ struct ContentView: View {
         return model.maskData(for: image.id)
     }
 
-    @ViewBuilder
-    private var controlPointToolbarCenter: some View {
-        if let actions = controlPointActions {
-            Button(action: actions.toggleAddingPoint) {
-                Label(
-                    actions.addPointTitle,
-                    systemImage: actions.addPointTitle.hasPrefix("Avbryt")
-                        ? "xmark" : "plus"
-                )
-            }
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .help("Lägg till eller avbryt ny kontrollpunkt (⌥A)")
-
-            Button(action: actions.suggestPairPoints) {
-                Label("Föreslå punkter", systemImage: "sparkles")
-            }
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .disabled(!actions.canSuggest)
-            .help(
-                "Lägg till upp till "
-                    + "\(AppModel.suggestedControlPointBatchSize) "
-                    + "utspridda kontrollpunkter (⌥F)"
-            )
-
-            Button(action: actions.optimize) {
-                Label(
-                    actions.optimizeTitle,
-                    systemImage: "arrow.triangle.2.circlepath"
-                )
-            }
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .disabled(!actions.canOptimize)
-            .help("Optimera kontrollpunkterna (⌥O)")
-        }
-    }
-    @ViewBuilder
-    private var toolbarTrailing: some View {
-        HStack(spacing: 6) {
-            primaryToolbarAction
-
-            if showsToolbarOverflow {
-                toolbarOverflow
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var primaryToolbarAction: some View {
-        if model.selectedSourceImage?.effectiveRole == .fillOnly,
-           model.stitchedResultURL != nil {
-            Button {
-                model.showSelectedRepairPreview()
-            } label: {
-                Label("Visa resultat", systemImage: "checkmark.circle")
-            }
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .disabled(model.phase != .ready)
-        }
-    }
-
-    private var toolbarOverflow: some View {
-        Menu {
-            if let actions = controlPointActions {
-                Button("Generera om alla kontrollpunkter…") {
-                    actions.requestRegenerateProjectPoints()
-                }
-                .disabled(!actions.canRegenerateProject)
-
-                Divider()
-
-                Button("Radera markerad punkt", role: .destructive) {
-                    actions.removeSelectedPoint()
-                }
-                .disabled(!actions.canRemoveSelectedPoint)
-                Button("Radera alla i aktuellt bildpar…", role: .destructive) {
-                    actions.requestRemovePairPoints()
-                }
-                .disabled(!actions.canRemovePairPoints)
-                Button(
-                    "Radera alla kontrollpunkter i projektet…",
-                    role: .destructive
-                ) {
-                    actions.requestRemoveProjectPoints()
-                }
-                .disabled(!actions.canRemoveProjectPoints)
-            }
-        } label: {
-            Text("•••")
-                .accessibilityLabel("Vymeny")
-        }
-        .menuStyle(.button)
-        .buttonStyle(WorkspaceToolbarMenuStyle())
-        .help("Vymeny")
-    }
-
-    private var showsToolbarOverflow: Bool {
-        model.selection == .controlPoints && controlPointActions != nil
-    }
-
     private var showsWorkspaceToolRow: Bool {
-        model.selectedSourceImage != nil || showsToolbarOverflow
+        model.selectedSourceImage != nil
     }
 
 }
@@ -499,79 +339,5 @@ private struct MaskToolbarButtonBody: View {
             return Color.primary.opacity(0.3)
         }
         return Color.primary.opacity(isHovering ? 0.24 : 0.12)
-    }
-}
-
-private struct PanoramaSettingsView: View {
-    let model: AppModel
-
-    var body: some View {
-        Form {
-            Section("Objektiv") {
-                if let detectedProfile = model.imageMetadataLensProfile {
-                    LabeledContent("Objektivprofil") {
-                        Text(detectedProfile.displayName)
-                    }
-                    LabeledContent("Källa") {
-                        Text("Bildmetadata (EXIF)")
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
-                    Picker("Objektivprofil", selection: lensProfile) {
-                        ForEach(
-                            StitchingConfiguration.LensProfile.selectableProfiles,
-                            id: \.self
-                        ) { profile in
-                            Text(profile.displayName).tag(profile)
-                        }
-                    }
-                    Text(
-                        "Bildmetadata saknar ett identifierbart objektiv. "
-                            + "Välj profil manuellt."
-                    )
-                    .foregroundStyle(.secondary)
-                }
-
-                LabeledContent("Horisontellt synfält") {
-                    Text(
-                        String(
-                            format: "%.1f°",
-                            model.project.stitching.inputHorizontalFieldOfView
-                        )
-                    )
-                }
-            }
-
-            Section {
-                Text(
-                    "Roll och masker anges för varje källbild. För en "
-                        + "reparationsbild avgör PanoWizard automatiskt om "
-                        + "den hör till zenit eller nadir."
-                )
-                .foregroundStyle(.secondary)
-            }
-        }
-        .formStyle(.grouped)
-        .navigationTitle("Panoramainställningar")
-        .frame(maxWidth: 720, maxHeight: .infinity, alignment: .topLeading)
-        .padding()
-    }
-
-    private var lensProfile: Binding<StitchingConfiguration.LensProfile> {
-        Binding(
-            get: {
-                model.project.stitching.lensProfile == .nikon105DX
-                    ? .nikon105DX
-                    : .sigma8DX
-            },
-            set: { value in
-                model.updateStitchingConfiguration {
-                    $0.lensProfile = value
-                    if let fieldOfView = value.defaultHorizontalFieldOfView {
-                        $0.inputHorizontalFieldOfView = fieldOfView
-                    }
-                }
-            }
-        )
     }
 }

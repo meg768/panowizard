@@ -10,7 +10,7 @@ struct ImageMetadataReaderTests {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let nestedDirectory = directory.appendingPathComponent(
-            "PTGui",
+            "Reference",
             isDirectory: true
         )
         try FileManager.default.createDirectory(

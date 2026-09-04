@@ -8,10 +8,6 @@ struct StatusBar: View {
         HStack(spacing: 12) {
             if model.phase == .importing
                 || model.phase == .stitching
-                || model.phase == .suggestingControlPoints
-                || model.phase == .optimizingControlPoints
-                || model.phase == .updatingRepair
-                || model.phase == .blendingRepair
                 || model.phase == .retouching
                 || model.phase == .exporting {
                 ProgressView()
@@ -63,6 +59,15 @@ struct StatusBar: View {
 
             Spacer()
 
+            if model.phase == .stitching {
+                ProgressView(value: model.stitchProgress)
+                    .frame(width: 120)
+                Button("Avbryt") {
+                    model.cancelStitch()
+                }
+                .controlSize(.small)
+            }
+
             if !model.project.images.isEmpty {
                 Text("\(model.project.images.count) bilder")
                     .foregroundStyle(.secondary)
@@ -84,21 +89,35 @@ struct StatusBar: View {
 
     private var statusSymbol: String {
         if case .failed = model.phase { return "exclamationmark.triangle.fill" }
+        if (model.lastStitchHoleCount ?? 0) > 0 {
+            return "exclamationmark.triangle.fill"
+        }
         return "checkmark.circle.fill"
     }
 
     private var statusColor: Color {
         if case .failed = model.phase { return .orange }
+        if (model.lastStitchHoleCount ?? 0) > 0 { return .orange }
         return .green
     }
 
     private var statusMessage: String {
-        if model.selection == .controlPoints,
-           model.phase == .ready,
-           let count = model.lastControlPointSuggestionCount {
-            return count == 1
-                ? "1 ny kontrollpunkt tillagd"
-                : "\(count) nya kontrollpunkter tillagda"
+        if model.phase == .stitching, !model.stitchStage.isEmpty {
+            return model.stitchStage
+        }
+        if model.phase == .ready,
+           let coverage = model.lastStitchCoverage,
+           let holes = model.lastStitchHoleCount {
+            if holes > 0 {
+                return String(
+                    format: "Panorama klart · %.2f %% täckning · %d pixlar saknar omaskat underlag",
+                    coverage,
+                    holes
+                )
+            }
+            return model.usedAlignmentCache
+                ? "Panorama klart · 100 % täckning · alignment-cache användes"
+                : "Panorama klart · 100 % täckning"
         }
         guard model.phase == .ready,
               model.selectedSourceImage != nil,

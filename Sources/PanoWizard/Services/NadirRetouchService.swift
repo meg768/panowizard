@@ -3,6 +3,14 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
+enum PanoramaPole: String, Codable, CaseIterable, Sendable {
+    case zenith
+    case nadir
+
+    var pitchDegrees: Double { self == .zenith ? 90 : -90 }
+    var displayName: String { self == .zenith ? "Zenit" : "Nadir" }
+}
+
 enum PoleRetouchError: LocalizedError {
     case unreadableImage
     case invalidDimensions(
