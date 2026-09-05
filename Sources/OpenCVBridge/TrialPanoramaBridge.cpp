@@ -2215,7 +2215,7 @@ cv::Mat trialContentAdaptiveBlend(
     // Preserve photographed edge detail without restoring a hard tonal
     // boundary. The two-scale composite feathers only low frequencies along
     // the seam, at any latitude, while detail stays in the narrow composite.
-    result = seamDetailed.mul(colorStructureAlpha)
+    result = narrow.mul(colorStructureAlpha)
         + result.mul(one - colorStructureAlpha);
 
     cv::max(result, cv::Scalar(0, 0, 0), result);
