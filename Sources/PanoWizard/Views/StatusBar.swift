@@ -6,67 +6,59 @@ struct StatusBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if model.phase == .importing
-                || model.phase == .stitching
-                || model.phase == .retouching
-                || model.phase == .exporting {
-                ProgressView()
-                    .controlSize(.small)
-            } else {
-                Image(systemName: statusSymbol)
-                    .foregroundStyle(statusColor)
-            }
+            if model.phase != .stitching {
+                if model.phase == .importing
+                    || model.phase == .retouching
+                    || model.phase == .exporting {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: statusSymbol)
+                        .foregroundStyle(statusColor)
+                }
 
-            if let details = model.phase.failureDetails {
-                Button {
-                    showsFailureDetails = true
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(details.components(separatedBy: .newlines).first
-                            ?? details)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                        Text("Visa orsak")
-                            .foregroundStyle(.tint)
-                    }
-                }
-                .buttonStyle(.plain)
-                .help("Visa fullständig felrapport och loggplats")
-                .popover(isPresented: $showsFailureDetails) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Stitchningen misslyckades")
-                            .font(.headline)
-                        ScrollView {
-                            Text(details)
-                                .font(.system(.caption, design: .monospaced))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                if let details = model.phase.failureDetails {
+                    Button {
+                        showsFailureDetails = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(details.components(separatedBy: .newlines).first
+                                ?? details)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Text("Visa orsak")
+                                .foregroundStyle(.tint)
                         }
-                        Button("Stäng") {
-                            showsFailureDetails = false
-                        }
-                        .keyboardShortcut(.cancelAction)
                     }
-                    .padding(16)
-                    .frame(width: 620, height: 360)
+                    .buttonStyle(.plain)
+                    .help("Visa fullständig felrapport och loggplats")
+                    .popover(isPresented: $showsFailureDetails) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Stitchningen misslyckades")
+                                .font(.headline)
+                            ScrollView {
+                                Text(details)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            Button("Stäng") {
+                                showsFailureDetails = false
+                            }
+                            .keyboardShortcut(.cancelAction)
+                        }
+                        .padding(16)
+                        .frame(width: 620, height: 360)
+                    }
+                } else {
+                    Text(statusMessage)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .help(statusMessage)
                 }
-            } else {
-                Text(statusMessage)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .help(statusMessage)
             }
 
             Spacer()
-
-            if model.phase == .stitching {
-                ProgressView(value: model.stitchProgress)
-                    .frame(width: 120)
-                Button("Avbryt") {
-                    model.cancelStitch()
-                }
-                .controlSize(.small)
-            }
 
             if !model.project.images.isEmpty {
                 Text("\(model.project.images.count) bilder")
@@ -102,9 +94,6 @@ struct StatusBar: View {
     }
 
     private var statusMessage: String {
-        if model.phase == .stitching, !model.stitchStage.isEmpty {
-            return model.stitchStage
-        }
         if model.phase == .ready,
            let coverage = model.lastStitchCoverage,
            let holes = model.lastStitchHoleCount {

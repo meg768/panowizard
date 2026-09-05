@@ -203,9 +203,9 @@ struct AIRetouchSheet: View {
                     title: "Efter",
                     footer: "Dra panorerar · rulla eller nyp zoomar"
                 ) {
-                    if let preview {
+                    if let afterURL {
                         AIRetouchImageViewport(
-                            url: preview.editedURL
+                            url: afterURL
                         )
                         .id("ai-retouch-after-viewport")
                     } else {
@@ -217,12 +217,26 @@ struct AIRetouchSheet: View {
             }
             .frame(height: 430)
 
-            GroupBox("Instruktion") {
+            GroupBox {
                 TextEditor(text: $prompt)
                     .font(.body)
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 82, maxHeight: 110)
                     .padding(6)
+            } label: {
+                HStack(spacing: 5) {
+                    Text("Instruktion")
+                    Button {
+                        restoreDefaultPrompt()
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(.plain)
+                    .controlSize(.small)
+                    .help("Återställ standardinstruktion")
+                    .accessibilityLabel("Återställ standardinstruktion")
+                    .disabled(!canRestoreDefaultPrompt)
+                }
             }
 
             if let errorMessage {
@@ -307,6 +321,22 @@ struct AIRetouchSheet: View {
     private var canGenerate: Bool {
         source != nil
             && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var afterURL: URL? {
+        preview?.editedURL
+            ?? model.aiRetouchResultURL(for: pole)
+            ?? model.retouchURL(for: pole)
+    }
+
+    private var canRestoreDefaultPrompt: Bool {
+        prompt != Self.defaultPrompt(for: pole)
+            || model.aiRetouchPrompt(for: pole) != nil
+    }
+
+    private func restoreDefaultPrompt() {
+        prompt = Self.defaultPrompt(for: pole)
+        model.clearAIRetouchPrompt(for: pole)
     }
 
     private func loadSource() async {
@@ -426,6 +456,7 @@ struct AIRetouchSheet: View {
             + "kamerautrustningen eller fotograferingsartefakterna. Gör inga "
             + "andra förändringar."
     }
+
 }
 
 private struct AIRetouchProgressSheet: View {

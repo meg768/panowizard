@@ -369,7 +369,9 @@ private struct ProjectDocumentView: View {
             nadirOverlayData: initialDocument.nadirOverlayData,
             zenithOverlayData: initialDocument.zenithOverlayData,
             nadirRetouchData: initialDocument.nadirRetouchData,
-            zenithRetouchData: initialDocument.zenithRetouchData
+            zenithRetouchData: initialDocument.zenithRetouchData,
+            nadirAIRetouchResultData: initialDocument.nadirAIRetouchResultData,
+            zenithAIRetouchResultData: initialDocument.zenithAIRetouchResultData
         ))
     }
 
@@ -456,7 +458,13 @@ private struct ProjectDocumentView: View {
                 : savedDocument.nadirRetouchData,
             zenithRetouchData: hasNewPanoramaData
                 ? model.zenithRetouchData
-                : savedDocument.zenithRetouchData
+                : savedDocument.zenithRetouchData,
+            nadirAIRetouchResultData: hasNewPanoramaData
+                ? model.nadirAIRetouchResultData
+                : savedDocument.nadirAIRetouchResultData,
+            zenithAIRetouchResultData: hasNewPanoramaData
+                ? model.zenithAIRetouchResultData
+                : savedDocument.zenithAIRetouchResultData
         )
     }
 

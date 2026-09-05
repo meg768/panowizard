@@ -55,6 +55,8 @@ final class AppModel {
     var zenithOverlayURL: URL?
     var nadirRetouchURL: URL?
     var zenithRetouchURL: URL?
+    var nadirAIRetouchResultURL: URL?
+    var zenithAIRetouchResultURL: URL?
     var maskDataByImageID: [UUID: Data]
     var protectedMaskDataByImageID: [UUID: Data]
     var maskRevision = 0
@@ -79,7 +81,9 @@ final class AppModel {
         nadirOverlayData: Data? = nil,
         zenithOverlayData: Data? = nil,
         nadirRetouchData: Data? = nil,
-        zenithRetouchData: Data? = nil
+        zenithRetouchData: Data? = nil,
+        nadirAIRetouchResultData: Data? = nil,
+        zenithAIRetouchResultData: Data? = nil
     ) {
         var migrated = project
         migrated.migrateToCurrentFormat()
@@ -107,6 +111,12 @@ final class AppModel {
         zenithRetouchURL = zenithRetouchData.flatMap {
             Self.restoreData($0, filename: "\(migrated.id)-zenith-retouch.png")
         }
+        nadirAIRetouchResultURL = nadirAIRetouchResultData.flatMap {
+            Self.restoreData($0, filename: "\(migrated.id)-nadir-ai-result.png")
+        }
+        zenithAIRetouchResultURL = zenithAIRetouchResultData.flatMap {
+            Self.restoreData($0, filename: "\(migrated.id)-zenith-ai-result.png")
+        }
     }
 
     static func live(
@@ -117,7 +127,9 @@ final class AppModel {
         nadirOverlayData: Data? = nil,
         zenithOverlayData: Data? = nil,
         nadirRetouchData: Data? = nil,
-        zenithRetouchData: Data? = nil
+        zenithRetouchData: Data? = nil,
+        nadirAIRetouchResultData: Data? = nil,
+        zenithAIRetouchResultData: Data? = nil
     ) -> AppModel {
         AppModel(
             project: project,
@@ -131,7 +143,9 @@ final class AppModel {
             nadirOverlayData: nadirOverlayData,
             zenithOverlayData: zenithOverlayData,
             nadirRetouchData: nadirRetouchData,
-            zenithRetouchData: zenithRetouchData
+            zenithRetouchData: zenithRetouchData,
+            nadirAIRetouchResultData: nadirAIRetouchResultData,
+            zenithAIRetouchResultData: zenithAIRetouchResultData
         )
     }
 
@@ -264,6 +278,8 @@ final class AppModel {
                 zenithOverlayURL = nil
                 nadirRetouchURL = nil
                 zenithRetouchURL = nil
+                nadirAIRetouchResultURL = nil
+                zenithAIRetouchResultURL = nil
                 lastStitchCoverage = result.coveragePercent
                 lastStitchHoleCount = result.holeCount
                 usedAlignmentCache = result.usedAlignmentCache
@@ -364,12 +380,20 @@ final class AppModel {
         pole == .nadir ? nadirRetouchURL : zenithRetouchURL
     }
 
+    func aiRetouchResultURL(for pole: PanoramaPole) -> URL? {
+        pole == .nadir ? nadirAIRetouchResultURL : zenithAIRetouchResultURL
+    }
+
     func aiRetouchPrompt(for pole: PanoramaPole) -> String? {
         project.aiRetouchPrompt(for: pole)
     }
 
     func setAIRetouchPrompt(_ prompt: String, for pole: PanoramaPole) {
         project.setAIRetouchPrompt(prompt, for: pole)
+    }
+
+    func clearAIRetouchPrompt(for pole: PanoramaPole) {
+        project.clearAIRetouchPrompt(for: pole)
     }
 
     func exportRetouchPlate(for pole: PanoramaPole, to destinationURL: URL) {
@@ -411,6 +435,10 @@ final class AppModel {
                         to: destination
                     )
                 }.value
+                if let oldResultURL = aiRetouchResultURL(for: pole) {
+                    try? FileManager.default.removeItem(at: oldResultURL)
+                }
+                setAIRetouchResultURL(nil, for: pole)
                 setRetouchURL(destination, for: pole)
                 selection = .panorama
                 panoramaRevision += 1
@@ -430,7 +458,6 @@ final class AppModel {
         )
         let sourceURL = directory.appending(path: "\(pole.rawValue)-source.png")
         let overlayURL = pole == .nadir ? nadirOverlayURL : zenithOverlayURL
-        let existingURL = retouchURL(for: pole)
         phase = .retouching
         defer { if phase == .retouching { phase = .ready } }
         try FileManager.default.createDirectory(
@@ -442,7 +469,7 @@ final class AppModel {
                 try PoleRetouchService().exportPlate(
                     panoramaURL: panoramaURL,
                     repairOverlayURL: overlayURL,
-                    existingRetouchURL: existingURL,
+                    existingRetouchURL: nil,
                     pole: pole,
                     to: sourceURL
                 )
@@ -511,18 +538,41 @@ final class AppModel {
     }
 
     func applyAIRetouchPreview(_ preview: AIRetouchPreview) throws {
-        let destination = retouchDirectory.appending(
-            path: "\(preview.pole.rawValue)-retouch.png"
+        let revision = UUID().uuidString
+        let retouchDestination = retouchDirectory.appending(
+            path: "\(preview.pole.rawValue)-retouch-\(revision).png"
+        )
+        let resultDestination = retouchDirectory.appending(
+            path: "\(preview.pole.rawValue)-ai-result-\(revision).png"
         )
         try FileManager.default.createDirectory(
             at: retouchDirectory,
             withIntermediateDirectories: true
         )
-        try Data(contentsOf: preview.preparedURL).write(
-            to: destination,
-            options: .atomic
-        )
-        setRetouchURL(destination, for: preview.pole)
+        do {
+            try Data(contentsOf: preview.preparedURL).write(
+                to: retouchDestination,
+                options: .atomic
+            )
+            try Data(contentsOf: preview.editedURL).write(
+                to: resultDestination,
+                options: .atomic
+            )
+        } catch {
+            try? FileManager.default.removeItem(at: retouchDestination)
+            try? FileManager.default.removeItem(at: resultDestination)
+            throw error
+        }
+        let oldRetouchURL = retouchURL(for: preview.pole)
+        let oldResultURL = aiRetouchResultURL(for: preview.pole)
+        setRetouchURL(retouchDestination, for: preview.pole)
+        setAIRetouchResultURL(resultDestination, for: preview.pole)
+        if let oldRetouchURL, oldRetouchURL != retouchDestination {
+            try? FileManager.default.removeItem(at: oldRetouchURL)
+        }
+        if let oldResultURL, oldResultURL != resultDestination {
+            try? FileManager.default.removeItem(at: oldResultURL)
+        }
         selection = .panorama
         panoramaRevision += 1
     }
@@ -537,8 +587,13 @@ final class AppModel {
 
     func removeRetouch(for pole: PanoramaPole) {
         guard let url = retouchURL(for: pole) else { return }
+        let resultURL = aiRetouchResultURL(for: pole)
         setRetouchURL(nil, for: pole)
+        setAIRetouchResultURL(nil, for: pole)
         try? FileManager.default.removeItem(at: url)
+        if let resultURL {
+            try? FileManager.default.removeItem(at: resultURL)
+        }
         project.clearAIRetouchPrompt(for: pole)
         panoramaRevision += 1
     }
@@ -568,6 +623,12 @@ final class AppModel {
     var zenithOverlayData: Data? { zenithOverlayURL.flatMap { try? Data(contentsOf: $0) } }
     var nadirRetouchData: Data? { nadirRetouchURL.flatMap { try? Data(contentsOf: $0) } }
     var zenithRetouchData: Data? { zenithRetouchURL.flatMap { try? Data(contentsOf: $0) } }
+    var nadirAIRetouchResultData: Data? {
+        nadirAIRetouchResultURL.flatMap { try? Data(contentsOf: $0) }
+    }
+    var zenithAIRetouchResultData: Data? {
+        zenithAIRetouchResultURL.flatMap { try? Data(contentsOf: $0) }
+    }
 
     private var retouchDirectory: URL {
         FileManager.default.temporaryDirectory.appending(
@@ -579,6 +640,11 @@ final class AppModel {
     private func setRetouchURL(_ url: URL?, for pole: PanoramaPole) {
         if pole == .nadir { nadirRetouchURL = url }
         else { zenithRetouchURL = url }
+    }
+
+    private func setAIRetouchResultURL(_ url: URL?, for pole: PanoramaPole) {
+        if pole == .nadir { nadirAIRetouchResultURL = url }
+        else { zenithAIRetouchResultURL = url }
     }
 
     private func retainMasks(for images: [SourceImage]) {
@@ -596,6 +662,8 @@ final class AppModel {
         zenithOverlayURL = nil
         nadirRetouchURL = nil
         zenithRetouchURL = nil
+        nadirAIRetouchResultURL = nil
+        zenithAIRetouchResultURL = nil
         lastStitchCoverage = nil
         lastStitchHoleCount = nil
         usedAlignmentCache = false

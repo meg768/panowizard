@@ -4,7 +4,7 @@ import OpenCVBridge
 
 struct TrialOpenCVPanoramaEngine: PanoramaEngine {
     static let outputWidth = 4096
-    static let cacheVersion = "trial-native-cycle-v1"
+    static let cacheVersion = "trial-native-weak-crosslink-v1"
 
     func stitch(
         _ panorama: PanoramaSet,

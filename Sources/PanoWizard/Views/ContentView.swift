@@ -69,6 +69,20 @@ struct ContentView: View {
         .sheet(item: $aiRetouchPresentation) { presentation in
             AIRetouchSheet(model: model, pole: presentation.pole)
         }
+        .sheet(isPresented: stitchPresentation) {
+            PanoramaStitchProgressSheet(model: model)
+        }
+    }
+
+    private var stitchPresentation: Binding<Bool> {
+        Binding(
+            get: { model.phase == .stitching },
+            set: { isPresented in
+                if !isPresented, model.phase == .stitching {
+                    model.cancelStitch()
+                }
+            }
+        )
     }
 
     private var detailWorkspace: some View {
@@ -259,6 +273,33 @@ struct ContentView: View {
         model.selectedSourceImage != nil
     }
 
+}
+
+private struct PanoramaStitchProgressSheet: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .controlSize(.small)
+
+            VStack(spacing: 4) {
+                Text(model.stitchStage.isEmpty
+                    ? "Skapar panorama…"
+                    : model.stitchStage)
+                    .font(.headline)
+                Text("Det kan ta några minuter.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Button("Avbryt", role: .cancel) {
+                model.cancelStitch()
+            }
+        }
+        .padding(24)
+        .frame(width: 320)
+        .interactiveDismissDisabled()
+    }
 }
 
 private struct MaskToolbarButtonStyle: ButtonStyle {

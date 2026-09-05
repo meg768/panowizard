@@ -21,6 +21,8 @@ struct PanoProjectDocument: FileDocument, Equatable {
     var zenithOverlayData: Data?
     var nadirRetouchData: Data?
     var zenithRetouchData: Data?
+    var nadirAIRetouchResultData: Data?
+    var zenithAIRetouchResultData: Data?
 
     init(
         project: PanoProject = PanoProject(),
@@ -30,7 +32,9 @@ struct PanoProjectDocument: FileDocument, Equatable {
         nadirOverlayData: Data? = nil,
         zenithOverlayData: Data? = nil,
         nadirRetouchData: Data? = nil,
-        zenithRetouchData: Data? = nil
+        zenithRetouchData: Data? = nil,
+        nadirAIRetouchResultData: Data? = nil,
+        zenithAIRetouchResultData: Data? = nil
     ) {
         self.project = project
         self.masks = masks
@@ -40,6 +44,8 @@ struct PanoProjectDocument: FileDocument, Equatable {
         self.zenithOverlayData = zenithOverlayData
         self.nadirRetouchData = nadirRetouchData
         self.zenithRetouchData = zenithRetouchData
+        self.nadirAIRetouchResultData = nadirAIRetouchResultData
+        self.zenithAIRetouchResultData = zenithAIRetouchResultData
     }
 
     init(configuration: ReadConfiguration) throws {
@@ -110,6 +116,12 @@ struct PanoProjectDocument: FileDocument, Equatable {
         zenithRetouchData = wrappers["panorama"]?
             .fileWrappers?["zenith-retouch.png"]?
             .regularFileContents
+        nadirAIRetouchResultData = wrappers["panorama"]?
+            .fileWrappers?["nadir-ai-result.png"]?
+            .regularFileContents
+        zenithAIRetouchResultData = wrappers["panorama"]?
+            .fileWrappers?["zenith-ai-result.png"]?
+            .regularFileContents
         if let projectURL {
             resolveSourceImages(
                 relativeTo: projectURL.deletingLastPathComponent()
@@ -177,6 +189,16 @@ struct PanoProjectDocument: FileDocument, Equatable {
         if let zenithRetouchData {
             panoramaChildren["zenith-retouch.png"] = FileWrapper(
                 regularFileWithContents: zenithRetouchData
+            )
+        }
+        if let nadirAIRetouchResultData {
+            panoramaChildren["nadir-ai-result.png"] = FileWrapper(
+                regularFileWithContents: nadirAIRetouchResultData
+            )
+        }
+        if let zenithAIRetouchResultData {
+            panoramaChildren["zenith-ai-result.png"] = FileWrapper(
+                regularFileWithContents: zenithAIRetouchResultData
             )
         }
         if !panoramaChildren.isEmpty {

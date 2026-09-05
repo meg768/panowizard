@@ -55,6 +55,11 @@ struct TrialEdge {
     std::vector<cv::Point2d> secondPoints;
 };
 
+struct TrialEdgeSets {
+    std::vector<TrialEdge> strong;
+    std::vector<TrialEdge> weak;
+};
+
 struct TrialGeometryStats {
     int observations = 0;
     double medianDegrees = 0.0;
@@ -199,9 +204,6 @@ std::pair<cv::Matx33d, std::vector<unsigned char>> trialRansacRotation(
         if (hitCount > std::accumulate(best.begin(), best.end(), 0)) {
             best = std::move(hit);
         }
-    }
-    if (std::accumulate(best.begin(), best.end(), 0) < 20) {
-        return {cv::Matx33d::eye(), {}};
     }
     cv::Matx33d matrix = cv::Matx33d::eye();
     for (const double degrees : {1.15, 0.85, 0.62}) {
@@ -433,18 +435,18 @@ std::vector<std::pair<int, int>> trialMutualMatches(
     return result;
 }
 
-std::vector<TrialEdge> trialBuildEdges(
+TrialEdgeSets trialBuildEdges(
     const std::vector<TrialSource> &sources,
     const std::vector<TrialFeatures> &features,
     const TrialLens &lens
 ) {
-    std::vector<TrialEdge> edges;
+    TrialEdgeSets edges;
     for (int first = 0; first < int(sources.size()); ++first) {
         for (int second = first + 1; second < int(sources.size()); ++second) {
             const auto matches = trialMutualMatches(
                 features[first], features[second]
             );
-            if (matches.size() < 25) continue;
+            if (matches.size() < 3) continue;
             std::vector<cv::Vec3d> firstRays;
             std::vector<cv::Vec3d> secondRays;
             firstRays.reserve(matches.size());
@@ -458,7 +460,8 @@ std::vector<TrialEdge> trialBuildEdges(
                 ));
             }
             auto [rotation, hit] = trialRansacRotation(firstRays, secondRays);
-            if (hit.empty() || std::accumulate(hit.begin(), hit.end(), 0) < 20) continue;
+            const int support = std::accumulate(hit.begin(), hit.end(), 0);
+            if (support < 3) continue;
             TrialEdge edge;
             edge.first = first;
             edge.second = second;
@@ -468,7 +471,11 @@ std::vector<TrialEdge> trialBuildEdges(
                 edge.firstPoints.push_back(features[first].points[matches[index].first]);
                 edge.secondPoints.push_back(features[second].points[matches[index].second]);
             }
-            edges.push_back(std::move(edge));
+            if (support >= 20 && matches.size() >= 25) {
+                edges.strong.push_back(std::move(edge));
+            } else if (support < 20) {
+                edges.weak.push_back(std::move(edge));
+            }
         }
     }
     return edges;
@@ -594,8 +601,70 @@ int trialRequiredSampleSupport(int sampleCount) {
     return trialMinimumEdgeSupport(sampleCount);
 }
 
+TrialOptimizationSample trialSpatialSample(
+    const TrialEdge &edge,
+    const cv::Size &size,
+    std::mt19937 &generator
+) {
+    std::vector<int> indices(edge.firstPoints.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    std::shuffle(indices.begin(), indices.end(), generator);
+    // Optimisation support is spatial support, not raw detector density.
+    // Without thinning, hundreds of SIFT points from one flower bed,
+    // railing or repeated logo can outweigh an entire neighbouring image
+    // pair and pull a steep view away from valid nearby structure.
+    constexpr int gridColumns = 8;
+    constexpr int gridRows = 12;
+    constexpr int maximumPerEdge = 80;
+    std::vector<int> firstUse(gridColumns * gridRows, 0);
+    std::vector<int> secondUse(gridColumns * gridRows, 0);
+    std::vector<unsigned char> chosen(indices.size(), 0);
+    std::vector<int> distributed;
+    distributed.reserve(std::min<int>(maximumPerEdge, int(indices.size())));
+    for (int allowance = 1;
+         allowance <= 3 && int(distributed.size()) < maximumPerEdge;
+         ++allowance) {
+        for (int shuffled = 0;
+             shuffled < int(indices.size())
+                && int(distributed.size()) < maximumPerEdge;
+             ++shuffled) {
+            if (chosen[shuffled]) continue;
+            const int point = indices[shuffled];
+            const cv::Point2d &firstPoint = edge.firstPoints[point];
+            const cv::Point2d &secondPoint = edge.secondPoints[point];
+            const int firstCell = std::clamp(
+                int(firstPoint.y * gridRows / size.height), 0, gridRows - 1
+            ) * gridColumns + std::clamp(
+                int(firstPoint.x * gridColumns / size.width), 0, gridColumns - 1
+            );
+            const int secondCell = std::clamp(
+                int(secondPoint.y * gridRows / size.height), 0, gridRows - 1
+            ) * gridColumns + std::clamp(
+                int(secondPoint.x * gridColumns / size.width), 0, gridColumns - 1
+            );
+            if (firstUse[firstCell] >= allowance
+                || secondUse[secondCell] >= allowance) {
+                continue;
+            }
+            ++firstUse[firstCell];
+            ++secondUse[secondCell];
+            chosen[shuffled] = 1;
+            distributed.push_back(point);
+        }
+    }
+    TrialOptimizationSample sample;
+    sample.first = edge.first;
+    sample.second = edge.second;
+    sample.rawRansacSupport = int(edge.firstPoints.size());
+    for (const int index : distributed) {
+        sample.firstPoints.push_back(edge.firstPoints[index]);
+        sample.secondPoints.push_back(edge.secondPoints[index]);
+    }
+    return sample;
+}
+
 bool trialHasRawRansacSupport(const TrialEdge &edge) {
-    // trialRansacRotation and trialBuildEdges use the same unchanged cutoff.
+    // Only the strong graph path uses this unchanged cutoff.
     return int(edge.firstPoints.size()) >= 20;
 }
 
@@ -994,6 +1063,7 @@ std::pair<int, double> trialValidationScore(
 TrialAlignment trialOptimizeGeometry(
     const std::vector<TrialSource> &sources,
     const std::vector<TrialEdge> &edges,
+    const std::vector<TrialEdge> &weakEdges,
     const std::vector<cv::Matx33d> &initialRotations,
     const TrialLens &initialLens,
     bool circular,
@@ -1004,61 +1074,7 @@ TrialAlignment trialOptimizeGeometry(
     std::mt19937 generator(20260902u);
     std::vector<TrialOptimizationSample> samples;
     for (const TrialEdge &edge : edges) {
-        std::vector<int> indices(edge.firstPoints.size());
-        std::iota(indices.begin(), indices.end(), 0);
-        std::shuffle(indices.begin(), indices.end(), generator);
-        // Optimisation support is spatial support, not raw detector density.
-        // Without thinning, hundreds of SIFT points from one flower bed,
-        // railing or repeated logo can outweigh an entire neighbouring image
-        // pair and pull a steep view away from valid nearby structure.
-        constexpr int gridColumns = 8;
-        constexpr int gridRows = 12;
-        constexpr int maximumPerEdge = 80;
-        std::vector<int> firstUse(gridColumns * gridRows, 0);
-        std::vector<int> secondUse(gridColumns * gridRows, 0);
-        std::vector<unsigned char> chosen(indices.size(), 0);
-        std::vector<int> distributed;
-        distributed.reserve(std::min<int>(maximumPerEdge, int(indices.size())));
-        for (int allowance = 1;
-             allowance <= 3 && int(distributed.size()) < maximumPerEdge;
-             ++allowance) {
-            for (int shuffled = 0;
-                 shuffled < int(indices.size())
-                    && int(distributed.size()) < maximumPerEdge;
-                 ++shuffled) {
-                if (chosen[shuffled]) continue;
-                const int point = indices[shuffled];
-                const cv::Point2d &firstPoint = edge.firstPoints[point];
-                const cv::Point2d &secondPoint = edge.secondPoints[point];
-                const int firstCell = std::clamp(
-                    int(firstPoint.y * gridRows / size.height), 0, gridRows - 1
-                ) * gridColumns + std::clamp(
-                    int(firstPoint.x * gridColumns / size.width), 0, gridColumns - 1
-                );
-                const int secondCell = std::clamp(
-                    int(secondPoint.y * gridRows / size.height), 0, gridRows - 1
-                ) * gridColumns + std::clamp(
-                    int(secondPoint.x * gridColumns / size.width), 0, gridColumns - 1
-                );
-                if (firstUse[firstCell] >= allowance
-                    || secondUse[secondCell] >= allowance) {
-                    continue;
-                }
-                ++firstUse[firstCell];
-                ++secondUse[secondCell];
-                chosen[shuffled] = 1;
-                distributed.push_back(point);
-            }
-        }
-        TrialOptimizationSample sample;
-        sample.first = edge.first;
-        sample.second = edge.second;
-        sample.rawRansacSupport = int(edge.firstPoints.size());
-        for (const int index : distributed) {
-            sample.firstPoints.push_back(edge.firstPoints[index]);
-            sample.secondPoints.push_back(edge.secondPoints[index]);
-        }
-        samples.push_back(std::move(sample));
+        samples.push_back(trialSpatialSample(edge, size, generator));
     }
     std::vector<double> values = trialPack(initialRotations, initialLens);
     std::vector<double> lower = values;
@@ -1159,6 +1175,93 @@ TrialAlignment trialOptimizeGeometry(
         if (selectsClosed) {
             values = std::move(closedValues);
             keep = std::move(closedKeep);
+        }
+    }
+
+    // Sub-threshold RANSAC clusters never participate in graph construction,
+    // MST initialization or cycle recovery. Once those strong constraints have
+    // independently established the geometry, a sparse cluster may contribute
+    // only when its spatial sample agrees with that solution.
+    std::mt19937 weakGenerator(20260903u);
+    std::vector<int> acceptedWeakSamples;
+    for (const TrialEdge &edge : weakEdges) {
+        TrialOptimizationSample sample = trialSpatialSample(
+            edge, size, weakGenerator
+        );
+        std::vector<cv::Matx33d> rotations;
+        TrialLens lens;
+        trialUnpack(values, count, rotations, lens);
+        std::vector<unsigned char> selected(sample.firstPoints.size(), 0);
+        std::vector<double> selectedErrors;
+        for (size_t index = 0; index < sample.firstPoints.size(); ++index) {
+            const cv::Vec3d first = rotations[sample.first]
+                * trialRay(sample.firstPoints[index], size, lens);
+            const cv::Vec3d second = rotations[sample.second]
+                * trialRay(sample.secondPoints[index], size, lens);
+            const double error = std::acos(std::clamp(
+                first.dot(second), -1.0, 1.0
+            ));
+            if (error < trialRadians(1.20)) {
+                selected[index] = 1;
+                selectedErrors.push_back(error);
+            }
+        }
+        const int required = trialRequiredSampleSupport(
+            int(sample.firstPoints.size())
+        );
+        const bool accepted = int(selectedErrors.size()) >= required;
+        const double medianBefore = selectedErrors.empty()
+            ? 0.0 : trialMedian(selectedErrors) * 180.0 / trialPi;
+        std::fprintf(
+            stderr,
+            "[PanoWizard] Weak cross-link %d-%d: raw=%d samples=%zu "
+            "residual-inliers=%zu required=%d accepted=%s "
+            "median-before=%.6f deg\n",
+            sample.first,
+            sample.second,
+            sample.rawRansacSupport,
+            sample.firstPoints.size(),
+            selectedErrors.size(),
+            required,
+            accepted ? "yes" : "no",
+            medianBefore
+        );
+        if (!accepted) continue;
+        acceptedWeakSamples.push_back(int(samples.size()));
+        samples.push_back(std::move(sample));
+        keep.push_back(std::move(selected));
+    }
+    if (!acceptedWeakSamples.empty()) {
+        values = trialLeastSquares(
+            values, lower, upper, count, size, samples, &keep, radialLimit,
+            trialRadians(0.25), 30
+        );
+        std::vector<cv::Matx33d> rotations;
+        TrialLens lens;
+        trialUnpack(values, count, rotations, lens);
+        for (const int sampleIndex : acceptedWeakSamples) {
+            const TrialOptimizationSample &sample = samples[sampleIndex];
+            std::vector<double> errors;
+            for (size_t index = 0; index < sample.firstPoints.size(); ++index) {
+                if (!keep[sampleIndex][index]) continue;
+                const cv::Vec3d first = rotations[sample.first]
+                    * trialRay(sample.firstPoints[index], size, lens);
+                const cv::Vec3d second = rotations[sample.second]
+                    * trialRay(sample.secondPoints[index], size, lens);
+                errors.push_back(std::acos(std::clamp(
+                    first.dot(second), -1.0, 1.0
+                )));
+            }
+            std::fprintf(
+                stderr,
+                "[PanoWizard] Weak cross-link %d-%d: observations=%zu "
+                "median-after=%.6f deg\n",
+                sample.first,
+                sample.second,
+                errors.size(),
+                errors.empty()
+                    ? 0.0 : trialMedian(errors) * 180.0 / trialPi
+            );
         }
     }
 
@@ -2360,6 +2463,404 @@ std::vector<TrialWarp> trialCompensateRadiometry(
     return result;
 }
 
+double trialPercentile(std::vector<double> values, double fraction) {
+    if (values.empty()) return 0.0;
+    const size_t index = std::min(
+        values.size() - 1,
+        size_t(std::floor(fraction * double(values.size() - 1)))
+    );
+    std::nth_element(values.begin(), values.begin() + index, values.end());
+    return values[index];
+}
+
+struct TrialLocalRadiometryPair {
+    int first = 0;
+    int second = 0;
+    int trainingPixels = 0;
+    int validationPixels = 0;
+    int trainingCells = 0;
+    int validationCells = 0;
+    double medianBefore = 0.0;
+    double medianAfter = 0.0;
+    double p90Before = 0.0;
+    double p90After = 0.0;
+    double maximumCorrection = 0.0;
+};
+
+cv::Mat trialSeamLocalRadiometryCorrection(
+    const std::vector<TrialWarp> &warps,
+    const cv::Mat &labels,
+    int width
+) {
+    const int analysisWidth = std::min(1024, width);
+    const int analysisHeight = analysisWidth / 2;
+    const cv::Size analysisSize(analysisWidth, analysisHeight);
+    const int count = int(warps.size());
+    if (count < 2) return cv::Mat();
+
+    std::vector<cv::Mat> images;
+    std::vector<cv::Mat> masks;
+    std::vector<cv::Mat> gradients;
+    images.reserve(count);
+    masks.reserve(count);
+    gradients.reserve(count);
+    for (const TrialWarp &warp : warps) {
+        cv::Mat image;
+        cv::Mat mask;
+        cv::resize(warp.image, image, analysisSize, 0.0, 0.0, cv::INTER_AREA);
+        cv::resize(warp.mask, mask, analysisSize, 0.0, 0.0, cv::INTER_NEAREST);
+        cv::Mat gray;
+        cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
+        cv::Mat xGradient;
+        cv::Mat yGradient;
+        cv::Sobel(gray, xGradient, CV_32F, 1, 0, 3);
+        cv::Sobel(gray, yGradient, CV_32F, 0, 1, 3);
+        cv::Mat gradient;
+        cv::magnitude(xGradient, yGradient, gradient);
+        images.push_back(std::move(image));
+        masks.push_back(std::move(mask));
+        gradients.push_back(std::move(gradient));
+    }
+    cv::Mat smallLabels;
+    cv::resize(
+        labels, smallLabels, analysisSize, 0.0, 0.0, cv::INTER_NEAREST
+    );
+
+    cv::Mat correctionSum(
+        analysisSize, CV_32FC3, cv::Scalar(0, 0, 0)
+    );
+    cv::Mat correctionWeight(
+        analysisSize, CV_32F, cv::Scalar(0)
+    );
+    std::vector<TrialLocalRadiometryPair> acceptedPairs;
+    const int cellSize = std::max(8, analysisWidth / 64);
+    const int gridColumns = (analysisWidth + cellSize - 1) / cellSize;
+    const int gridRows = (analysisHeight + cellSize - 1) / cellSize;
+    const double fieldSigma = std::max(6.0, analysisWidth / 42.67);
+    const double corridorSigma = std::max(18.0, analysisWidth / 14.22);
+
+    for (int first = 0; first < count; ++first) {
+        for (int second = first + 1; second < count; ++second) {
+            cv::Mat firstOwner = smallLabels == first;
+            cv::Mat secondOwner = smallLabels == second;
+            cv::Mat expandedFirst = trialPeriodicExpand(firstOwner, 1);
+            cv::Mat expandedSecond = trialPeriodicExpand(secondOwner, 1);
+            cv::Mat firstBoundary;
+            cv::Mat secondBoundary;
+            cv::bitwise_and(expandedFirst, secondOwner, firstBoundary);
+            cv::bitwise_and(expandedSecond, firstOwner, secondBoundary);
+            cv::Mat boundary;
+            cv::bitwise_or(firstBoundary, secondBoundary, boundary);
+            if (cv::countNonZero(boundary) < 8) continue;
+
+            cv::Mat overlap;
+            cv::bitwise_and(masks[first], masks[second], overlap);
+            if (cv::countNonZero(overlap) < 300) continue;
+
+            std::vector<cv::Mat> boundaryPieces = {boundary, boundary, boundary};
+            cv::Mat tiledBoundary;
+            cv::hconcat(boundaryPieces, tiledBoundary);
+            cv::Mat inverseBoundary;
+            cv::bitwise_not(tiledBoundary, inverseBoundary);
+            cv::Mat tiledDistance;
+            cv::distanceTransform(
+                inverseBoundary, tiledDistance, cv::DIST_L2, 5
+            );
+            cv::Mat distance = tiledDistance.colRange(
+                analysisWidth, 2 * analysisWidth
+            ).clone();
+            cv::Mat squaredDistance = distance.mul(distance);
+            cv::Mat seamWeight;
+            squaredDistance.convertTo(
+                seamWeight, CV_32F,
+                -0.5 / (corridorSigma * corridorSigma)
+            );
+            cv::exp(seamWeight, seamWeight);
+            seamWeight.setTo(0.0f, overlap == 0);
+            // Do not end a correction abruptly at a source/overlap boundary:
+            // the unchanged broad blender can still sample that source there.
+            // A low-frequency field must itself fade out at low frequency.
+            std::vector<cv::Mat> overlapPieces = {overlap, overlap, overlap};
+            cv::Mat tiledOverlap;
+            cv::hconcat(overlapPieces, tiledOverlap);
+            cv::Mat tiledOverlapDistance;
+            cv::distanceTransform(
+                tiledOverlap, tiledOverlapDistance, cv::DIST_L2, 5
+            );
+            cv::Mat overlapFade = tiledOverlapDistance.colRange(
+                analysisWidth, 2 * analysisWidth
+            ).clone() / std::max(4.0, fieldSigma);
+            cv::min(overlapFade, 1.0, overlapFade);
+            seamWeight = seamWeight.mul(overlapFade);
+
+            cv::Mat training(
+                analysisSize, CV_8U, cv::Scalar(0)
+            );
+            cv::Mat validation(
+                analysisSize, CV_8U, cv::Scalar(0)
+            );
+            std::vector<unsigned char> trainingCellUsed(
+                gridColumns * gridRows, 0
+            );
+            std::vector<unsigned char> validationCellUsed(
+                gridColumns * gridRows, 0
+            );
+            int trainingPixels = 0;
+            int validationPixels = 0;
+            for (int y = 0; y < analysisHeight; ++y) {
+                const unsigned char *overlapRow = overlap.ptr<unsigned char>(y);
+                const float *firstGradient = gradients[first].ptr<float>(y);
+                const float *secondGradient = gradients[second].ptr<float>(y);
+                const float *weightRow = seamWeight.ptr<float>(y);
+                const cv::Vec3b *one = images[first].ptr<cv::Vec3b>(y);
+                const cv::Vec3b *two = images[second].ptr<cv::Vec3b>(y);
+                unsigned char *trainingRow = training.ptr<unsigned char>(y);
+                unsigned char *validationRow = validation.ptr<unsigned char>(y);
+                for (int x = 0; x < analysisWidth; ++x) {
+                    if (!overlapRow[x] || weightRow[x] <= 0.03f
+                        || firstGradient[x] >= 28.0f
+                        || secondGradient[x] >= 28.0f) continue;
+                    bool unclipped = true;
+                    double difference = 0.0;
+                    for (int channel = 0; channel < 3; ++channel) {
+                        unclipped = unclipped
+                            && one[x][channel] > 10 && one[x][channel] < 245
+                            && two[x][channel] > 10 && two[x][channel] < 245;
+                        difference += std::abs(
+                            int(one[x][channel]) - int(two[x][channel])
+                        );
+                    }
+                    if (!unclipped || difference / 3.0 >= 55.0) continue;
+                    const int cellX = x / cellSize;
+                    const int cellY = y / cellSize;
+                    const int cell = cellY * gridColumns + cellX;
+                    const bool heldOut = (
+                        cellX + 2 * cellY + 3 * first + second
+                    ) % 5 == 0;
+                    if (heldOut && weightRow[x] > 0.12f) {
+                        validationRow[x] = 255;
+                        validationCellUsed[cell] = 1;
+                        ++validationPixels;
+                    } else {
+                        trainingRow[x] = 255;
+                        trainingCellUsed[cell] = 1;
+                        ++trainingPixels;
+                    }
+                }
+            }
+            const int trainingCells = std::accumulate(
+                trainingCellUsed.begin(), trainingCellUsed.end(), 0
+            );
+            const int validationCells = std::accumulate(
+                validationCellUsed.begin(), validationCellUsed.end(), 0
+            );
+            if (trainingPixels < 240 || validationPixels < 60
+                || trainingCells < 12 || validationCells < 4) {
+                std::fprintf(
+                    stderr,
+                    "[PanoWizard] Local radiometry %d-%d: rejected support "
+                    "train=%d/%d-cells validation=%d/%d-cells\n",
+                    first, second, trainingPixels, trainingCells,
+                    validationPixels, validationCells
+                );
+                continue;
+            }
+
+            cv::Mat firstFloat;
+            cv::Mat secondFloat;
+            images[first].convertTo(firstFloat, CV_32FC3);
+            images[second].convertTo(secondFloat, CV_32FC3);
+            cv::Mat rawDifference = secondFloat - firstFloat;
+            cv::max(
+                rawDifference, cv::Scalar(-40, -40, -40), rawDifference
+            );
+            cv::min(
+                rawDifference, cv::Scalar(40, 40, 40), rawDifference
+            );
+            cv::Mat trainingWeight;
+            training.convertTo(trainingWeight, CV_32F, 1.0 / 255.0);
+            cv::Mat denominator = trialPeriodicBlur(
+                trainingWeight, fieldSigma
+            );
+            cv::Mat confidence = denominator / 0.06;
+            cv::max(confidence, 0.0, confidence);
+            cv::min(confidence, 1.0, confidence);
+            cv::Mat safeDenominator;
+            cv::max(denominator, 1e-4, safeDenominator);
+            std::vector<cv::Mat> differenceChannels;
+            cv::split(rawDifference, differenceChannels);
+            std::vector<cv::Mat> fieldChannels;
+            for (int channel = 0; channel < 3; ++channel) {
+                cv::Mat numerator = trialPeriodicBlur(
+                    differenceChannels[channel].mul(trainingWeight), fieldSigma
+                );
+                cv::Mat field = numerator / safeDenominator;
+                cv::max(field, -24.0, field);
+                cv::min(field, 24.0, field);
+                fieldChannels.push_back(std::move(field));
+            }
+            cv::Mat field;
+            cv::merge(fieldChannels, field);
+            cv::Mat active = seamWeight.mul(confidence);
+            std::vector<cv::Mat> activeChannels(3, active);
+            cv::Mat colorActive;
+            cv::merge(activeChannels, colorActive);
+            cv::Mat firstCorrection = 0.5 * field.mul(colorActive);
+            cv::max(
+                firstCorrection, cv::Scalar(-12, -12, -12), firstCorrection
+            );
+            cv::min(
+                firstCorrection, cv::Scalar(12, 12, 12), firstCorrection
+            );
+
+            std::vector<double> beforeValues;
+            std::vector<double> afterValues;
+            beforeValues.reserve(size_t(validationPixels) * 3);
+            afterValues.reserve(size_t(validationPixels) * 3);
+            double maximumCorrection = 0.0;
+            for (int y = 0; y < analysisHeight; ++y) {
+                const unsigned char *validationRow =
+                    validation.ptr<unsigned char>(y);
+                const cv::Vec3f *differenceRow =
+                    rawDifference.ptr<cv::Vec3f>(y);
+                const cv::Vec3f *correctionRow =
+                    firstCorrection.ptr<cv::Vec3f>(y);
+                for (int x = 0; x < analysisWidth; ++x) {
+                    for (int channel = 0; channel < 3; ++channel) {
+                        maximumCorrection = std::max(
+                            maximumCorrection,
+                            std::abs(double(correctionRow[x][channel]))
+                        );
+                        if (!validationRow[x]) continue;
+                        beforeValues.push_back(std::abs(
+                            double(differenceRow[x][channel])
+                        ));
+                        afterValues.push_back(std::abs(
+                            double(differenceRow[x][channel]
+                                - 2.0f * correctionRow[x][channel])
+                        ));
+                    }
+                }
+            }
+            const double medianBefore = trialMedian(beforeValues);
+            const double medianAfter = trialMedian(afterValues);
+            const double p90Before = trialPercentile(beforeValues, 0.90);
+            const double p90After = trialPercentile(afterValues, 0.90);
+            const double meanBefore = std::accumulate(
+                beforeValues.begin(), beforeValues.end(), 0.0
+            ) / beforeValues.size();
+            const double meanAfter = std::accumulate(
+                afterValues.begin(), afterValues.end(), 0.0
+            ) / afterValues.size();
+            const bool improved = medianBefore >= 1.0
+                && medianAfter <= medianBefore - 0.75
+                && medianAfter <= 0.85 * medianBefore
+                && p90After <= 0.95 * p90Before
+                && p90After <= 12.0
+                && meanAfter <= 0.85 * meanBefore
+                && maximumCorrection < 10.0;
+            if (!improved) {
+                std::fprintf(
+                    stderr,
+                    "[PanoWizard] Local radiometry %d-%d: rejected validation "
+                    "median=%.3f->%.3f p90=%.3f->%.3f mean=%.3f->%.3f "
+                    "max-source=%.3f\n",
+                    first, second, medianBefore, medianAfter,
+                    p90Before, p90After, meanBefore, meanAfter,
+                    maximumCorrection
+                );
+                continue;
+            }
+
+            cv::Mat firstOwnership;
+            cv::Mat secondOwnership;
+            firstOwner.convertTo(firstOwnership, CV_32F, 1.0 / 255.0);
+            secondOwner.convertTo(secondOwnership, CV_32F, 1.0 / 255.0);
+            const double ownershipSigma = std::max(
+                6.0, analysisWidth / 32.0
+            );
+            firstOwnership = trialPeriodicBlur(
+                firstOwnership, ownershipSigma
+            );
+            secondOwnership = trialPeriodicBlur(
+                secondOwnership, ownershipSigma
+            );
+            cv::Mat ownershipTotal = firstOwnership + secondOwnership;
+            cv::Mat safeOwnershipTotal;
+            cv::max(ownershipTotal, 1e-4, safeOwnershipTotal);
+            cv::Mat secondFraction = secondOwnership / safeOwnershipTotal;
+            cv::Mat ownershipFactor = 1.0 - 2.0 * secondFraction;
+            std::vector<cv::Mat> ownershipChannels(3, ownershipFactor);
+            cv::Mat colorOwnership;
+            cv::merge(ownershipChannels, colorOwnership);
+            cv::Mat pairCorrection = firstCorrection.mul(colorOwnership);
+            pairCorrection.setTo(
+                cv::Scalar(0, 0, 0), ownershipTotal < 0.02
+            );
+            correctionSum += pairCorrection;
+            correctionWeight += active;
+            double maximumApplied = 0.0;
+            for (int y = 0; y < analysisHeight; ++y) {
+                const cv::Vec3f *row = pairCorrection.ptr<cv::Vec3f>(y);
+                for (int x = 0; x < analysisWidth; ++x) {
+                    for (int channel = 0; channel < 3; ++channel) {
+                        maximumApplied = std::max(
+                            maximumApplied,
+                            std::abs(double(row[x][channel]))
+                        );
+                    }
+                }
+            }
+            acceptedPairs.push_back({
+                first, second, trainingPixels, validationPixels,
+                trainingCells, validationCells,
+                medianBefore, medianAfter, p90Before, p90After,
+                maximumApplied
+            });
+            std::fprintf(
+                stderr,
+                "[PanoWizard] Local radiometry %d-%d: accepted "
+                "train=%d/%d-cells validation=%d/%d-cells "
+                "median=%.3f->%.3f p90=%.3f->%.3f max=%.3f\n",
+                first, second, trainingPixels, trainingCells,
+                validationPixels, validationCells,
+                medianBefore, medianAfter, p90Before, p90After,
+                maximumApplied
+            );
+        }
+    }
+    if (acceptedPairs.empty()) return cv::Mat();
+
+    cv::Mat normalization;
+    cv::max(correctionWeight, 1.0, normalization);
+    std::vector<cv::Mat> normalizationChannels(3, normalization);
+    cv::Mat colorNormalization;
+    cv::merge(normalizationChannels, colorNormalization);
+    cv::Mat correction = correctionSum / colorNormalization;
+    cv::max(correction, cv::Scalar(-12, -12, -12), correction);
+    cv::min(correction, cv::Scalar(12, 12, 12), correction);
+    cv::resize(
+        correction, correction, labels.size(), 0.0, 0.0, cv::INTER_CUBIC
+    );
+    double maximumApplied = 0.0;
+    for (int y = 0; y < correction.rows; ++y) {
+        const cv::Vec3f *row = correction.ptr<cv::Vec3f>(y);
+        for (int x = 0; x < correction.cols; ++x) {
+            for (int channel = 0; channel < 3; ++channel) {
+                maximumApplied = std::max(
+                    maximumApplied, std::abs(double(row[x][channel]))
+                );
+            }
+        }
+    }
+    std::fprintf(
+        stderr,
+        "[PanoWizard] Local radiometry applied pairs=%zu max=%.3f\n",
+        acceptedPairs.size(), maximumApplied
+    );
+    return correction;
+}
+
 std::pair<double, int> trialRender(
     const std::vector<TrialSource> &sources,
     const std::vector<unsigned char> &compositionRoles,
@@ -2444,10 +2945,20 @@ std::pair<double, int> trialRender(
     );
     const int holes = cv::countNonZero(labels < 0);
     const double coverage = 100.0 * (1.0 - holes / double(width * height));
+    const cv::Mat localRadiometryCorrection =
+        trialSeamLocalRadiometryCorrection(warps, labels, width);
     trialReport("Blandar originalpixlar…", 0.94);
     cv::Mat result = trialContentAdaptiveBlend(
         warps, labels, conflictMask, width, height
     );
+    if (!localRadiometryCorrection.empty()) {
+        cv::Mat floatResult;
+        result.convertTo(floatResult, CV_32FC3);
+        floatResult += localRadiometryCorrection;
+        cv::max(floatResult, cv::Scalar(0, 0, 0), floatResult);
+        cv::min(floatResult, cv::Scalar(255, 255, 255), floatResult);
+        floatResult.convertTo(result, CV_8UC3);
+    }
     cv::flip(result, result, 1);
     const std::vector<int> parameters = {
         cv::IMWRITE_JPEG_QUALITY, 96,
@@ -2533,9 +3044,10 @@ int PWStitchTrialPanorama(
                 sources, optical.mask
             );
             trialReport("Matchar överlappande bilder…", 0.35);
-            const std::vector<TrialEdge> edges = trialBuildEdges(
+            const TrialEdgeSets edgeSets = trialBuildEdges(
                 sources, features, initialLens
             );
+            const std::vector<TrialEdge> &edges = edgeSets.strong;
             if (trialConnected(imageCount, edges)) {
                 trialDetectSupplementalViews(
                     resolvedRoles,
@@ -2558,6 +3070,9 @@ int PWStitchTrialPanorama(
             const std::vector<TrialEdge> ringEdges = trialSubsetEdges(
                 edges, ringIndices, imageCount
             );
+            const std::vector<TrialEdge> weakRingEdges = trialSubsetEdges(
+                edgeSets.weak, ringIndices, imageCount
+            );
             if (!trialConnected(int(ringIndices.size()), ringEdges)) {
                 throw std::runtime_error(
                     "Panoramaringen är inte sammanhängande. Reparationsbilder används inte för att överbrygga saknat ringöverlapp."
@@ -2567,7 +3082,8 @@ int PWStitchTrialPanorama(
                 trialInitialRotations(int(ringIndices.size()), ringEdges);
             trialReport("Optimerar kameror och linsmodell…", 0.46);
             TrialAlignment ringAlignment = trialOptimizeGeometry(
-                ringSources, ringEdges, initialRotations, initialLens,
+                ringSources, ringEdges, weakRingEdges,
+                initialRotations, initialLens,
                 optical.circular, optical.radius
             );
 
