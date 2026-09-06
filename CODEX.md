@@ -12,7 +12,12 @@
 
 AI-retuschering är ett uttryckligt, separat eftersteg och är aldrig en del av
 panoramamotorn. Den får inte användas för stitchning, geometri, sömval eller för
-att fylla maskerade områden.
+att fylla källbildernas maskerade områden.
+
+AI-retuschens valfria arbetsmask sparas separat per pol i projektpaketet. Den
+används bara för att göra målade pixlar transparenta i bilden som skickas till
+OpenAI. Prompten och övriga API-parametrar är identiska med det omaskerade
+flödet, och hela AI-resultatet används utan lokal maskkompositering.
 
 ## Arkitektur
 
@@ -31,6 +36,7 @@ panorama-, kamera- eller testmappsspecifika specialfall.
 ## Projektkompatibilitet
 
 Format v7 lagrar källor, aktivering, maskpaket, preview-vy och retuschprompt.
+Projektpaketet kan även innehålla beständiga AI-arbetsmasker för nadir och zenit.
 Avkodaren accepterar v6 och ignorerar okända föråldrade fält. Gamla dokument
 ska öppnas utan att det tidigare arbetsflödet återkommer.
 

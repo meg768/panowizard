@@ -34,6 +34,11 @@ Mer om avgränsningen finns i [TRIAL_ENGINE.md](TRIAL_ENGINE.md).
 4. Välj **Skapa panorama**.
 5. Granska resultatet i 360°-vyn och exportera bild eller självständig HTML.
 
+AI-retuscheringen har en separat, valfri arbetsmask för nadir respektive zenit.
+Maskerade pixlar görs transparenta i bilden som skickas till OpenAI, medan
+instruktionen och användningen av hela AI-resultatet är samma med och utan mask.
+Arbetsmaskerna sparas i projektpaketet och visas igen när dialogen öppnas.
+
 Äldre projektformat v6 kan öppnas. Föråldrade motor-, kontrollpunkts- och
 objektivfält ignoreras vid migrering till format v7; källbilder, masker,
 panorama och retuschdata bevaras.

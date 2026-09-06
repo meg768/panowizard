@@ -9,6 +9,7 @@ enum PanoramaPole: String, Codable, CaseIterable, Sendable {
 
     var pitchDegrees: Double { self == .zenith ? 90 : -90 }
     var displayName: String { self == .zenith ? "Zenit" : "Nadir" }
+    var localizedName: String { displayName.lowercased() }
 }
 
 enum PoleRetouchError: LocalizedError {
@@ -130,6 +131,44 @@ struct PoleRetouchService: Sendable {
         try image.writePNG(to: destinationURL)
     }
 
+    func prepareAIRetouchInput(
+        from sourceURL: URL,
+        maskData: Data,
+        pole: PanoramaPole,
+        expectedSize: Int = Self.plateSize
+    ) throws -> Data {
+        var image = try RGBAImage(contentsOf: sourceURL)
+        let mask = try RGBAImage(data: maskData)
+        guard image.width == expectedSize, image.height == expectedSize else {
+            throw PoleRetouchError.invalidDimensions(
+                pole: pole,
+                expected: expectedSize,
+                width: image.width,
+                height: image.height
+            )
+        }
+        guard mask.width == expectedSize, mask.height == expectedSize else {
+            throw PoleRetouchError.invalidDimensions(
+                pole: pole,
+                expected: expectedSize,
+                width: mask.width,
+                height: mask.height
+            )
+        }
+        for y in 0..<image.height {
+            for x in 0..<image.width {
+                let retained = 1 - mask.pixel(x: x, y: y).a
+                var pixel = image.pixel(x: x, y: y)
+                pixel.r *= retained
+                pixel.g *= retained
+                pixel.b *= retained
+                pixel.a *= retained
+                image.setPixel(pixel, x: x, y: y)
+            }
+        }
+        return try image.pngData()
+    }
+
     func flattenRetouches(
         panoramaURL: URL,
         nadirRetouchURL: URL?,
@@ -200,8 +239,19 @@ private struct RGBAImage {
     }
 
     init(contentsOf url: URL) throws {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil)
+        else { throw PoleRetouchError.unreadableImage }
+        try self.init(source: source)
+    }
+
+    init(data: Data) throws {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil)
+        else { throw PoleRetouchError.unreadableImage }
+        try self.init(source: source)
+    }
+
+    private init(source: CGImageSource) throws {
+        guard let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
         else { throw PoleRetouchError.unreadableImage }
         width = image.width
         height = image.height
@@ -304,6 +354,34 @@ private struct RGBAImage {
         guard CGImageDestinationFinalize(destination) else {
             throw PoleRetouchError.writeFailed
         }
+    }
+
+    func pngData() throws -> Data {
+        var copy = bytes
+        let image = copy.withUnsafeMutableBytes { buffer -> CGImage? in
+            guard let data = buffer.baseAddress,
+                  let context = Self.context(
+                      data: data,
+                      width: width,
+                      height: height
+                  ) else { return nil }
+            return context.makeImage()
+        }
+        let data = NSMutableData()
+        guard let image,
+              let destination = CGImageDestinationCreateWithData(
+                data,
+                UTType.png.identifier as CFString,
+                1,
+                nil
+              ) else { throw PoleRetouchError.writeFailed }
+        CGImageDestinationAddImage(destination, image, [
+            kCGImagePropertyOrientation: 1
+        ] as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw PoleRetouchError.writeFailed
+        }
+        return data as Data
     }
 
     private static func context(

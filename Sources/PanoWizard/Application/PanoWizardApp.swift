@@ -371,7 +371,9 @@ private struct ProjectDocumentView: View {
             nadirRetouchData: initialDocument.nadirRetouchData,
             zenithRetouchData: initialDocument.zenithRetouchData,
             nadirAIRetouchResultData: initialDocument.nadirAIRetouchResultData,
-            zenithAIRetouchResultData: initialDocument.zenithAIRetouchResultData
+            zenithAIRetouchResultData: initialDocument.zenithAIRetouchResultData,
+            nadirAIRetouchMaskData: initialDocument.nadirAIRetouchMaskData,
+            zenithAIRetouchMaskData: initialDocument.zenithAIRetouchMaskData
         ))
     }
 
@@ -400,6 +402,9 @@ private struct ProjectDocumentView: View {
                 updateWindowState()
             }
             .onChange(of: model.maskRevision) {
+                updateWindowState()
+            }
+            .onChange(of: model.aiRetouchMaskRevision) {
                 updateWindowState()
             }
             .dismissalConfirmationDialog(
@@ -464,7 +469,9 @@ private struct ProjectDocumentView: View {
                 : savedDocument.nadirAIRetouchResultData,
             zenithAIRetouchResultData: hasNewPanoramaData
                 ? model.zenithAIRetouchResultData
-                : savedDocument.zenithAIRetouchResultData
+                : savedDocument.zenithAIRetouchResultData,
+            nadirAIRetouchMaskData: model.nadirAIRetouchMaskData,
+            zenithAIRetouchMaskData: model.zenithAIRetouchMaskData
         )
     }
 

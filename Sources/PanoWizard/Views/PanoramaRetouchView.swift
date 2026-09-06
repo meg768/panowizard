@@ -91,8 +91,12 @@ struct PanoramaRetouchView: View {
                 Button {
                     onAIRetouch(pole)
                 } label: {
-                    Label("AI-retuschera…", systemImage: "wand.and.sparkles")
+                    Label(
+                        "AI-retuschera \(pole.localizedName)…",
+                        systemImage: "wand.and.sparkles"
+                    )
                 }
+                .accessibilityIdentifier("ai-retouch-\(pole.rawValue)")
 
                 Button {
                     controller.exportPlate(
@@ -102,24 +106,30 @@ struct PanoramaRetouchView: View {
                     )
                 } label: {
                     Label(
-                        "Exportera retusch…",
+                        "Exportera \(pole.localizedName)…",
                         systemImage: "square.and.arrow.up"
                     )
                 }
+                .accessibilityIdentifier("export-retouch-\(pole.rawValue)")
 
                 Button {
                     controller.importPlate(model: model, pole: pole)
                 } label: {
                     Label(
-                        "Importera retusch…",
+                        "Importera \(pole.localizedName)…",
                         systemImage: "square.and.arrow.down"
                     )
                 }
+                .accessibilityIdentifier("import-retouch-\(pole.rawValue)")
 
                 if model.retouchURL(for: pole) != nil {
-                    Button("Ta bort retusch", role: .destructive) {
+                    Button(
+                        "Ta bort \(pole.localizedName)retusch",
+                        role: .destructive
+                    ) {
                         model.removeRetouch(for: pole)
                     }
+                    .accessibilityIdentifier("remove-retouch-\(pole.rawValue)")
                 }
             }
             .buttonStyle(WorkspaceToolbarPillStyle())
@@ -151,6 +161,8 @@ struct AIRetouchSheet: View {
     @State private var prompt: String
     @State private var source: AIRetouchSource?
     @State private var preview: AIRetouchPreview?
+    @State private var maskData: Data?
+    @State private var maskHistory: [Data?] = []
     @State private var errorMessage: String?
     @State private var generationTask: Task<Void, Never>?
     @State private var isWorking = false
@@ -167,6 +179,7 @@ struct AIRetouchSheet: View {
             initialValue: model.aiRetouchPrompt(for: pole)
                 ?? Self.defaultPrompt(for: pole)
         )
+        _maskData = State(initialValue: model.aiRetouchMaskData(for: pole))
     }
 
     var body: some View {
@@ -184,11 +197,17 @@ struct AIRetouchSheet: View {
             HStack(alignment: .top, spacing: 16) {
                 AIRetouchImagePane(
                     title: "Före",
-                    footer: "Dra panorerar · rulla eller nyp zoomar"
+                    footer: "Dra panorerar · rulla zoomar · ⌘-dra målar · "
+                        + "⌘⌥-dra suddar · ⌘Z ångrar"
                 ) {
                     if let source {
                         AIRetouchImageViewport(
-                            url: source.sourceURL
+                            url: source.sourceURL,
+                            maskData: maskData,
+                            interaction: .mask,
+                            isEnabled: !isWorking,
+                            onMaskChange: applyMaskChange,
+                            onUndo: undoMaskChange
                         )
                         .id("ai-retouch-before-viewport")
                     } else {
@@ -197,6 +216,15 @@ struct AIRetouchSheet: View {
                             showsProgress: errorMessage == nil
                         )
                     }
+                } trailing: {
+                    Button("Ta bort mask", role: .destructive) {
+                        clearMask()
+                    }
+                    .disabled(maskData == nil || isWorking)
+                    .accessibilityIdentifier("clear-ai-retouch-mask")
+                }
+                .background {
+                    AIRetouchMaskUndoMonitor(onUndo: undoMaskChange)
                 }
 
                 AIRetouchImagePane(
@@ -205,7 +233,12 @@ struct AIRetouchSheet: View {
                 ) {
                     if let afterURL {
                         AIRetouchImageViewport(
-                            url: afterURL
+                            url: afterURL,
+                            maskData: nil,
+                            interaction: .pan,
+                            isEnabled: true,
+                            onMaskChange: { _ in },
+                            onUndo: {}
                         )
                         .id("ai-retouch-after-viewport")
                     } else {
@@ -213,6 +246,8 @@ struct AIRetouchSheet: View {
                             text: "AI-resultatet visas här efter retuschering."
                         )
                     }
+                } trailing: {
+                    EmptyView()
                 }
             }
             .frame(height: 430)
@@ -372,6 +407,7 @@ struct AIRetouchSheet: View {
                 let newPreview = try await model.createAIRetouchPreview(
                     source: source,
                     for: pole,
+                    maskData: maskData,
                     prompt: prompt,
                     apiKey: apiKey
                 )
@@ -417,12 +453,41 @@ struct AIRetouchSheet: View {
         generationTask?.cancel()
     }
 
+    private func applyMaskChange(_ newMaskData: Data?) {
+        guard !isWorking, newMaskData != maskData else { return }
+        maskHistory.append(maskData)
+        maskData = newMaskData
+        model.setAIRetouchMaskData(newMaskData, for: pole)
+        invalidatePreview()
+    }
+
+    private func undoMaskChange() {
+        guard !isWorking, let previous = maskHistory.popLast() else { return }
+        maskData = previous
+        model.setAIRetouchMaskData(previous, for: pole)
+        invalidatePreview()
+    }
+
+    private func clearMask() {
+        guard !isWorking, maskData != nil else { return }
+        maskHistory.append(maskData)
+        maskData = nil
+        model.setAIRetouchMaskData(nil, for: pole)
+        invalidatePreview()
+    }
+
+    private func invalidatePreview() {
+        guard let preview else { return }
+        model.discardAIRetouchPreview(preview)
+        self.preview = nil
+    }
+
     private static func defaultPrompt(for pole: PanoramaPole) -> String {
         if pole == .nadir {
             return "Detta är nadirytan i ett 360°-panorama. Ta endast bort "
-                + "kameran, kamerastativet, monopoden, fotografen och skuggor "
-                + "som tydligt hör till denna kamerautrustning. Rekonstruera "
-                + "endast den yta som dessa objekt skymmer. Bevara alla andra "
+                + "kamerastativet/monopoden och skuggor som tydligt hör till "
+                + "denna kamerautrustning eller fotografen. Rekonstruera endast "
+                + "den yta som dessa objekt skymmer. Bevara alla andra "
                 + "objekt och delar av bilden exakt som de är, även om de "
                 + "befinner sig nära kamerautrustningen. Ta inte bort, flytta, "
                 + "förändra eller rekonstruera möbler, soptunnor, rör, avlopp, "
@@ -482,19 +547,22 @@ private struct AIRetouchProgressSheet: View {
     }
 }
 
-private struct AIRetouchImagePane<Content: View>: View {
+private struct AIRetouchImagePane<Content: View, Trailing: View>: View {
     let title: String
     let footer: String
     let content: Content
+    let trailing: Trailing
 
     init(
         title: String,
         footer: String,
-        @ViewBuilder content: () -> Content
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder trailing: () -> Trailing
     ) {
         self.title = title
         self.footer = footer
         self.content = content()
+        self.trailing = trailing()
     }
 
     var body: some View {
@@ -503,6 +571,7 @@ private struct AIRetouchImagePane<Content: View>: View {
                 Text(title)
                     .font(.headline)
                 Spacer()
+                trailing
             }
             .frame(height: 24)
 
@@ -544,21 +613,39 @@ private struct AIRetouchImagePlaceholder: View {
     }
 }
 
+private enum AIRetouchImageInteraction {
+    case mask
+    case pan
+}
+
 private struct AIRetouchImageViewport: NSViewRepresentable {
     let url: URL
+    let maskData: Data?
+    let interaction: AIRetouchImageInteraction
+    let isEnabled: Bool
+    let onMaskChange: (Data?) -> Void
+    let onUndo: () -> Void
 
     func makeNSView(context: Context) -> AIRetouchScrollView {
         AIRetouchScrollView()
     }
 
     func updateNSView(_ scrollView: AIRetouchScrollView, context: Context) {
-        scrollView.configure(url: url)
+        scrollView.configure(
+            url: url,
+            maskData: maskData,
+            interaction: interaction,
+            isEnabled: isEnabled,
+            onMaskChange: onMaskChange,
+            onUndo: onUndo
+        )
     }
 }
 
 private final class AIRetouchScrollView: NSScrollView {
     private let imageView = AIRetouchImageDocumentView()
     private var imageURL: URL?
+    private var displayedMaskData: Data?
     private var needsInitialFit = false
     private var hasCompletedInitialFit = false
     private var fitGeneration = 0
@@ -623,7 +710,14 @@ private final class AIRetouchScrollView: NSScrollView {
         imageView.needsDisplay = true
     }
 
-    func configure(url: URL) {
+    func configure(
+        url: URL,
+        maskData: Data?,
+        interaction: AIRetouchImageInteraction,
+        isEnabled: Bool,
+        onMaskChange: @escaping (Data?) -> Void,
+        onUndo: @escaping () -> Void
+    ) {
         let isFirstImage = imageURL == nil
         let imageChanged = imageURL != url
         if imageChanged {
@@ -641,6 +735,15 @@ private final class AIRetouchScrollView: NSScrollView {
         if isFirstImage {
             requestFit()
         }
+        if displayedMaskData != maskData {
+            displayedMaskData = maskData
+            imageView.maskImage = Self.loadImage(data: maskData)
+        }
+        imageView.maskData = maskData
+        imageView.interaction = interaction
+        imageView.isPaintingEnabled = isEnabled
+        imageView.onMaskChange = onMaskChange
+        imageView.onUndo = onUndo
         imageView.needsDisplay = true
     }
 
@@ -716,6 +819,77 @@ private final class AIRetouchScrollView: NSScrollView {
         }
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
+
+    private static func loadImage(data: Data?) -> CGImage? {
+        guard let data,
+              let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return nil
+        }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+}
+
+private struct AIRetouchMaskUndoMonitor: NSViewRepresentable {
+    let onUndo: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onUndo: onUndo)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        context.coordinator.install()
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        context.coordinator.onUndo = onUndo
+        context.coordinator.windowNumber = view.window?.windowNumber
+        context.coordinator.hitRectInWindow = view.convert(view.bounds, to: nil)
+    }
+
+    static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
+        coordinator.uninstall()
+    }
+
+    final class Coordinator {
+        var onUndo: () -> Void
+        var windowNumber: Int?
+        var hitRectInWindow = CGRect.zero
+        private var isActive = false
+        private var monitor: Any?
+
+        init(onUndo: @escaping () -> Void) {
+            self.onUndo = onUndo
+        }
+
+        func install() {
+            monitor = NSEvent.addLocalMonitorForEvents(
+                matching: [.leftMouseDown, .keyDown]
+            ) { [weak self] event in
+                guard let self, self.windowNumber == event.windowNumber else {
+                    return event
+                }
+                if event.type == .leftMouseDown {
+                    self.isActive = self.hitRectInWindow.contains(
+                        event.locationInWindow
+                    )
+                    return event
+                }
+                guard self.isActive,
+                      event.modifierFlags.contains(.command),
+                      event.charactersIgnoringModifiers?.lowercased() == "z"
+                else { return event }
+                self.onUndo()
+                return nil
+            }
+        }
+
+        func uninstall() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+    }
 }
 
 private final class AIRetouchCenteredClipView: NSClipView {
@@ -733,41 +907,179 @@ private final class AIRetouchCenteredClipView: NSClipView {
 }
 
 private final class AIRetouchImageDocumentView: NSView {
+    private static let screenBrushDiameter: CGFloat = 48
+    private static let transparentCursor = NSCursor(
+        image: NSImage(size: CGSize(width: 1, height: 1)),
+        hotSpot: .zero
+    )
+
     weak var viewport: AIRetouchScrollView?
     var image: CGImage?
+    var maskImage: CGImage?
+    var maskData: Data?
+    var interaction = AIRetouchImageInteraction.pan
+    var isPaintingEnabled = true
+    var onMaskChange: (Data?) -> Void = { _ in }
+    var onUndo: () -> Void = {}
 
+    private var activeStroke: [CGPoint] = []
+    private var hoverPoint: CGPoint?
+    private var isErasingStroke = false
     private var panOrigin: CGPoint?
     private var panStart: CGPoint?
+    private var trackingAreaReference: NSTrackingArea?
+    private var modifierMonitor: Any?
+    private var modifierInteraction = ImageSurfaceInteraction.navigate {
+        didSet {
+            guard modifierInteraction != oldValue else { return }
+            window?.invalidateCursorRects(for: self)
+            needsDisplay = true
+        }
+    }
 
     override var isFlipped: Bool { true }
+    override var acceptsFirstResponder: Bool { interaction == .mask }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            removeModifierMonitor()
+        } else {
+            installModifierMonitor()
+        }
+        window?.invalidateCursorRects(for: self)
+    }
 
     override func resetCursorRects() {
         super.resetCursorRects()
-        addCursorRect(bounds, cursor: .openHand)
+        let cursor: NSCursor = if interaction == .mask,
+                                  modifierInteraction != .navigate,
+                                  isPaintingEnabled {
+            Self.transparentCursor
+        } else {
+            .openHand
+        }
+        addCursorRect(bounds, cursor: cursor)
+    }
+
+    override func updateTrackingAreas() {
+        if let trackingAreaReference {
+            removeTrackingArea(trackingAreaReference)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [
+                .mouseMoved,
+                .mouseEnteredAndExited,
+                .activeInKeyWindow,
+                .inVisibleRect
+            ],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingAreaReference = area
+        super.updateTrackingAreas()
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard let image else { return }
         draw(image, fraction: 1, operation: .copy)
+        if let maskImage {
+            draw(maskImage, fraction: 0.48, operation: .sourceOver)
+        }
+        drawActiveStroke()
+        drawBrushCursor()
     }
 
     override func mouseDown(with event: NSEvent) {
-        guard let viewport else { return }
-        viewport.beginUserNavigation()
-        panOrigin = viewport.contentView.bounds.origin
-        panStart = event.locationInWindow
-        NSCursor.closedHand.push()
+        window?.acceptsMouseMovedEvents = true
+        updateModifierInteraction(event.modifierFlags)
+        if interaction == .mask,
+           modifierInteraction != .navigate,
+           isPaintingEnabled {
+            window?.makeFirstResponder(self)
+            isErasingStroke = modifierInteraction == .remove
+            activeStroke = [clampedPoint(for: event)]
+            needsDisplay = true
+        } else if let viewport {
+            viewport.beginUserNavigation()
+            panOrigin = viewport.contentView.bounds.origin
+            panStart = event.locationInWindow
+            NSCursor.closedHand.push()
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {
-        pan(to: event.locationInWindow)
+        if !activeStroke.isEmpty {
+            let point = clampedPoint(for: event)
+            if activeStroke.last != point {
+                activeStroke.append(point)
+                hoverPoint = point
+                needsDisplay = true
+            }
+        } else {
+            pan(to: event.locationInWindow)
+        }
     }
 
     override func mouseUp(with event: NSEvent) {
-        if panOrigin != nil { NSCursor.pop() }
-        panOrigin = nil
-        panStart = nil
+        defer {
+            activeStroke = []
+            isErasingStroke = false
+            if panOrigin != nil { NSCursor.pop() }
+            panOrigin = nil
+            panStart = nil
+            needsDisplay = true
+        }
+        guard isPaintingEnabled,
+              let image,
+              !activeStroke.isEmpty else { return }
+        let points = activeStroke.map {
+            MaskPoint(
+                x: $0.x / CGFloat(image.width),
+                y: $0.y / CGFloat(image.height)
+            )
+        }
+        let radius = Self.screenBrushDiameter
+            / 2 / max(viewport?.magnification ?? 1, 0.000_001)
+        onMaskChange(SourceMaskRasterizer.applying(
+            stroke: points,
+            radius: radius,
+            erasing: isErasingStroke,
+            to: maskData,
+            width: image.width,
+            height: image.height
+        ))
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard interaction == .mask else { return }
+        updateModifierInteraction(event.modifierFlags)
+        hoverPoint = clampedPoint(for: event)
+        needsDisplay = true
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        guard interaction == .mask else { return }
+        updateModifierInteraction(event.modifierFlags)
+        hoverPoint = clampedPoint(for: event)
+        needsDisplay = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        hoverPoint = nil
+        needsDisplay = true
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if interaction == .mask,
+           event.modifierFlags.contains(.command),
+           event.charactersIgnoringModifiers?.lowercased() == "z" {
+            onUndo()
+            return
+        }
+        super.keyDown(with: event)
     }
 
     private func pan(to location: CGPoint) {
@@ -785,6 +1097,39 @@ private final class AIRetouchImageDocumentView: NSView {
         viewport.reflectScrolledClipView(viewport.contentView)
     }
 
+    private func installModifierMonitor() {
+        guard modifierMonitor == nil else { return }
+        modifierMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: .flagsChanged
+        ) { [weak self] event in
+            guard let self,
+                  event.window == nil || event.window === self.window else {
+                return event
+            }
+            self.updateModifierInteraction(event.modifierFlags)
+            return event
+        }
+    }
+
+    private func removeModifierMonitor() {
+        if let modifierMonitor { NSEvent.removeMonitor(modifierMonitor) }
+        modifierMonitor = nil
+    }
+
+    private func updateModifierInteraction(
+        _ flags: NSEvent.ModifierFlags
+    ) {
+        modifierInteraction = ImageSurfaceInteraction(modifierFlags: flags)
+    }
+
+    private func clampedPoint(for event: NSEvent) -> CGPoint {
+        let point = convert(event.locationInWindow, from: nil)
+        return CGPoint(
+            x: min(max(point.x, 0), bounds.width),
+            y: min(max(point.y, 0), bounds.height)
+        )
+    }
+
     private func draw(
         _ image: CGImage,
         fraction: CGFloat,
@@ -799,5 +1144,80 @@ private final class AIRetouchImageDocumentView: NSView {
             respectFlipped: true,
             hints: [.interpolation: NSImageInterpolation.high]
         )
+    }
+
+    private func drawActiveStroke() {
+        guard interaction == .mask, !activeStroke.isEmpty else { return }
+        let path = NSBezierPath()
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        path.lineWidth = sourceBrushDiameter
+        path.move(to: activeStroke[0])
+        activeStroke.dropFirst().forEach { path.line(to: $0) }
+        if activeStroke.count == 1 {
+            path.appendOval(in: CGRect(
+                x: activeStroke[0].x - sourceBrushDiameter / 2,
+                y: activeStroke[0].y - sourceBrushDiameter / 2,
+                width: sourceBrushDiameter,
+                height: sourceBrushDiameter
+            ))
+            (isErasingStroke
+                ? NSColor.white.withAlphaComponent(0.72)
+                : NSColor.systemRed.withAlphaComponent(0.72)).setFill()
+            path.fill()
+        } else {
+            (isErasingStroke
+                ? NSColor.white.withAlphaComponent(0.72)
+                : NSColor.systemRed.withAlphaComponent(0.72)).setStroke()
+            path.stroke()
+        }
+    }
+
+    private func drawBrushCursor() {
+        guard interaction == .mask,
+              modifierInteraction != .navigate,
+              isPaintingEnabled,
+              let hoverPoint else { return }
+        let radius = sourceBrushDiameter / 2
+        let cursor = NSBezierPath(ovalIn: CGRect(
+            x: hoverPoint.x - radius,
+            y: hoverPoint.y - radius,
+            width: radius * 2,
+            height: radius * 2
+        ))
+        cursor.lineWidth = 3 / max(viewport?.magnification ?? 1, 0.000_001)
+        NSColor.black.withAlphaComponent(0.85).setStroke()
+        cursor.stroke()
+        cursor.lineWidth = 1 / max(viewport?.magnification ?? 1, 0.000_001)
+        NSColor.white.setStroke()
+        cursor.stroke()
+        guard modifierInteraction == .remove else { return }
+        let slash = NSBezierPath()
+        let offset = radius * 0.7
+        slash.move(to: CGPoint(
+            x: hoverPoint.x - offset,
+            y: hoverPoint.y - offset
+        ))
+        slash.line(to: CGPoint(
+            x: hoverPoint.x + offset,
+            y: hoverPoint.y + offset
+        ))
+        slash.lineWidth = 3 / max(
+            viewport?.magnification ?? 1,
+            0.000_001
+        )
+        NSColor.black.withAlphaComponent(0.85).setStroke()
+        slash.stroke()
+        slash.lineWidth = 1 / max(
+            viewport?.magnification ?? 1,
+            0.000_001
+        )
+        NSColor.white.setStroke()
+        slash.stroke()
+    }
+
+    private var sourceBrushDiameter: CGFloat {
+        Self.screenBrushDiameter
+            / max(viewport?.magnification ?? 1, 0.000_001)
     }
 }

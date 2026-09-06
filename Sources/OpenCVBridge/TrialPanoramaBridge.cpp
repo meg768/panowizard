@@ -2212,10 +2212,25 @@ cv::Mat trialContentAdaptiveBlend(
     std::vector<cv::Mat> structureChannels(3, structureAlpha);
     cv::Mat colorStructureAlpha;
     cv::merge(structureChannels, colorStructureAlpha);
+    cv::Mat conflictStructural = trialPeriodicExpand(
+        conflictMask, protectionRadius
+    );
+    cv::Mat conflictAlpha;
+    conflictStructural.convertTo(conflictAlpha, CV_32F, 1.0 / 255.0);
+    conflictAlpha = trialPeriodicBlur(
+        conflictAlpha, std::max(2.0, protectionRadius / 3.0)
+    );
+    cv::max(conflictAlpha, 0.0, conflictAlpha);
+    cv::min(conflictAlpha, 1.0, conflictAlpha);
+    std::vector<cv::Mat> conflictChannels(3, conflictAlpha);
+    cv::Mat colorConflictAlpha;
+    cv::merge(conflictChannels, colorConflictAlpha);
     // Preserve photographed edge detail without restoring a hard tonal
     // boundary. The two-scale composite feathers only low frequencies along
     // the seam, at any latitude, while detail stays in the narrow composite.
-    result = narrow.mul(colorStructureAlpha)
+    cv::Mat structureResult = narrow.mul(colorConflictAlpha)
+        + seamDetailed.mul(one - colorConflictAlpha);
+    result = structureResult.mul(colorStructureAlpha)
         + result.mul(one - colorStructureAlpha);
 
     cv::max(result, cv::Scalar(0, 0, 0), result);
@@ -2718,6 +2733,8 @@ cv::Mat trialSeamLocalRadiometryCorrection(
             beforeValues.reserve(size_t(validationPixels) * 3);
             afterValues.reserve(size_t(validationPixels) * 3);
             double maximumCorrection = 0.0;
+            size_t activeCorrectionValues = 0;
+            size_t clippedCorrectionValues = 0;
             for (int y = 0; y < analysisHeight; ++y) {
                 const unsigned char *validationRow =
                     validation.ptr<unsigned char>(y);
@@ -2731,6 +2748,15 @@ cv::Mat trialSeamLocalRadiometryCorrection(
                             maximumCorrection,
                             std::abs(double(correctionRow[x][channel]))
                         );
+                        const double correctionMagnitude = std::abs(
+                            double(correctionRow[x][channel])
+                        );
+                        if (correctionMagnitude > 0.01) {
+                            ++activeCorrectionValues;
+                            if (correctionMagnitude >= 11.99) {
+                                ++clippedCorrectionValues;
+                            }
+                        }
                         if (!validationRow[x]) continue;
                         beforeValues.push_back(std::abs(
                             double(differenceRow[x][channel])
@@ -2752,21 +2778,27 @@ cv::Mat trialSeamLocalRadiometryCorrection(
             const double meanAfter = std::accumulate(
                 afterValues.begin(), afterValues.end(), 0.0
             ) / afterValues.size();
+            const double clippedCorrectionFraction =
+                activeCorrectionValues == 0
+                    ? 0.0
+                    : double(clippedCorrectionValues)
+                        / double(activeCorrectionValues);
             const bool improved = medianBefore >= 1.0
                 && medianAfter <= medianBefore - 0.75
                 && medianAfter <= 0.85 * medianBefore
                 && p90After <= 0.95 * p90Before
                 && p90After <= 12.0
                 && meanAfter <= 0.85 * meanBefore
-                && maximumCorrection < 10.0;
+                && clippedCorrectionFraction <= 0.01;
             if (!improved) {
                 std::fprintf(
                     stderr,
                     "[PanoWizard] Local radiometry %d-%d: rejected validation "
                     "median=%.3f->%.3f p90=%.3f->%.3f mean=%.3f->%.3f "
-                    "max-source=%.3f\n",
+                    "clipped=%.3f%% max-source=%.3f\n",
                     first, second, medianBefore, medianAfter,
                     p90Before, p90After, meanBefore, meanAfter,
+                    100.0 * clippedCorrectionFraction,
                     maximumCorrection
                 );
                 continue;
@@ -2821,10 +2853,11 @@ cv::Mat trialSeamLocalRadiometryCorrection(
                 stderr,
                 "[PanoWizard] Local radiometry %d-%d: accepted "
                 "train=%d/%d-cells validation=%d/%d-cells "
-                "median=%.3f->%.3f p90=%.3f->%.3f max=%.3f\n",
+                "median=%.3f->%.3f p90=%.3f->%.3f clipped=%.3f%% max=%.3f\n",
                 first, second, trainingPixels, trainingCells,
                 validationPixels, validationCells,
                 medianBefore, medianAfter, p90Before, p90After,
+                100.0 * clippedCorrectionFraction,
                 maximumApplied
             );
         }

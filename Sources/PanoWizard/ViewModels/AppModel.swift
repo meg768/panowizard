@@ -57,10 +57,13 @@ final class AppModel {
     var zenithRetouchURL: URL?
     var nadirAIRetouchResultURL: URL?
     var zenithAIRetouchResultURL: URL?
+    var nadirAIRetouchMaskData: Data?
+    var zenithAIRetouchMaskData: Data?
     var maskDataByImageID: [UUID: Data]
     var protectedMaskDataByImageID: [UUID: Data]
     var maskRevision = 0
     var panoramaRevision = 0
+    var aiRetouchMaskRevision = 0
     var sourceMaskIntent = SourceMaskIntent.exclude
     var sourceMaskTool = SourceMaskTool.brush
     var stitchProgress = 0.0
@@ -83,7 +86,9 @@ final class AppModel {
         nadirRetouchData: Data? = nil,
         zenithRetouchData: Data? = nil,
         nadirAIRetouchResultData: Data? = nil,
-        zenithAIRetouchResultData: Data? = nil
+        zenithAIRetouchResultData: Data? = nil,
+        nadirAIRetouchMaskData: Data? = nil,
+        zenithAIRetouchMaskData: Data? = nil
     ) {
         var migrated = project
         migrated.migrateToCurrentFormat()
@@ -117,6 +122,8 @@ final class AppModel {
         zenithAIRetouchResultURL = zenithAIRetouchResultData.flatMap {
             Self.restoreData($0, filename: "\(migrated.id)-zenith-ai-result.png")
         }
+        self.nadirAIRetouchMaskData = nadirAIRetouchMaskData
+        self.zenithAIRetouchMaskData = zenithAIRetouchMaskData
     }
 
     static func live(
@@ -129,7 +136,9 @@ final class AppModel {
         nadirRetouchData: Data? = nil,
         zenithRetouchData: Data? = nil,
         nadirAIRetouchResultData: Data? = nil,
-        zenithAIRetouchResultData: Data? = nil
+        zenithAIRetouchResultData: Data? = nil,
+        nadirAIRetouchMaskData: Data? = nil,
+        zenithAIRetouchMaskData: Data? = nil
     ) -> AppModel {
         AppModel(
             project: project,
@@ -145,7 +154,9 @@ final class AppModel {
             nadirRetouchData: nadirRetouchData,
             zenithRetouchData: zenithRetouchData,
             nadirAIRetouchResultData: nadirAIRetouchResultData,
-            zenithAIRetouchResultData: zenithAIRetouchResultData
+            zenithAIRetouchResultData: zenithAIRetouchResultData,
+            nadirAIRetouchMaskData: nadirAIRetouchMaskData,
+            zenithAIRetouchMaskData: zenithAIRetouchMaskData
         )
     }
 
@@ -384,6 +395,17 @@ final class AppModel {
         pole == .nadir ? nadirAIRetouchResultURL : zenithAIRetouchResultURL
     }
 
+    func aiRetouchMaskData(for pole: PanoramaPole) -> Data? {
+        pole == .nadir ? nadirAIRetouchMaskData : zenithAIRetouchMaskData
+    }
+
+    func setAIRetouchMaskData(_ data: Data?, for pole: PanoramaPole) {
+        guard aiRetouchMaskData(for: pole) != data else { return }
+        if pole == .nadir { nadirAIRetouchMaskData = data }
+        else { zenithAIRetouchMaskData = data }
+        aiRetouchMaskRevision += 1
+    }
+
     func aiRetouchPrompt(for pole: PanoramaPole) -> String? {
         project.aiRetouchPrompt(for: pole)
     }
@@ -489,6 +511,7 @@ final class AppModel {
     func createAIRetouchPreview(
         source: AIRetouchSource,
         for pole: PanoramaPole,
+        maskData: Data?,
         prompt: String,
         apiKey: String
     ) async throws -> AIRetouchPreview {
@@ -512,7 +535,14 @@ final class AppModel {
             withIntermediateDirectories: true
         )
         let sourceData = try await Task.detached(priority: .userInitiated) {
-            try Data(contentsOf: source.sourceURL)
+            guard let maskData else {
+                return try Data(contentsOf: source.sourceURL)
+            }
+            return try PoleRetouchService().prepareAIRetouchInput(
+                from: source.sourceURL,
+                maskData: maskData,
+                pole: pole
+            )
         }.value
         let editedData = try await OpenAIImageEditService(apiKey: apiKey).edit(
             imageData: sourceData,

@@ -75,7 +75,7 @@ struct PanoProjectTests {
         #expect(project.images.map(\.id) == [second.id])
     }
 
-    @Test("Project package keeps original AI results separate from applied patches")
+    @Test("Project package keeps AI results, patches, and masks separate")
     func storesOriginalAIRetouchResults() throws {
         let directory = FileManager.default.temporaryDirectory.appending(
             path: "PanoWizard-Project-Test-\(UUID())",
@@ -94,11 +94,15 @@ struct PanoProjectTests {
         let nadirOriginal = Data([4, 5, 6])
         let zenithPatch = Data([7, 8, 9])
         let zenithOriginal = Data([10, 11, 12])
+        let nadirMask = Data([13, 14, 15])
+        let zenithMask = Data([16, 17, 18])
         let document = PanoProjectDocument(
             nadirRetouchData: nadirPatch,
             zenithRetouchData: zenithPatch,
             nadirAIRetouchResultData: nadirOriginal,
-            zenithAIRetouchResultData: zenithOriginal
+            zenithAIRetouchResultData: zenithOriginal,
+            nadirAIRetouchMaskData: nadirMask,
+            zenithAIRetouchMaskData: zenithMask
         )
 
         try document.writeAtomically(to: projectURL)
@@ -108,6 +112,8 @@ struct PanoProjectTests {
         #expect(restored.zenithRetouchData == zenithPatch)
         #expect(restored.nadirAIRetouchResultData == nadirOriginal)
         #expect(restored.zenithAIRetouchResultData == zenithOriginal)
+        #expect(restored.nadirAIRetouchMaskData == nadirMask)
+        #expect(restored.zenithAIRetouchMaskData == zenithMask)
     }
 
     @Test("Applying AI retouch keeps generated image byte-for-byte")
@@ -135,6 +141,8 @@ struct PanoProjectTests {
             preparedURL: preparedURL
         )
         let model = AppModel.live()
+        let mask = Data([41, 42, 43])
+        model.setAIRetouchMaskData(mask, for: .nadir)
 
         try model.applyAIRetouchPreview(preview)
         defer { model.removeRetouch(for: .nadir) }
@@ -142,6 +150,7 @@ struct PanoProjectTests {
         #expect(model.nadirAIRetouchResultData == edited)
         #expect(model.nadirRetouchData == prepared)
         #expect(model.nadirAIRetouchResultURL != model.nadirRetouchURL)
+        #expect(model.aiRetouchMaskData(for: .nadir) == mask)
     }
 
     private func sourceImage() -> SourceImage {

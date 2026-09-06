@@ -7,6 +7,16 @@ import UniformTypeIdentifiers
 
 struct PoleRetouchServiceTests {
     @Test
+    func poleIdentityRemainsExplicit() {
+        #expect(PanoramaPole.zenith.rawValue == "zenith")
+        #expect(PanoramaPole.zenith.localizedName == "zenit")
+        #expect(PanoramaPole.zenith.pitchDegrees == 90)
+        #expect(PanoramaPole.nadir.rawValue == "nadir")
+        #expect(PanoramaPole.nadir.localizedName == "nadir")
+        #expect(PanoramaPole.nadir.pitchDegrees == -90)
+    }
+
+    @Test
     func exportsRequestedRealNadirPlate() throws {
         let environment = ProcessInfo.processInfo.environment
         guard let panoramaPath = environment["PANOWIZARD_NADIR_PANORAMA"],
@@ -70,6 +80,33 @@ struct PoleRetouchServiceTests {
         #expect(prepared.pixel(x: 0, y: 32).3 == 0)
         #expect(prepared.pixel(x: 32, y: 32).3 == 255)
         #expect(prepared.pixel(x: 32, y: 32).0 == 255)
+    }
+
+    @Test
+    func aiRetouchInputMakesOnlyPaintedPixelsTransparent() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceURL = directory.appending(path: "source.png")
+        let maskURL = directory.appending(path: "mask.png")
+        try writeImage(width: 64, height: 64, to: sourceURL) { _, _ in
+            (120, 80, 40, 255)
+        }
+        try writeImage(width: 64, height: 64, to: maskURL) { x, y in
+            x == 32 && y == 32 ? (255, 0, 0, 255) : (0, 0, 0, 0)
+        }
+
+        let resultData = try PoleRetouchService().prepareAIRetouchInput(
+            from: sourceURL,
+            maskData: try Data(contentsOf: maskURL),
+            pole: .nadir,
+            expectedSize: 64
+        )
+        let resultURL = directory.appending(path: "result.png")
+        try resultData.write(to: resultURL)
+        let result = try pixels(at: resultURL)
+
+        #expect(result.pixel(x: 32, y: 32) == (0, 0, 0, 0))
+        #expect(result.pixel(x: 10, y: 10) == (120, 80, 40, 255))
     }
 
     @Test
