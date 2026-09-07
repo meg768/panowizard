@@ -38,6 +38,7 @@ struct PanoramaExportView: View {
     @Bindable var controller: PanoramaExportController
     let projectName: String?
     let projectDirectoryURL: URL?
+    @State private var isLittlePlanetPresented = false
 
     var body: some View {
         if let panoramaURL = model.stitchedResultURL {
@@ -105,8 +106,31 @@ struct PanoramaExportView: View {
                     .disabled(!model.canExportHTML)
                 }
 
+                Section("Little Planet") {
+                    Text("Skapa en \"liten planet\" från ditt panoramabild.")
+                        .foregroundStyle(.secondary)
+
+                    Button {
+                        isLittlePlanetPresented = true
+                    } label: {
+                        Label(
+                            "Skapa Little Planet…",
+                            systemImage: "square.and.arrow.down"
+                        )
+                    }
+                    .buttonStyle(WorkspaceToolbarPillStyle())
+                }
+
             }
             .formStyle(.grouped)
+            .sheet(isPresented: $isLittlePlanetPresented) {
+                LittlePlanetExportSheet(
+                    panoramaURL: panoramaURL,
+                    projectName: projectName,
+                    projectTitle: model.project.title,
+                    projectDirectoryURL: projectDirectoryURL
+                )
+            }
             .alert("Exporten misslyckades", isPresented: Binding(
                 get: { controller.errorMessage != nil },
                 set: { if !$0 { controller.errorMessage = nil } }

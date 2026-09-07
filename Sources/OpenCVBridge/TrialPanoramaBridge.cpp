@@ -2505,6 +2505,7 @@ struct TrialLocalRadiometryPair {
 cv::Mat trialSeamLocalRadiometryCorrection(
     const std::vector<TrialWarp> &warps,
     const cv::Mat &labels,
+    const cv::Mat &conflictMask,
     int width
 ) {
     const int analysisWidth = std::min(1024, width);
@@ -2539,6 +2540,11 @@ cv::Mat trialSeamLocalRadiometryCorrection(
     cv::Mat smallLabels;
     cv::resize(
         labels, smallLabels, analysisSize, 0.0, 0.0, cv::INTER_NEAREST
+    );
+    cv::Mat smallConflictMask;
+    cv::resize(
+        conflictMask, smallConflictMask, analysisSize,
+        0.0, 0.0, cv::INTER_NEAREST
     );
 
     cv::Mat correctionSum(
@@ -2624,6 +2630,8 @@ cv::Mat trialSeamLocalRadiometryCorrection(
             int validationPixels = 0;
             for (int y = 0; y < analysisHeight; ++y) {
                 const unsigned char *overlapRow = overlap.ptr<unsigned char>(y);
+                const unsigned char *conflictRow =
+                    smallConflictMask.ptr<unsigned char>(y);
                 const float *firstGradient = gradients[first].ptr<float>(y);
                 const float *secondGradient = gradients[second].ptr<float>(y);
                 const float *weightRow = seamWeight.ptr<float>(y);
@@ -2632,7 +2640,8 @@ cv::Mat trialSeamLocalRadiometryCorrection(
                 unsigned char *trainingRow = training.ptr<unsigned char>(y);
                 unsigned char *validationRow = validation.ptr<unsigned char>(y);
                 for (int x = 0; x < analysisWidth; ++x) {
-                    if (!overlapRow[x] || weightRow[x] <= 0.03f
+                    if (!overlapRow[x] || conflictRow[x]
+                        || weightRow[x] <= 0.03f
                         || firstGradient[x] >= 28.0f
                         || secondGradient[x] >= 28.0f) continue;
                     bool unclipped = true;
@@ -2808,29 +2817,16 @@ cv::Mat trialSeamLocalRadiometryCorrection(
             cv::Mat secondOwnership;
             firstOwner.convertTo(firstOwnership, CV_32F, 1.0 / 255.0);
             secondOwner.convertTo(secondOwnership, CV_32F, 1.0 / 255.0);
-            const double ownershipSigma = std::max(
-                6.0, analysisWidth / 32.0
-            );
-            firstOwnership = trialPeriodicBlur(
-                firstOwnership, ownershipSigma
-            );
-            secondOwnership = trialPeriodicBlur(
-                secondOwnership, ownershipSigma
-            );
-            cv::Mat ownershipTotal = firstOwnership + secondOwnership;
-            cv::Mat safeOwnershipTotal;
-            cv::max(ownershipTotal, 1e-4, safeOwnershipTotal);
-            cv::Mat secondFraction = secondOwnership / safeOwnershipTotal;
-            cv::Mat ownershipFactor = 1.0 - 2.0 * secondFraction;
+            cv::Mat ownershipFactor = firstOwnership - secondOwnership;
             std::vector<cv::Mat> ownershipChannels(3, ownershipFactor);
             cv::Mat colorOwnership;
             cv::merge(ownershipChannels, colorOwnership);
             cv::Mat pairCorrection = firstCorrection.mul(colorOwnership);
-            pairCorrection.setTo(
-                cv::Scalar(0, 0, 0), ownershipTotal < 0.02
+            cv::Mat ownedActive = active.mul(
+                firstOwnership + secondOwnership
             );
             correctionSum += pairCorrection;
-            correctionWeight += active;
+            correctionWeight += ownedActive;
             double maximumApplied = 0.0;
             for (int y = 0; y < analysisHeight; ++y) {
                 const cv::Vec3f *row = pairCorrection.ptr<cv::Vec3f>(y);
@@ -2979,7 +2975,9 @@ std::pair<double, int> trialRender(
     const int holes = cv::countNonZero(labels < 0);
     const double coverage = 100.0 * (1.0 - holes / double(width * height));
     const cv::Mat localRadiometryCorrection =
-        trialSeamLocalRadiometryCorrection(warps, labels, width);
+        trialSeamLocalRadiometryCorrection(
+            warps, labels, conflictMask, width
+        );
     trialReport("Blandar originalpixlar…", 0.94);
     cv::Mat result = trialContentAdaptiveBlend(
         warps, labels, conflictMask, width, height
