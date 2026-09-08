@@ -2143,6 +2143,40 @@ cv::Mat trialContentAdaptiveBlend(
     cv::Mat seamDetailed = narrow
         + seamCorrection.mul(colorSeamConsistency);
 
+    // A real high-conflict seam can still be more distracting than a very
+    // small amount of local detail mixing. Keep that fallback tightly capped
+    // and enable it only where the existing low-frequency seam correction is
+    // large enough to represent a visible radiometric step.
+    const double minimumFeatherSigma = 12.0 * width / 4096.0;
+    cv::Mat minimumFeather = trialFeatherComposite(
+        warps, labels, minimumFeatherSigma
+    );
+    cv::Mat absoluteSeamCorrection;
+    cv::absdiff(
+        seamCorrection, cv::Scalar(0, 0, 0), absoluteSeamCorrection
+    );
+    std::vector<cv::Mat> absoluteSeamChannels;
+    cv::split(absoluteSeamCorrection, absoluteSeamChannels);
+    cv::Mat radiometricStepMagnitude;
+    cv::max(
+        absoluteSeamChannels[0], absoluteSeamChannels[1],
+        radiometricStepMagnitude
+    );
+    cv::max(
+        radiometricStepMagnitude, absoluteSeamChannels[2],
+        radiometricStepMagnitude
+    );
+    cv::Mat radiometricStepMask = radiometricStepMagnitude >= 1.0;
+    cv::Mat radiometricStepWeight;
+    radiometricStepMask.convertTo(
+        radiometricStepWeight, CV_32F, 1.0 / 255.0
+    );
+    radiometricStepWeight = trialPeriodicBlur(
+        radiometricStepWeight, minimumFeatherSigma
+    );
+    cv::max(radiometricStepWeight, 0.0, radiometricStepWeight);
+    cv::min(radiometricStepWeight, 1.0, radiometricStepWeight);
+
     cv::Mat texture(height, width, CV_32F, cv::Scalar(0));
     const int edgeGuard = std::max(2, int(std::round(width / 512.0)));
     cv::Mat edgeKernel = cv::Mat::ones(
@@ -2228,7 +2262,15 @@ cv::Mat trialContentAdaptiveBlend(
     // Preserve photographed edge detail without restoring a hard tonal
     // boundary. The two-scale composite feathers only low frequencies along
     // the seam, at any latitude, while detail stays in the narrow composite.
-    cv::Mat structureResult = narrow.mul(colorConflictAlpha)
+    cv::Mat minimumFeatherWeight = seamConsistency.mul(
+        radiometricStepWeight
+    );
+    std::vector<cv::Mat> minimumFeatherChannels(3, minimumFeatherWeight);
+    cv::Mat colorMinimumFeatherWeight;
+    cv::merge(minimumFeatherChannels, colorMinimumFeatherWeight);
+    cv::Mat conflictResult = narrow.mul(one - colorMinimumFeatherWeight)
+        + minimumFeather.mul(colorMinimumFeatherWeight);
+    cv::Mat structureResult = conflictResult.mul(colorConflictAlpha)
         + seamDetailed.mul(one - colorConflictAlpha);
     result = structureResult.mul(colorStructureAlpha)
         + result.mul(one - colorStructureAlpha);
@@ -2502,7 +2544,7 @@ struct TrialLocalRadiometryPair {
     double maximumCorrection = 0.0;
 };
 
-cv::Mat trialSeamLocalRadiometryCorrection(
+std::vector<TrialWarp> trialApplySeamLocalRadiometry(
     const std::vector<TrialWarp> &warps,
     const cv::Mat &labels,
     const cv::Mat &conflictMask,
@@ -2512,7 +2554,7 @@ cv::Mat trialSeamLocalRadiometryCorrection(
     const int analysisHeight = analysisWidth / 2;
     const cv::Size analysisSize(analysisWidth, analysisHeight);
     const int count = int(warps.size());
-    if (count < 2) return cv::Mat();
+    if (count < 2) return warps;
 
     std::vector<cv::Mat> images;
     std::vector<cv::Mat> masks;
@@ -2547,12 +2589,18 @@ cv::Mat trialSeamLocalRadiometryCorrection(
         0.0, 0.0, cv::INTER_NEAREST
     );
 
-    cv::Mat correctionSum(
-        analysisSize, CV_32FC3, cv::Scalar(0, 0, 0)
-    );
-    cv::Mat correctionWeight(
-        analysisSize, CV_32F, cv::Scalar(0)
-    );
+    std::vector<cv::Mat> correctionSums;
+    std::vector<cv::Mat> correctionWeights;
+    correctionSums.reserve(count);
+    correctionWeights.reserve(count);
+    for (int index = 0; index < count; ++index) {
+        correctionSums.emplace_back(
+            analysisSize, CV_32FC3, cv::Scalar(0, 0, 0)
+        );
+        correctionWeights.emplace_back(
+            analysisSize, CV_32F, cv::Scalar(0)
+        );
+    }
     std::vector<TrialLocalRadiometryPair> acceptedPairs;
     const int cellSize = std::max(8, analysisWidth / 64);
     const int gridColumns = (analysisWidth + cellSize - 1) / cellSize;
@@ -2813,23 +2861,13 @@ cv::Mat trialSeamLocalRadiometryCorrection(
                 continue;
             }
 
-            cv::Mat firstOwnership;
-            cv::Mat secondOwnership;
-            firstOwner.convertTo(firstOwnership, CV_32F, 1.0 / 255.0);
-            secondOwner.convertTo(secondOwnership, CV_32F, 1.0 / 255.0);
-            cv::Mat ownershipFactor = firstOwnership - secondOwnership;
-            std::vector<cv::Mat> ownershipChannels(3, ownershipFactor);
-            cv::Mat colorOwnership;
-            cv::merge(ownershipChannels, colorOwnership);
-            cv::Mat pairCorrection = firstCorrection.mul(colorOwnership);
-            cv::Mat ownedActive = active.mul(
-                firstOwnership + secondOwnership
-            );
-            correctionSum += pairCorrection;
-            correctionWeight += ownedActive;
+            correctionSums[first] += firstCorrection;
+            correctionSums[second] -= firstCorrection;
+            correctionWeights[first] += active;
+            correctionWeights[second] += active;
             double maximumApplied = 0.0;
             for (int y = 0; y < analysisHeight; ++y) {
-                const cv::Vec3f *row = pairCorrection.ptr<cv::Vec3f>(y);
+                const cv::Vec3f *row = firstCorrection.ptr<cv::Vec3f>(y);
                 for (int x = 0; x < analysisWidth; ++x) {
                     for (int channel = 0; channel < 3; ++channel) {
                         maximumApplied = std::max(
@@ -2858,36 +2896,51 @@ cv::Mat trialSeamLocalRadiometryCorrection(
             );
         }
     }
-    if (acceptedPairs.empty()) return cv::Mat();
+    if (acceptedPairs.empty()) return warps;
 
-    cv::Mat normalization;
-    cv::max(correctionWeight, 1.0, normalization);
-    std::vector<cv::Mat> normalizationChannels(3, normalization);
-    cv::Mat colorNormalization;
-    cv::merge(normalizationChannels, colorNormalization);
-    cv::Mat correction = correctionSum / colorNormalization;
-    cv::max(correction, cv::Scalar(-12, -12, -12), correction);
-    cv::min(correction, cv::Scalar(12, 12, 12), correction);
-    cv::resize(
-        correction, correction, labels.size(), 0.0, 0.0, cv::INTER_CUBIC
-    );
+    std::vector<TrialWarp> correctedWarps = warps;
     double maximumApplied = 0.0;
-    for (int y = 0; y < correction.rows; ++y) {
-        const cv::Vec3f *row = correction.ptr<cv::Vec3f>(y);
-        for (int x = 0; x < correction.cols; ++x) {
-            for (int channel = 0; channel < 3; ++channel) {
-                maximumApplied = std::max(
-                    maximumApplied, std::abs(double(row[x][channel]))
-                );
+    for (int index = 0; index < count; ++index) {
+        cv::Mat normalization;
+        cv::max(correctionWeights[index], 1.0, normalization);
+        std::vector<cv::Mat> normalizationChannels(3, normalization);
+        cv::Mat colorNormalization;
+        cv::merge(normalizationChannels, colorNormalization);
+        cv::Mat correction = correctionSums[index] / colorNormalization;
+        cv::max(correction, cv::Scalar(-12, -12, -12), correction);
+        cv::min(correction, cv::Scalar(12, 12, 12), correction);
+        cv::resize(
+            correction, correction, labels.size(),
+            0.0, 0.0, cv::INTER_CUBIC
+        );
+        for (int y = 0; y < correction.rows; ++y) {
+            const cv::Vec3f *row = correction.ptr<cv::Vec3f>(y);
+            for (int x = 0; x < correction.cols; ++x) {
+                for (int channel = 0; channel < 3; ++channel) {
+                    maximumApplied = std::max(
+                        maximumApplied, std::abs(double(row[x][channel]))
+                    );
+                }
             }
         }
+        cv::Mat floatImage;
+        correctedWarps[index].image.convertTo(floatImage, CV_32FC3);
+        floatImage += correction;
+        cv::max(floatImage, cv::Scalar(0, 0, 0), floatImage);
+        cv::min(floatImage, cv::Scalar(255, 255, 255), floatImage);
+        cv::Mat correctedImage;
+        floatImage.convertTo(correctedImage, CV_8UC3);
+        correctedImage.setTo(
+            cv::Scalar(0, 0, 0), correctedWarps[index].mask == 0
+        );
+        correctedWarps[index].image = std::move(correctedImage);
     }
     std::fprintf(
         stderr,
         "[PanoWizard] Local radiometry applied pairs=%zu max=%.3f\n",
         acceptedPairs.size(), maximumApplied
     );
-    return correction;
+    return correctedWarps;
 }
 
 std::pair<double, int> trialRender(
@@ -2974,22 +3027,13 @@ std::pair<double, int> trialRender(
     );
     const int holes = cv::countNonZero(labels < 0);
     const double coverage = 100.0 * (1.0 - holes / double(width * height));
-    const cv::Mat localRadiometryCorrection =
-        trialSeamLocalRadiometryCorrection(
-            warps, labels, conflictMask, width
-        );
+    warps = trialApplySeamLocalRadiometry(
+        warps, labels, conflictMask, width
+    );
     trialReport("Blandar originalpixlar…", 0.94);
     cv::Mat result = trialContentAdaptiveBlend(
         warps, labels, conflictMask, width, height
     );
-    if (!localRadiometryCorrection.empty()) {
-        cv::Mat floatResult;
-        result.convertTo(floatResult, CV_32FC3);
-        floatResult += localRadiometryCorrection;
-        cv::max(floatResult, cv::Scalar(0, 0, 0), floatResult);
-        cv::min(floatResult, cv::Scalar(255, 255, 255), floatResult);
-        floatResult.convertTo(result, CV_8UC3);
-    }
     cv::flip(result, result, 1);
     const std::vector<int> parameters = {
         cv::IMWRITE_JPEG_QUALITY, 96,
