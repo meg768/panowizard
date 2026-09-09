@@ -2518,6 +2518,133 @@ std::vector<Warp> compensateRadiometry(
     return result;
 }
 
+std::vector<cv::Mat> lowFrequencyRadiometryImages(
+    const std::vector<Warp> &warps,
+    const cv::Size &size,
+    double sigma
+) {
+    std::vector<cv::Mat> result;
+    for (const Warp &warp : warps) {
+        cv::Mat image8;
+        cv::Mat mask8;
+        cv::resize(warp.image, image8, size, 0.0, 0.0, cv::INTER_AREA);
+        cv::resize(warp.mask, mask8, size, 0.0, 0.0, cv::INTER_NEAREST);
+        cv::Mat image;
+        cv::Mat mask;
+        image8.convertTo(image, CV_32FC3);
+        mask8.convertTo(mask, CV_32F, 1.0 / 255.0);
+        std::vector<cv::Mat> maskChannels(3, mask);
+        cv::Mat colorMask;
+        cv::merge(maskChannels, colorMask);
+        cv::Mat numerator = periodicBlur(image.mul(colorMask), sigma);
+        cv::Mat denominator = periodicBlur(mask, sigma);
+        cv::max(denominator, 1e-4, denominator);
+        std::vector<cv::Mat> denominatorChannels(3, denominator);
+        cv::Mat colorDenominator;
+        cv::merge(denominatorChannels, colorDenominator);
+        result.push_back(numerator / colorDenominator);
+    }
+    return result;
+}
+
+cv::Mat meanAbsoluteRGBDifference(
+    const cv::Mat &first,
+    const cv::Mat &second
+) {
+    cv::Mat difference;
+    cv::absdiff(first, second, difference);
+    std::vector<cv::Mat> channels;
+    cv::split(difference, channels);
+    return (channels[0] + channels[1] + channels[2]) / 3.0;
+}
+
+std::vector<Warp> applySpatialRadiometryAcceptance(
+    const std::vector<Warp> &before,
+    const std::vector<Warp> &after,
+    int width
+) {
+    const int analysisWidth = std::min(1024, width);
+    const cv::Size analysisSize(analysisWidth, analysisWidth / 2);
+    // Preserve 96 px and 64 px at 4096 px output after downsampling.
+    const double analysisScale = analysisWidth / 4096.0;
+    const double lowFrequencySigma = 96.0 * analysisScale;
+    const double acceptanceSigma = 64.0 * analysisScale;
+    const auto beforeLow = lowFrequencyRadiometryImages(
+        before, analysisSize, lowFrequencySigma
+    );
+    const auto afterLow = lowFrequencyRadiometryImages(
+        after, analysisSize, lowFrequencySigma
+    );
+
+    const cv::Mat erosionKernel = cv::Mat::ones(5, 5, CV_8U);
+    std::vector<cv::Mat> safeMasks;
+    for (const Warp &warp : before) {
+        cv::Mat mask;
+        cv::resize(
+            warp.mask, mask, analysisSize, 0.0, 0.0, cv::INTER_NEAREST
+        );
+        cv::erode(mask, mask, erosionKernel);
+        safeMasks.push_back(std::move(mask));
+    }
+
+    cv::Mat beforeError(analysisSize, CV_32F, cv::Scalar(0));
+    cv::Mat afterError(analysisSize, CV_32F, cv::Scalar(0));
+    cv::Mat pairCount(analysisSize, CV_32F, cv::Scalar(0));
+    for (int first = 0; first < int(before.size()); ++first) {
+        for (int second = first + 1; second < int(before.size()); ++second) {
+            cv::Mat overlap;
+            cv::bitwise_and(safeMasks[first], safeMasks[second], overlap);
+            if (cv::countNonZero(overlap) == 0) continue;
+            cv::Mat weight;
+            overlap.convertTo(weight, CV_32F, 1.0 / 255.0);
+            beforeError += meanAbsoluteRGBDifference(
+                beforeLow[first], beforeLow[second]
+            ).mul(weight);
+            afterError += meanAbsoluteRGBDifference(
+                afterLow[first], afterLow[second]
+            ).mul(weight);
+            pairCount += weight;
+        }
+    }
+
+    cv::Mat evidence = pairCount > 0.0;
+    cv::Mat acceptance(analysisSize, CV_32F, cv::Scalar(1.0));
+    cv::Mat improved = afterError < beforeError;
+    acceptance.setTo(0.0, evidence & ~improved);
+    acceptance = periodicBlur(acceptance, acceptanceSigma);
+    cv::max(acceptance, 0.0, acceptance);
+    cv::min(acceptance, 1.0, acceptance);
+    cv::Mat acceptanceFull;
+    cv::resize(
+        acceptance, acceptanceFull, before.front().image.size(),
+        0.0, 0.0, cv::INTER_CUBIC
+    );
+    cv::max(acceptanceFull, 0.0, acceptanceFull);
+    cv::min(acceptanceFull, 1.0, acceptanceFull);
+
+    std::vector<cv::Mat> acceptanceChannels(3, acceptanceFull);
+    cv::Mat colorAcceptance;
+    cv::merge(acceptanceChannels, colorAcceptance);
+    std::vector<Warp> result = before;
+    for (int index = 0; index < int(before.size()); ++index) {
+        cv::Mat beforeFloat;
+        cv::Mat afterFloat;
+        before[index].image.convertTo(beforeFloat, CV_32FC3);
+        after[index].image.convertTo(afterFloat, CV_32FC3);
+        cv::Mat value = beforeFloat
+            + (afterFloat - beforeFloat).mul(colorAcceptance);
+        cv::max(value, cv::Scalar(0, 0, 0), value);
+        cv::min(value, cv::Scalar(255, 255, 255), value);
+        cv::Mat gatedImage;
+        value.convertTo(gatedImage, CV_8UC3);
+        gatedImage.setTo(
+            cv::Scalar(0, 0, 0), result[index].mask == 0
+        );
+        result[index].image = std::move(gatedImage);
+    }
+    return result;
+}
+
 double percentile(std::vector<double> values, double fraction) {
     if (values.empty()) return 0.0;
     const size_t index = std::min(
@@ -3006,25 +3133,31 @@ std::pair<double, int> renderPanorama(
         warps.push_back(std::move(warp));
     }
     reportProgress("Matchar exponering och färg…", 0.78);
-    warps = compensateRadiometry(warps, width);
-    std::vector<cv::Mat> redundantMasks = suppressRedundantViews(
-        alignment.rotations, warps
+    const std::vector<Warp> compensatedWarps = compensateRadiometry(
+        warps, width
     );
-    for (int index = 0; index < int(warps.size()); ++index) {
-        if (warps[index].fillOnly) {
-            redundantMasks[index] = warps[index].protectedMask.clone();
+    // Keep seam ownership on the unchanged compensation result. Acceptance
+    // alters only the source layers subsequently passed to radiometry/blend.
+    std::vector<cv::Mat> redundantMasks = suppressRedundantViews(
+        alignment.rotations, compensatedWarps
+    );
+    for (int index = 0; index < int(compensatedWarps.size()); ++index) {
+        if (compensatedWarps[index].fillOnly) {
+            redundantMasks[index] =
+                compensatedWarps[index].protectedMask.clone();
         }
     }
     const std::vector<cv::Mat> seamMasks = preferCentralCoverage(
-        warps, redundantMasks
+        compensatedWarps, redundantMasks
     );
     reportProgress("Beräknar sömmar…", 0.87);
     cv::Mat conflictMask;
     cv::Mat labels = graphCutLabels(
-        warps, seamMasks, width, height, conflictMask
+        compensatedWarps, seamMasks, width, height, conflictMask
     );
     const int holes = cv::countNonZero(labels < 0);
     const double coverage = 100.0 * (1.0 - holes / double(width * height));
+    warps = applySpatialRadiometryAcceptance(warps, compensatedWarps, width);
     warps = applySeamLocalRadiometry(
         warps, labels, conflictMask, width
     );
