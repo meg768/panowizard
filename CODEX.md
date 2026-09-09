@@ -1,94 +1,112 @@
-# PanoWizard – utvecklaranvisningar
+# PanoWizard – arbetsinstruktioner för Codex
 
-## Produktgränser
+## Produkt och principer
 
-- PanoWizard är en native SwiftUI-app för macOS.
-- `TrialOpenCVPanoramaEngine` är den enda panoramamotorn.
-- Panoramamotorn får bara använda originalbilder och individuella masker.
-- Utdata ska alltid vara en komplett equirektangulär 360° × 180°-bild i 2:1.
-- Bildimport, dokument, källsortering, masker, viewer, export, progress och
-  avbrytning ska hållas oberoende av motorns interna feature-matchningar.
-- Interna features, matchningar och linsparametrar är inte redigerbart UI.
-
-AI-retuschering är ett uttryckligt, separat eftersteg och är aldrig en del av
-panoramamotorn. Den får inte användas för stitchning, geometri, sömval eller för
-att fylla källbildernas maskerade områden.
-
-AI-retuschens valfria arbetsmask sparas separat per pol i projektpaketet. Den
-används bara för att göra målade pixlar transparenta i bilden som skickas till
-OpenAI. Prompten och övriga API-parametrar är identiska med det omaskerade
-flödet, och hela AI-resultatet används utan lokal maskkompositering.
+- PanoWizard är en native SwiftUI-app för macOS med en enda inbyggd
+  C++17/OpenCV-motor.
+- Arbeta enligt KISS: gör den minsta tydliga ändringen som löser den uttryckliga
+  uppgiften. Lägg inte till parallella motorvägar, dolda feature flags eller
+  panorama-specifika specialfall.
+- Utdata från motorn ska vara ett komplett equirektangulärt 360° × 180°-
+  panorama i proportionen 2:1.
+- Taggen `best-ever` är den manuellt verifierade visuella referensen för
+  panoramana A–S. Ändra inte verifierat bildbeteende utan ett tydligt skäl och
+  en uttryckligt avgränsad valideringsplan.
+- AI-retusch och Little Planet är eftersteg som läser det färdiga panoramat.
+  De får aldrig kopplas in i geometri, ownership, sömval eller blending.
 
 ## Arkitektur
 
-- `Models/PanoProject.swift` definierar det kompakta projektformatet v7.
-- `Services/TrialPanoramaEngine.swift` förbereder källor/masker, äger cache-id,
-  vidarebefordrar progress/avbrytning och anropar C-bryggan.
-- `Sources/OpenCVBridge/TrialPanoramaBridge.cpp` innehåller hela native-motorn.
-- `Services/MaskedSourceImageWriter.swift` skriver orienterade TIFF-källor där
-  röda masker ligger i alpha.
-- gröna skyddsmasker skickas separat och påverkar sömprioriteringen.
-- `ViewModels/AppModel.swift` kopplar motorn till dokument- och UI-livscykeln.
+- `Sources/PanoWizard/Models/PanoProject.swift` definierar projektformat v7;
+  avkodaren accepterar även v6.
+- `Sources/PanoWizard/Services/OpenCVPanoramaEngine.swift` förbereder
+  orienterade TIFF-källor och masker, väljer cachefil och vidarebefordrar
+  progress och avbrytning genom C-API:t.
+- `Sources/PanoWizard/Services/MaskedSourceImageWriter.swift` lägger den röda
+  exkluderingsmasken i källans alpha. Maskerade pixlar får inte användas senare
+  i motorn.
+- `Sources/OpenCVBridge/PanoramaBridge.cpp` innehåller hela panoramaalgoritmen.
+  Håll den oberoende av SwiftUI, dokumentlagring och testprojektnamn.
+- Gröna skyddsmasker skickas separat till motorn och påverkar sömprioritet;
+  de skapar aldrig nytt bildinnehåll.
+- `Sources/PanoWizard/ViewModels/AppModel.swift` binder dokument, motor,
+  förhandsvisning, retusch och export till UI-livscykeln.
 
-Motorkoden ska förbli fristående från SwiftUI och dokumentlagring. Lägg inte in
-panorama-, kamera- eller testmappsspecifika specialfall.
+## Känslig panoramakedja
 
-## Projektkompatibilitet
+Läs alltid implementationen före en motorändring. Nuvarande ordning är:
 
-Format v7 lagrar källor, aktivering, maskpaket, preview-vy och retuschprompt.
-Projektpaketet kan även innehålla beständiga AI-arbetsmasker för nadir och zenit.
-Avkodaren accepterar v6 och ignorerar okända föråldrade fält. Gamla dokument
-ska öppnas utan att det tidigare arbetsflödet återkommer.
+1. optisk bildcirkel och giltig källtäckning
+2. SIFT och ömsesidig feature-matchning
+3. rotations-RANSAC och robust gemensam kamera-/linsoptimering
+4. horisontutjämning och separat registrering av reparationsbilder
+5. sfärisk warp med alpha, centralitet och skyddsmasker
+6. global radiometrisk kompensation
+7. redundansfilter och central täckningsprioritet
+8. GraphCut-labels/ownership och konfliktmask
+9. validerad sömlokal lågfrekevent radiometri på respektive källager
+10. innehållsanpassad blending
+11. slutlig orientering och JPEG-export
+
+Steg 9 blandar inte RGB mellan ägare. Det estimerar ett mycket lågfrekevent
+fält från giltiga, oklippta och låggradienta överlappspixlar, validerar det mot
+separata pixlar och applicerar symmetrisk korrigering på källagren före
+compositing.
+
+Steg 10 bevarar GraphCut-detalj med en smal feather, använder bredare
+lågfrekevent tonutjämning där källorna är konsekventa och skyddar struktur och
+konflikt. I högkonfliktgrenen finns en minimum-feather som motsvarar sigma
+12 px vid 4096 px panoramabredd, skalas med upplösningen och aktiveras av
+befintlig struktur-, konflikt-, sömkonsekvens- och radiometrisk
+steginformation. Ändra inte dess uttryck, trösklar, radier, vikter eller
+upplösningsskalning som en del av annan cleanup.
+
+Feature matching, CP, linsmodell, geometri, warp, GraphCut, ownership,
+masklogik, radiometri och blendval är kopplade. Anta inte att en synlig söm
+motiverar en generell featherbredd eller ändrat ownership. Mät först det
+relevanta mellansteget och håll diagnostik skild från produktionskod.
+
+## Kodkonventioner
+
+- Använd domännamn som beskriver permanent funktion; märk inte aktiv kod som
+  prototyp eller experiment.
+- Kommentarer ska förklara varför icke-trivial logik eller en invariant finns,
+  inte återberätta utvecklingshistoriken.
+- Ändra inte numeriska algoritmparametrar i en rename, cleanup eller annan
+  orelaterad uppgift.
+- Produktionsmotorn får bara läsa uttryckligt valda originalbilder och deras
+  masker. Autodetektera aldrig andra bilder som råkar ligga i samma katalog.
+- Lägg inte in filnamn, testcase-ID:n eller lokala sökvägar i produktionsbeslut.
+- Bevara dokumentkompatibilitet. Källor, masker, panorama, förhandsvisningsvy
+  och retuschdata ska överleva stödda migreringar.
+- Uppdatera `README.md` och denna fil när arkitektur eller arbetsregler faktiskt
+  ändras; skapa inte nya historikdokument för tillfälliga undersökningar.
 
 ## Verifiering
 
-Efter ändringar i motorn:
+Välj verifiering proportionellt mot ändringen:
 
-1. Kör `swift build`.
-2. Kör berörda fokuserade tester.
-3. Bygg appaketet med `./Scripts/build-app.sh` när paketering eller länkar ändras.
-4. Beskriv alltid en större panoramaregression innan hela bildmaterialet körs.
+1. Kör alltid `swift build` efter kod- eller buildändringar.
+2. Kör endast berörda fokuserade testsviter när uppgiften tillåter tester.
+3. Kör `./Scripts/build-app.sh` när appaket, resurser, native länkning eller
+   filnamn i byggträdet har ändrats.
+4. Kör inte hela A–S-regressionen slentrianmässigt. Beskriv syfte, valda fall
+   och förväntade risker och invänta uttrycklig omfattning när användaren vill
+   granska visuellt själv.
+5. Använd bara originalkällor i bildregressioner och håll gamla renderade
+   resultat utanför automatisk källupptäckt.
 
-Använd endast originalbilder som indata i bildregressioner. Filer som råkar ligga
-i samma mapp men inte är källbilder ska aldrig autodetekteras som motordata.
+Efter en refaktorering ska diffen granskas för ändrade konstanter,
+algoritmuttryck, ordning, maskvillkor och cachebeteende. En lyckad kompilering
+är inte bevis för oförändrat visuellt resultat.
 
-Panorama C är det visuella regressionsankaret för parallax och sömmar. Läs
-`TRIAL_ENGINE.md` före ändringar i GraphCut, central täckning eller feathering.
-Ett godkänt C-resultat måste samtidigt behålla raka skidstavar och liftlinor,
-en hel fotograf utan halo samt hela skidåkare i bakgrunden.
+## Git och checkpoints
 
-## Aktuell handoff (2026-09-04)
-
-- Den native OpenCV-motorn använder cacheversion `trial-native-cycle-v1`.
-- Cykelåterhämtningen i `TrialPanoramaBridge.cpp` ska lämnas orörd. MST är
-  kandidat A. Kandidat B skapas bara när A:s outlier-filtrering bryter en stark
-  cykel, använder samma frysta `TrialOptimizationSample`, optimeras med samma
-  optimizer och jämförs mot samma ofiltrerade valideringsmängd. Flest
-  observationer inom residualgränsen vinner, därefter lägst robust fel.
-- Panorama L väljer kandidat B och är visuellt korrekt efter denna ändring.
-  Backa inte L-fixen för att lösa andra problem.
-- Panorama A aktiverar kontrollen för cykeln `0-6-5-9-0`, eftersom MST-kanten
-  `5-9` går från 13 frysta observationer till 0 efter första fitten. B förlorar
-  dock mot A: 796 mot 799 förklarade observationer. Återhämtningsgrenen kostar
-  cirka 0,15 sekunder och orsakar inte A:s tidigare sömstopp.
-- GraphCut-prestandafelet var att alla fulla 2048×1024-warpytor skickades med
-  hörnet `(0,0)`. OpenCV byggde då en miljonnodsgraf för varje bildpar oavsett
-  verklig masköverlapp. Varje källa beskärs nu oberoende till sin mask-support
-  plus 10 pixlars kontext och skickas med sitt verkliga panoramahörn. Det är
-  viktigt att inte beskära båda bilderna till samma överlappsrektangel: den
-  gemensamma konstgjorda kanten kan då bli en synlig GraphCut-söm.
-- Endast panorama A verifierades efter ROI-ändringen. Releasevärden med sparad
-  alignment: sömberäkning 3,533 s, hela renderingen 19,145 s, coverage
-  96,821296 %, 266649 maskorsakade hålpixlar. Debug- och releasebilderna var
-  byte-identiska och resultatet såg visuellt korrekt ut.
-- Inga andra panorama och ingen regressionstestsvit har körts efter ändringen.
-  Användaren kör panorama manuellt och återkommer med problembarn; kör inte en
-  bred bildregression utan uttrycklig begäran.
-- Panorama D visade att centralitetsfiltret med tolerans 0,12 kan krympa
-  bild 0/3:s sömkorridor så mycket att GraphCut går genom den parallaxade
-  kustlinjen. Ett försök med den ursprungliga, obegränsade masköverlappningen
-  gav sammanhängande kust men ett tydligare fotavtryck från den utfrätta
-  källbilden och upplevdes som sämre. Den återhämtningskandidaten är helt
-  borttagen igen. Gör ingen ny D-ändring utan att samtidigt hantera både
-  geometrisk sömplacering och den utfrätta himlens radiometriska övergång.
-- Senast byggda och lokalt signerade app finns i `build/PanoWizard.app`.
+- Kontrollera `git status` före arbete. Bevara användarens orelaterade
+  ändringar och fråga om mål överlappar.
+- Skapa en namngiven restore point före riskfyllda motorförändringar när
+  användaren ber om det. Flytta eller skriv aldrig om en verifierad tagg.
+- Commit/pusha endast på uttrycklig begäran. Blanda inte experiment,
+  diagnostikartefakter eller genererade panoraman med produktionsändringar.
+- Vid återställning: verifiera commit/tagg, working tree, build och remote enligt
+  användarens exakta instruktioner innan ytterligare arbete.

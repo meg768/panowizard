@@ -5,34 +5,34 @@ import OpenCVBridge
 import Testing
 @testable import PanoWizard
 
-@Suite("Trial panorama engine")
-struct TrialPanoramaEngineTests {
+@Suite("OpenCV panorama engine")
+struct OpenCVPanoramaEngineTests {
     @Test("Explicit project fixture produces a full panorama")
     func panoramaFixture() async throws {
         guard let projectPath = ProcessInfo.processInfo.environment[
-            "PANOWIZARD_TRIAL_PROJECT"
+            "PANOWIZARD_PANORAMA_PROJECT"
         ] else { return }
         let document = try PanoProjectDocument(
             contentsOf: URL(fileURLWithPath: projectPath)
         )
-        let result = try await TrialOpenCVPanoramaEngine().stitch(
+        let result = try await OpenCVPanoramaEngine().stitch(
             document.project.panorama,
             masks: document.masks,
             protectedMasks: document.protectedMasks
         ) { fraction, stage in
-            print("Trial fixture \(Int(fraction * 100))%: \(stage)")
+            print("Panorama fixture \(Int(fraction * 100))%: \(stage)")
         }
         let image = CGImageSourceCreateWithURL(result.url as CFURL, nil).flatMap {
             CGImageSourceCreateImageAtIndex($0, 0, nil)
         }
-        #expect(image?.width == TrialOpenCVPanoramaEngine.outputWidth)
-        #expect(image?.height == TrialOpenCVPanoramaEngine.outputWidth / 2)
+        #expect(image?.width == OpenCVPanoramaEngine.outputWidth)
+        #expect(image?.height == OpenCVPanoramaEngine.outputWidth / 2)
         // The two saved exclusion masks intentionally remove part of the
         // nadir. The engine must report that missing source coverage instead
         // of synthesizing replacement pixels.
         #expect(result.coveragePercent > 95)
         print(
-            "Trial fixture result: \(result.url.path), "
+            "Panorama fixture result: \(result.url.path), "
                 + "coverage=\(result.coveragePercent), holes=\(result.holeCount), "
                 + "cache=\(result.usedAlignmentCache)"
         )
@@ -44,7 +44,7 @@ struct TrialPanoramaEngineTests {
         let second = image(enabled: false)
         let third = image(enabled: true)
 
-        let selected = TrialOpenCVPanoramaEngine.sourceImages(
+        let selected = OpenCVPanoramaEngine.sourceImages(
             in: PanoramaSet(images: [first, second, third])
         )
 
@@ -81,9 +81,9 @@ struct TrialPanoramaEngineTests {
 
     @Test("Native bridge rejects an invalid source set")
     func bridgeValidation() {
-        var report = PWTrialStitchReport()
+        var report = PWStitchReport()
         var error: UnsafeMutablePointer<CChar>?
-        let succeeded = PWStitchTrialPanorama(
+        let succeeded = PWStitchPanorama(
             nil, nil, nil, 0, nil, nil, 4096, nil, nil, nil, &report, &error
         )
         defer { PWFreeString(error) }
@@ -94,7 +94,7 @@ struct TrialPanoramaEngineTests {
     @Test("Native bridge creates a 2:1 image and reuses alignment cache")
     func bridgeSmokeTest() throws {
         let directory = FileManager.default.temporaryDirectory.appending(
-            path: "PanoWizard-Trial-Test-\(UUID())",
+            path: "PanoWizard-Engine-Test-\(UUID())",
             directoryHint: .isDirectory
         )
         try FileManager.default.createDirectory(
@@ -113,10 +113,10 @@ struct TrialPanoramaEngineTests {
             allocation.map { UnsafePointer($0) }
         ]
 
-        var firstReport = PWTrialStitchReport()
+        var firstReport = PWStitchReport()
         var firstError: UnsafeMutablePointer<CChar>?
         let firstSucceeded = paths.withUnsafeBufferPointer { buffer in
-            PWStitchTrialPanorama(
+            PWStitchPanorama(
                 buffer.baseAddress,
                 nil,
                 nil,
@@ -163,10 +163,10 @@ struct TrialPanoramaEngineTests {
         #expect(channelDifference / sampleCount < 0.04)
         #expect(brightness / sampleCount > 0.08)
 
-        var cachedReport = PWTrialStitchReport()
+        var cachedReport = PWStitchReport()
         var cachedError: UnsafeMutablePointer<CChar>?
         let cachedSucceeded = paths.withUnsafeBufferPointer { buffer in
-            PWStitchTrialPanorama(
+            PWStitchPanorama(
                 buffer.baseAddress,
                 nil,
                 nil,

@@ -2,9 +2,11 @@ import CryptoKit
 import Foundation
 import OpenCVBridge
 
-struct TrialOpenCVPanoramaEngine: PanoramaEngine {
+struct OpenCVPanoramaEngine: PanoramaEngine {
     static let outputWidth = 4096
-    static let cacheVersion = "trial-native-weak-crosslink-v1"
+    // These on-disk identifiers must remain stable so a source-only rename
+    // does not invalidate previously verified alignment caches.
+    static let alignmentCacheCompatibilityKey = "trial-native-weak-crosslink-v1"
 
     func stitch(
         _ panorama: PanoramaSet,
@@ -12,7 +14,7 @@ struct TrialOpenCVPanoramaEngine: PanoramaEngine {
         protectedMasks: [UUID: Data],
         progress: @escaping @Sendable (Double, String) -> Void
     ) async throws -> PanoramaStitchResult {
-        let context = TrialExecutionContext(progress: progress)
+        let context = StitchExecutionContext(progress: progress)
         return try await withTaskCancellationHandler {
             try await Task.detached(priority: .userInitiated) {
                 try Self.stitchSynchronously(
@@ -35,7 +37,7 @@ struct TrialOpenCVPanoramaEngine: PanoramaEngine {
         _ panorama: PanoramaSet,
         masks: [UUID: Data],
         protectedMasks: [UUID: Data],
-        context: TrialExecutionContext
+        context: StitchExecutionContext
     ) throws -> PanoramaStitchResult {
         let images = sourceImages(in: panorama)
         guard images.count >= 2 else {
@@ -44,7 +46,7 @@ struct TrialOpenCVPanoramaEngine: PanoramaEngine {
 
         let fileManager = FileManager.default
         let workDirectory = fileManager.temporaryDirectory.appending(
-            path: "PanoWizard/Trial/\(UUID().uuidString)",
+            path: "PanoWizard/Stitching/\(UUID().uuidString)",
             directoryHint: .isDirectory
         )
         try fileManager.createDirectory(
@@ -87,7 +89,7 @@ struct TrialOpenCVPanoramaEngine: PanoramaEngine {
             }
             return 0
         }
-        var report = PWTrialStitchReport()
+        var report = PWStitchReport()
         var errorPointer: UnsafeMutablePointer<CChar>?
         let opaqueContext = Unmanaged.passUnretained(context).toOpaque()
         let succeeded = sourceURLs.map { $0.path(percentEncoded: false) }
@@ -95,7 +97,7 @@ struct TrialOpenCVPanoramaEngine: PanoramaEngine {
                 protectedURLs.map { $0?.path(percentEncoded: false) }
                     .withOptionalCStringArray { protectedPaths in
                         compositionRoles.withUnsafeBufferPointer { roles in
-                            PWStitchTrialPanorama(
+                            PWStitchPanorama(
                                 sourcePaths,
                                 protectedPaths,
                                 roles.baseAddress,
@@ -104,8 +106,8 @@ struct TrialOpenCVPanoramaEngine: PanoramaEngine {
                                 outputURL.path(percentEncoded: false),
                                 Int32(outputWidth),
                                 opaqueContext,
-                                trialProgressCallback,
-                                trialCancellationCallback,
+                                progressCallback,
+                                cancellationCallback,
                                 &report,
                                 &errorPointer
                             )
@@ -150,7 +152,7 @@ struct TrialOpenCVPanoramaEngine: PanoramaEngine {
         masks: [UUID: Data]
     ) throws -> URL {
         var digest = SHA256()
-        digest.update(data: Data(cacheVersion.utf8))
+        digest.update(data: Data(alignmentCacheCompatibilityKey.utf8))
         let fileManager = FileManager.default
         for image in images {
             digest.update(data: Data(image.id.uuidString.utf8))
@@ -185,7 +187,7 @@ struct TrialOpenCVPanoramaEngine: PanoramaEngine {
     }
 }
 
-private final class TrialExecutionContext: @unchecked Sendable {
+private final class StitchExecutionContext: @unchecked Sendable {
     private let lock = NSLock()
     private var cancelled = false
     private let progress: @Sendable (Double, String) -> Void
@@ -211,10 +213,10 @@ private final class TrialExecutionContext: @unchecked Sendable {
     }
 }
 
-private let trialProgressCallback: PWTrialProgressCallback = {
+private let progressCallback: PWProgressCallback = {
     context, stage, fraction in
     guard let context else { return }
-    let execution = Unmanaged<TrialExecutionContext>
+    let execution = Unmanaged<StitchExecutionContext>
         .fromOpaque(context)
         .takeUnretainedValue()
     execution.report(
@@ -223,9 +225,9 @@ private let trialProgressCallback: PWTrialProgressCallback = {
     )
 }
 
-private let trialCancellationCallback: PWTrialCancellationCallback = { context in
+private let cancellationCallback: PWCancellationCallback = { context in
     guard let context else { return 0 }
-    let execution = Unmanaged<TrialExecutionContext>
+    let execution = Unmanaged<StitchExecutionContext>
         .fromOpaque(context)
         .takeUnretainedValue()
     return execution.isCancelled ? 1 : 0

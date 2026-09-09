@@ -3,9 +3,6 @@
 /build
 /.vendor-cache
 Vendor/OpenCV/
-Vendor/Hugin/
 /.swiftpm
 xcuserdata/
 DerivedData/
-Experiments/output/
-Experiments/__pycache__/

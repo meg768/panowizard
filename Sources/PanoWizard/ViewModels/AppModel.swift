@@ -144,7 +144,7 @@ final class AppModel {
             project: project,
             importer: ImageImportService(metadataReader: ImageMetadataReader()),
             grouper: PanoramaGroupingService(),
-            panoramaEngine: TrialOpenCVPanoramaEngine(),
+            panoramaEngine: OpenCVPanoramaEngine(),
             exporter: FilePanoramaExporter(),
             masks: masks,
             protectedMasks: protectedMasks,

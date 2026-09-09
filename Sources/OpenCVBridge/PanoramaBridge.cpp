@@ -23,11 +23,11 @@
 
 namespace {
 
-constexpr double trialPi = 3.14159265358979323846;
-constexpr int trialCacheVersion = 4;
+constexpr double pi = 3.14159265358979323846;
+constexpr int alignmentCacheFormatVersion = 4;
 
-struct TrialLens {
-    double k1 = trialPi / 2.0;
+struct Lens {
+    double k1 = pi / 2.0;
     double k3 = 0.0;
     double k5 = 0.0;
     double cx = 0.0;
@@ -35,19 +35,19 @@ struct TrialLens {
     double aspect = 0.0;
 };
 
-struct TrialSource {
+struct Source {
     cv::Mat image;
     cv::Mat userMask;
     cv::Mat protectedMask;
 };
 
-struct TrialFeatures {
+struct Features {
     std::vector<cv::Point2d> points;
     cv::Mat descriptors;
     std::vector<float> distantDuplicateDistance;
 };
 
-struct TrialEdge {
+struct Edge {
     int first = 0;
     int second = 0;
     cv::Matx33d relative = cv::Matx33d::eye();
@@ -55,25 +55,25 @@ struct TrialEdge {
     std::vector<cv::Point2d> secondPoints;
 };
 
-struct TrialEdgeSets {
-    std::vector<TrialEdge> strong;
-    std::vector<TrialEdge> weak;
+struct EdgeSets {
+    std::vector<Edge> strong;
+    std::vector<Edge> weak;
 };
 
-struct TrialGeometryStats {
+struct GeometryStats {
     int observations = 0;
     double medianDegrees = 0.0;
     double rmsDegrees = 0.0;
 };
 
-struct TrialAlignment {
+struct Alignment {
     std::vector<cv::Matx33d> rotations;
-    TrialLens lens;
+    Lens lens;
     cv::Mat gains;
-    TrialGeometryStats stats;
+    GeometryStats stats;
 };
 
-struct TrialWarp {
+struct Warp {
     cv::Mat image;
     cv::Mat mask;
     cv::Mat protectedMask;
@@ -81,37 +81,37 @@ struct TrialWarp {
     bool fillOnly = false;
 };
 
-struct TrialCallbacks {
+struct StitchCallbacks {
     void *context = nullptr;
-    PWTrialProgressCallback progress = nullptr;
-    PWTrialCancellationCallback cancellation = nullptr;
+    PWProgressCallback progress = nullptr;
+    PWCancellationCallback cancellation = nullptr;
 };
 
-thread_local TrialCallbacks trialCallbacks;
+thread_local StitchCallbacks stitchCallbacks;
 
-void trialCheckCancellation() {
-    if (trialCallbacks.cancellation != nullptr
-        && trialCallbacks.cancellation(trialCallbacks.context) != 0) {
+void checkCancellation() {
+    if (stitchCallbacks.cancellation != nullptr
+        && stitchCallbacks.cancellation(stitchCallbacks.context) != 0) {
         throw std::runtime_error("Panoramabygget avbröts.");
     }
 }
 
-void trialReport(const char *stage, double fraction) {
-    trialCheckCancellation();
-    if (trialCallbacks.progress != nullptr) {
-        trialCallbacks.progress(
-            trialCallbacks.context,
+void reportProgress(const char *stage, double fraction) {
+    checkCancellation();
+    if (stitchCallbacks.progress != nullptr) {
+        stitchCallbacks.progress(
+            stitchCallbacks.context,
             stage,
             std::clamp(fraction, 0.0, 1.0)
         );
     }
 }
 
-double trialRadians(double degrees) {
-    return degrees * trialPi / 180.0;
+double radians(double degrees) {
+    return degrees * pi / 180.0;
 }
 
-void trialSetError(char **errorMessage, const std::string &message) {
+void setErrorMessage(char **errorMessage, const std::string &message) {
     if (errorMessage == nullptr) {
         return;
     }
@@ -121,10 +121,10 @@ void trialSetError(char **errorMessage, const std::string &message) {
     }
 }
 
-cv::Vec3d trialRay(
+cv::Vec3d ray(
     const cv::Point2d &point,
     const cv::Size &size,
-    const TrialLens &lens
+    const Lens &lens
 ) {
     const double scale = std::hypot(size.width, size.height) / 2.0;
     const double x = (point.x - lens.cx) / scale;
@@ -139,7 +139,7 @@ cv::Vec3d trialRay(
     return result / cv::norm(result);
 }
 
-cv::Matx33d trialKabsch(
+cv::Matx33d kabsch(
     const std::vector<cv::Vec3d> &source,
     const std::vector<cv::Vec3d> &target,
     const std::vector<int> &indices
@@ -169,7 +169,7 @@ cv::Matx33d trialKabsch(
     return result;
 }
 
-std::pair<cv::Matx33d, std::vector<unsigned char>> trialRansacRotation(
+std::pair<cv::Matx33d, std::vector<unsigned char>> ransacRotation(
     const std::vector<cv::Vec3d> &source,
     const std::vector<cv::Vec3d> &target
 ) {
@@ -181,7 +181,7 @@ std::pair<cv::Matx33d, std::vector<unsigned char>> trialRansacRotation(
     std::vector<unsigned char> best(source.size(), 0);
     const int iterations = std::min(1800, std::max(500, int(source.size()) * 3));
     for (int iteration = 0; iteration < iterations; ++iteration) {
-        if (iteration % 64 == 0) trialCheckCancellation();
+        if (iteration % 64 == 0) checkCancellation();
         std::vector<int> selected;
         while (selected.size() < 3) {
             const int index = distribution(generator);
@@ -189,14 +189,14 @@ std::pair<cv::Matx33d, std::vector<unsigned char>> trialRansacRotation(
                 selected.push_back(index);
             }
         }
-        const cv::Matx33d matrix = trialKabsch(source, target, selected);
+        const cv::Matx33d matrix = kabsch(source, target, selected);
         std::vector<unsigned char> hit(source.size(), 0);
         int hitCount = 0;
         for (size_t index = 0; index < source.size(); ++index) {
             const double cosine = std::clamp(
                 (matrix * source[index]).dot(target[index]), -1.0, 1.0
             );
-            if (std::acos(cosine) < trialRadians(1.4)) {
+            if (std::acos(cosine) < radians(1.4)) {
                 hit[index] = 1;
                 ++hitCount;
             }
@@ -211,14 +211,14 @@ std::pair<cv::Matx33d, std::vector<unsigned char>> trialRansacRotation(
         for (size_t index = 0; index < best.size(); ++index) {
             if (best[index]) selected.push_back(int(index));
         }
-        matrix = trialKabsch(source, target, selected);
+        matrix = kabsch(source, target, selected);
         std::vector<unsigned char> hit(source.size(), 0);
         int hitCount = 0;
         for (size_t index = 0; index < source.size(); ++index) {
             const double cosine = std::clamp(
                 (matrix * source[index]).dot(target[index]), -1.0, 1.0
             );
-            if (std::acos(cosine) < trialRadians(degrees)) {
+            if (std::acos(cosine) < radians(degrees)) {
                 hit[index] = 1;
                 ++hitCount;
             }
@@ -229,15 +229,15 @@ std::pair<cv::Matx33d, std::vector<unsigned char>> trialRansacRotation(
     for (size_t index = 0; index < best.size(); ++index) {
         if (best[index]) selected.push_back(int(index));
     }
-    return {trialKabsch(source, target, selected), best};
+    return {kabsch(source, target, selected), best};
 }
 
-TrialSource trialReadSource(const char *imagePath, const char *protectedPath) {
+Source readSource(const char *imagePath, const char *protectedPath) {
     cv::Mat raw = cv::imread(imagePath, cv::IMREAD_UNCHANGED);
     if (raw.empty()) {
         throw std::runtime_error("Källbilden kunde inte läsas: " + std::string(imagePath));
     }
-    TrialSource result;
+    Source result;
     if (raw.channels() == 4) {
         std::vector<cv::Mat> channels;
         cv::split(raw, channels);
@@ -277,16 +277,16 @@ TrialSource trialReadSource(const char *imagePath, const char *protectedPath) {
     return result;
 }
 
-struct TrialOpticalSupport {
+struct OpticalSupport {
     cv::Mat mask;
     bool circular = false;
     double radius = 0.0;
 };
 
-TrialOpticalSupport trialCommonValidMask(const std::vector<TrialSource> &sources) {
+OpticalSupport commonOpticalSupport(const std::vector<Source> &sources) {
     const cv::Size size = sources.front().image.size();
     cv::Mat maximum(size, CV_8U, cv::Scalar(0));
-    for (const TrialSource &source : sources) {
+    for (const Source &source : sources) {
         cv::Mat channelMaximum;
         std::vector<cv::Mat> channels;
         cv::split(source.image, channels);
@@ -334,15 +334,15 @@ TrialOpticalSupport trialCommonValidMask(const std::vector<TrialSource> &sources
     return {mask, true, radius};
 }
 
-std::vector<TrialFeatures> trialExtractFeatures(
-    const std::vector<TrialSource> &sources,
+std::vector<Features> extractFeatures(
+    const std::vector<Source> &sources,
     const cv::Mat &opticalMask
 ) {
     const cv::Size size = sources.front().image.size();
     const double factor = std::min(1.0, 1450.0 / std::max(size.width, size.height));
     cv::Ptr<cv::SIFT> sift = cv::SIFT::create(16000, 3, 0.016, 14);
-    std::vector<TrialFeatures> result;
-    for (const TrialSource &source : sources) {
+    std::vector<Features> result;
+    for (const Source &source : sources) {
         cv::Mat small;
         cv::resize(source.image, small, cv::Size(), factor, factor, cv::INTER_AREA);
         cv::Mat gray;
@@ -356,7 +356,7 @@ std::vector<TrialFeatures> trialExtractFeatures(
         if (descriptors.empty() || keypoints.size() < 20) {
             throw std::runtime_error("För få användbara bilddetaljer i en källbild.");
         }
-        TrialFeatures features;
+        Features features;
         features.descriptors = descriptors;
         features.points.reserve(keypoints.size());
         for (const cv::KeyPoint &keypoint : keypoints) {
@@ -395,9 +395,9 @@ std::vector<TrialFeatures> trialExtractFeatures(
     return result;
 }
 
-std::vector<std::pair<int, int>> trialMutualMatches(
-    const TrialFeatures &first,
-    const TrialFeatures &second
+std::vector<std::pair<int, int>> mutualMatches(
+    const Features &first,
+    const Features &second
 ) {
     cv::BFMatcher matcher(cv::NORM_L2);
     std::vector<std::vector<cv::DMatch>> forward;
@@ -435,15 +435,15 @@ std::vector<std::pair<int, int>> trialMutualMatches(
     return result;
 }
 
-TrialEdgeSets trialBuildEdges(
-    const std::vector<TrialSource> &sources,
-    const std::vector<TrialFeatures> &features,
-    const TrialLens &lens
+EdgeSets buildEdges(
+    const std::vector<Source> &sources,
+    const std::vector<Features> &features,
+    const Lens &lens
 ) {
-    TrialEdgeSets edges;
+    EdgeSets edges;
     for (int first = 0; first < int(sources.size()); ++first) {
         for (int second = first + 1; second < int(sources.size()); ++second) {
-            const auto matches = trialMutualMatches(
+            const auto matches = mutualMatches(
                 features[first], features[second]
             );
             if (matches.size() < 3) continue;
@@ -452,17 +452,17 @@ TrialEdgeSets trialBuildEdges(
             firstRays.reserve(matches.size());
             secondRays.reserve(matches.size());
             for (const auto &[firstIndex, secondIndex] : matches) {
-                firstRays.push_back(trialRay(
+                firstRays.push_back(ray(
                     features[first].points[firstIndex], sources[first].image.size(), lens
                 ));
-                secondRays.push_back(trialRay(
+                secondRays.push_back(ray(
                     features[second].points[secondIndex], sources[second].image.size(), lens
                 ));
             }
-            auto [rotation, hit] = trialRansacRotation(firstRays, secondRays);
+            auto [rotation, hit] = ransacRotation(firstRays, secondRays);
             const int support = std::accumulate(hit.begin(), hit.end(), 0);
             if (support < 3) continue;
-            TrialEdge edge;
+            Edge edge;
             edge.first = first;
             edge.second = second;
             edge.relative = rotation;
@@ -481,13 +481,13 @@ TrialEdgeSets trialBuildEdges(
     return edges;
 }
 
-bool trialConnected(int count, const std::vector<TrialEdge> &edges) {
+bool isGraphConnected(int count, const std::vector<Edge> &edges) {
     std::vector<unsigned char> seen(count, 0);
     seen[0] = 1;
     bool changed = true;
     while (changed) {
         changed = false;
-        for (const TrialEdge &edge : edges) {
+        for (const Edge &edge : edges) {
             if (seen[edge.first] && !seen[edge.second]) {
                 seen[edge.second] = 1;
                 changed = true;
@@ -503,8 +503,8 @@ bool trialConnected(int count, const std::vector<TrialEdge> &edges) {
     });
 }
 
-std::vector<TrialEdge> trialSubsetEdges(
-    const std::vector<TrialEdge> &edges,
+std::vector<Edge> subsetEdges(
+    const std::vector<Edge> &edges,
     const std::vector<int> &sourceIndices,
     int sourceCount
 ) {
@@ -512,12 +512,12 @@ std::vector<TrialEdge> trialSubsetEdges(
     for (int index = 0; index < int(sourceIndices.size()); ++index) {
         subsetIndex[sourceIndices[index]] = index;
     }
-    std::vector<TrialEdge> result;
-    for (const TrialEdge &edge : edges) {
+    std::vector<Edge> result;
+    for (const Edge &edge : edges) {
         const int first = subsetIndex[edge.first];
         const int second = subsetIndex[edge.second];
         if (first < 0 || second < 0) continue;
-        TrialEdge subset = edge;
+        Edge subset = edge;
         subset.first = first;
         subset.second = second;
         result.push_back(std::move(subset));
@@ -525,9 +525,9 @@ std::vector<TrialEdge> trialSubsetEdges(
     return result;
 }
 
-std::vector<cv::Matx33d> trialInitialRotations(
+std::vector<cv::Matx33d> buildInitialRotations(
     int count,
-    const std::vector<TrialEdge> &edges
+    const std::vector<Edge> &edges
 ) {
     std::vector<cv::Matx33d> matrices(count, cv::Matx33d::eye());
     std::vector<unsigned char> assigned(count, 0);
@@ -537,7 +537,7 @@ std::vector<cv::Matx33d> trialInitialRotations(
         int bestWeight = -1;
         int bestNode = -1;
         cv::Matx33d bestMatrix;
-        for (const TrialEdge &edge : edges) {
+        for (const Edge &edge : edges) {
             const int weight = int(edge.firstPoints.size());
             if (assigned[edge.first] && !assigned[edge.second] && weight > bestWeight) {
                 bestWeight = weight;
@@ -560,13 +560,13 @@ std::vector<cv::Matx33d> trialInitialRotations(
     return matrices;
 }
 
-cv::Vec3d trialRotationVector(const cv::Matx33d &matrix) {
+cv::Vec3d rotationVector(const cv::Matx33d &matrix) {
     cv::Mat vector;
     cv::Rodrigues(cv::Mat(matrix), vector);
     return cv::Vec3d(vector.at<double>(0), vector.at<double>(1), vector.at<double>(2));
 }
 
-cv::Matx33d trialRotationMatrix(const cv::Vec3d &vector) {
+cv::Matx33d rotationMatrix(const cv::Vec3d &vector) {
     cv::Mat matrix;
     cv::Rodrigues(vector, matrix);
     cv::Matx33d result;
@@ -578,7 +578,7 @@ cv::Matx33d trialRotationMatrix(const cv::Vec3d &vector) {
     return result;
 }
 
-struct TrialOptimizationSample {
+struct OptimizationSample {
     int first = 0;
     int second = 0;
     int rawRansacSupport = 0;
@@ -586,23 +586,23 @@ struct TrialOptimizationSample {
     std::vector<cv::Point2d> secondPoints;
 };
 
-struct TrialStrongCycle {
+struct StrongCycle {
     std::vector<int> nodes;
     std::vector<int> edges;
 };
 
-int trialMinimumEdgeSupport(int observationCount) {
+int minimumEdgeSupport(int observationCount) {
     return std::min(18, std::max(10, (observationCount + 3) / 4));
 }
 
-int trialRequiredSampleSupport(int sampleCount) {
+int requiredSampleSupport(int sampleCount) {
     if (sampleCount < 3) return 3;
     if (sampleCount < 10) return sampleCount;
-    return trialMinimumEdgeSupport(sampleCount);
+    return minimumEdgeSupport(sampleCount);
 }
 
-TrialOptimizationSample trialSpatialSample(
-    const TrialEdge &edge,
+OptimizationSample spatialSample(
+    const Edge &edge,
     const cv::Size &size,
     std::mt19937 &generator
 ) {
@@ -652,7 +652,7 @@ TrialOptimizationSample trialSpatialSample(
             distributed.push_back(point);
         }
     }
-    TrialOptimizationSample sample;
+    OptimizationSample sample;
     sample.first = edge.first;
     sample.second = edge.second;
     sample.rawRansacSupport = int(edge.firstPoints.size());
@@ -663,14 +663,14 @@ TrialOptimizationSample trialSpatialSample(
     return sample;
 }
 
-bool trialHasRawRansacSupport(const TrialEdge &edge) {
-    // Only the strong graph path uses this unchanged cutoff.
+bool hasRawRansacSupport(const Edge &edge) {
+    // Cycle recovery is defined only for edges that met strong graph support.
     return int(edge.firstPoints.size()) >= 20;
 }
 
-std::vector<int> trialInitialTreeEdges(
+std::vector<int> initialTreeEdges(
     int count,
-    const std::vector<TrialEdge> &edges
+    const std::vector<Edge> &edges
 ) {
     std::vector<int> result;
     std::vector<unsigned char> assigned(count, 0);
@@ -681,7 +681,7 @@ std::vector<int> trialInitialTreeEdges(
         int bestNode = -1;
         int bestEdge = -1;
         for (int index = 0; index < int(edges.size()); ++index) {
-            const TrialEdge &edge = edges[index];
+            const Edge &edge = edges[index];
             const int weight = int(edge.firstPoints.size());
             if (assigned[edge.first] && !assigned[edge.second]
                 && weight > bestWeight) {
@@ -706,28 +706,28 @@ std::vector<int> trialInitialTreeEdges(
     return result;
 }
 
-bool trialFindBrokenStrongCycle(
+bool findBrokenStrongCycle(
     int count,
-    const std::vector<TrialEdge> &edges,
-    const std::vector<TrialOptimizationSample> &samples,
+    const std::vector<Edge> &edges,
+    const std::vector<OptimizationSample> &samples,
     const std::vector<std::vector<unsigned char>> &keep,
-    TrialStrongCycle &result
+    StrongCycle &result
 ) {
-    const std::vector<int> treeEdges = trialInitialTreeEdges(count, edges);
+    const std::vector<int> treeEdges = initialTreeEdges(count, edges);
     std::vector<unsigned char> isTree(edges.size(), 0);
     std::vector<std::vector<std::pair<int, int>>> adjacency(count);
     for (const int edgeIndex : treeEdges) {
         isTree[edgeIndex] = 1;
-        const TrialEdge &edge = edges[edgeIndex];
-        if (!trialHasRawRansacSupport(edge)) continue;
+        const Edge &edge = edges[edgeIndex];
+        if (!hasRawRansacSupport(edge)) continue;
         adjacency[edge.first].push_back({edge.second, edgeIndex});
         adjacency[edge.second].push_back({edge.first, edgeIndex});
     }
 
     for (int closingEdge = 0; closingEdge < int(edges.size()); ++closingEdge) {
         if (isTree[closingEdge]) continue;
-        const TrialEdge &closing = edges[closingEdge];
-        if (!trialHasRawRansacSupport(closing)) continue;
+        const Edge &closing = edges[closingEdge];
+        if (!hasRawRansacSupport(closing)) continue;
         std::vector<int> parent(count, -1);
         std::vector<int> parentEdge(count, -1);
         std::vector<int> pending = {closing.first};
@@ -761,7 +761,7 @@ bool trialFindBrokenStrongCycle(
                 keep[edgeIndex].begin(), keep[edgeIndex].end(), 0
             );
             const int sampleCount = int(samples[edgeIndex].firstPoints.size());
-            if (kept < trialRequiredSampleSupport(sampleCount)) {
+            if (kept < requiredSampleSupport(sampleCount)) {
                 survives = false;
                 break;
             }
@@ -775,34 +775,34 @@ bool trialFindBrokenStrongCycle(
     return false;
 }
 
-std::vector<cv::Matx33d> trialClosedCycleRotations(
+std::vector<cv::Matx33d> closedCycleRotations(
     const std::vector<cv::Matx33d> &treeRotations,
-    const std::vector<TrialEdge> &edges,
-    const TrialStrongCycle &cycle
+    const std::vector<Edge> &edges,
+    const StrongCycle &cycle
 ) {
     std::vector<cv::Matx33d> result = treeRotations;
-    const TrialEdge &closing = edges[cycle.edges.back()];
+    const Edge &closing = edges[cycle.edges.back()];
     const cv::Matx33d desiredEnd = result[closing.first] * closing.relative.t();
     const cv::Matx33d correction = desiredEnd * result[closing.second].t();
-    const cv::Vec3d correctionVector = trialRotationVector(correction);
+    const cv::Vec3d correctionVector = rotationVector(correction);
     for (int index = 0; index < int(cycle.nodes.size()); ++index) {
         const double fraction = double(index)
             / double(std::max(1, int(cycle.nodes.size()) - 1));
-        result[cycle.nodes[index]] = trialRotationMatrix(
+        result[cycle.nodes[index]] = rotationMatrix(
             correctionVector * fraction
         ) * treeRotations[cycle.nodes[index]];
     }
 
     std::vector<unsigned char> assigned(result.size(), 0);
     for (const int node : cycle.nodes) assigned[node] = 1;
-    const std::vector<int> treeEdges = trialInitialTreeEdges(
+    const std::vector<int> treeEdges = initialTreeEdges(
         int(result.size()), edges
     );
     bool changed = true;
     while (changed) {
         changed = false;
         for (const int edgeIndex : treeEdges) {
-            const TrialEdge &edge = edges[edgeIndex];
+            const Edge &edge = edges[edgeIndex];
             if (assigned[edge.first] && !assigned[edge.second]) {
                 result[edge.second] = result[edge.first] * edge.relative.t();
                 assigned[edge.second] = 1;
@@ -820,13 +820,13 @@ std::vector<cv::Matx33d> trialClosedCycleRotations(
     return result;
 }
 
-std::vector<double> trialPack(
+std::vector<double> packGeometryParameters(
     const std::vector<cv::Matx33d> &rotations,
-    const TrialLens &lens
+    const Lens &lens
 ) {
     std::vector<double> values;
     for (size_t index = 1; index < rotations.size(); ++index) {
-        const cv::Vec3d vector = trialRotationVector(rotations[index]);
+        const cv::Vec3d vector = rotationVector(rotations[index]);
         values.insert(values.end(), {vector[0], vector[1], vector[2]});
     }
     values.insert(values.end(), {
@@ -835,16 +835,16 @@ std::vector<double> trialPack(
     return values;
 }
 
-void trialUnpack(
+void unpackGeometryParameters(
     const std::vector<double> &values,
     int count,
     std::vector<cv::Matx33d> &rotations,
-    TrialLens &lens
+    Lens &lens
 ) {
     rotations.assign(count, cv::Matx33d::eye());
     for (int index = 1; index < count; ++index) {
         const int offset = 3 * (index - 1);
-        rotations[index] = trialRotationMatrix(cv::Vec3d(
+        rotations[index] = rotationMatrix(cv::Vec3d(
             values[offset], values[offset + 1], values[offset + 2]
         ));
     }
@@ -855,26 +855,26 @@ void trialUnpack(
     };
 }
 
-std::vector<double> trialGeometryResiduals(
+std::vector<double> geometryResiduals(
     const std::vector<double> &values,
     int count,
     const cv::Size &size,
-    const std::vector<TrialOptimizationSample> &samples,
+    const std::vector<OptimizationSample> &samples,
     const std::vector<std::vector<unsigned char>> *keep,
     double radialLimit
 ) {
     std::vector<cv::Matx33d> rotations;
-    TrialLens lens;
-    trialUnpack(values, count, rotations, lens);
+    Lens lens;
+    unpackGeometryParameters(values, count, rotations, lens);
     std::vector<double> result;
     for (size_t sampleIndex = 0; sampleIndex < samples.size(); ++sampleIndex) {
-        const TrialOptimizationSample &sample = samples[sampleIndex];
+        const OptimizationSample &sample = samples[sampleIndex];
         for (size_t pointIndex = 0; pointIndex < sample.firstPoints.size(); ++pointIndex) {
             if (keep != nullptr && !(*keep)[sampleIndex][pointIndex]) continue;
             const cv::Vec3d first = rotations[sample.first]
-                * trialRay(sample.firstPoints[pointIndex], size, lens);
+                * ray(sample.firstPoints[pointIndex], size, lens);
             const cv::Vec3d second = rotations[sample.second]
-                * trialRay(sample.secondPoints[pointIndex], size, lens);
+                * ray(sample.secondPoints[pointIndex], size, lens);
             const cv::Vec3d difference = first - second;
             result.insert(result.end(), {difference[0], difference[1], difference[2]});
         }
@@ -889,7 +889,7 @@ std::vector<double> trialGeometryResiduals(
     return result;
 }
 
-double trialRobustObjective(const std::vector<double> &residuals, double scale) {
+double robustObjective(const std::vector<double> &residuals, double scale) {
     double result = 0.0;
     for (const double residual : residuals) {
         const double normalized = residual / scale;
@@ -898,25 +898,25 @@ double trialRobustObjective(const std::vector<double> &residuals, double scale) 
     return result;
 }
 
-std::vector<double> trialLeastSquares(
+std::vector<double> leastSquares(
     std::vector<double> values,
     const std::vector<double> &lower,
     const std::vector<double> &upper,
     int count,
     const cv::Size &size,
-    const std::vector<TrialOptimizationSample> &samples,
+    const std::vector<OptimizationSample> &samples,
     const std::vector<std::vector<unsigned char>> *keep,
     double radialLimit,
     double robustScale,
     int iterations
 ) {
     double lambda = 1e-3;
-    std::vector<double> residuals = trialGeometryResiduals(
+    std::vector<double> residuals = geometryResiduals(
         values, count, size, samples, keep, radialLimit
     );
-    double objective = trialRobustObjective(residuals, robustScale);
+    double objective = robustObjective(residuals, robustScale);
     for (int iteration = 0; iteration < iterations; ++iteration) {
-        trialCheckCancellation();
+        checkCancellation();
         const int rows = int(residuals.size());
         const int columns = int(values.size());
         cv::Mat jacobian(rows, columns, CV_64F);
@@ -928,7 +928,7 @@ std::vector<double> trialLeastSquares(
                 ? shifted[column] + epsilon
                 : std::max(lower[column], shifted[column] - epsilon);
             const double actualStep = shifted[column] - values[column];
-            const std::vector<double> candidate = trialGeometryResiduals(
+            const std::vector<double> candidate = geometryResiduals(
                 shifted, count, size, samples, keep, radialLimit
             );
             for (int row = 0; row < rows; ++row) {
@@ -961,10 +961,10 @@ std::vector<double> trialLeastSquares(
             );
             stepNorm += step * step;
         }
-        const std::vector<double> candidateResiduals = trialGeometryResiduals(
+        const std::vector<double> candidateResiduals = geometryResiduals(
             candidateValues, count, size, samples, keep, radialLimit
         );
-        const double candidateObjective = trialRobustObjective(
+        const double candidateObjective = robustObjective(
             candidateResiduals, robustScale
         );
         if (candidateObjective < objective) {
@@ -980,7 +980,7 @@ std::vector<double> trialLeastSquares(
     return values;
 }
 
-double trialMedian(std::vector<double> values) {
+double median(std::vector<double> values) {
     if (values.empty()) return 0.0;
     const size_t middle = values.size() / 2;
     std::nth_element(values.begin(), values.begin() + middle, values.end());
@@ -990,37 +990,35 @@ double trialMedian(std::vector<double> values) {
     return (values[middle - 1] + high) / 2.0;
 }
 
-std::vector<std::vector<unsigned char>> trialGeometryKeep(
+std::vector<std::vector<unsigned char>> geometryKeep(
     const std::vector<double> &values,
     int count,
     const cv::Size &size,
-    const std::vector<TrialOptimizationSample> &samples
+    const std::vector<OptimizationSample> &samples
 ) {
     std::vector<cv::Matx33d> rotations;
-    TrialLens lens;
-    trialUnpack(values, count, rotations, lens);
+    Lens lens;
+    unpackGeometryParameters(values, count, rotations, lens);
     std::vector<std::vector<unsigned char>> keep;
-    for (const TrialOptimizationSample &sample : samples) {
+    for (const OptimizationSample &sample : samples) {
         std::vector<unsigned char> selected(sample.firstPoints.size(), 0);
         int selectedCount = 0;
         for (size_t index = 0; index < sample.firstPoints.size(); ++index) {
             const cv::Vec3d first = rotations[sample.first]
-                * trialRay(sample.firstPoints[index], size, lens);
+                * ray(sample.firstPoints[index], size, lens);
             const cv::Vec3d second = rotations[sample.second]
-                * trialRay(sample.secondPoints[index], size, lens);
+                * ray(sample.secondPoints[index], size, lens);
             if (std::acos(std::clamp(first.dot(second), -1.0, 1.0))
-                    < trialRadians(1.20)) {
+                    < radians(1.20)) {
                 selected[index] = 1;
                 ++selectedCount;
             }
         }
-        // An edge with too little support after the global fit is not rescued
-        // by restoring all of its rejected matches. That previously allowed
-        // a coherent false cluster on repeated subjects (logos, identical
-        // parasols, windows) to re-enter the final optimization and steer an
-        // entire source to the wrong physical instance.
+        // Require both original robust support and sufficient agreement after
+        // the global fit. Restoring rejected matches could let a coherent false
+        // cluster on repeated subjects steer a source to the wrong instance.
         if (sample.rawRansacSupport < 20
-            || selectedCount < trialRequiredSampleSupport(int(selected.size()))) {
+            || selectedCount < requiredSampleSupport(int(selected.size()))) {
             std::fill(selected.begin(), selected.end(), 0);
         }
         keep.push_back(std::move(selected));
@@ -1028,55 +1026,55 @@ std::vector<std::vector<unsigned char>> trialGeometryKeep(
     return keep;
 }
 
-std::pair<int, double> trialValidationScore(
+std::pair<int, double> validationScore(
     const std::vector<double> &values,
     int count,
     const cv::Size &size,
-    const std::vector<TrialOptimizationSample> &samples,
+    const std::vector<OptimizationSample> &samples,
     double radialLimit
 ) {
     std::vector<cv::Matx33d> rotations;
-    TrialLens lens;
-    trialUnpack(values, count, rotations, lens);
+    Lens lens;
+    unpackGeometryParameters(values, count, rotations, lens);
     int explained = 0;
-    for (const TrialOptimizationSample &sample : samples) {
+    for (const OptimizationSample &sample : samples) {
         for (size_t index = 0; index < sample.firstPoints.size(); ++index) {
             const cv::Vec3d first = rotations[sample.first]
-                * trialRay(sample.firstPoints[index], size, lens);
+                * ray(sample.firstPoints[index], size, lens);
             const cv::Vec3d second = rotations[sample.second]
-                * trialRay(sample.secondPoints[index], size, lens);
+                * ray(sample.secondPoints[index], size, lens);
             if (std::acos(std::clamp(first.dot(second), -1.0, 1.0))
-                    < trialRadians(1.20)) {
+                    < radians(1.20)) {
                 ++explained;
             }
         }
     }
-    const std::vector<double> residuals = trialGeometryResiduals(
+    const std::vector<double> residuals = geometryResiduals(
         values, count, size, samples, nullptr, radialLimit
     );
     return {
         explained,
-        trialRobustObjective(residuals, trialRadians(0.20))
+        robustObjective(residuals, radians(0.20))
     };
 }
 
-TrialAlignment trialOptimizeGeometry(
-    const std::vector<TrialSource> &sources,
-    const std::vector<TrialEdge> &edges,
-    const std::vector<TrialEdge> &weakEdges,
+Alignment optimizeGeometry(
+    const std::vector<Source> &sources,
+    const std::vector<Edge> &edges,
+    const std::vector<Edge> &weakEdges,
     const std::vector<cv::Matx33d> &initialRotations,
-    const TrialLens &initialLens,
+    const Lens &initialLens,
     bool circular,
     double validRadius
 ) {
     const int count = int(sources.size());
     const cv::Size size = sources.front().image.size();
     std::mt19937 generator(20260902u);
-    std::vector<TrialOptimizationSample> samples;
-    for (const TrialEdge &edge : edges) {
-        samples.push_back(trialSpatialSample(edge, size, generator));
+    std::vector<OptimizationSample> samples;
+    for (const Edge &edge : edges) {
+        samples.push_back(spatialSample(edge, size, generator));
     }
-    std::vector<double> values = trialPack(initialRotations, initialLens);
+    std::vector<double> values = packGeometryParameters(initialRotations, initialLens);
     std::vector<double> lower = values;
     std::vector<double> upper = values;
     const int lensOffset = 3 * (count - 1);
@@ -1104,26 +1102,26 @@ TrialAlignment trialOptimizeGeometry(
             std::hypot(initialLens.cx, size.height - initialLens.cy),
             std::hypot(size.width - initialLens.cx, size.height - initialLens.cy)
         }) / sourceScale;
-    values = trialLeastSquares(
+    values = leastSquares(
         values, lower, upper, count, size, samples, nullptr, radialLimit,
-        trialRadians(0.20), 36
+        radians(0.20), 36
     );
-    std::vector<std::vector<unsigned char>> keep = trialGeometryKeep(
+    std::vector<std::vector<unsigned char>> keep = geometryKeep(
         values, count, size, samples
     );
-    TrialStrongCycle brokenCycle;
-    const bool needsCycleRecovery = trialFindBrokenStrongCycle(
+    StrongCycle brokenCycle;
+    const bool needsCycleRecovery = findBrokenStrongCycle(
         count, edges, samples, keep, brokenCycle
     );
-    values = trialLeastSquares(
+    values = leastSquares(
         values, lower, upper, count, size, samples, &keep, radialLimit,
-        trialRadians(0.25), 30
+        radians(0.25), 30
     );
 
     if (needsCycleRecovery) {
         const std::vector<cv::Matx33d> closedRotations =
-            trialClosedCycleRotations(initialRotations, edges, brokenCycle);
-        std::vector<double> closedValues = trialPack(
+            closedCycleRotations(initialRotations, edges, brokenCycle);
+        std::vector<double> closedValues = packGeometryParameters(
             closedRotations, initialLens
         );
         std::vector<double> closedLower = closedValues;
@@ -1142,22 +1140,22 @@ TrialAlignment trialOptimizeGeometry(
         closedUpper[lensOffset + 4] = initialLens.cy + centerRange;
         closedLower[lensOffset + 5] = -0.05;
         closedUpper[lensOffset + 5] = 0.05;
-        closedValues = trialLeastSquares(
+        closedValues = leastSquares(
             closedValues, closedLower, closedUpper, count, size, samples,
-            nullptr, radialLimit, trialRadians(0.20), 36
+            nullptr, radialLimit, radians(0.20), 36
         );
-        std::vector<std::vector<unsigned char>> closedKeep = trialGeometryKeep(
+        std::vector<std::vector<unsigned char>> closedKeep = geometryKeep(
             closedValues, count, size, samples
         );
-        closedValues = trialLeastSquares(
+        closedValues = leastSquares(
             closedValues, closedLower, closedUpper, count, size, samples,
-            &closedKeep, radialLimit, trialRadians(0.25), 30
+            &closedKeep, radialLimit, radians(0.25), 30
         );
 
-        const auto treeScore = trialValidationScore(
+        const auto treeScore = validationScore(
             values, count, size, samples, radialLimit
         );
-        const auto closedScore = trialValidationScore(
+        const auto closedScore = validationScore(
             closedValues, count, size, samples, radialLimit
         );
         const bool selectsClosed = closedScore.first > treeScore.first
@@ -1184,34 +1182,34 @@ TrialAlignment trialOptimizeGeometry(
     // only when its spatial sample agrees with that solution.
     std::mt19937 weakGenerator(20260903u);
     std::vector<int> acceptedWeakSamples;
-    for (const TrialEdge &edge : weakEdges) {
-        TrialOptimizationSample sample = trialSpatialSample(
+    for (const Edge &edge : weakEdges) {
+        OptimizationSample sample = spatialSample(
             edge, size, weakGenerator
         );
         std::vector<cv::Matx33d> rotations;
-        TrialLens lens;
-        trialUnpack(values, count, rotations, lens);
+        Lens lens;
+        unpackGeometryParameters(values, count, rotations, lens);
         std::vector<unsigned char> selected(sample.firstPoints.size(), 0);
         std::vector<double> selectedErrors;
         for (size_t index = 0; index < sample.firstPoints.size(); ++index) {
             const cv::Vec3d first = rotations[sample.first]
-                * trialRay(sample.firstPoints[index], size, lens);
+                * ray(sample.firstPoints[index], size, lens);
             const cv::Vec3d second = rotations[sample.second]
-                * trialRay(sample.secondPoints[index], size, lens);
+                * ray(sample.secondPoints[index], size, lens);
             const double error = std::acos(std::clamp(
                 first.dot(second), -1.0, 1.0
             ));
-            if (error < trialRadians(1.20)) {
+            if (error < radians(1.20)) {
                 selected[index] = 1;
                 selectedErrors.push_back(error);
             }
         }
-        const int required = trialRequiredSampleSupport(
+        const int required = requiredSampleSupport(
             int(sample.firstPoints.size())
         );
         const bool accepted = int(selectedErrors.size()) >= required;
         const double medianBefore = selectedErrors.empty()
-            ? 0.0 : trialMedian(selectedErrors) * 180.0 / trialPi;
+            ? 0.0 : median(selectedErrors) * 180.0 / pi;
         std::fprintf(
             stderr,
             "[PanoWizard] Weak cross-link %d-%d: raw=%d samples=%zu "
@@ -1232,22 +1230,22 @@ TrialAlignment trialOptimizeGeometry(
         keep.push_back(std::move(selected));
     }
     if (!acceptedWeakSamples.empty()) {
-        values = trialLeastSquares(
+        values = leastSquares(
             values, lower, upper, count, size, samples, &keep, radialLimit,
-            trialRadians(0.25), 30
+            radians(0.25), 30
         );
         std::vector<cv::Matx33d> rotations;
-        TrialLens lens;
-        trialUnpack(values, count, rotations, lens);
+        Lens lens;
+        unpackGeometryParameters(values, count, rotations, lens);
         for (const int sampleIndex : acceptedWeakSamples) {
-            const TrialOptimizationSample &sample = samples[sampleIndex];
+            const OptimizationSample &sample = samples[sampleIndex];
             std::vector<double> errors;
             for (size_t index = 0; index < sample.firstPoints.size(); ++index) {
                 if (!keep[sampleIndex][index]) continue;
                 const cv::Vec3d first = rotations[sample.first]
-                    * trialRay(sample.firstPoints[index], size, lens);
+                    * ray(sample.firstPoints[index], size, lens);
                 const cv::Vec3d second = rotations[sample.second]
-                    * trialRay(sample.secondPoints[index], size, lens);
+                    * ray(sample.secondPoints[index], size, lens);
                 errors.push_back(std::acos(std::clamp(
                     first.dot(second), -1.0, 1.0
                 )));
@@ -1260,42 +1258,42 @@ TrialAlignment trialOptimizeGeometry(
                 sample.second,
                 errors.size(),
                 errors.empty()
-                    ? 0.0 : trialMedian(errors) * 180.0 / trialPi
+                    ? 0.0 : median(errors) * 180.0 / pi
             );
         }
     }
 
     std::vector<cv::Matx33d> rotations;
-    TrialLens lens;
-    trialUnpack(values, count, rotations, lens);
+    Lens lens;
+    unpackGeometryParameters(values, count, rotations, lens);
     std::vector<double> errors;
     for (size_t sampleIndex = 0; sampleIndex < samples.size(); ++sampleIndex) {
-        const TrialOptimizationSample &sample = samples[sampleIndex];
+        const OptimizationSample &sample = samples[sampleIndex];
         for (size_t index = 0; index < sample.firstPoints.size(); ++index) {
             if (!keep[sampleIndex][index]) continue;
             const cv::Vec3d first = rotations[sample.first]
-                * trialRay(sample.firstPoints[index], size, lens);
+                * ray(sample.firstPoints[index], size, lens);
             const cv::Vec3d second = rotations[sample.second]
-                * trialRay(sample.secondPoints[index], size, lens);
+                * ray(sample.secondPoints[index], size, lens);
             const double error = std::acos(std::clamp(first.dot(second), -1.0, 1.0));
-            if (error < trialRadians(0.75)) errors.push_back(error);
+            if (error < radians(0.75)) errors.push_back(error);
         }
     }
     double squared = 0.0;
     for (double error : errors) squared += error * error;
-    TrialAlignment result;
+    Alignment result;
     result.rotations = std::move(rotations);
     result.lens = lens;
     result.gains = cv::Mat::ones(count, 3, CV_64F);
     result.stats = {
         int(errors.size()),
-        trialMedian(errors) * 180.0 / trialPi,
-        errors.empty() ? 0.0 : std::sqrt(squared / errors.size()) * 180.0 / trialPi
+        median(errors) * 180.0 / pi,
+        errors.empty() ? 0.0 : std::sqrt(squared / errors.size()) * 180.0 / pi
     };
     return result;
 }
 
-std::vector<cv::Matx33d> trialLevelRotations(
+std::vector<cv::Matx33d> levelRotations(
     const std::vector<cv::Matx33d> &rotations
 ) {
     std::vector<cv::Vec3d> right;
@@ -1336,7 +1334,7 @@ std::vector<cv::Matx33d> trialLevelRotations(
     const double norm = cv::norm(axis);
     cv::Matx33d leveling = cv::Matx33d::eye();
     if (norm >= 1e-10) {
-        leveling = trialRotationMatrix(
+        leveling = rotationMatrix(
             axis / norm * std::atan2(norm, up.dot(target))
         );
     }
@@ -1345,12 +1343,12 @@ std::vector<cv::Matx33d> trialLevelRotations(
     return result;
 }
 
-void trialDetectSupplementalViews(
+void detectSupplementalViews(
     std::vector<unsigned char> &roles,
     const std::vector<cv::Matx33d> &initialRotations
 ) {
     if (initialRotations.size() < 4) return;
-    const std::vector<cv::Matx33d> leveled = trialLevelRotations(
+    const std::vector<cv::Matx33d> leveled = levelRotations(
         initialRotations
     );
     int horizontalCount = 0;
@@ -1377,17 +1375,17 @@ void trialDetectSupplementalViews(
     }
 }
 
-cv::Matx33d trialRegisterSupplementalView(
+cv::Matx33d registerSupplementalView(
     int sourceIndex,
     const std::vector<int> &ringIndices,
     const std::vector<cv::Matx33d> &ringRotations,
-    const std::vector<TrialEdge> &edges,
+    const std::vector<Edge> &edges,
     const cv::Size &sourceSize,
-    const TrialLens &lens
+    const Lens &lens
 ) {
     std::vector<cv::Vec3d> sourceRays;
     std::vector<cv::Vec3d> targetRays;
-    for (const TrialEdge &edge : edges) {
+    for (const Edge &edge : edges) {
         const auto ring = std::find(
             ringIndices.begin(), ringIndices.end(),
             edge.first == sourceIndex ? edge.second : edge.first
@@ -1402,9 +1400,9 @@ cv::Matx33d trialRegisterSupplementalView(
                 ? edge.firstPoints[point] : edge.secondPoints[point];
             const cv::Point2d ringPoint = sourceIsFirst
                 ? edge.secondPoints[point] : edge.firstPoints[point];
-            sourceRays.push_back(trialRay(sourcePoint, sourceSize, lens));
+            sourceRays.push_back(ray(sourcePoint, sourceSize, lens));
             targetRays.push_back(
-                ringRotations[ringIndex] * trialRay(ringPoint, sourceSize, lens)
+                ringRotations[ringIndex] * ray(ringPoint, sourceSize, lens)
             );
         }
     }
@@ -1413,7 +1411,7 @@ cv::Matx33d trialRegisterSupplementalView(
             "En reparationsbild kunde inte registreras mot panoramaringen."
         );
     }
-    auto [rotation, selected] = trialRansacRotation(sourceRays, targetRays);
+    auto [rotation, selected] = ransacRotation(sourceRays, targetRays);
     if (selected.empty()
         || std::accumulate(selected.begin(), selected.end(), 0) < 20) {
         throw std::runtime_error(
@@ -1423,16 +1421,16 @@ cv::Matx33d trialRegisterSupplementalView(
     return rotation;
 }
 
-cv::Mat trialExposureGains(
-    const std::vector<TrialSource> &sources,
-    const std::vector<TrialEdge> &edges
+cv::Mat exposureGains(
+    const std::vector<Source> &sources,
+    const std::vector<Edge> &edges
 ) {
     const int count = int(sources.size());
     cv::Mat result = cv::Mat::ones(count, 3, CV_64F);
     for (int channel = 0; channel < 3; ++channel) {
         std::vector<std::vector<double>> rows;
         std::vector<double> values;
-        for (const TrialEdge &edge : edges) {
+        for (const Edge &edge : edges) {
             std::vector<double> differences;
             for (size_t index = 0; index < edge.firstPoints.size(); ++index) {
                 const cv::Point first(
@@ -1454,7 +1452,7 @@ cv::Mat trialExposureGains(
             if (edge.first > 0) row[edge.first - 1] += 1.0;
             if (edge.second > 0) row[edge.second - 1] -= 1.0;
             rows.push_back(std::move(row));
-            values.push_back(trialMedian(std::move(differences)));
+            values.push_back(median(std::move(differences)));
         }
         if (!rows.empty() && count > 1) {
             cv::Mat design(int(rows.size()), count - 1, CV_64F);
@@ -1477,11 +1475,11 @@ cv::Mat trialExposureGains(
     return result;
 }
 
-bool trialLoadCache(
+bool loadCache(
     const std::string &path,
     int imageCount,
     const cv::Size &sourceSize,
-    TrialAlignment &alignment
+    Alignment &alignment
 ) {
     if (path.empty() || !std::filesystem::exists(path)) return false;
     cv::FileStorage storage(path, cv::FileStorage::READ);
@@ -1494,7 +1492,7 @@ bool trialLoadCache(
     storage["imageCount"] >> storedCount;
     storage["width"] >> width;
     storage["height"] >> height;
-    if (version != trialCacheVersion || storedCount != imageCount
+    if (version != alignmentCacheFormatVersion || storedCount != imageCount
         || width != sourceSize.width || height != sourceSize.height) return false;
     cv::Mat rotations;
     cv::Mat lens;
@@ -1526,7 +1524,7 @@ bool trialLoadCache(
     return true;
 }
 
-void trialSaveCache(const std::string &path, const TrialAlignment &alignment, cv::Size size) {
+void saveCache(const std::string &path, const Alignment &alignment, cv::Size size) {
     if (path.empty()) return;
     std::filesystem::create_directories(std::filesystem::path(path).parent_path());
     cv::FileStorage storage(path, cv::FileStorage::WRITE);
@@ -1548,7 +1546,7 @@ void trialSaveCache(const std::string &path, const TrialAlignment &alignment, cv
     for (int index = 0; index < int(lensValues.size()); ++index) {
         lens.at<double>(0, index) = lensValues[index];
     }
-    storage << "version" << trialCacheVersion;
+    storage << "version" << alignmentCacheFormatVersion;
     storage << "imageCount" << int(alignment.rotations.size());
     storage << "width" << size.width;
     storage << "height" << size.height;
@@ -1560,7 +1558,7 @@ void trialSaveCache(const std::string &path, const TrialAlignment &alignment, cv
     storage << "rmsDegrees" << alignment.stats.rmsDegrees;
 }
 
-cv::Mat trialFittedOpticalMask(const cv::Size &size, const TrialLens &lens) {
+cv::Mat fittedOpticalMask(const cv::Size &size, const Lens &lens) {
     cv::Mat mask(size, CV_8U, cv::Scalar(0));
     const double scale = std::hypot(size.width, size.height) / 2.0;
     int valid = 0;
@@ -1573,7 +1571,7 @@ cv::Mat trialFittedOpticalMask(const cv::Size &size, const TrialLens &lens) {
             const double theta = lens.k1 * radius
                 + lens.k3 * std::pow(radius, 3.0)
                 + lens.k5 * std::pow(radius, 5.0);
-            if (theta <= trialPi / 2.0 + trialRadians(0.4)) {
+            if (theta <= pi / 2.0 + radians(0.4)) {
                 row[x] = 255;
                 ++valid;
             }
@@ -1584,12 +1582,12 @@ cv::Mat trialFittedOpticalMask(const cv::Size &size, const TrialLens &lens) {
     return mask;
 }
 
-void trialMapping(
+void buildPanoramaMapping(
     int width,
     int height,
     const cv::Matx33d &rotation,
     const cv::Size &sourceSize,
-    const TrialLens &lens,
+    const Lens &lens,
     const cv::Mat &validSourceMask,
     cv::Mat &mapX,
     cv::Mat &mapY,
@@ -1613,11 +1611,11 @@ void trialMapping(
         float *yRow = mapY.ptr<float>(y);
         float *scoreRow = score.ptr<float>(y);
         unsigned char *insideRow = inside.ptr<unsigned char>(y);
-        const double latitude = (0.5 - (y + 0.5) / height) * trialPi;
+        const double latitude = (0.5 - (y + 0.5) / height) * pi;
         const double cosine = std::cos(latitude);
         const double worldY = std::sin(latitude);
         for (int x = 0; x < width; ++x) {
-            const double longitude = ((x + 0.5) / width - 0.5) * 2.0 * trialPi;
+            const double longitude = ((x + 0.5) / width - 0.5) * 2.0 * pi;
             const cv::Vec3d world(
                 std::sin(longitude) * cosine,
                 worldY,
@@ -1662,7 +1660,7 @@ void trialMapping(
     cv::bitwise_and(inside, optical, valid);
 }
 
-cv::Mat trialPeriodicBlur(const cv::Mat &source, double sigma) {
+cv::Mat periodicBlur(const cv::Mat &source, double sigma) {
     const int padding = std::min(
         source.cols / 2, int(std::ceil(4.0 * sigma))
     );
@@ -1680,9 +1678,9 @@ cv::Mat trialPeriodicBlur(const cv::Mat &source, double sigma) {
     return extended.colRange(padding, padding + source.cols).clone();
 }
 
-std::vector<cv::Mat> trialSuppressRedundantViews(
+std::vector<cv::Mat> suppressRedundantViews(
     const std::vector<cv::Matx33d> &rotations,
-    const std::vector<TrialWarp> &warps
+    const std::vector<Warp> &warps
 ) {
     std::vector<cv::Vec3d> axes;
     std::vector<cv::Mat> result;
@@ -1691,7 +1689,7 @@ std::vector<cv::Mat> trialSuppressRedundantViews(
         result.push_back(warps[index].mask.clone());
     }
     std::vector<int> claimed;
-    const double cosine = std::cos(trialRadians(12.0));
+    const double cosine = std::cos(radians(12.0));
     for (int index = 0; index < int(axes.size()); ++index) {
         int primary = -1;
         for (int other : claimed) {
@@ -1712,7 +1710,7 @@ std::vector<cv::Mat> trialSuppressRedundantViews(
     return result;
 }
 
-cv::Mat trialHighlightReliability(const cv::Mat &image) {
+cv::Mat computeHighlightReliability(const cv::Mat &image) {
     std::vector<cv::Mat> channels;
     cv::split(image, channels);
     cv::Mat darkest;
@@ -1725,8 +1723,8 @@ cv::Mat trialHighlightReliability(const cv::Mat &image) {
     return reliability;
 }
 
-std::vector<cv::Mat> trialPreferCentralCoverage(
-    const std::vector<TrialWarp> &warps,
+std::vector<cv::Mat> preferCentralCoverage(
+    const std::vector<Warp> &warps,
     const std::vector<cv::Mat> &masks
 ) {
     // GraphCut only sees colour discontinuities. Without a geometric prior it
@@ -1764,10 +1762,10 @@ std::vector<cv::Mat> trialPreferCentralCoverage(
     return result;
 }
 
-cv::Mat trialPeriodicExpand(const cv::Mat &mask, int radius);
+cv::Mat periodicExpand(const cv::Mat &mask, int radius);
 
-cv::Mat trialGraphCutLabels(
-    const std::vector<TrialWarp> &warps,
+cv::Mat graphCutLabels(
+    const std::vector<Warp> &warps,
     const std::vector<cv::Mat> &seamMasks,
     int width,
     int height,
@@ -1952,8 +1950,8 @@ cv::Mat trialGraphCutLabels(
     return labels;
 }
 
-cv::Mat trialFeatherComposite(
-    const std::vector<TrialWarp> &warps,
+cv::Mat featherComposite(
+    const std::vector<Warp> &warps,
     const cv::Mat &labels,
     double sigma
 ) {
@@ -1975,7 +1973,7 @@ cv::Mat trialFeatherComposite(
         cv::Mat edgeFade = distance.colRange(width, 2 * width).clone()
             / std::max(1.0, 1.5 * sigma);
         cv::min(edgeFade, 1.0, edgeFade);
-        cv::Mat weight = trialPeriodicBlur(ownership, sigma).mul(edgeFade);
+        cv::Mat weight = periodicBlur(ownership, sigma).mul(edgeFade);
         cv::Mat floatImage;
         warps[index].image.convertTo(floatImage, CV_32FC3);
         std::vector<cv::Mat> weightChannels(3, weight);
@@ -2001,8 +1999,8 @@ cv::Mat trialFeatherComposite(
     return result;
 }
 
-cv::Mat trialCenterWeightedComposite(
-    const std::vector<TrialWarp> &warps,
+cv::Mat centerWeightedComposite(
+    const std::vector<Warp> &warps,
     const cv::Mat &labels
 ) {
     const int width = labels.cols;
@@ -2010,7 +2008,7 @@ cv::Mat trialCenterWeightedComposite(
     cv::Mat accumulator(height, width, CV_32FC3, cv::Scalar(0, 0, 0));
     cv::Mat total(height, width, CV_32F, cv::Scalar(0));
     for (int index = 0; index < int(warps.size()); ++index) {
-        const TrialWarp &warp = warps[index];
+        const Warp &warp = warps[index];
         std::vector<cv::Mat> tiledPieces = {warp.mask, warp.mask, warp.mask};
         cv::Mat tiled;
         cv::hconcat(tiledPieces, tiled);
@@ -2030,7 +2028,7 @@ cv::Mat trialCenterWeightedComposite(
         // fisheye footprint merely because that view is closest to its
         // optical axis. Keep a small floor so genuinely white subjects still
         // blend normally when every overlapping view is clipped.
-        const cv::Mat highlightReliability = trialHighlightReliability(
+        const cv::Mat highlightReliability = computeHighlightReliability(
             warp.image
         );
         weight = weight.mul(highlightReliability);
@@ -2062,7 +2060,7 @@ cv::Mat trialCenterWeightedComposite(
     return result;
 }
 
-cv::Mat trialPeriodicExpand(const cv::Mat &mask, int radius) {
+cv::Mat periodicExpand(const cv::Mat &mask, int radius) {
     std::vector<cv::Mat> pieces = {mask, mask, mask};
     cv::Mat tiled;
     cv::hconcat(pieces, tiled);
@@ -2073,25 +2071,25 @@ cv::Mat trialPeriodicExpand(const cv::Mat &mask, int radius) {
     return distance.colRange(mask.cols, 2 * mask.cols) <= radius;
 }
 
-cv::Mat trialContentAdaptiveBlend(
-    const std::vector<TrialWarp> &warps,
+cv::Mat contentAdaptiveBlend(
+    const std::vector<Warp> &warps,
     const cv::Mat &labels,
     const cv::Mat &conflictMask,
     int width,
     int height
 ) {
     const double detailSigma = std::max(1.0, width / 4096.0);
-    cv::Mat narrow = trialFeatherComposite(warps, labels, detailSigma);
-    cv::Mat broad = trialCenterWeightedComposite(warps, labels);
+    cv::Mat narrow = featherComposite(warps, labels, detailSigma);
+    cv::Mat broad = centerWeightedComposite(warps, labels);
     const cv::Size smallSize(width / 2, height / 2);
     cv::Mat narrowSmall;
     cv::Mat broadSmall;
     cv::resize(narrow, narrowSmall, smallSize, 0.0, 0.0, cv::INTER_AREA);
     cv::resize(broad, broadSmall, smallSize, 0.0, 0.0, cv::INTER_AREA);
     const double correctionRadius = std::max(6.0, width / 512.0);
-    cv::Mat correctionSmall = trialPeriodicBlur(
+    cv::Mat correctionSmall = periodicBlur(
         broadSmall, correctionRadius / 2.0
-    ) - trialPeriodicBlur(narrowSmall, correctionRadius / 2.0);
+    ) - periodicBlur(narrowSmall, correctionRadius / 2.0);
     cv::Mat correction;
     cv::resize(
         correctionSmall, correction, cv::Size(width, height),
@@ -2120,10 +2118,10 @@ cv::Mat trialContentAdaptiveBlend(
     // avoids both a visible radial wedge and the doubled grout/edge detail of
     // a conventional wide feather.
     const double seamSigma = std::max(24.0, width / 32.0);
-    cv::Mat seamWide = trialFeatherComposite(warps, labels, seamSigma);
+    cv::Mat seamWide = featherComposite(warps, labels, seamSigma);
     const double seamDetailRadius = std::max(2.0, width / 1024.0);
-    cv::Mat seamCorrection = trialPeriodicBlur(seamWide, seamDetailRadius)
-        - trialPeriodicBlur(narrow, seamDetailRadius);
+    cv::Mat seamCorrection = periodicBlur(seamWide, seamDetailRadius)
+        - periodicBlur(narrow, seamDetailRadius);
     cv::Mat seamDifference;
     cv::absdiff(seamWide, narrow, seamDifference);
     std::vector<cv::Mat> seamDifferenceChannels;
@@ -2148,7 +2146,7 @@ cv::Mat trialContentAdaptiveBlend(
     // and enable it only where the existing low-frequency seam correction is
     // large enough to represent a visible radiometric step.
     const double minimumFeatherSigma = 12.0 * width / 4096.0;
-    cv::Mat minimumFeather = trialFeatherComposite(
+    cv::Mat minimumFeather = featherComposite(
         warps, labels, minimumFeatherSigma
     );
     cv::Mat absoluteSeamCorrection;
@@ -2171,7 +2169,7 @@ cv::Mat trialContentAdaptiveBlend(
     radiometricStepMask.convertTo(
         radiometricStepWeight, CV_32F, 1.0 / 255.0
     );
-    radiometricStepWeight = trialPeriodicBlur(
+    radiometricStepWeight = periodicBlur(
         radiometricStepWeight, minimumFeatherSigma
     );
     cv::max(radiometricStepWeight, 0.0, radiometricStepWeight);
@@ -2211,13 +2209,13 @@ cv::Mat trialContentAdaptiveBlend(
     const int protectionRadius = std::max(8, int(std::round(width / 96.0)));
     cv::Mat protectedStructure;
     cv::bitwise_or(texture > 64.0, conflictMask, protectedStructure);
-    cv::Mat structural = trialPeriodicExpand(
+    cv::Mat structural = periodicExpand(
         protectedStructure, protectionRadius
     );
     cv::Mat smooth;
     cv::bitwise_not(structural, smooth);
     smooth.convertTo(smooth, CV_32F, 1.0 / 255.0);
-    smooth = trialPeriodicBlur(smooth, std::max(2.0, protectionRadius / 2.0));
+    smooth = periodicBlur(smooth, std::max(2.0, protectionRadius / 2.0));
     cv::max(smooth, 0.0, smooth);
     cv::min(smooth, 1.0, smooth);
     smooth = smooth.mul(consistency);
@@ -2238,7 +2236,7 @@ cv::Mat trialContentAdaptiveBlend(
     // detected structure, placing the radiometric transition in flat areas.
     cv::Mat structureAlpha;
     structural.convertTo(structureAlpha, CV_32F, 1.0 / 255.0);
-    structureAlpha = trialPeriodicBlur(
+    structureAlpha = periodicBlur(
         structureAlpha, std::max(2.0, protectionRadius / 3.0)
     );
     cv::max(structureAlpha, 0.0, structureAlpha);
@@ -2246,12 +2244,12 @@ cv::Mat trialContentAdaptiveBlend(
     std::vector<cv::Mat> structureChannels(3, structureAlpha);
     cv::Mat colorStructureAlpha;
     cv::merge(structureChannels, colorStructureAlpha);
-    cv::Mat conflictStructural = trialPeriodicExpand(
+    cv::Mat conflictStructural = periodicExpand(
         conflictMask, protectionRadius
     );
     cv::Mat conflictAlpha;
     conflictStructural.convertTo(conflictAlpha, CV_32F, 1.0 / 255.0);
-    conflictAlpha = trialPeriodicBlur(
+    conflictAlpha = periodicBlur(
         conflictAlpha, std::max(2.0, protectionRadius / 3.0)
     );
     cv::max(conflictAlpha, 0.0, conflictAlpha);
@@ -2281,7 +2279,7 @@ cv::Mat trialContentAdaptiveBlend(
     return result;
 }
 
-struct TrialRadiometryObservation {
+struct RadiometryObservation {
     int first = 0;
     int second = 0;
     double firstRadius = 0.0;
@@ -2289,8 +2287,8 @@ struct TrialRadiometryObservation {
     cv::Vec3d value;
 };
 
-std::vector<TrialWarp> trialCompensateRadiometry(
-    const std::vector<TrialWarp> &warps,
+std::vector<Warp> compensateRadiometry(
+    const std::vector<Warp> &warps,
     int width
 ) {
     const int analysisWidth = std::min(1024, width);
@@ -2300,7 +2298,7 @@ std::vector<TrialWarp> trialCompensateRadiometry(
     std::vector<cv::Mat> masks;
     std::vector<cv::Mat> scores;
     std::vector<cv::Mat> gradients;
-    for (const TrialWarp &warp : warps) {
+    for (const Warp &warp : warps) {
         cv::Mat image;
         cv::Mat mask;
         cv::Mat score;
@@ -2324,7 +2322,7 @@ std::vector<TrialWarp> trialCompensateRadiometry(
     }
     const int count = int(warps.size());
     std::vector<double> overlapArea(count, 0.0);
-    std::vector<TrialRadiometryObservation> observations;
+    std::vector<RadiometryObservation> observations;
     std::mt19937 generator(20260902u);
     cv::Mat kernel = cv::Mat::ones(5, 5, CV_8U);
     std::vector<cv::Mat> safeMasks;
@@ -2370,7 +2368,7 @@ std::vector<TrialWarp> trialCompensateRadiometry(
             std::shuffle(locations.begin(), locations.end(), generator);
             locations.resize(std::min<size_t>(1800, locations.size()));
             for (const cv::Point &point : locations) {
-                TrialRadiometryObservation observation;
+                RadiometryObservation observation;
                 observation.first = first;
                 observation.second = second;
                 observation.firstRadius = 1.0 - scores[first].at<float>(point);
@@ -2435,9 +2433,9 @@ std::vector<TrialWarp> trialCompensateRadiometry(
             for (int row = 0; row < residual.rows; ++row) {
                 residualValues[row] = residual.at<double>(row);
             }
-            const double center = trialMedian(residualValues);
+            const double center = median(residualValues);
             for (double &value : residualValues) value = std::abs(value - center);
-            const double scale = std::max(0.012, 1.4826 * trialMedian(residualValues));
+            const double scale = std::max(0.012, 1.4826 * median(residualValues));
             for (int row = 0; row < residual.rows; ++row) {
                 weights.at<double>(row) = std::min(
                     1.0, 2.5 * scale / std::max(std::abs(residual.at<double>(row)), 1e-8)
@@ -2456,7 +2454,7 @@ std::vector<TrialWarp> trialCompensateRadiometry(
             solution.at<double>(count + 1), -0.8, 0.8
         );
     }
-    std::vector<TrialWarp> result = warps;
+    std::vector<Warp> result = warps;
     for (int index = 0; index < count; ++index) {
         cv::Mat adjusted = warps[index].image.clone();
         for (int y = 0; y < adjusted.rows; ++y) {
@@ -2520,7 +2518,7 @@ std::vector<TrialWarp> trialCompensateRadiometry(
     return result;
 }
 
-double trialPercentile(std::vector<double> values, double fraction) {
+double percentile(std::vector<double> values, double fraction) {
     if (values.empty()) return 0.0;
     const size_t index = std::min(
         values.size() - 1,
@@ -2530,7 +2528,7 @@ double trialPercentile(std::vector<double> values, double fraction) {
     return values[index];
 }
 
-struct TrialLocalRadiometryPair {
+struct LocalRadiometryPair {
     int first = 0;
     int second = 0;
     int trainingPixels = 0;
@@ -2544,8 +2542,8 @@ struct TrialLocalRadiometryPair {
     double maximumCorrection = 0.0;
 };
 
-std::vector<TrialWarp> trialApplySeamLocalRadiometry(
-    const std::vector<TrialWarp> &warps,
+std::vector<Warp> applySeamLocalRadiometry(
+    const std::vector<Warp> &warps,
     const cv::Mat &labels,
     const cv::Mat &conflictMask,
     int width
@@ -2562,7 +2560,7 @@ std::vector<TrialWarp> trialApplySeamLocalRadiometry(
     images.reserve(count);
     masks.reserve(count);
     gradients.reserve(count);
-    for (const TrialWarp &warp : warps) {
+    for (const Warp &warp : warps) {
         cv::Mat image;
         cv::Mat mask;
         cv::resize(warp.image, image, analysisSize, 0.0, 0.0, cv::INTER_AREA);
@@ -2601,7 +2599,7 @@ std::vector<TrialWarp> trialApplySeamLocalRadiometry(
             analysisSize, CV_32F, cv::Scalar(0)
         );
     }
-    std::vector<TrialLocalRadiometryPair> acceptedPairs;
+    std::vector<LocalRadiometryPair> acceptedPairs;
     const int cellSize = std::max(8, analysisWidth / 64);
     const int gridColumns = (analysisWidth + cellSize - 1) / cellSize;
     const int gridRows = (analysisHeight + cellSize - 1) / cellSize;
@@ -2612,8 +2610,8 @@ std::vector<TrialWarp> trialApplySeamLocalRadiometry(
         for (int second = first + 1; second < count; ++second) {
             cv::Mat firstOwner = smallLabels == first;
             cv::Mat secondOwner = smallLabels == second;
-            cv::Mat expandedFirst = trialPeriodicExpand(firstOwner, 1);
-            cv::Mat expandedSecond = trialPeriodicExpand(secondOwner, 1);
+            cv::Mat expandedFirst = periodicExpand(firstOwner, 1);
+            cv::Mat expandedSecond = periodicExpand(secondOwner, 1);
             cv::Mat firstBoundary;
             cv::Mat secondBoundary;
             cv::bitwise_and(expandedFirst, secondOwner, firstBoundary);
@@ -2647,7 +2645,7 @@ std::vector<TrialWarp> trialApplySeamLocalRadiometry(
             cv::exp(seamWeight, seamWeight);
             seamWeight.setTo(0.0f, overlap == 0);
             // Do not end a correction abruptly at a source/overlap boundary:
-            // the unchanged broad blender can still sample that source there.
+            // the broad compositor can still sample that source there.
             // A low-frequency field must itself fade out at low frequency.
             std::vector<cv::Mat> overlapPieces = {overlap, overlap, overlap};
             cv::Mat tiledOverlap;
@@ -2751,7 +2749,7 @@ std::vector<TrialWarp> trialApplySeamLocalRadiometry(
             );
             cv::Mat trainingWeight;
             training.convertTo(trainingWeight, CV_32F, 1.0 / 255.0);
-            cv::Mat denominator = trialPeriodicBlur(
+            cv::Mat denominator = periodicBlur(
                 trainingWeight, fieldSigma
             );
             cv::Mat confidence = denominator / 0.06;
@@ -2763,7 +2761,7 @@ std::vector<TrialWarp> trialApplySeamLocalRadiometry(
             cv::split(rawDifference, differenceChannels);
             std::vector<cv::Mat> fieldChannels;
             for (int channel = 0; channel < 3; ++channel) {
-                cv::Mat numerator = trialPeriodicBlur(
+                cv::Mat numerator = periodicBlur(
                     differenceChannels[channel].mul(trainingWeight), fieldSigma
                 );
                 cv::Mat field = numerator / safeDenominator;
@@ -2825,10 +2823,10 @@ std::vector<TrialWarp> trialApplySeamLocalRadiometry(
                     }
                 }
             }
-            const double medianBefore = trialMedian(beforeValues);
-            const double medianAfter = trialMedian(afterValues);
-            const double p90Before = trialPercentile(beforeValues, 0.90);
-            const double p90After = trialPercentile(afterValues, 0.90);
+            const double medianBefore = median(beforeValues);
+            const double medianAfter = median(afterValues);
+            const double p90Before = percentile(beforeValues, 0.90);
+            const double p90After = percentile(afterValues, 0.90);
             const double meanBefore = std::accumulate(
                 beforeValues.begin(), beforeValues.end(), 0.0
             ) / beforeValues.size();
@@ -2898,7 +2896,7 @@ std::vector<TrialWarp> trialApplySeamLocalRadiometry(
     }
     if (acceptedPairs.empty()) return warps;
 
-    std::vector<TrialWarp> correctedWarps = warps;
+    std::vector<Warp> correctedWarps = warps;
     double maximumApplied = 0.0;
     for (int index = 0; index < count; ++index) {
         cv::Mat normalization;
@@ -2943,16 +2941,16 @@ std::vector<TrialWarp> trialApplySeamLocalRadiometry(
     return correctedWarps;
 }
 
-std::pair<double, int> trialRender(
-    const std::vector<TrialSource> &sources,
+std::pair<double, int> renderPanorama(
+    const std::vector<Source> &sources,
     const std::vector<unsigned char> &compositionRoles,
-    const TrialAlignment &alignment,
+    const Alignment &alignment,
     const cv::Mat &detectedOpticalMask,
     const std::string &outputPath,
     int width
 ) {
     const int height = width / 2;
-    cv::Mat fittedMask = trialFittedOpticalMask(
+    cv::Mat fittedMask = fittedOpticalMask(
         sources.front().image.size(), alignment.lens
     );
     cv::Mat opticalMask;
@@ -2964,10 +2962,10 @@ std::pair<double, int> trialRender(
             return std::abs(axis[1]) < 0.65;
         }
     ));
-    std::vector<TrialWarp> warps;
+    std::vector<Warp> warps;
     for (int index = 0; index < int(sources.size()); ++index) {
-        trialCheckCancellation();
-        trialReport(
+        checkCancellation();
+        reportProgress(
             "Projicerar källbilder…",
             0.62 + 0.14 * double(index) / double(sources.size())
         );
@@ -2975,13 +2973,13 @@ std::pair<double, int> trialRender(
         cv::bitwise_and(opticalMask, sources[index].userMask, validSource);
         cv::Mat mapX;
         cv::Mat mapY;
-        TrialWarp warp;
+        Warp warp;
         const cv::Vec3d opticalAxis =
             alignment.rotations[index] * cv::Vec3d(0.0, 0.0, 1.0);
         const bool automaticNadirFill = compositionRoles[index] == 0
             && horizontalViews >= 3 && opticalAxis[1] < -0.8;
         warp.fillOnly = compositionRoles[index] == 2 || automaticNadirFill;
-        trialMapping(
+        buildPanoramaMapping(
             width, height, alignment.rotations[index], sources[index].image.size(),
             alignment.lens, validSource, mapX, mapY, warp.mask, warp.score
         );
@@ -3007,9 +3005,9 @@ std::pair<double, int> trialRender(
         cv::bitwise_and(warp.protectedMask, warp.mask, warp.protectedMask);
         warps.push_back(std::move(warp));
     }
-    trialReport("Matchar exponering och färg…", 0.78);
-    warps = trialCompensateRadiometry(warps, width);
-    std::vector<cv::Mat> redundantMasks = trialSuppressRedundantViews(
+    reportProgress("Matchar exponering och färg…", 0.78);
+    warps = compensateRadiometry(warps, width);
+    std::vector<cv::Mat> redundantMasks = suppressRedundantViews(
         alignment.rotations, warps
     );
     for (int index = 0; index < int(warps.size()); ++index) {
@@ -3017,21 +3015,21 @@ std::pair<double, int> trialRender(
             redundantMasks[index] = warps[index].protectedMask.clone();
         }
     }
-    const std::vector<cv::Mat> seamMasks = trialPreferCentralCoverage(
+    const std::vector<cv::Mat> seamMasks = preferCentralCoverage(
         warps, redundantMasks
     );
-    trialReport("Beräknar sömmar…", 0.87);
+    reportProgress("Beräknar sömmar…", 0.87);
     cv::Mat conflictMask;
-    cv::Mat labels = trialGraphCutLabels(
+    cv::Mat labels = graphCutLabels(
         warps, seamMasks, width, height, conflictMask
     );
     const int holes = cv::countNonZero(labels < 0);
     const double coverage = 100.0 * (1.0 - holes / double(width * height));
-    warps = trialApplySeamLocalRadiometry(
+    warps = applySeamLocalRadiometry(
         warps, labels, conflictMask, width
     );
-    trialReport("Blandar originalpixlar…", 0.94);
-    cv::Mat result = trialContentAdaptiveBlend(
+    reportProgress("Blandar originalpixlar…", 0.94);
+    cv::Mat result = contentAdaptiveBlend(
         warps, labels, conflictMask, width, height
     );
     cv::flip(result, result, 1);
@@ -3040,14 +3038,14 @@ std::pair<double, int> trialRender(
         cv::IMWRITE_JPEG_OPTIMIZE, 1
     };
     if (!cv::imwrite(outputPath, result, parameters)) {
-        throw std::runtime_error("Trial-motorn kunde inte skriva panoramabilden.");
+        throw std::runtime_error("Panoramamotorn kunde inte skriva panoramabilden.");
     }
     return {coverage, holes};
 }
 
 } // namespace
 
-int PWStitchTrialPanorama(
+int PWStitchPanorama(
     const char *const *imagePaths,
     const char *const *protectedMaskPaths,
     const unsigned char *compositionRoles,
@@ -3056,33 +3054,33 @@ int PWStitchTrialPanorama(
     const char *outputPath,
     int outputWidth,
     void *callbackContext,
-    PWTrialProgressCallback progressCallback,
-    PWTrialCancellationCallback cancellationCallback,
-    PWTrialStitchReport *report,
+    PWProgressCallback progressCallback,
+    PWCancellationCallback cancellationCallback,
+    PWStitchReport *report,
     char **errorMessage
 ) {
-    trialCallbacks = {callbackContext, progressCallback, cancellationCallback};
+    stitchCallbacks = {callbackContext, progressCallback, cancellationCallback};
     struct CallbackReset {
-        ~CallbackReset() { trialCallbacks = {}; }
+        ~CallbackReset() { stitchCallbacks = {}; }
     } callbackReset;
     try {
         if (imagePaths == nullptr || outputPath == nullptr || imageCount < 2) {
-            throw std::runtime_error("Trial-motorn kräver minst två källbilder.");
+            throw std::runtime_error("Panoramamotorn kräver minst två källbilder.");
         }
         if (outputWidth < 512 || outputWidth % 2 != 0) {
             throw std::runtime_error("Panoramabredden måste vara ett jämnt tal på minst 512 pixlar.");
         }
-        std::vector<TrialSource> sources;
+        std::vector<Source> sources;
         std::vector<unsigned char> resolvedRoles(imageCount, 0);
         for (int index = 0; index < imageCount; ++index) {
-            trialReport(
+            reportProgress(
                 "Läser källbilder…",
                 0.08 + 0.08 * double(index) / double(imageCount)
             );
             if (imagePaths[index] == nullptr) {
                 throw std::runtime_error("En källbild saknar sökväg.");
             }
-            sources.push_back(trialReadSource(
+            sources.push_back(readSource(
                 imagePaths[index],
                 protectedMaskPaths == nullptr ? nullptr : protectedMaskPaths[index]
             ));
@@ -3092,15 +3090,15 @@ int PWStitchTrialPanorama(
                 );
             }
             if (index > 0 && sources[index].image.size() != sources[0].image.size()) {
-                throw std::runtime_error("Trial-motorn kräver källbilder med samma pixelmått.");
+                throw std::runtime_error("Panoramamotorn kräver källbilder med samma pixelmått.");
             }
         }
-        trialReport("Analyserar objektivets bildcirkel…", 0.17);
-        const TrialOpticalSupport optical = trialCommonValidMask(sources);
-        TrialAlignment alignment;
+        reportProgress("Analyserar objektivets bildcirkel…", 0.17);
+        const OpticalSupport optical = commonOpticalSupport(sources);
+        Alignment alignment;
         const std::string cachePath = alignmentCachePath == nullptr
             ? std::string() : std::string(alignmentCachePath);
-        const bool usedCache = trialLoadCache(
+        const bool usedCache = loadCache(
             cachePath, imageCount, sources.front().image.size(), alignment
         );
         if (!usedCache) {
@@ -3108,30 +3106,30 @@ int PWStitchTrialPanorama(
                 sources.front().image.cols, sources.front().image.rows
             ) / 2.0;
             const double initialK1 = optical.circular
-                ? (trialPi / 2.0) / (optical.radius / scale)
-                : trialPi / 2.0;
-            TrialLens initialLens;
+                ? (pi / 2.0) / (optical.radius / scale)
+                : pi / 2.0;
+            Lens initialLens;
             initialLens.k1 = initialK1;
             initialLens.cx = sources.front().image.cols / 2.0;
             initialLens.cy = sources.front().image.rows / 2.0;
-            trialReport("Detekterar bildfeatures…", 0.23);
-            const std::vector<TrialFeatures> features = trialExtractFeatures(
+            reportProgress("Detekterar bildfeatures…", 0.23);
+            const std::vector<Features> features = extractFeatures(
                 sources, optical.mask
             );
-            trialReport("Matchar överlappande bilder…", 0.35);
-            const TrialEdgeSets edgeSets = trialBuildEdges(
+            reportProgress("Matchar överlappande bilder…", 0.35);
+            const EdgeSets edgeSets = buildEdges(
                 sources, features, initialLens
             );
-            const std::vector<TrialEdge> &edges = edgeSets.strong;
-            if (trialConnected(imageCount, edges)) {
-                trialDetectSupplementalViews(
+            const std::vector<Edge> &edges = edgeSets.strong;
+            if (isGraphConnected(imageCount, edges)) {
+                detectSupplementalViews(
                     resolvedRoles,
-                    trialInitialRotations(imageCount, edges)
+                    buildInitialRotations(imageCount, edges)
                 );
             }
 
             std::vector<int> ringIndices;
-            std::vector<TrialSource> ringSources;
+            std::vector<Source> ringSources;
             for (int index = 0; index < imageCount; ++index) {
                 if (resolvedRoles[index] == 2) continue;
                 ringIndices.push_back(index);
@@ -3142,21 +3140,21 @@ int PWStitchTrialPanorama(
                     "Panoramaringen kräver minst två bilder."
                 );
             }
-            const std::vector<TrialEdge> ringEdges = trialSubsetEdges(
+            const std::vector<Edge> ringEdges = subsetEdges(
                 edges, ringIndices, imageCount
             );
-            const std::vector<TrialEdge> weakRingEdges = trialSubsetEdges(
+            const std::vector<Edge> weakRingEdges = subsetEdges(
                 edgeSets.weak, ringIndices, imageCount
             );
-            if (!trialConnected(int(ringIndices.size()), ringEdges)) {
+            if (!isGraphConnected(int(ringIndices.size()), ringEdges)) {
                 throw std::runtime_error(
                     "Panoramaringen är inte sammanhängande. Reparationsbilder används inte för att överbrygga saknat ringöverlapp."
                 );
             }
             const std::vector<cv::Matx33d> initialRotations =
-                trialInitialRotations(int(ringIndices.size()), ringEdges);
-            trialReport("Optimerar kameror och linsmodell…", 0.46);
-            TrialAlignment ringAlignment = trialOptimizeGeometry(
+                buildInitialRotations(int(ringIndices.size()), ringEdges);
+            reportProgress("Optimerar kameror och linsmodell…", 0.46);
+            Alignment ringAlignment = optimizeGeometry(
                 ringSources, ringEdges, weakRingEdges,
                 initialRotations, initialLens,
                 optical.circular, optical.radius
@@ -3170,13 +3168,13 @@ int PWStitchTrialPanorama(
             }
             for (int index = 0; index < imageCount; ++index) {
                 if (resolvedRoles[index] != 2) continue;
-                alignment.rotations[index] = trialRegisterSupplementalView(
+                alignment.rotations[index] = registerSupplementalView(
                     index, ringIndices, ringAlignment.rotations, edges,
                     sources.front().image.size(), ringAlignment.lens
                 );
             }
-            trialReport("Rätar upp horisonten…", 0.56);
-            const std::vector<cv::Matx33d> leveledRing = trialLevelRotations(
+            reportProgress("Rätar upp horisonten…", 0.56);
+            const std::vector<cv::Matx33d> leveledRing = levelRotations(
                 ringAlignment.rotations
             );
             const cv::Matx33d leveling =
@@ -3184,13 +3182,13 @@ int PWStitchTrialPanorama(
             for (cv::Matx33d &rotation : alignment.rotations) {
                 rotation = leveling * rotation;
             }
-            alignment.gains = trialExposureGains(sources, edges);
-            trialSaveCache(cachePath, alignment, sources.front().image.size());
+            alignment.gains = exposureGains(sources, edges);
+            saveCache(cachePath, alignment, sources.front().image.size());
         } else {
-            trialReport("Använder sparad bildjustering…", 0.58);
+            reportProgress("Använder sparad bildjustering…", 0.58);
         }
-        trialDetectSupplementalViews(resolvedRoles, alignment.rotations);
-        const auto [coverage, holes] = trialRender(
+        detectSupplementalViews(resolvedRoles, alignment.rotations);
+        const auto [coverage, holes] = renderPanorama(
             sources, resolvedRoles, alignment, optical.mask,
             outputPath, outputWidth
         );
@@ -3200,14 +3198,14 @@ int PWStitchTrialPanorama(
             report->usedAlignmentCache = usedCache ? 1 : 0;
         }
         if (errorMessage != nullptr) *errorMessage = nullptr;
-        trialReport("Panoramat är klart", 1.0);
+        reportProgress("Panoramat är klart", 1.0);
         return 1;
     } catch (const cv::Exception &error) {
-        trialSetError(errorMessage, "OpenCV: " + std::string(error.what()));
+        setErrorMessage(errorMessage, "OpenCV: " + std::string(error.what()));
     } catch (const std::exception &error) {
-        trialSetError(errorMessage, error.what());
+        setErrorMessage(errorMessage, error.what());
     } catch (...) {
-        trialSetError(errorMessage, "Trial-motorn misslyckades av okänd orsak.");
+        setErrorMessage(errorMessage, "Panoramamotorn misslyckades av okänd orsak.");
     }
     return 0;
 }

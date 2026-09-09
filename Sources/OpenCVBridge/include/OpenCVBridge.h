@@ -9,17 +9,17 @@ typedef struct {
     double coveragePercent;
     int holeCount;
     int usedAlignmentCache;
-} PWTrialStitchReport;
+} PWStitchReport;
 
-typedef void (*PWTrialProgressCallback)(
+typedef void (*PWProgressCallback)(
     void *context,
     const char *stage,
     double fraction
 );
 
-typedef int (*PWTrialCancellationCallback)(void *context);
+typedef int (*PWCancellationCallback)(void *context);
 
-int PWStitchTrialPanorama(
+int PWStitchPanorama(
     const char *const *imagePaths,
     const char *const *protectedMaskPaths,
     const unsigned char *compositionRoles,
@@ -28,9 +28,9 @@ int PWStitchTrialPanorama(
     const char *outputPath,
     int outputWidth,
     void *callbackContext,
-    PWTrialProgressCallback progressCallback,
-    PWTrialCancellationCallback cancellationCallback,
-    PWTrialStitchReport *report,
+    PWProgressCallback progressCallback,
+    PWCancellationCallback cancellationCallback,
+    PWStitchReport *report,
     char **errorMessage
 );
 
