@@ -94,6 +94,39 @@ struct ImageMetadataReaderTests {
         #expect(result.lens.focalLengthIn35mm == 10.5)
         #expect(result.lens.kind == .fisheye)
     }
+
+    @Test
+    func reportsDimensionsAfterMetadataOrientation() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let context = try #require(CGContext(
+            data: nil,
+            width: 12,
+            height: 20,
+            bitsPerComponent: 8,
+            bytesPerRow: 12 * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        let image = try #require(context.makeImage())
+        let destination = try #require(CGImageDestinationCreateWithURL(
+            url as CFURL,
+            "public.png" as CFString,
+            1,
+            nil
+        ))
+        CGImageDestinationAddImage(destination, image, [
+            kCGImagePropertyOrientation: 6
+        ] as CFDictionary)
+        #expect(CGImageDestinationFinalize(destination))
+
+        let result = try await ImageMetadataReader().readImage(at: url)
+
+        #expect(result.pixelWidth == 20)
+        #expect(result.pixelHeight == 12)
+    }
 }
 
 private struct StubImageMetadataReader: ImageMetadataReading {

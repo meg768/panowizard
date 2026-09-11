@@ -5,28 +5,16 @@ import UniformTypeIdentifiers
 
 enum MaskedSourceImageWriter {
     static func write(
-        sourceURL: URL,
+        sourceImage: SourceImage,
         maskData: Data?,
         destinationURL: URL
     ) throws {
-        guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
-              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
-                as? [CFString: Any] else {
-            throw PanoramaEngineError.stitchingFailed(
-                "\(sourceURL.lastPathComponent) kunde inte läsas."
+        guard let image = SourceImageRaster.load(
+            sourceImage,
+            maximumPixelSize: max(
+                sourceImage.pixelWidth,
+                sourceImage.pixelHeight
             )
-        }
-        let width = properties[kCGImagePropertyPixelWidth] as? Int ?? 0
-        let height = properties[kCGImagePropertyPixelHeight] as? Int ?? 0
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: max(width, height)
-        ]
-        guard let image = CGImageSourceCreateThumbnailAtIndex(
-            source,
-            0,
-            options as CFDictionary
         ), let context = CGContext(
             data: nil,
             width: image.width,
@@ -45,7 +33,7 @@ enum MaskedSourceImageWriter {
                   let mask = CGImageSourceCreateImageAtIndex(maskSource, 0, nil)
             else {
                 throw PanoramaEngineError.stitchingFailed(
-                    "Masken för \(sourceURL.lastPathComponent) kunde inte läsas."
+                    "Masken för \(sourceImage.filename) kunde inte läsas."
                 )
             }
             context.setBlendMode(.destinationOut)

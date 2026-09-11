@@ -16,12 +16,20 @@ final class LittlePlanetExportController {
     private var source: LittlePlanetSource?
     private var previewTask: Task<Void, Never>?
 
-    func load(sourceURL: URL) {
+    func load(
+        sourceURL: URL,
+        nadirRetouchURL: URL?,
+        zenithRetouchURL: URL?
+    ) {
         guard source == nil else { return }
         Task {
             do {
                 source = try await Task.detached(priority: .userInitiated) {
-                    try LittlePlanetSource(url: sourceURL)
+                    try LittlePlanetSource(
+                        panoramaURL: sourceURL,
+                        nadirRetouchURL: nadirRetouchURL,
+                        zenithRetouchURL: zenithRetouchURL
+                    )
                 }.value
                 isLoading = false
                 schedulePreview()
@@ -100,6 +108,8 @@ final class LittlePlanetExportController {
 
 struct LittlePlanetExportSheet: View {
     let panoramaURL: URL
+    let nadirRetouchURL: URL?
+    let zenithRetouchURL: URL?
     let projectName: String?
     let projectTitle: String
     let projectDirectoryURL: URL?
@@ -189,7 +199,13 @@ struct LittlePlanetExportSheet: View {
             .padding(16)
         }
         .frame(minWidth: 900, idealWidth: 980, minHeight: 580, idealHeight: 640)
-        .task { controller.load(sourceURL: panoramaURL) }
+        .task {
+            controller.load(
+                sourceURL: panoramaURL,
+                nadirRetouchURL: nadirRetouchURL,
+                zenithRetouchURL: zenithRetouchURL
+            )
+        }
         .alert("Little Planet misslyckades", isPresented: Binding(
             get: { controller.errorMessage != nil },
             set: { if !$0 { controller.errorMessage = nil } }

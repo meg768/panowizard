@@ -156,12 +156,21 @@ struct ProjectDocumentCommandActions {
     let saveAs: () -> Void
 }
 
+struct SourceMaskCommandActions {
+    let canUndo: Bool
+    let undo: () -> Void
+}
+
 private struct ProjectDocumentCommandActionsKey: FocusedValueKey {
     typealias Value = ProjectDocumentCommandActions
 }
 
 private struct PanoramaCommandActionsKey: FocusedValueKey {
     typealias Value = PanoramaCommandActions
+}
+
+private struct SourceMaskCommandActionsKey: FocusedValueKey {
+    typealias Value = SourceMaskCommandActions
 }
 
 extension FocusedValues {
@@ -173,6 +182,11 @@ extension FocusedValues {
     var projectDocumentCommandActions: ProjectDocumentCommandActions? {
         get { self[ProjectDocumentCommandActionsKey.self] }
         set { self[ProjectDocumentCommandActionsKey.self] = newValue }
+    }
+
+    var sourceMaskCommandActions: SourceMaskCommandActions? {
+        get { self[SourceMaskCommandActionsKey.self] }
+        set { self[SourceMaskCommandActionsKey.self] = newValue }
     }
 }
 
@@ -201,7 +215,23 @@ struct PanoWizardApp: App {
         .defaultSize(width: 1_240, height: 780)
         .commands {
             ProjectDocumentMenuCommands()
+            SourceMaskMenuCommands()
             PanoramaMenuCommands()
+        }
+    }
+}
+
+private struct SourceMaskMenuCommands: Commands {
+    @FocusedValue(\.sourceMaskCommandActions)
+    private var actions
+
+    var body: some Commands {
+        CommandGroup(replacing: .undoRedo) {
+            Button("Ångra maskändring") {
+                actions?.undo()
+            }
+            .keyboardShortcut("z")
+            .disabled(actions?.canUndo != true)
         }
     }
 }

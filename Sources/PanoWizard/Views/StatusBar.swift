@@ -34,7 +34,7 @@ struct StatusBar: View {
                     .help("Visa fullständig felrapport och loggplats")
                     .popover(isPresented: $showsFailureDetails) {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Stitchningen misslyckades")
+                            Text("Åtgärden misslyckades")
                                 .font(.headline)
                             ScrollView {
                                 Text(details)
@@ -112,6 +112,9 @@ struct StatusBar: View {
               model.selectedSourceImage != nil,
               !model.isShowingStitchedPanorama else {
             return model.phase.message
+        }
+        guard model.isSourceMaskEditing else {
+            return "Dra panorerar · rulla zoomar"
         }
         let action: String
         if model.sourceMaskTool == .rectangle {

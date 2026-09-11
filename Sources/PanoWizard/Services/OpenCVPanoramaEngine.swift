@@ -65,7 +65,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
             )
             let sourceURL = workDirectory.appending(path: "source-\(index).tif")
             try MaskedSourceImageWriter.write(
-                sourceURL: image.url,
+                sourceImage: image,
                 maskData: masks[image.id],
                 destinationURL: sourceURL
             )
@@ -147,7 +147,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
         )
     }
 
-    private static func alignmentCacheURL(
+    static func alignmentCacheURL(
         images: [SourceImage],
         masks: [UUID: Data]
     ) throws -> URL {
@@ -159,6 +159,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
             digest.update(data: Data(image.url.path(percentEncoded: false).utf8))
             digest.update(data: Data(image.effectiveRole.rawValue.utf8))
             digest.update(data: Data(image.direction.rawValue.utf8))
+            digest.update(data: Data(String(image.rotation.rawValue).utf8))
             let attributes = try fileManager.attributesOfItem(
                 atPath: image.url.path(percentEncoded: false)
             )

@@ -10,11 +10,13 @@ förhandsvisning, retusch och export i ett sammanhållet projekt.
 1. Skapa ett projekt och importera minst två överlappande bilder.
 2. Kontrollera bildordningen och välj vid behov bildtyp: Automatisk,
    Panoramaring eller Reparationsbild.
-3. Måla vid behov röda exkluderingsmasker eller gröna skyddsmasker på
-   källbilderna.
-4. Välj **Skapa panorama** och granska den equirektangulära 2:1-bilden i
+3. Markera en källbild för att automatiskt öppna dess maskredigering och måla
+   vid behov röda exkluderingsmasker eller gröna skyddsmasker.
+4. Rotera vid behov den markerade källbilden ett kvarts varv åt vänster med
+   rotationsknappen sist i maskverktygsraden.
+5. Välj **Skapa panorama** och granska den equirektangulära 2:1-bilden i
    360°-förhandsvisningen.
-5. Retuschera vid behov nadir eller zenit och exportera resultatet.
+6. Retuschera vid behov nadir eller zenit och exportera resultatet.
 
 Röda masker tar bort källpixlar före geometri, radiometri och compositing.
 Gröna masker skickas separat och ger källan prioritet vid sömval. Motorn
@@ -71,7 +73,7 @@ och godkänt resultat sparas i projektet.
 
 ## Projektformat
 
-Projektformat v7 lagrar källor, roller, masker, färdigt panorama,
+Projektformat v7 lagrar källor, roller, manuell bildrotation, masker, färdigt panorama,
 förhandsvisningsvy och retuschdata i projektpaketet. Format v6 kan fortfarande
 öppnas och migreras; okända föråldrade fält ignoreras.
 

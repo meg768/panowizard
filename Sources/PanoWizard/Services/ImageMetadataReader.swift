@@ -29,8 +29,14 @@ struct ImageMetadataReader: ImageMetadataReading {
             let exifAux = properties[kCGImagePropertyExifAuxDictionary]
                 as? [CFString: Any]
             let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
-            let width = properties[kCGImagePropertyPixelWidth] as? Int ?? 0
-            let height = properties[kCGImagePropertyPixelHeight] as? Int ?? 0
+            let storedWidth = properties[kCGImagePropertyPixelWidth] as? Int ?? 0
+            let storedHeight = properties[kCGImagePropertyPixelHeight] as? Int ?? 0
+            let orientation = (
+                properties[kCGImagePropertyOrientation] as? NSNumber
+            )?.intValue ?? 1
+            let swapsDimensions = (5...8).contains(orientation)
+            let width = swapsDimensions ? storedHeight : storedWidth
+            let height = swapsDimensions ? storedWidth : storedHeight
             let lensModel = exifAux?[kCGImagePropertyExifAuxLensModel] as? String
                 ?? exif?[kCGImagePropertyExifLensModel] as? String
             // Prefer the physical focal length. The 35 mm equivalent is only

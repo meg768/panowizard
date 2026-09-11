@@ -51,6 +51,28 @@ struct OpenCVPanoramaEngineTests {
         #expect(selected.map(\.id) == [first.id, third.id])
     }
 
+    @Test("Manual source rotation changes the alignment cache identity")
+    func rotationChangesCacheIdentity() throws {
+        let sourceURL = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizard-Cache-Test-\(UUID()).jpg"
+        )
+        try Data([1, 2, 3]).write(to: sourceURL)
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+        var source = image(enabled: true)
+        source.url = sourceURL
+        let original = try OpenCVPanoramaEngine.alignmentCacheURL(
+            images: [source],
+            masks: [:]
+        )
+        source.rotation = .left90
+        let rotated = try OpenCVPanoramaEngine.alignmentCacheURL(
+            images: [source],
+            masks: [:]
+        )
+
+        #expect(original != rotated)
+    }
+
     @Test("App dispatches masks directly to its sole engine")
     @MainActor
     func appDispatch() async throws {

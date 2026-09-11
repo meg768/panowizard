@@ -26,6 +26,28 @@ struct LittlePlanetSource: Sendable {
     let height: Int
     let pixels: [UInt8]
 
+    init(
+        panoramaURL: URL,
+        nadirRetouchURL: URL?,
+        zenithRetouchURL: URL?
+    ) throws {
+        guard nadirRetouchURL != nil || zenithRetouchURL != nil else {
+            try self.init(url: panoramaURL)
+            return
+        }
+        let flattenedURL = FileManager.default.temporaryDirectory.appending(
+            path: "\(UUID().uuidString)-little-planet-panorama.png"
+        )
+        defer { try? FileManager.default.removeItem(at: flattenedURL) }
+        try PoleRetouchService().flattenRetouches(
+            panoramaURL: panoramaURL,
+            nadirRetouchURL: nadirRetouchURL,
+            zenithRetouchURL: zenithRetouchURL,
+            to: flattenedURL
+        )
+        try self.init(url: flattenedURL)
+    }
+
     init(url: URL) throws {
         guard let imageSource = CGImageSourceCreateWithURL(url as CFURL, nil),
               let image = CGImageSourceCreateImageAtIndex(imageSource, 0, nil)

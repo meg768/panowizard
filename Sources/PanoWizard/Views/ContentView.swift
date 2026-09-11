@@ -56,6 +56,13 @@ struct ContentView: View {
                 showExport: { model.selection = .export }
             )
         )
+        .focusedSceneValue(
+            \.sourceMaskCommandActions,
+            SourceMaskCommandActions(
+                canUndo: model.canUndoMask,
+                undo: model.undoMask
+            )
+        )
         .fileImporter(
             isPresented: $model.isImporterPresented,
             allowedContentTypes: [.image],
@@ -124,6 +131,7 @@ struct ContentView: View {
                         protectedMaskData: model.selectedSourceImage.flatMap {
                             model.protectedMaskDataByImageID[$0.id]
                         },
+                        isMaskEditing: model.isSourceMaskEditing,
                         maskTool: model.sourceMaskTool,
                         maskIntent: model.sourceMaskIntent,
                         initialViewpoint: model.panoramaViewpoint,
@@ -235,6 +243,15 @@ struct ContentView: View {
 
             HStack(spacing: 2) {
                 Button {
+                    model.undoMask()
+                } label: {
+                    Label("Ångra maskändring", systemImage: "arrow.uturn.backward")
+                }
+                .buttonStyle(MaskToolbarButtonStyle())
+                .disabled(!model.canUndoMask)
+                .help("Ångra maskändring (⌘Z)")
+
+                Button {
                     model.invertSelectedMask()
                 } label: {
                     Label(
@@ -255,6 +272,17 @@ struct ContentView: View {
                 .disabled(selectedMaskData == nil)
                 .help("Nollställ aktuell mask")
             }
+
+            maskToolbarDivider
+
+            Button {
+                guard let image = model.selectedSourceImage else { return }
+                model.rotateSourceImageLeft(image.id)
+            } label: {
+                Label("Rotera bilden åt vänster", systemImage: "rotate.left")
+            }
+            .buttonStyle(MaskToolbarButtonStyle())
+            .help("Rotera bilden 90° åt vänster")
         }
     }
 
@@ -270,7 +298,7 @@ struct ContentView: View {
     }
 
     private var showsWorkspaceToolRow: Bool {
-        model.selectedSourceImage != nil
+        model.selectedSourceImage != nil && model.isSourceMaskEditing
     }
 
 }

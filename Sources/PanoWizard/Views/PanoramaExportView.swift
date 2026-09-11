@@ -126,6 +126,8 @@ struct PanoramaExportView: View {
             .sheet(isPresented: $isLittlePlanetPresented) {
                 LittlePlanetExportSheet(
                     panoramaURL: panoramaURL,
+                    nadirRetouchURL: model.nadirRetouchURL,
+                    zenithRetouchURL: model.zenithRetouchURL,
                     projectName: projectName,
                     projectTitle: model.project.title,
                     projectDirectoryURL: projectDirectoryURL

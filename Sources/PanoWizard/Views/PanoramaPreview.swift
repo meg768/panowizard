@@ -13,6 +13,7 @@ struct PanoramaPreview: View {
     let selectedSource: SourceImage?
     let maskData: Data?
     let protectedMaskData: Data?
+    let isMaskEditing: Bool
     let maskTool: SourceMaskTool
     let maskIntent: AppModel.SourceMaskIntent
     let initialViewpoint: PanoramaViewpoint
@@ -39,6 +40,7 @@ struct PanoramaPreview: View {
                         image: selectedSource,
                         maskData: maskData,
                         protectedMaskData: protectedMaskData,
+                        isMaskEditing: isMaskEditing,
                         maskTool: maskTool,
                         maskIntent: maskIntent,
                         viewport: sourceViewport(for: selectedSource.id),
@@ -95,6 +97,7 @@ private struct SourceMaskEditor: View {
     let image: SourceImage
     let maskData: Data?
     let protectedMaskData: Data?
+    let isMaskEditing: Bool
     let maskTool: SourceMaskTool
     let maskIntent: AppModel.SourceMaskIntent
     @Binding var viewport: SourceViewport
@@ -156,7 +159,7 @@ private struct SourceMaskEditor: View {
                                 .frame(width: displaySize.width, height: displaySize.height)
                                 .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
 
-                            if let maskImage {
+                            if isMaskEditing, let maskImage {
                                 Image(decorative: maskImage, scale: 1)
                                     .resizable()
                                     .frame(
@@ -167,7 +170,7 @@ private struct SourceMaskEditor: View {
                                     .allowsHitTesting(false)
                             }
 
-                            if let protectedMaskImage {
+                            if isMaskEditing, let protectedMaskImage {
                                 Image(decorative: protectedMaskImage, scale: 1)
                                     .resizable()
                                     .frame(
@@ -249,6 +252,7 @@ private struct SourceMaskEditor: View {
                                     )
                                 }
                             }
+                            .opacity(isMaskEditing ? 1 : 0)
                             .allowsHitTesting(false)
 
                             Canvas { context, _ in
@@ -306,6 +310,7 @@ private struct SourceMaskEditor: View {
                                     )
                                 }
                             }
+                            .opacity(isMaskEditing ? 1 : 0)
                             .allowsHitTesting(false)
 
                             Color.clear
@@ -324,6 +329,7 @@ private struct SourceMaskEditor: View {
                         .simultaneousGesture(
                             DragGesture(minimumDistance: 0)
                                 .onChanged { value in
+                                    guard isMaskEditing else { return }
                                     if pointerGesture == nil {
                                         let interaction = ImageSurfaceInteraction(
                                             modifierFlags: NSEvent.modifierFlags
@@ -369,6 +375,12 @@ private struct SourceMaskEditor: View {
                                 }
                         )
                         .onContinuousHover { phase in
+                            guard isMaskEditing else {
+                                lastHoverPoint = nil
+                                hoverPoint = nil
+                                showSystemCursor()
+                                return
+                            }
                             switch phase {
                             case .active(let location):
                                 modifierInteraction = ImageSurfaceInteraction(
@@ -389,8 +401,9 @@ private struct SourceMaskEditor: View {
                     }
                     .scrollIndicators(.visible)
                     .scrollDisabled(
-                        modifierInteraction != .navigate
-                            || pointerGesture != nil
+                        isMaskEditing
+                            && (modifierInteraction != .navigate
+                                || pointerGesture != nil)
                     )
                     .scrollPosition($scrollPosition)
                     .onScrollGeometryChange(for: ScrollGeometry.self) { geometry in
@@ -430,14 +443,22 @@ private struct SourceMaskEditor: View {
                     setZoom(zoom * exp(-delta * 0.01))
                 }
                 ImageSurfaceModifierMonitor { interaction in
+                    guard isMaskEditing else {
+                        modifierInteraction = .navigate
+                        showSystemCursor()
+                        return
+                    }
                     modifierInteraction = interaction
                     updateCursorFeedback()
                 }
             }
         }
-        .task(id: image.id) {
+        .task(id: image) {
             pendingViewportCenter = viewport.center
-            sourceImage = Self.loadImage(at: image.url)
+            sourceImage = SourceImageRaster.load(
+                image,
+                maximumPixelSize: 12_000
+            )
             maskImage = Self.loadImage(data: maskData)
             protectedMaskImage = Self.loadImage(data: protectedMaskData)
             activeStroke = []
@@ -457,6 +478,19 @@ private struct SourceMaskEditor: View {
             circleStart = nil
             circleEnd = nil
             updateCursorFeedback()
+        }
+        .onChange(of: isMaskEditing) {
+            activeStroke = []
+            circleStart = nil
+            circleEnd = nil
+            pointerGesture = nil
+            activeGestureErases = false
+            if !isMaskEditing {
+                modifierInteraction = .navigate
+                lastHoverPoint = nil
+                hoverPoint = nil
+                showSystemCursor()
+            }
         }
         .onDisappear {
             showSystemCursor()
@@ -628,18 +662,6 @@ private struct SourceMaskEditor: View {
             width: contentSize.width * scale,
             height: contentSize.height * scale
         )
-    }
-
-    private static func loadImage(at url: URL) -> CGImage? {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
-            return nil
-        }
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: 12_000
-        ]
-        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }
 
     private static func loadImage(data: Data?) -> CGImage? {

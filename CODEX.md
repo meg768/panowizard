@@ -22,6 +22,9 @@
 - `Sources/PanoWizard/Services/OpenCVPanoramaEngine.swift` förbereder
   orienterade TIFF-källor och masker, väljer cachefil och vidarebefordrar
   progress och avbrytning genom C-API:t.
+- `Sources/PanoWizard/Services/SourceImageRaster.swift` applicerar ImageIO:s
+  metadataorientering och därefter användarens manuella kvartsvarv på samma
+  sätt för miniatyr, källförhandsvisning och motorkälla.
 - `Sources/PanoWizard/Services/MaskedSourceImageWriter.swift` lägger den röda
   exkluderingsmasken i källans alpha. Maskerade pixlar får inte användas senare
   i motorn.

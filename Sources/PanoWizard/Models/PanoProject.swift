@@ -65,6 +65,14 @@ struct PanoProject: Codable, Equatable, Sendable {
         touch()
     }
 
+    mutating func rotateImageLeft(_ imageID: UUID) {
+        guard let index = images.firstIndex(where: { $0.id == imageID }) else {
+            return
+        }
+        images[index].rotation = images[index].rotation.rotatedLeft
+        touch()
+    }
+
     func aiRetouchPrompt(for pole: PanoramaPole) -> String? {
         pole == .nadir ? nadirAIRetouchPrompt : zenithAIRetouchPrompt
     }

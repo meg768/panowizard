@@ -14,6 +14,11 @@ final class AppModel {
     enum SourceMaskIntent: Hashable { case exclude, protect, erase }
     enum MaskKind: Hashable { case panorama, protected }
 
+    private struct MaskSnapshot {
+        let red: Data?
+        let green: Data?
+    }
+
     enum Phase: Equatable {
         case ready, importing, stitching, retouching, exporting
         case failed(String)
@@ -41,11 +46,14 @@ final class AppModel {
     private let exporter: any PanoramaExporting
     private var stitchTask: Task<Void, Never>?
     private var stitchOperationID = UUID()
-    private var maskUndoStack: [(MaskKind, UUID, Data?)] = []
-    private var sourceMaskUndoStack: [(UUID, Data?, Data?)] = []
+    private var maskUndoHistory: [UUID: [MaskSnapshot]] = [:]
 
     var project: PanoProject
-    var selection: ProjectSelection?
+    var selection: ProjectSelection? {
+        didSet {
+            isSourceMaskEditing = selectedSourceImage != nil
+        }
+    }
     var phase: Phase = .ready
     var isImporterPresented = false
     var skippedFileCount = 0
@@ -66,6 +74,7 @@ final class AppModel {
     var aiRetouchMaskRevision = 0
     var sourceMaskIntent = SourceMaskIntent.exclude
     var sourceMaskTool = SourceMaskTool.brush
+    var isSourceMaskEditing = false
     var stitchProgress = 0.0
     var stitchStage = ""
     var lastStitchCoverage: Double?
@@ -101,6 +110,7 @@ final class AppModel {
         protectedMaskDataByImageID = protectedMasks
         panoramaViewpoint = migrated.previewViewpoint ?? PanoramaViewpoint()
         selection = migrated.images.first.map { .source($0.id) }
+        isSourceMaskEditing = !migrated.images.isEmpty
         stitchedResultURL = panoramaData.flatMap {
             Self.restoreData($0, filename: "\(migrated.id)-panorama.jpg")
         }
@@ -236,13 +246,27 @@ final class AppModel {
         project.removeImage(at: index)
         maskDataByImageID[id] = nil
         protectedMaskDataByImageID[id] = nil
-        maskUndoStack.removeAll { $0.1 == id }
-        sourceMaskUndoStack.removeAll { $0.0 == id }
+        maskUndoHistory[id] = nil
         maskRevision += 1
         invalidatePanorama()
         selection = project.images.isEmpty
             ? nil
             : .source(project.images[min(index, project.images.count - 1)].id)
+    }
+
+    func moveSourceImageToTrash(_ id: SourceImage.ID) throws {
+        guard let image = project.images.first(where: { $0.id == id }) else {
+            return
+        }
+        let accessed = image.url.startAccessingSecurityScopedResource()
+        defer {
+            if accessed { image.url.stopAccessingSecurityScopedResource() }
+        }
+        try FileManager.default.trashItem(
+            at: image.url,
+            resultingItemURL: nil
+        )
+        removeSourceImage(id)
     }
 
     func toggleSourceImageEnabled(_ id: SourceImage.ID) {
@@ -257,6 +281,32 @@ final class AppModel {
         cancelStitch()
         project.images[index].role = role
         invalidatePanorama()
+    }
+
+    func rotateSourceImageLeft(_ id: SourceImage.ID) {
+        guard selectedSourceImage?.id == id else { return }
+        do {
+            let red = try SourceImageRaster.rotatePNGLeft(
+                maskDataByImageID[id]
+            )
+            let green = try SourceImageRaster.rotatePNGLeft(
+                protectedMaskDataByImageID[id]
+            )
+            let history = try (maskUndoHistory[id] ?? []).map { snapshot in
+                MaskSnapshot(
+                    red: try SourceImageRaster.rotatePNGLeft(snapshot.red),
+                    green: try SourceImageRaster.rotatePNGLeft(snapshot.green)
+                )
+            }
+            project.rotateImageLeft(id)
+            maskDataByImageID[id] = red
+            protectedMaskDataByImageID[id] = green
+            maskUndoHistory[id] = history
+            maskRevision += 1
+            invalidatePanorama()
+        } catch {
+            phase = .failed(error.localizedDescription)
+        }
     }
 
     func stitch() {
@@ -325,11 +375,14 @@ final class AppModel {
 
     func setMaskData(_ data: Data?, for id: UUID) {
         let kind = activeMaskKind
+        let previous = kind == .protected
+            ? protectedMaskDataByImageID[id]
+            : maskDataByImageID[id]
+        guard previous != data else { return }
+        recordMaskUndo(for: id)
         if kind == .protected {
-            maskUndoStack.append((kind, id, protectedMaskDataByImageID[id]))
             protectedMaskDataByImageID[id] = data
         } else {
-            maskUndoStack.append((kind, id, maskDataByImageID[id]))
             maskDataByImageID[id] = data
         }
         maskRevision += 1
@@ -343,9 +396,9 @@ final class AppModel {
     }
 
     func setSourceMasks(red: Data?, green: Data?, for id: UUID) {
-        sourceMaskUndoStack.append((
-            id, maskDataByImageID[id], protectedMaskDataByImageID[id]
-        ))
+        guard maskDataByImageID[id] != red
+                || protectedMaskDataByImageID[id] != green else { return }
+        recordMaskUndo(for: id)
         maskDataByImageID[id] = red
         protectedMaskDataByImageID[id] = green
         maskRevision += 1
@@ -357,28 +410,25 @@ final class AppModel {
               let data = maskData(for: image.id),
               let inverted = SourceMaskRasterizer.inverted(
                 data,
-                width: image.pixelWidth,
-                height: image.pixelHeight,
+                width: image.orientedPixelWidth,
+                height: image.orientedPixelHeight,
                 protectedArea: activeMaskKind == .protected
               ) else { return }
         setMaskData(inverted, for: image.id)
     }
 
     var canUndoMask: Bool {
-        !sourceMaskUndoStack.isEmpty || !maskUndoStack.isEmpty
+        guard isSourceMaskEditing,
+              let id = selectedSourceImage?.id else { return false }
+        return maskUndoHistory[id]?.isEmpty == false
     }
 
     func undoMask() {
-        if let (id, red, green) = sourceMaskUndoStack.popLast() {
-            maskDataByImageID[id] = red
-            protectedMaskDataByImageID[id] = green
-        } else if let (kind, id, data) = maskUndoStack.popLast() {
-            if kind == .protected {
-                protectedMaskDataByImageID[id] = data
-            } else {
-                maskDataByImageID[id] = data
-            }
-        } else { return }
+        guard isSourceMaskEditing,
+              let id = selectedSourceImage?.id,
+              let snapshot = maskUndoHistory[id]?.popLast() else { return }
+        maskDataByImageID[id] = snapshot.red
+        protectedMaskDataByImageID[id] = snapshot.green
         maskRevision += 1
         invalidatePanorama()
     }
@@ -683,7 +733,20 @@ final class AppModel {
         protectedMaskDataByImageID = protectedMaskDataByImageID.filter {
             ids.contains($0.key)
         }
+        maskUndoHistory = maskUndoHistory.filter { ids.contains($0.key) }
         maskRevision += 1
+    }
+
+    private func recordMaskUndo(for id: UUID) {
+        var history = maskUndoHistory[id] ?? []
+        history.append(MaskSnapshot(
+            red: maskDataByImageID[id],
+            green: protectedMaskDataByImageID[id]
+        ))
+        if history.count > 50 {
+            history.removeFirst(history.count - 50)
+        }
+        maskUndoHistory[id] = history
     }
 
     private func invalidatePanorama() {

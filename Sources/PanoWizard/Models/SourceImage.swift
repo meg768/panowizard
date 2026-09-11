@@ -1,6 +1,19 @@
 import Foundation
 
 struct SourceImage: Codable, Identifiable, Hashable, Sendable {
+    enum Rotation: Int, Codable, CaseIterable, Sendable {
+        case none = 0
+        case left90 = 1
+        case halfTurn = 2
+        case right90 = 3
+
+        var rotatedLeft: Rotation {
+            Rotation(rawValue: (rawValue + 1) % 4) ?? .none
+        }
+
+        var swapsDimensions: Bool { rawValue.isMultiple(of: 2) == false }
+    }
+
     enum Direction: String, Codable, Sendable {
         case horizontal, zenith, nadir
     }
@@ -21,6 +34,7 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
     var automaticRole: Role?
     var automaticDirection: Direction?
     var isEnabled: Bool
+    var rotation: Rotation
 
     init(
         id: UUID = UUID(),
@@ -34,7 +48,8 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
         role: Role = .automatic,
         automaticRole: Role? = nil,
         automaticDirection: Direction? = nil,
-        isEnabled: Bool = true
+        isEnabled: Bool = true,
+        rotation: Rotation = .none
     ) {
         self.id = id
         self.url = url
@@ -48,6 +63,7 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
         self.automaticRole = automaticRole
         self.automaticDirection = automaticDirection
         self.isEnabled = isEnabled
+        self.rotation = rotation
     }
 
     var filename: String {
@@ -58,9 +74,18 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
         role == .automatic ? automaticRole ?? .alignment : role
     }
 
+    var orientedPixelWidth: Int {
+        rotation.swapsDimensions ? pixelHeight : pixelWidth
+    }
+
+    var orientedPixelHeight: Int {
+        rotation.swapsDimensions ? pixelWidth : pixelHeight
+    }
+
     private enum CodingKeys: String, CodingKey {
         case id, url, captureDate, pixelWidth, pixelHeight, cameraModel, lens
         case direction, role, automaticRole, automaticDirection, isEnabled
+        case rotation
     }
 
     init(from decoder: Decoder) throws {
@@ -83,5 +108,7 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
         )
         isEnabled = try values.decodeIfPresent(Bool.self, forKey: .isEnabled)
             ?? true
+        rotation = try values.decodeIfPresent(Rotation.self, forKey: .rotation)
+            ?? .none
     }
 }
