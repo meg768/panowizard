@@ -76,6 +76,7 @@ struct Alignment {
 struct Warp {
     cv::Mat image;
     cv::Mat mask;
+    cv::Mat userExclusionMask;
     cv::Mat protectedMask;
     cv::Mat score;
     bool fillOnly = false;
@@ -241,7 +242,10 @@ Source readSource(const char *imagePath, const char *protectedPath) {
     if (raw.channels() == 4) {
         std::vector<cv::Mat> channels;
         cv::split(raw, channels);
-        result.userMask = channels[3] > 0;
+        // The app writes premultiplied alpha. Partially transparent edge
+        // pixels therefore contain darkened RGB and are not valid source
+        // colour for interpolation.
+        result.userMask = channels[3] == 255;
         cv::cvtColor(raw, result.image, cv::COLOR_BGRA2BGR);
     } else if (raw.channels() == 3) {
         result.image = raw;
@@ -1764,6 +1768,119 @@ std::vector<cv::Mat> preferCentralCoverage(
 
 cv::Mat periodicExpand(const cv::Mat &mask, int radius);
 
+struct CircularHorizontalSpan {
+    int start = 0;
+    int width = 0;
+    int gap = 0;
+};
+
+CircularHorizontalSpan minimumCircularHorizontalSpan(const cv::Mat &mask) {
+    std::vector<unsigned char> occupied(mask.cols, 0);
+    int firstOccupied = -1;
+    for (int x = 0; x < mask.cols; ++x) {
+        if (cv::countNonZero(mask.col(x)) == 0) continue;
+        occupied[x] = 1;
+        if (firstOccupied < 0) firstOccupied = x;
+    }
+    if (firstOccupied < 0) return {};
+
+    int largestGap = 0;
+    int largestGapEnd = -1;
+    int currentGap = 0;
+    for (int step = 1; step <= mask.cols; ++step) {
+        const int x = (firstOccupied + step) % mask.cols;
+        if (!occupied[x]) {
+            ++currentGap;
+        } else {
+            if (currentGap > largestGap) {
+                largestGap = currentGap;
+                largestGapEnd = (x - 1 + mask.cols) % mask.cols;
+            }
+            currentGap = 0;
+        }
+    }
+    if (largestGap == 0) {
+        return {0, mask.cols, 0};
+    }
+    return {
+        (largestGapEnd + 1) % mask.cols,
+        mask.cols - largestGap,
+        largestGap
+    };
+}
+
+bool crossesHorizontalBoundary(const cv::Mat &mask) {
+    return cv::countNonZero(mask.col(0)) > 0
+        && cv::countNonZero(mask.col(mask.cols - 1)) > 0;
+}
+
+int periodicX(int x, int width) {
+    const int remainder = x % width;
+    return remainder < 0 ? remainder + width : remainder;
+}
+
+cv::Mat periodicRegion(
+    const cv::Mat &source,
+    int startX,
+    int y,
+    int width,
+    int height
+) {
+    cv::Mat result(height, width, source.type());
+    const int wrappedStart = periodicX(startX, source.cols);
+    const int firstWidth = std::min(width, source.cols - wrappedStart);
+    source(cv::Rect(wrappedStart, y, firstWidth, height)).copyTo(
+        result(cv::Rect(0, 0, firstWidth, height))
+    );
+    if (firstWidth < width) {
+        source(cv::Rect(0, y, width - firstWidth, height)).copyTo(
+            result(cv::Rect(firstWidth, 0, width - firstWidth, height))
+        );
+    }
+    return result;
+}
+
+void storePeriodicRegion(
+    const cv::Mat &source,
+    cv::Mat &destination,
+    int startX,
+    int y
+) {
+    const int wrappedStart = periodicX(startX, destination.cols);
+    const int firstWidth = std::min(source.cols, destination.cols - wrappedStart);
+    source(cv::Rect(0, 0, firstWidth, source.rows)).copyTo(
+        destination(cv::Rect(wrappedStart, y, firstWidth, source.rows))
+    );
+    if (firstWidth < source.cols) {
+        source(cv::Rect(firstWidth, 0, source.cols - firstWidth, source.rows)).copyTo(
+            destination(cv::Rect(0, y, source.cols - firstWidth, source.rows))
+        );
+    }
+}
+
+void findGraphCutForPair(
+    const cv::Mat &firstImage,
+    const cv::Point &firstCorner,
+    cv::Mat &firstMask,
+    const cv::Mat &secondImage,
+    const cv::Point &secondCorner,
+    cv::Mat &secondMask
+) {
+    std::vector<cv::UMat> images = {
+        firstImage.getUMat(cv::ACCESS_READ),
+        secondImage.getUMat(cv::ACCESS_READ)
+    };
+    std::vector<cv::UMat> masks = {
+        firstMask.getUMat(cv::ACCESS_RW),
+        secondMask.getUMat(cv::ACCESS_RW)
+    };
+    const std::vector<cv::Point> corners = {firstCorner, secondCorner};
+    cv::detail::GraphCutSeamFinder finder("COST_COLOR_GRAD");
+    finder.find(images, corners, masks);
+    masks[0].getMat(cv::ACCESS_READ).copyTo(firstMask);
+    masks[1].getMat(cv::ACCESS_READ).copyTo(secondMask);
+}
+
 cv::Mat graphCutLabels(
     const std::vector<Warp> &warps,
     const std::vector<cv::Mat> &seamMasks,
@@ -1824,7 +1941,11 @@ cv::Mat graphCutLabels(
         graphMaskStorage.push_back(smallMasks[index](roi).clone());
     }
 
-    if (graphIndices.size() > 1) {
+    const bool hasPeriodicGraphROI = std::any_of(
+        graphIndices.begin(), graphIndices.end(),
+        [&](int index) { return crossesHorizontalBoundary(smallMasks[index]); }
+    );
+    if (graphIndices.size() > 1 && !hasPeriodicGraphROI) {
         std::vector<cv::UMat> graphImages;
         std::vector<cv::UMat> graphMasks;
         std::vector<cv::Point> graphCorners;
@@ -1849,6 +1970,104 @@ cv::Mat graphCutLabels(
                 smallMasks[graphIndices[graphIndex]](graphROIs[graphIndex])
             );
         }
+    } else if (graphIndices.size() > 1) {
+        // PairwiseSeamFinder works on a plane. A source crossing the periodic
+        // panorama boundary has support at both horizontal edges, so its
+        // ordinary bounding rectangle can span the full canvas. Preserve the
+        // same pair order and GraphCut cost, but unwrap only affected pairs
+        // around their actual overlap before finding the seam.
+        std::vector<bool> periodicSource(graphIndices.size(), false);
+        for (size_t graphIndex = 0;
+             graphIndex < graphIndices.size(); ++graphIndex) {
+            periodicSource[graphIndex] = crossesHorizontalBoundary(
+                smallMasks[graphIndices[graphIndex]]
+            );
+        }
+        for (size_t first = 0; first + 1 < graphIndices.size(); ++first) {
+            for (size_t second = first + 1;
+                 second < graphIndices.size(); ++second) {
+                const int firstIndex = graphIndices[first];
+                const int secondIndex = graphIndices[second];
+                cv::Mat overlap;
+                cv::bitwise_and(
+                    smallMasks[firstIndex], smallMasks[secondIndex], overlap
+                );
+                const CircularHorizontalSpan span =
+                    minimumCircularHorizontalSpan(overlap);
+                const cv::Rect ordinaryROI =
+                    graphROIs[first] & graphROIs[second];
+                const int leftContext = std::min(
+                    graphCutContext, span.gap / 2
+                );
+                const int rightContext = std::min(
+                    graphCutContext, span.gap - leftContext
+                );
+                const int packedWidth =
+                    span.width + leftContext + rightContext;
+                const bool needsPeriodicPacking =
+                    (periodicSource[first] || periodicSource[second])
+                    && span.width > 0
+                    && packedWidth < ordinaryROI.width;
+
+                if (!needsPeriodicPacking) {
+                    findGraphCutForPair(
+                        graphImageStorage[first], graphROIs[first].tl(),
+                        graphMaskStorage[first],
+                        graphImageStorage[second], graphROIs[second].tl(),
+                        graphMaskStorage[second]
+                    );
+                    graphMaskStorage[first].copyTo(
+                        smallMasks[firstIndex](graphROIs[first])
+                    );
+                    graphMaskStorage[second].copyTo(
+                        smallMasks[secondIndex](graphROIs[second])
+                    );
+                    continue;
+                }
+
+                const int packedStart = span.start - leftContext;
+                cv::Mat firstImage = periodicRegion(
+                    smallImages[firstIndex], packedStart, ordinaryROI.y,
+                    packedWidth, ordinaryROI.height
+                );
+                cv::Mat secondImage = periodicRegion(
+                    smallImages[secondIndex], packedStart, ordinaryROI.y,
+                    packedWidth, ordinaryROI.height
+                );
+                cv::Mat firstMask = periodicRegion(
+                    smallMasks[firstIndex], packedStart, ordinaryROI.y,
+                    packedWidth, ordinaryROI.height
+                );
+                cv::Mat secondMask = periodicRegion(
+                    smallMasks[secondIndex], packedStart, ordinaryROI.y,
+                    packedWidth, ordinaryROI.height
+                );
+                findGraphCutForPair(
+                    firstImage, cv::Point(0, 0), firstMask,
+                    secondImage, cv::Point(0, 0), secondMask
+                );
+                storePeriodicRegion(
+                    firstMask, smallMasks[firstIndex],
+                    packedStart, ordinaryROI.y
+                );
+                storePeriodicRegion(
+                    secondMask, smallMasks[secondIndex],
+                    packedStart, ordinaryROI.y
+                );
+                smallMasks[firstIndex](graphROIs[first]).copyTo(
+                    graphMaskStorage[first]
+                );
+                smallMasks[secondIndex](graphROIs[second]).copyTo(
+                    graphMaskStorage[second]
+                );
+            }
+        }
+        for (size_t graphIndex = 0;
+             graphIndex < graphIndices.size(); ++graphIndex) {
+            graphMaskStorage[graphIndex].copyTo(
+                smallMasks[graphIndices[graphIndex]](graphROIs[graphIndex])
+            );
+        }
     }
 
     cv::Mat labels(height, width, CV_16S, cv::Scalar(-1));
@@ -1859,6 +2078,7 @@ cv::Mat graphCutLabels(
             smallMasks[index], seamMask,
             cv::Size(width, height), 0.0, 0.0, cv::INTER_NEAREST
         );
+        cv::bitwise_and(seamMask, warps[index].mask, seamMask);
         for (int y = 0; y < height; ++y) {
             const unsigned char *maskRow = seamMask.ptr<unsigned char>(y);
             const unsigned char *protectedRow =
@@ -1889,7 +2109,6 @@ cv::Mat graphCutLabels(
             }
         }
     }
-
     // A close, moving or strongly parallaxed subject can disagree completely
     // between otherwise well-aligned views. GraphCut may then carve the
     // subject into unrelated pieces because either side of the object is a
@@ -2272,6 +2491,38 @@ cv::Mat contentAdaptiveBlend(
         + seamDetailed.mul(one - colorConflictAlpha);
     result = structureResult.mul(colorStructureAlpha)
         + result.mul(one - colorStructureAlpha);
+
+    cv::Mat userExclusions(height, width, CV_8U, cv::Scalar(0));
+    for (const Warp &warp : warps) {
+        cv::bitwise_or(
+            userExclusions, warp.userExclusionMask, userExclusions
+        );
+    }
+    if (cv::countNonZero(userExclusions) > 0) {
+        // A manual exclusion is an explicit request to remove content.
+        // Wide blending must not re-introduce its detail.
+        std::vector<cv::Mat> tiledPieces = {
+            userExclusions, userExclusions, userExclusions
+        };
+        cv::Mat tiled;
+        cv::hconcat(tiledPieces, tiled);
+        cv::Mat outside;
+        cv::bitwise_not(tiled, outside);
+        cv::Mat distance;
+        cv::distanceTransform(outside, distance, cv::DIST_L2, 5);
+        distance = distance.colRange(width, 2 * width).clone();
+        const double guardRadius = std::max(
+            width / 24.0, 1.5 * seamSigma
+        );
+        cv::Mat exclusionAlpha = 1.0 - distance / guardRadius;
+        cv::max(exclusionAlpha, 0.0, exclusionAlpha);
+        cv::min(exclusionAlpha, 1.0, exclusionAlpha);
+        std::vector<cv::Mat> exclusionChannels(3, exclusionAlpha);
+        cv::Mat colorExclusionAlpha;
+        cv::merge(exclusionChannels, colorExclusionAlpha);
+        result = narrow.mul(colorExclusionAlpha)
+            + result.mul(one - colorExclusionAlpha);
+    }
 
     cv::max(result, cv::Scalar(0, 0, 0), result);
     cv::min(result, cv::Scalar(255, 255, 255), result);
@@ -3110,6 +3361,21 @@ std::pair<double, int> renderPanorama(
             width, height, alignment.rotations[index], sources[index].image.size(),
             alignment.lens, validSource, mapX, mapY, warp.mask, warp.score
         );
+        cv::Mat projectedUserMask;
+        cv::Mat projectedOpticalMask;
+        cv::remap(
+            sources[index].userMask, projectedUserMask, mapX, mapY,
+            cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(0)
+        );
+        cv::remap(
+            opticalMask, projectedOpticalMask, mapX, mapY,
+            cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(0)
+        );
+        cv::bitwise_not(projectedUserMask, warp.userExclusionMask);
+        cv::bitwise_and(
+            warp.userExclusionMask, projectedOpticalMask,
+            warp.userExclusionMask
+        );
         cv::Mat gained = sources[index].image.clone();
         for (int y = 0; y < gained.rows; ++y) {
             cv::Vec3b *row = gained.ptr<cv::Vec3b>(y);
@@ -3121,10 +3387,39 @@ std::pair<double, int> renderPanorama(
                 }
             }
         }
+        gained.setTo(cv::Scalar(0, 0, 0), validSource == 0);
+        // Normalize Lanczos interpolation by the same binary validity field.
+        // Otherwise transparent black samples bleed into still-valid pixels
+        // along user masks and the optical support boundary.
+        cv::Mat sourceValidity;
+        validSource.convertTo(sourceValidity, CV_32F, 1.0 / 255.0);
+        cv::Mat gainedFloat;
+        gained.convertTo(gainedFloat, CV_32FC3);
+        cv::Mat warpedColor;
+        cv::Mat warpedValidity;
         cv::remap(
-            gained, warp.image, mapX, mapY, cv::INTER_LANCZOS4,
+            gained, warp.image, mapX, mapY, cv::INTER_NEAREST,
             cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0)
         );
+        cv::remap(
+            gainedFloat, warpedColor, mapX, mapY, cv::INTER_LANCZOS4,
+            cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0)
+        );
+        cv::remap(
+            sourceValidity, warpedValidity, mapX, mapY, cv::INTER_LANCZOS4,
+            cv::BORDER_CONSTANT, cv::Scalar(0)
+        );
+        constexpr float minimumWarpValidity = 1e-4f;
+        cv::Mat sufficientlyValid = warpedValidity > minimumWarpValidity;
+        cv::max(warpedValidity, minimumWarpValidity, warpedValidity);
+        std::vector<cv::Mat> warpedValidityChannels(3, warpedValidity);
+        cv::Mat colorWarpedValidity;
+        cv::merge(warpedValidityChannels, colorWarpedValidity);
+        cv::divide(warpedColor, colorWarpedValidity, warpedColor);
+        cv::Mat normalizedImage;
+        warpedColor.convertTo(normalizedImage, CV_8UC3);
+        normalizedImage.copyTo(warp.image, sufficientlyValid);
+        warp.image.setTo(cv::Scalar(0, 0, 0), warp.mask == 0);
         cv::remap(
             sources[index].protectedMask, warp.protectedMask, mapX, mapY,
             cv::INTER_NEAREST, cv::BORDER_CONSTANT, cv::Scalar(0)

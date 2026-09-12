@@ -64,6 +64,23 @@ befintlig struktur-, konflikt-, sömkonsekvens- och radiometrisk
 steginformation. Ändra inte dess uttryck, trösklar, radier, vikter eller
 upplösningsskalning som en del av annan cleanup.
 
+Sfärisk RGB-projektion är validitetsnormaliserad: färg och giltighetsvikt
+projiceras med samma Lanczos-kärna och färgen divideras bara där vikten är
+tillräcklig. Efter uppskalning skärs varje GraphCut-ägarmask alltid med samma
+bilds fullupplösta `warp.mask`; befintlig fallback fyller eventuellt frilagda
+pixlar från en annan giltig bild.
+
+När en GraphCut-överlappning korsar panoramats periodiska 0°/360°-gräns packas
+bildparets relevanta ytor till en kompakt sammanhängande ROI, körs genom samma
+GraphCut och mappas tillbaka periodiskt. Övriga överlappningar använder den
+ursprungliga kodvägen.
+
+Projicerade användarexkluderingar hålls separat från den allmänna
+validitetsmasken. Slutblandningen går tillbaka till den smala
+GraphCut-kompositen i och kring exkluderingen så att bortmaskerat innehåll inte
+återinförs. En lågfrekevent tonö kan fortfarande synas när fallbackbildens ton
+skiljer sig från omgivningen; det finns ingen separat tonkorrigering för detta.
+
 Feature matching, CP, linsmodell, geometri, warp, GraphCut, ownership,
 masklogik, radiometri och blendval är kopplade. Anta inte att en synlig söm
 motiverar en generell featherbredd eller ändrat ownership. Mät först det
