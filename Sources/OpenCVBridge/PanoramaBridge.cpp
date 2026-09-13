@@ -3551,25 +3551,6 @@ std::pair<double, int> renderPanorama(
         warps.push_back(std::move(warp));
     }
 
-    // A protected panorama pixel belongs exclusively to its marked source.
-    // Treat it exactly like a user exclusion in every competing warp so the
-    // existing validity, radiometry, seam and exclusion-blend paths agree.
-    cv::Mat protectedOwner(height, width, CV_16S, cv::Scalar(-1));
-    for (int index = 0; index < int(warps.size()); ++index) {
-        protectedOwner.setTo(index, warps[index].protectedMask);
-    }
-    for (int index = 0; index < int(warps.size()); ++index) {
-        cv::Mat excludedByProtection =
-            (protectedOwner >= 0) & (protectedOwner != index);
-        warps[index].mask.setTo(0, excludedByProtection);
-        cv::bitwise_or(
-            warps[index].userExclusionMask, excludedByProtection,
-            warps[index].userExclusionMask
-        );
-        warps[index].image.setTo(
-            cv::Scalar(0, 0, 0), excludedByProtection
-        );
-    }
     reportProgress("Matchar exponering och färg…", 0.78);
     const RadiometryLayers projectedLayers = {warps, radiometryWarps};
     const RadiometryLayers compensatedLayers = compensateRadiometry(
