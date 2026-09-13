@@ -498,7 +498,7 @@ private struct SourceMaskEditor: View {
     }
 
     private func setZoom(_ zoom: Double) {
-        viewport.zoom = min(max(zoom, 1), 8)
+        viewport.zoom = min(max(zoom, 1), 16)
     }
 
     private func updateViewport(using geometry: ScrollGeometry) {
