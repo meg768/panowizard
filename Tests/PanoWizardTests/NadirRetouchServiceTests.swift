@@ -33,6 +33,55 @@ struct PoleRetouchServiceTests {
     }
 
     @Test
+    func preparesRequestedRealAIRetouchPatch() throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let panoramaPath = environment["PANOWIZARD_AI_PANORAMA"],
+              let maskPath = environment["PANOWIZARD_AI_MASK"],
+              let resultPath = environment["PANOWIZARD_AI_RESULT"],
+              let outputPath = environment["PANOWIZARD_AI_OUTPUT_DIRECTORY"] else {
+            return
+        }
+        let outputDirectory = URL(fileURLWithPath: outputPath)
+        try FileManager.default.createDirectory(
+            at: outputDirectory,
+            withIntermediateDirectories: true
+        )
+        let sourceURL = outputDirectory.appending(path: "source.png")
+        let overlayURL = outputDirectory.appending(path: "overlay.png")
+        let previewURL = outputDirectory.appending(path: "preview.png")
+        let flattenedURL = outputDirectory.appending(path: "flattened.png")
+        let baselineURL = outputDirectory.appending(path: "baseline.png")
+        let service = PoleRetouchService()
+        try service.exportPlate(
+            panoramaURL: URL(fileURLWithPath: panoramaPath),
+            repairOverlayURL: nil,
+            existingRetouchURL: nil,
+            pole: .nadir,
+            to: sourceURL
+        )
+        try service.prepareAIRetouchPatch(
+            originalURL: sourceURL,
+            editedURL: URL(fileURLWithPath: resultPath),
+            maskData: try Data(contentsOf: URL(fileURLWithPath: maskPath)),
+            pole: .nadir,
+            overlayURL: overlayURL,
+            previewURL: previewURL
+        )
+        try service.flattenRetouches(
+            panoramaURL: URL(fileURLWithPath: panoramaPath),
+            nadirRetouchURL: overlayURL,
+            zenithRetouchURL: nil,
+            to: flattenedURL
+        )
+        try service.flattenRetouches(
+            panoramaURL: URL(fileURLWithPath: panoramaPath),
+            nadirRetouchURL: nil,
+            zenithRetouchURL: nil,
+            to: baselineURL
+        )
+    }
+
+    @Test
     func exportsNinetyDegreeNadirFaceFromEquirectangularPanorama() throws {
         let directory = try temporaryDirectory()
         let panoramaURL = directory.appending(path: "panorama.png")
@@ -107,6 +156,48 @@ struct PoleRetouchServiceTests {
 
         #expect(result.pixel(x: 32, y: 32) == (0, 0, 0, 0))
         #expect(result.pixel(x: 10, y: 10) == (120, 80, 40, 255))
+    }
+
+    @Test
+    func aiRetouchPatchIsLocalAndRadiometricallyMatched() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let originalURL = directory.appending(path: "original.png")
+        let editedURL = directory.appending(path: "edited.png")
+        let maskURL = directory.appending(path: "mask.png")
+        let overlayURL = directory.appending(path: "overlay.png")
+        let previewURL = directory.appending(path: "preview.png")
+        let size = 256
+        let isPainted: (Int, Int) -> Bool = { x, y in
+            (96..<160).contains(x) && (96..<160).contains(y)
+        }
+        try writeImage(width: size, height: size, to: originalURL) { _, _ in
+            (80, 100, 120, 255)
+        }
+        try writeImage(width: size, height: size, to: editedURL) { x, y in
+            isPainted(x, y) ? (210, 190, 170, 255) : (100, 130, 160, 255)
+        }
+        try writeImage(width: size, height: size, to: maskURL) { x, y in
+            isPainted(x, y) ? (255, 0, 0, 255) : (0, 0, 0, 0)
+        }
+
+        try PoleRetouchService().prepareAIRetouchPatch(
+            originalURL: originalURL,
+            editedURL: editedURL,
+            maskData: try Data(contentsOf: maskURL),
+            pole: .nadir,
+            overlayURL: overlayURL,
+            previewURL: previewURL,
+            expectedSize: size
+        )
+
+        let overlay = try pixels(at: overlayURL)
+        let preview = try pixels(at: previewURL)
+        #expect(overlay.pixel(x: 128, y: 128) == (190, 160, 130, 255))
+        #expect(preview.pixel(x: 128, y: 128) == (190, 160, 130, 255))
+        #expect(overlay.pixel(x: 0, y: 0) == (0, 0, 0, 0))
+        #expect(preview.pixel(x: 0, y: 0) == (80, 100, 120, 255))
+        #expect((1..<255).contains(Int(overlay.pixel(x: 95, y: 128).3)))
     }
 
     @Test

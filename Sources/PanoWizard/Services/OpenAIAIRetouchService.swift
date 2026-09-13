@@ -11,11 +11,13 @@ struct AIRetouchPreview: Sendable {
     let directoryURL: URL
     let editedURL: URL
     let preparedURL: URL
+    let compositedURL: URL
 }
 
 enum AIRetouchError: LocalizedError {
     case panoramaUnavailable
     case emptyPrompt
+    case missingMask
 
     var errorDescription: String? {
         switch self {
@@ -23,6 +25,8 @@ enum AIRetouchError: LocalizedError {
             "Generera panoramat innan du använder AI-retusch."
         case .emptyPrompt:
             "Beskriv vad som ska retuscheras."
+        case .missingMask:
+            "Måla området som ska retuscheras."
         }
     }
 }

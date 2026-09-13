@@ -578,16 +578,17 @@ final class AppModel {
         )
         let editedURL = directory.appending(path: "\(pole.rawValue)-edited.png")
         let preparedURL = directory.appending(path: "\(pole.rawValue)-prepared.png")
+        let compositedURL = directory.appending(
+            path: "\(pole.rawValue)-composited.png"
+        )
         phase = .retouching
         defer { if phase == .retouching { phase = .ready } }
         try FileManager.default.createDirectory(
             at: directory,
             withIntermediateDirectories: true
         )
+        guard let maskData else { throw AIRetouchError.missingMask }
         let sourceData = try await Task.detached(priority: .userInitiated) {
-            guard let maskData else {
-                return try Data(contentsOf: source.sourceURL)
-            }
             return try PoleRetouchService().prepareAIRetouchInput(
                 from: source.sourceURL,
                 maskData: maskData,
@@ -603,17 +604,21 @@ final class AppModel {
         try Task.checkCancellation()
         try await Task.detached(priority: .userInitiated) {
             try editedData.write(to: editedURL, options: .atomic)
-            try PoleRetouchService().prepareImportedPlate(
-                from: editedURL,
+            try PoleRetouchService().prepareAIRetouchPatch(
+                originalURL: source.sourceURL,
+                editedURL: editedURL,
+                maskData: maskData,
                 pole: pole,
-                to: preparedURL
+                overlayURL: preparedURL,
+                previewURL: compositedURL
             )
         }.value
         return AIRetouchPreview(
             pole: pole,
             directoryURL: directory,
             editedURL: editedURL,
-            preparedURL: preparedURL
+            preparedURL: preparedURL,
+            compositedURL: compositedURL
         )
     }
 

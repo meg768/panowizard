@@ -130,15 +130,18 @@ struct PanoProjectTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let editedURL = directory.appending(path: "edited.png")
         let preparedURL = directory.appending(path: "prepared.png")
+        let compositedURL = directory.appending(path: "composited.png")
         let edited = Data([21, 22, 23, 24])
         let prepared = Data([31, 32, 33, 34])
         try edited.write(to: editedURL)
         try prepared.write(to: preparedURL)
+        try prepared.write(to: compositedURL)
         let preview = AIRetouchPreview(
             pole: .nadir,
             directoryURL: directory,
             editedURL: editedURL,
-            preparedURL: preparedURL
+            preparedURL: preparedURL,
+            compositedURL: compositedURL
         )
         let model = AppModel.live()
         let mask = Data([41, 42, 43])

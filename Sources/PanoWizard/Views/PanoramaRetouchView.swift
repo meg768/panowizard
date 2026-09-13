@@ -355,11 +355,12 @@ struct AIRetouchSheet: View {
 
     private var canGenerate: Bool {
         source != nil
+            && maskData != nil
             && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var afterURL: URL? {
-        preview?.editedURL
+        preview?.compositedURL
             ?? model.aiRetouchResultURL(for: pole)
             ?? model.retouchURL(for: pole)
     }
@@ -484,42 +485,34 @@ struct AIRetouchSheet: View {
 
     private static func defaultPrompt(for pole: PanoramaPole) -> String {
         if pole == .nadir {
-            return "Detta är nadirytan i ett 360°-panorama. Ta endast bort "
-                + "kamerastativet/monopoden och skuggor som tydligt hör till "
-                + "denna kamerautrustning eller fotografen. Rekonstruera endast "
-                + "den yta som dessa objekt skymmer. Bevara alla andra "
-                + "objekt och delar av bilden exakt som de är, även om de "
-                + "befinner sig nära kamerautrustningen. Ta inte bort, flytta, "
-                + "förändra eller rekonstruera möbler, soptunnor, rör, avlopp, "
-                + "radiatorer, väggar, dörrar, lister eller andra befintliga "
-                + "objekt. Bevara originalets geometri, perspektiv, ljus, färg, "
-                + "kontrast, skärpa, textur och brus utanför området som faktiskt "
-                + "skyms av kamerautrustningen. Rekonstruera det skymda "
-                + "underlaget fotorealistiskt utifrån omgivningen och fortsätt "
-                + "befintliga strukturer, linjer, mönster, fogar, plankor och "
-                + "stenar geometriskt och perspektiviskt korrekt. Resultatet ska "
-                + "se ut som originalfotografiet taget från samma position, men "
-                + "utan kamerautrustningen. Gör inga andra förändringar."
+            return """
+                Detta är nadirytan i ett 360°-panorama. Det maskerade området har tagits bort och ska rekonstrueras.
+
+                Fyll det saknade området fotorealistiskt utifrån den omgivande bilden. Fortsätt befintliga strukturer, linjer, mönster, fogar och texturer geometriskt och perspektiviskt korrekt.
+
+                Rekonstruktionen ska smälta omärkligt samman med den omgivande originalbilden. Anpassa lokalt exponering, ljusstyrka, färgton, vitbalans, kontrast, skärpa, textur och brus så att ingen synlig gräns eller tonkant uppstår runt det rekonstruerade området.
+
+                Övergången mellan rekonstruerat och ursprungligt bildinnehåll ska vara mjuk och gradvis. Undvik en jämnt avgränsad eller maskformad förändring i ljus eller färg.
+
+                Bevara bildens befintliga geometri och perspektiv. Ändra inte objekt eller strukturer som inte behöver rekonstrueras för att fylla det saknade området.
+
+                Gör ingen global bildbehandling. Alla anpassningar av färg, ton och exponering ska vara lokala och endast göras i den omfattning som krävs för att rekonstruktionen ska bli osynlig.
+                """
         }
 
-        return "Detta är zenitytan i ett 360°-panorama. Ta endast bort "
-            + "kamerautrustning, fotografen och skuggor eller andra artefakter "
-            + "som tydligt hör till fotograferingen. Rekonstruera endast den "
-            + "yta som dessa objekt eller artefakter skymmer. Bevara alla andra "
-            + "objekt och delar av bilden exakt som de är, även om de befinner "
-            + "sig nära området som retuscheras. Ta inte bort, flytta, förändra "
-            + "eller rekonstruera lampor, armaturer, ventilationsdon, sprinklers, "
-            + "kablar, bjälkar, lister, takdetaljer, väggar, dörrar eller andra "
-            + "befintliga objekt. Bevara originalets geometri, perspektiv, ljus, "
-            + "färg, kontrast, skärpa, textur och brus utanför området som "
-            + "faktiskt behöver rekonstrueras. Rekonstruera det skymda taket "
-            + "eller den bakomliggande ytan fotorealistiskt utifrån omgivningen "
-            + "och fortsätt befintliga strukturer, linjer, mönster, paneler, "
-            + "bjälkar och andra arkitektoniska detaljer geometriskt och "
-            + "perspektiviskt korrekt. Resultatet ska se ut som "
-            + "originalfotografiet taget från samma position, men utan "
-            + "kamerautrustningen eller fotograferingsartefakterna. Gör inga "
-            + "andra förändringar."
+        return """
+            Detta är zenitytan i ett 360°-panorama. Det maskerade området har tagits bort och ska rekonstrueras.
+
+            Fyll det saknade området fotorealistiskt utifrån den omgivande bilden. Fortsätt befintliga strukturer, linjer, mönster, fogar och texturer geometriskt och perspektiviskt korrekt.
+
+            Rekonstruktionen ska smälta omärkligt samman med den omgivande originalbilden. Anpassa lokalt exponering, ljusstyrka, färgton, vitbalans, kontrast, skärpa, textur och brus så att ingen synlig gräns eller tonkant uppstår runt det rekonstruerade området.
+
+            Övergången mellan rekonstruerat och ursprungligt bildinnehåll ska vara mjuk och gradvis. Undvik en jämnt avgränsad eller maskformad förändring i ljus eller färg.
+
+            Bevara bildens befintliga geometri och perspektiv. Ändra inte objekt eller strukturer som inte behöver rekonstrueras för att fylla det saknade området.
+
+            Gör ingen global bildbehandling. Alla anpassningar av färg, ton och exponering ska vara lokala och endast göras i den omfattning som krävs för att rekonstruktionen ska bli osynlig.
+            """
     }
 
 }
