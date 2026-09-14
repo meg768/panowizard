@@ -134,5 +134,10 @@ algoritmuttryck, ordning, maskvillkor och cachebeteende. En lyckad kompilering
   användaren ber om det. Flytta eller skriv aldrig om en verifierad tagg.
 - Commit/pusha endast på uttrycklig begäran. Blanda inte experiment,
   diagnostikartefakter eller genererade panoraman med produktionsändringar.
+- När användaren säger `commit` betyder det en godkänd återställningspunkt:
+  använd versionen i `VERSION` som senaste `build-app.sh` redan skapade, bygg/testa
+  utan ytterligare versionshöjning, committa, pusha `main`, skapa och pusha
+  den annoterade taggen `v<appversion>` och verifiera ren arbetskopia. Kör inte
+  `build-app.sh` en extra gång enbart för commit.
 - Vid återställning: verifiera commit/tagg, working tree, build och remote enligt
   användarens exakta instruktioner innan ytterligare arbete.

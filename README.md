@@ -107,9 +107,11 @@ Lokalt signerat appaket:
 open build/PanoWizard.app
 ```
 
-Skriptet skapar `build/PanoWizard.app`, bäddar in OpenCV-dylibs och signerar
-appen ad hoc. Bilder i `Sources/PanoWizard/Resources/Backgrounds` (`jpg`,
-`jpeg` eller `png`) paketeras automatiskt och används växelvis i välkomstvyn.
+Skriptet höjer versionsnumret i `VERSION` ett steg (`1.0` → `1.1` → `1.2`), skapar
+`build/PanoWizard.app`, bäddar in OpenCV-dylibs och signerar appen ad hoc.
+Samma version används som Git-tagg när bygget senare committas. Bilder i
+`Sources/PanoWizard/Resources/Backgrounds` (`jpg`, `jpeg` eller `png`)
+paketeras automatiskt och används växelvis i välkomstvyn.
 
 ## Projektstruktur
 
