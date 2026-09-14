@@ -14,13 +14,11 @@ final class PanoramaExportController {
 enum PanoramaImageFormat: String, CaseIterable {
     case jpeg = "JPEG"
     case png = "PNG"
-    case tiff = "TIFF"
 
     var contentType: UTType {
         switch self {
         case .jpeg: .jpeg
         case .png: .png
-        case .tiff: .tiff
         }
     }
 
@@ -28,7 +26,6 @@ enum PanoramaImageFormat: String, CaseIterable {
         switch self {
         case .jpeg: "jpg"
         case .png: "png"
-        case .tiff: "tiff"
         }
     }
 }
