@@ -46,6 +46,9 @@ struct PoleRetouchService: Sendable {
     private static let aiPatchFeatherFraction = 0.01
     private static let radiometricBandOuterFeatherMultiple = 4.0
     private static let radiometricClipMargin = 8.0 / 255.0
+    private static let automaticHoleChannelThreshold = 16.0 / 255.0
+    private static let automaticHoleMinimumAreaFraction = 0.0001
+    private static let automaticHoleMinimumPixels = 32
 
     func exportPlate(
         panoramaURL: URL,
@@ -175,6 +178,95 @@ struct PoleRetouchService: Sendable {
         return try image.pngData()
     }
 
+    func prepareAIRetouchMask(
+        from sourceURL: URL,
+        existingMaskData: Data?,
+        pole: PanoramaPole,
+        expectedSize: Int = Self.plateSize
+    ) throws -> Data? {
+        let source = try RGBAImage(contentsOf: sourceURL)
+        guard source.width == expectedSize, source.height == expectedSize else {
+            throw PoleRetouchError.invalidDimensions(
+                pole: pole,
+                expected: expectedSize,
+                width: source.width,
+                height: source.height
+            )
+        }
+        var mask: RGBAImage
+        if let existingMaskData {
+            mask = try RGBAImage(data: existingMaskData)
+            guard mask.width == expectedSize, mask.height == expectedSize else {
+                throw PoleRetouchError.invalidDimensions(
+                    pole: pole,
+                    expected: expectedSize,
+                    width: mask.width,
+                    height: mask.height
+                )
+            }
+        } else {
+            mask = RGBAImage(width: expectedSize, height: expectedSize)
+        }
+
+        let pixelCount = source.width * source.height
+        var candidate = [Bool](repeating: false, count: pixelCount)
+        for y in 0..<source.height {
+            for x in 0..<source.width {
+                let pixel = source.pixel(x: x, y: y)
+                candidate[y * source.width + x] = max(
+                    pixel.r,
+                    pixel.g,
+                    pixel.b
+                ) <= Self.automaticHoleChannelThreshold
+            }
+        }
+
+        let minimumArea = max(
+            Self.automaticHoleMinimumPixels,
+            Int(Double(pixelCount) * Self.automaticHoleMinimumAreaFraction)
+        )
+        var visited = [Bool](repeating: false, count: pixelCount)
+        var foundHole = false
+        for start in 0..<pixelCount where candidate[start] && !visited[start] {
+            visited[start] = true
+            var component = [start]
+            var cursor = 0
+            while cursor < component.count {
+                let index = component[cursor]
+                cursor += 1
+                let x = index % source.width
+                let y = index / source.width
+                for offsetY in -1...1 {
+                    for offsetX in -1...1
+                    where offsetX != 0 || offsetY != 0 {
+                        let neighborX = x + offsetX
+                        let neighborY = y + offsetY
+                        guard neighborX >= 0, neighborX < source.width,
+                              neighborY >= 0, neighborY < source.height else {
+                            continue
+                        }
+                        let neighbor = neighborY * source.width + neighborX
+                        guard candidate[neighbor], !visited[neighbor] else {
+                            continue
+                        }
+                        visited[neighbor] = true
+                        component.append(neighbor)
+                    }
+                }
+            }
+            guard component.count >= minimumArea else { continue }
+            foundHole = true
+            for index in component {
+                mask.setPixel(
+                    Pixel(r: 1, g: 0.12, b: 0.08, a: 1),
+                    x: index % source.width,
+                    y: index / source.width
+                )
+            }
+        }
+        return foundHole ? try mask.pngData() : existingMaskData
+    }
+
     func prepareAIRetouchPatch(
         originalURL: URL,
         editedURL: URL,
@@ -273,7 +365,29 @@ struct PoleRetouchService: Sendable {
         zenithRetouchURL: URL?,
         to destinationURL: URL
     ) throws {
+        try flattenPanorama(
+            panoramaURL: panoramaURL,
+            nadirOverlayURL: nil,
+            zenithOverlayURL: nil,
+            nadirRetouchURL: nadirRetouchURL,
+            zenithRetouchURL: zenithRetouchURL,
+            to: destinationURL
+        )
+    }
+
+    func flattenPanorama(
+        panoramaURL: URL,
+        nadirOverlayURL: URL?,
+        zenithOverlayURL: URL?,
+        nadirRetouchURL: URL?,
+        zenithRetouchURL: URL?,
+        to destinationURL: URL
+    ) throws {
         var panorama = try RGBAImage(contentsOf: panoramaURL)
+        let overlays: [(PanoramaPole, RGBAImage)] = try [
+            nadirOverlayURL.map { (.nadir, try RGBAImage(contentsOf: $0)) },
+            zenithOverlayURL.map { (.zenith, try RGBAImage(contentsOf: $0)) }
+        ].compactMap { $0 }
         let retouches: [(PanoramaPole, RGBAImage)] = try [
             nadirRetouchURL.map { (.nadir, try RGBAImage(contentsOf: $0)) },
             zenithRetouchURL.map { (.zenith, try RGBAImage(contentsOf: $0)) }
@@ -287,6 +401,21 @@ struct PoleRetouchService: Sendable {
                 let directionX = sin(longitude) * horizontalRadius
                 let directionZ = cos(longitude) * horizontalRadius
                 var pixel = panorama.pixel(x: x, y: y)
+                for (pole, overlay) in overlays {
+                    let poleAxis = pole == .nadir ? -directionY : directionY
+                    guard poleAxis > 0.000_1 else { continue }
+                    let localX = directionX / poleAxis
+                    let localY = (pole == .nadir ? -directionZ : directionZ)
+                        / poleAxis
+                    let overlayX = 0.5 + Self.repairProjectionScale * localX
+                    let overlayY = 0.5 + Self.repairProjectionScale * localY
+                    guard (0...1).contains(overlayX),
+                          (0...1).contains(overlayY) else { continue }
+                    pixel = Self.blend(
+                        overlay.sample(x: overlayX, y: overlayY),
+                        over: pixel
+                    )
+                }
                 for (pole, retouch) in retouches {
                     let poleAxis = pole == .nadir ? -directionY : directionY
                     guard poleAxis > 0.000_1 else { continue }
@@ -448,14 +577,14 @@ struct PoleRetouchService: Sendable {
 
 }
 
-private struct Pixel {
+struct Pixel {
     var r: Double
     var g: Double
     var b: Double
     var a: Double
 }
 
-private struct RGBAImage {
+struct RGBAImage {
     let width: Int
     let height: Int
     private var bytes: [UInt8]

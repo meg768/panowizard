@@ -16,7 +16,8 @@ förhandsvisning, retusch och export i ett sammanhållet projekt.
    rotationsknappen sist i maskverktygsraden.
 5. Välj **Skapa panorama** och granska den equirektangulära 2:1-bilden i
    360°-förhandsvisningen.
-6. Retuschera vid behov nadir eller zenit och exportera resultatet.
+6. AI-retuschera vid behov nadir eller zenit, eller exportera hela resultatet
+   som en kubkarta för extern redigering.
 
 Röda masker tar bort källpixlar före geometri, radiometri och compositing.
 Gröna masker skickas separat och ger källan prioritet vid sömval. Motorn
@@ -64,18 +65,25 @@ HTML-fil. Little Planet skapar en separat stereografisk PNG från det redan
 färdiga panoramat; rotation, planetstorlek, horisonthöjd och bakgrund kan
 justeras i en live-förhandsvisning.
 
-Nadir och zenit kan exporteras och importeras som plana 2048 × 2048-pixels
-kubsidor för extern retusch. AI-retusch är ett valfritt eftersteg och påverkar
-aldrig stitchning, geometri eller sömval. En valfri arbetsmask gör målade
-pixlar transparenta i bilden som skickas till OpenAI; samma prompt används med
-och utan mask och hela svaret används som retuschresultat. Prompt, arbetsmask
-och godkänt resultat sparas i projektet.
+AI-retusch av nadir och zenit är ett valfritt lokalt eftersteg och påverkar
+aldrig stitchning, geometri eller sömval. Prompt, arbetsmask, rått AI-resultat
+och godkänd lokal patch sparas i projektet. Stora sammanhängande svarta hål
+från källmaskerna blir automatiskt en redigerbar AI-retuschmask; penseln kan
+utöka eller ändra den före retuscheringen.
+
+För manuell extern retusch kan det aktuella synliga panoramat exporteras som
+en förlustfri PNG-kubkarta. De sex 2048 × 2048-pixels kubsidorna ligger i en
+standardiserad 4 × 3-korslayout. En återimporterad kubkarta sparas separat i
+projektet och blir bas för eventuell senare lokal AI-retusch. Ett nytt
+panoramabygge tar bort efterföljande retuscher men behåller källbilder och
+källmasker.
 
 ## Projektformat
 
-Projektformat v7 lagrar källor, roller, manuell bildrotation, masker, färdigt panorama,
-förhandsvisningsvy och retuschdata i projektpaketet. Format v6 kan fortfarande
-öppnas och migreras; okända föråldrade fält ignoreras.
+Projektformat v7 lagrar källor, roller, manuell bildrotation, masker, färdigt
+panorama, förhandsvisningsvy, polretuscher och importerad kubretusch i
+projektpaketet. Format v6 kan fortfarande öppnas och migreras; okända
+föråldrade fält ignoreras.
 
 ## Bygga och köra
 

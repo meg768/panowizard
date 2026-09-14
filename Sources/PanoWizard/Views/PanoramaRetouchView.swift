@@ -5,9 +5,8 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class PanoramaRetouchController {
-    func exportPlate(
+    func exportCubeMap(
         model: AppModel,
-        pole: PanoramaPole,
         projectDirectoryURL: URL?
     ) {
         let panel = NSSavePanel()
@@ -15,22 +14,23 @@ final class PanoramaRetouchController {
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
         panel.directoryURL = projectDirectoryURL
-        panel.nameFieldStringValue = pole == .nadir ? "nadir.png" : "zenit.png"
-        panel.title = "Exportera retusch för \(pole.displayName.lowercased())"
+        panel.nameFieldStringValue = "cube"
+        panel.title = "Exportera kubkarta"
         panel.prompt = "Exportera"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        model.exportRetouchPlate(for: pole, to: url)
+        model.exportCubeMap(to: url)
     }
 
-    func importPlate(model: AppModel, pole: PanoramaPole) {
+    func importCubeMap(model: AppModel) {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.png]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.title = "Importera retusch för \(pole.displayName.lowercased())"
+        panel.nameFieldStringValue = "cube"
+        panel.title = "Importera kubkarta"
         panel.prompt = "Importera"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        model.importRetouchPlate(for: pole, from: url)
+        model.importCubeMap(from: url)
     }
 }
 
@@ -45,6 +45,7 @@ struct PanoramaRetouchView: View {
             Form {
                 poleSection(.nadir)
                 poleSection(.zenith)
+                cubeMapSection
 
                 Section {
                     Text(
@@ -98,30 +99,6 @@ struct PanoramaRetouchView: View {
                 }
                 .accessibilityIdentifier("ai-retouch-\(pole.rawValue)")
 
-                Button {
-                    controller.exportPlate(
-                        model: model,
-                        pole: pole,
-                        projectDirectoryURL: projectDirectoryURL
-                    )
-                } label: {
-                    Label(
-                        "Exportera \(pole.localizedName)…",
-                        systemImage: "square.and.arrow.up"
-                    )
-                }
-                .accessibilityIdentifier("export-retouch-\(pole.rawValue)")
-
-                Button {
-                    controller.importPlate(model: model, pole: pole)
-                } label: {
-                    Label(
-                        "Importera \(pole.localizedName)…",
-                        systemImage: "square.and.arrow.down"
-                    )
-                }
-                .accessibilityIdentifier("import-retouch-\(pole.rawValue)")
-
                 if model.retouchURL(for: pole) != nil {
                     Button(
                         "Ta bort \(pole.localizedName)retusch",
@@ -144,11 +121,63 @@ struct PanoramaRetouchView: View {
                 .foregroundStyle(.green)
             } else {
                 Text(
-                    "AI-retuschera direkt eller exportera den plana kubsidan "
-                        + "och redigera den i ett externt bildprogram."
+                    "AI-retuschera \(pole.localizedName) direkt i PanoWizard."
                 )
                 .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private var cubeMapSection: some View {
+        Section("Kubkarta") {
+            LabeledContent(
+                "Format",
+                value: "PNG · 8192 × 6144 px · 6 kubsidor à 2048 × 2048 px"
+            )
+            LabeledContent("Status") {
+                HStack(spacing: 8) {
+                    Text(
+                        model.cubeRetouchURL == nil
+                            ? "Ingen importerad kubkarta"
+                            : "Kubkarta aktiv"
+                    )
+                    if model.cubeRetouchURL != nil {
+                        Button("Ta bort kubretusch", systemImage: "trash", role: .destructive) {
+                            model.removeCubeRetouch()
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("remove-cube-retouch")
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    controller.exportCubeMap(
+                        model: model,
+                        projectDirectoryURL: projectDirectoryURL
+                    )
+                } label: {
+                    Label("Exportera kubkarta…", systemImage: "square.and.arrow.up")
+                }
+                .accessibilityIdentifier("export-cube-map")
+
+                Button {
+                    controller.importCubeMap(model: model)
+                } label: {
+                    Label("Importera kubkarta…", systemImage: "square.and.arrow.down")
+                }
+                .accessibilityIdentifier("import-cube-map")
+            }
+            .buttonStyle(WorkspaceToolbarPillStyle())
+            .disabled(model.phase != .ready)
+
+            Text(
+                "Exportera hela panoramat som en kubkarta, redigera den i ett "
+                    + "externt bildprogram och importera den färdiga kubkartan igen."
+            )
+            .foregroundStyle(.secondary)
         }
     }
 }
@@ -378,7 +407,12 @@ struct AIRetouchSheet: View {
     private func loadSource() async {
         guard source == nil else { return }
         do {
-            source = try await model.createAIRetouchSource(for: pole)
+            let loadedSource = try await model.createAIRetouchSource(for: pole)
+            source = loadedSource
+            if loadedSource.initialMaskData != maskData {
+                maskData = loadedSource.initialMaskData
+                model.setAIRetouchMaskData(maskData, for: pole)
+            }
         } catch is CancellationError {
             return
         } catch {
@@ -979,7 +1013,7 @@ private final class AIRetouchImageDocumentView: NSView {
         guard let image else { return }
         draw(image, fraction: 1, operation: .copy)
         if let maskImage {
-            draw(maskImage, fraction: 0.48, operation: .sourceOver)
+            draw(maskImage, fraction: 1, operation: .sourceOver)
         }
         drawActiveStroke()
         drawBrushCursor()
@@ -1156,12 +1190,12 @@ private final class AIRetouchImageDocumentView: NSView {
             ))
             (isErasingStroke
                 ? NSColor.white.withAlphaComponent(0.72)
-                : NSColor.systemRed.withAlphaComponent(0.72)).setFill()
+                : NSColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)).setFill()
             path.fill()
         } else {
             (isErasingStroke
                 ? NSColor.white.withAlphaComponent(0.72)
-                : NSColor.systemRed.withAlphaComponent(0.72)).setStroke()
+                : NSColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)).setStroke()
             path.stroke()
         }
     }

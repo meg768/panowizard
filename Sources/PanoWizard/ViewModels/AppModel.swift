@@ -65,6 +65,7 @@ final class AppModel {
     var zenithRetouchURL: URL?
     var nadirAIRetouchResultURL: URL?
     var zenithAIRetouchResultURL: URL?
+    var cubeRetouchURL: URL?
     var nadirAIRetouchMaskData: Data?
     var zenithAIRetouchMaskData: Data?
     var maskDataByImageID: [UUID: Data]
@@ -96,6 +97,7 @@ final class AppModel {
         zenithRetouchData: Data? = nil,
         nadirAIRetouchResultData: Data? = nil,
         zenithAIRetouchResultData: Data? = nil,
+        cubeRetouchData: Data? = nil,
         nadirAIRetouchMaskData: Data? = nil,
         zenithAIRetouchMaskData: Data? = nil
     ) {
@@ -132,6 +134,9 @@ final class AppModel {
         zenithAIRetouchResultURL = zenithAIRetouchResultData.flatMap {
             Self.restoreData($0, filename: "\(migrated.id)-zenith-ai-result.png")
         }
+        cubeRetouchURL = cubeRetouchData.flatMap {
+            Self.restoreData($0, filename: "\(migrated.id)-cube-retouch.png")
+        }
         self.nadirAIRetouchMaskData = nadirAIRetouchMaskData
         self.zenithAIRetouchMaskData = zenithAIRetouchMaskData
     }
@@ -147,6 +152,7 @@ final class AppModel {
         zenithRetouchData: Data? = nil,
         nadirAIRetouchResultData: Data? = nil,
         zenithAIRetouchResultData: Data? = nil,
+        cubeRetouchData: Data? = nil,
         nadirAIRetouchMaskData: Data? = nil,
         zenithAIRetouchMaskData: Data? = nil
     ) -> AppModel {
@@ -165,6 +171,7 @@ final class AppModel {
             zenithRetouchData: zenithRetouchData,
             nadirAIRetouchResultData: nadirAIRetouchResultData,
             zenithAIRetouchResultData: zenithAIRetouchResultData,
+            cubeRetouchData: cubeRetouchData,
             nadirAIRetouchMaskData: nadirAIRetouchMaskData,
             zenithAIRetouchMaskData: zenithAIRetouchMaskData
         )
@@ -172,14 +179,15 @@ final class AppModel {
 
     var panorama: PanoramaSet? { project.images.isEmpty ? nil : project.panorama }
     var sourceDirectoryURL: URL? { project.images.first?.url.deletingLastPathComponent() }
+    var currentPanoramaURL: URL? { cubeRetouchURL ?? stitchedResultURL }
 
     var selectedPreviewURL: URL? {
         switch selection {
-        case .panorama: stitchedResultURL
+        case .panorama: currentPanoramaURL
         case .source(let id):
             project.images.first { $0.id == id }?.url ?? project.images.first?.url
         case .retouch, .export: nil
-        case nil: stitchedResultURL ?? project.images.first?.url
+        case nil: currentPanoramaURL ?? project.images.first?.url
         }
     }
 
@@ -189,7 +197,7 @@ final class AppModel {
     }
 
     var isShowingStitchedPanorama: Bool {
-        selection == .panorama && stitchedResultURL != nil
+        selection == .panorama && currentPanoramaURL != nil
     }
 
     var canStitch: Bool {
@@ -197,7 +205,7 @@ final class AppModel {
     }
 
     var canCancelStitch: Bool { phase == .stitching }
-    var canExportHTML: Bool { stitchedResultURL != nil && phase == .ready }
+    var canExportHTML: Bool { currentPanoramaURL != nil && phase == .ready }
 
     func setPanoramaViewpoint(_ viewpoint: PanoramaViewpoint) {
         guard panoramaViewpoint != viewpoint else { return }
@@ -341,6 +349,7 @@ final class AppModel {
                 zenithRetouchURL = nil
                 nadirAIRetouchResultURL = nil
                 zenithAIRetouchResultURL = nil
+                cubeRetouchURL = nil
                 lastStitchCoverage = result.coveragePercent
                 lastStitchHoleCount = result.holeCount
                 usedAlignmentCache = result.usedAlignmentCache
@@ -469,7 +478,7 @@ final class AppModel {
     }
 
     func exportRetouchPlate(for pole: PanoramaPole, to destinationURL: URL) {
-        guard let panoramaURL = stitchedResultURL, phase == .ready else { return }
+        guard let panoramaURL = currentPanoramaURL, phase == .ready else { return }
         let overlayURL = pole == .nadir ? nadirOverlayURL : zenithOverlayURL
         let existingURL = retouchURL(for: pole)
         phase = .retouching
@@ -521,7 +530,7 @@ final class AppModel {
 
     func createAIRetouchSource(for pole: PanoramaPole) async throws
         -> AIRetouchSource {
-        guard let panoramaURL = stitchedResultURL, phase == .ready else {
+        guard let panoramaURL = currentPanoramaURL, phase == .ready else {
             throw AIRetouchError.panoramaUnavailable
         }
         let directory = FileManager.default.temporaryDirectory.appending(
@@ -530,6 +539,8 @@ final class AppModel {
         )
         let sourceURL = directory.appending(path: "\(pole.rawValue)-source.png")
         let overlayURL = pole == .nadir ? nadirOverlayURL : zenithOverlayURL
+        let existingMaskData = aiRetouchMaskData(for: pole)
+        let hasSourceExclusions = !maskDataByImageID.isEmpty
         phase = .retouching
         defer { if phase == .retouching { phase = .ready } }
         try FileManager.default.createDirectory(
@@ -537,7 +548,7 @@ final class AppModel {
             withIntermediateDirectories: true
         )
         do {
-            try await Task.detached(priority: .userInitiated) {
+            let initialMaskData = try await Task.detached(priority: .userInitiated) {
                 try PoleRetouchService().exportPlate(
                     panoramaURL: panoramaURL,
                     repairOverlayURL: overlayURL,
@@ -545,12 +556,19 @@ final class AppModel {
                     pole: pole,
                     to: sourceURL
                 )
+                guard hasSourceExclusions else { return existingMaskData }
+                return try PoleRetouchService().prepareAIRetouchMask(
+                    from: sourceURL,
+                    existingMaskData: existingMaskData,
+                    pole: pole
+                )
             }.value
             try Task.checkCancellation()
             return AIRetouchSource(
                 pole: pole,
                 directoryURL: directory,
-                sourceURL: sourceURL
+                sourceURL: sourceURL,
+                initialMaskData: initialMaskData
             )
         } catch {
             try? FileManager.default.removeItem(at: directory)
@@ -683,8 +701,94 @@ final class AppModel {
         panoramaRevision += 1
     }
 
+    func exportCubeMap(to destinationURL: URL) {
+        guard let panoramaURL = currentPanoramaURL, phase == .ready else { return }
+        let nadirOverlayURL = nadirOverlayURL
+        let zenithOverlayURL = zenithOverlayURL
+        let nadirRetouchURL = nadirRetouchURL
+        let zenithRetouchURL = zenithRetouchURL
+        phase = .retouching
+        Task {
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try CubeMapService().exportMap(
+                        panoramaURL: panoramaURL,
+                        nadirOverlayURL: nadirOverlayURL,
+                        zenithOverlayURL: zenithOverlayURL,
+                        nadirRetouchURL: nadirRetouchURL,
+                        zenithRetouchURL: zenithRetouchURL,
+                        to: destinationURL
+                    )
+                }.value
+                phase = .ready
+            } catch is CancellationError {
+                phase = .ready
+            } catch {
+                phase = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    func importCubeMap(from sourceURL: URL) {
+        guard let stitchedResultURL, phase == .ready else { return }
+        let destination = retouchDirectory.appending(
+            path: "cube-retouch-\(UUID().uuidString).png"
+        )
+        phase = .retouching
+        Task {
+            do {
+                try FileManager.default.createDirectory(
+                    at: retouchDirectory,
+                    withIntermediateDirectories: true
+                )
+                try await Task.detached(priority: .userInitiated) {
+                    try CubeMapService().importMap(
+                        from: sourceURL,
+                        panoramaURL: stitchedResultURL,
+                        to: destination
+                    )
+                }.value
+                let obsoleteURLs = [
+                    cubeRetouchURL,
+                    nadirOverlayURL,
+                    zenithOverlayURL,
+                    nadirRetouchURL,
+                    zenithRetouchURL,
+                    nadirAIRetouchResultURL,
+                    zenithAIRetouchResultURL
+                ].compactMap { $0 }
+                cubeRetouchURL = destination
+                nadirOverlayURL = nil
+                zenithOverlayURL = nil
+                nadirRetouchURL = nil
+                zenithRetouchURL = nil
+                nadirAIRetouchResultURL = nil
+                zenithAIRetouchResultURL = nil
+                for url in obsoleteURLs where url != destination {
+                    try? FileManager.default.removeItem(at: url)
+                }
+                selection = .panorama
+                panoramaRevision += 1
+                phase = .ready
+            } catch is CancellationError {
+                try? FileManager.default.removeItem(at: destination)
+                phase = .ready
+            } catch {
+                try? FileManager.default.removeItem(at: destination)
+                phase = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    func removeCubeRetouch() {
+        guard let cubeRetouchURL else { return }
+        self.cubeRetouchURL = nil
+        try? FileManager.default.removeItem(at: cubeRetouchURL)
+        panoramaRevision += 1
+    }
+
     func exportHTML(to destinationURL: URL, initialViewpoint: PanoramaViewpoint) {
-        guard let panoramaURL = stitchedResultURL, canExportHTML else { return }
+        guard let panoramaURL = currentPanoramaURL, canExportHTML else { return }
         phase = .exporting
         Task {
             do {
@@ -713,6 +817,9 @@ final class AppModel {
     }
     var zenithAIRetouchResultData: Data? {
         zenithAIRetouchResultURL.flatMap { try? Data(contentsOf: $0) }
+    }
+    var cubeRetouchData: Data? {
+        cubeRetouchURL.flatMap { try? Data(contentsOf: $0) }
     }
 
     private var retouchDirectory: URL {
@@ -762,6 +869,7 @@ final class AppModel {
         zenithRetouchURL = nil
         nadirAIRetouchResultURL = nil
         zenithAIRetouchResultURL = nil
+        cubeRetouchURL = nil
         lastStitchCoverage = nil
         lastStitchHoleCount = nil
         usedAlignmentCache = false

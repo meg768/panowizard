@@ -12,8 +12,12 @@
 - Taggen `best-ever` är den manuellt verifierade visuella referensen för
   panoramana A–S. Ändra inte verifierat bildbeteende utan ett tydligt skäl och
   en uttryckligt avgränsad valideringsplan.
-- AI-retusch och Little Planet är eftersteg som läser det färdiga panoramat.
-  De får aldrig kopplas in i geometri, ownership, sömval eller blending.
+- AI-retusch, kubkartretusch och Little Planet är eftersteg som läser det
+  färdiga panoramat. De får aldrig kopplas in i geometri, ownership, sömval
+  eller blending.
+- AI-retuschens plana polbild skapar automatiskt en redigerbar grundmask av
+  stora sammanhängande svarta hål från källmaskerna. Den slås ihop med den
+  sparade penselmasken och påverkar inte panoramamaskerna eller motorn.
 
 ## Arkitektur
 
@@ -32,6 +36,8 @@
   Håll den oberoende av SwiftUI, dokumentlagring och testprojektnamn.
 - Gröna skyddsmasker skickas separat till motorn och påverkar sömprioritet;
   de skapar aldrig nytt bildinnehåll.
+- `Sources/PanoWizard/Services/CubeMapService.swift` exporterar och importerar
+  en förlustfri 4 × 3-korslayout med sex kubsidor som ett isolerat eftersteg.
 - `Sources/PanoWizard/ViewModels/AppModel.swift` binder dokument, motor,
   förhandsvisning, retusch och export till UI-livscykeln.
 

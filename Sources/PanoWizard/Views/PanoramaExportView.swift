@@ -41,7 +41,7 @@ struct PanoramaExportView: View {
     @State private var isLittlePlanetPresented = false
 
     var body: some View {
-        if let panoramaURL = model.stitchedResultURL {
+        if let panoramaURL = model.currentPanoramaURL {
             Form {
                 Section("Panoramabild") {
                     LabeledContent("Format", value: "Equirektangulär · 2:1")

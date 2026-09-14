@@ -402,6 +402,7 @@ private struct ProjectDocumentView: View {
             zenithRetouchData: initialDocument.zenithRetouchData,
             nadirAIRetouchResultData: initialDocument.nadirAIRetouchResultData,
             zenithAIRetouchResultData: initialDocument.zenithAIRetouchResultData,
+            cubeRetouchData: initialDocument.cubeRetouchData,
             nadirAIRetouchMaskData: initialDocument.nadirAIRetouchMaskData,
             zenithAIRetouchMaskData: initialDocument.zenithAIRetouchMaskData
         ))
@@ -500,6 +501,9 @@ private struct ProjectDocumentView: View {
             zenithAIRetouchResultData: hasNewPanoramaData
                 ? model.zenithAIRetouchResultData
                 : savedDocument.zenithAIRetouchResultData,
+            cubeRetouchData: hasNewPanoramaData
+                ? model.cubeRetouchData
+                : savedDocument.cubeRetouchData,
             nadirAIRetouchMaskData: model.nadirAIRetouchMaskData,
             zenithAIRetouchMaskData: model.zenithAIRetouchMaskData
         )

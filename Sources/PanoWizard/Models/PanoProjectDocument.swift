@@ -23,6 +23,7 @@ struct PanoProjectDocument: FileDocument, Equatable {
     var zenithRetouchData: Data?
     var nadirAIRetouchResultData: Data?
     var zenithAIRetouchResultData: Data?
+    var cubeRetouchData: Data?
     var nadirAIRetouchMaskData: Data?
     var zenithAIRetouchMaskData: Data?
 
@@ -37,6 +38,7 @@ struct PanoProjectDocument: FileDocument, Equatable {
         zenithRetouchData: Data? = nil,
         nadirAIRetouchResultData: Data? = nil,
         zenithAIRetouchResultData: Data? = nil,
+        cubeRetouchData: Data? = nil,
         nadirAIRetouchMaskData: Data? = nil,
         zenithAIRetouchMaskData: Data? = nil
     ) {
@@ -50,6 +52,7 @@ struct PanoProjectDocument: FileDocument, Equatable {
         self.zenithRetouchData = zenithRetouchData
         self.nadirAIRetouchResultData = nadirAIRetouchResultData
         self.zenithAIRetouchResultData = zenithAIRetouchResultData
+        self.cubeRetouchData = cubeRetouchData
         self.nadirAIRetouchMaskData = nadirAIRetouchMaskData
         self.zenithAIRetouchMaskData = zenithAIRetouchMaskData
     }
@@ -127,6 +130,9 @@ struct PanoProjectDocument: FileDocument, Equatable {
             .regularFileContents
         zenithAIRetouchResultData = wrappers["panorama"]?
             .fileWrappers?["zenith-ai-result.png"]?
+            .regularFileContents
+        cubeRetouchData = wrappers["panorama"]?
+            .fileWrappers?["cube-retouch.png"]?
             .regularFileContents
         nadirAIRetouchMaskData = wrappers["panorama"]?
             .fileWrappers?["nadir-ai-mask.png"]?
@@ -211,6 +217,11 @@ struct PanoProjectDocument: FileDocument, Equatable {
         if let zenithAIRetouchResultData {
             panoramaChildren["zenith-ai-result.png"] = FileWrapper(
                 regularFileWithContents: zenithAIRetouchResultData
+            )
+        }
+        if let cubeRetouchData {
+            panoramaChildren["cube-retouch.png"] = FileWrapper(
+                regularFileWithContents: cubeRetouchData
             )
         }
         if let nadirAIRetouchMaskData {

@@ -33,6 +33,25 @@ struct PoleRetouchServiceTests {
     }
 
     @Test
+    func preparesRequestedRealAutomaticMask() throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let sourcePath = environment["PANOWIZARD_AI_SOURCE"],
+              let outputPath = environment["PANOWIZARD_AI_AUTOMATIC_MASK"] else {
+            return
+        }
+        let generated = try PoleRetouchService().prepareAIRetouchMask(
+            from: URL(fileURLWithPath: sourcePath),
+            existingMaskData: nil,
+            pole: .nadir
+        )
+        let data = try #require(generated)
+        try data.write(
+            to: URL(fileURLWithPath: outputPath),
+            options: .atomic
+        )
+    }
+
+    @Test
     func preparesRequestedRealAIRetouchPatch() throws {
         let environment = ProcessInfo.processInfo.environment
         guard let panoramaPath = environment["PANOWIZARD_AI_PANORAMA"],
@@ -156,6 +175,41 @@ struct PoleRetouchServiceTests {
 
         #expect(result.pixel(x: 32, y: 32) == (0, 0, 0, 0))
         #expect(result.pixel(x: 10, y: 10) == (120, 80, 40, 255))
+    }
+
+    @Test
+    func aiRetouchMaskIncludesLargeBlackHolesAndExistingPaint() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceURL = directory.appending(path: "source.png")
+        let existingURL = directory.appending(path: "existing.png")
+        try writeImage(width: 64, height: 64, to: sourceURL) { x, y in
+            if (20..<32).contains(x), (20..<32).contains(y) {
+                return (12, 8, 4, 255)
+            }
+            if (2..<4).contains(x), (2..<4).contains(y) {
+                return (0, 0, 0, 255)
+            }
+            return (80, 100, 120, 255)
+        }
+        try writeImage(width: 64, height: 64, to: existingURL) { x, y in
+            x == 50 && y == 50 ? (255, 0, 0, 255) : (0, 0, 0, 0)
+        }
+
+        let generated = try PoleRetouchService().prepareAIRetouchMask(
+            from: sourceURL,
+            existingMaskData: try Data(contentsOf: existingURL),
+            pole: .nadir,
+            expectedSize: 64
+        )
+        let data = try #require(generated)
+        let outputURL = directory.appending(path: "mask.png")
+        try data.write(to: outputURL)
+        let mask = try pixels(at: outputURL)
+        #expect(mask.pixel(x: 24, y: 24) == (255, 31, 20, 255))
+        #expect(mask.pixel(x: 50, y: 50).3 == 255)
+        #expect(mask.pixel(x: 2, y: 2).3 == 0)
+        #expect(mask.pixel(x: 10, y: 10).3 == 0)
     }
 
     @Test

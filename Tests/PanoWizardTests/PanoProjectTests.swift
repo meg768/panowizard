@@ -96,11 +96,13 @@ struct PanoProjectTests {
         let zenithOriginal = Data([10, 11, 12])
         let nadirMask = Data([13, 14, 15])
         let zenithMask = Data([16, 17, 18])
+        let cubeRetouch = Data([19, 20, 21])
         let document = PanoProjectDocument(
             nadirRetouchData: nadirPatch,
             zenithRetouchData: zenithPatch,
             nadirAIRetouchResultData: nadirOriginal,
             zenithAIRetouchResultData: zenithOriginal,
+            cubeRetouchData: cubeRetouch,
             nadirAIRetouchMaskData: nadirMask,
             zenithAIRetouchMaskData: zenithMask
         )
@@ -112,6 +114,7 @@ struct PanoProjectTests {
         #expect(restored.zenithRetouchData == zenithPatch)
         #expect(restored.nadirAIRetouchResultData == nadirOriginal)
         #expect(restored.zenithAIRetouchResultData == zenithOriginal)
+        #expect(restored.cubeRetouchData == cubeRetouch)
         #expect(restored.nadirAIRetouchMaskData == nadirMask)
         #expect(restored.zenithAIRetouchMaskData == zenithMask)
     }

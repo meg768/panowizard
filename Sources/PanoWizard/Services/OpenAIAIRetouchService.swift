@@ -4,6 +4,7 @@ struct AIRetouchSource: Sendable {
     let pole: PanoramaPole
     let directoryURL: URL
     let sourceURL: URL
+    let initialMaskData: Data?
 }
 
 struct AIRetouchPreview: Sendable {
