@@ -8,7 +8,7 @@ enum PanoramaPole: String, Codable, CaseIterable, Sendable {
     case nadir
 
     var pitchDegrees: Double { self == .zenith ? 90 : -90 }
-    var displayName: String { self == .zenith ? "Zenit" : "Nadir" }
+    var displayName: String { self == .zenith ? "Zenith" : "Nadir" }
     var localizedName: String { displayName.lowercased() }
 }
 
@@ -26,13 +26,13 @@ enum PoleRetouchError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unreadableImage:
-            "Bilden kunde inte läsas."
+            "The image could not be read."
         case .emptyMask:
-            "Måla området som ska retuscheras."
+            "Paint the area to retouch."
         case let .invalidDimensions(pole, expected, width, height):
-            "\(pole.displayName)plattan måste vara \(expected) × \(expected) px, men bilden är \(width) × \(height) px."
+            "The \(pole.displayName.lowercased()) plate must be \(expected) × \(expected) px, but the image is \(width) × \(height) px."
         case .writeFailed:
-            "Nadirplattan kunde inte sparas."
+            "The pole plate could not be saved."
         }
     }
 }

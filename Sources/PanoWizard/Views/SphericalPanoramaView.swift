@@ -108,7 +108,7 @@ private final class PanoramaMTKView: MTKView {
     }
 
     required init(coder: NSCoder) {
-        fatalError("init(coder:) stöds inte")
+        fatalError("init(coder:) is not supported")
     }
 
     override func mouseDown(with event: NSEvent) {

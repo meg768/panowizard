@@ -8,12 +8,12 @@ enum CubeMapError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case let .invalidDimensions(expectedWidth, expectedHeight, width, height):
-            "Kubkartan måste vara \(expectedWidth) × \(expectedHeight) px, men bilden är \(width) × \(height) px."
+            "The cube map must be \(expectedWidth) × \(expectedHeight) px, but the image is \(width) × \(height) px."
         case let .invalidPanoramaDimensions(width, height):
-            "Panoramat måste ha proportionen 2:1, men bilden är \(width) × \(height) px."
+            "The panorama must have a 2:1 aspect ratio, but the image is \(width) × \(height) px."
         case .incompleteFace:
-            "En eller flera kubsidor har flyttats, roterats eller blivit transparenta. "
-                + "Redigera bildinnehållet utan att ändra kubsidornas placering."
+            "One or more cube faces have been moved, rotated, or made transparent. "
+                + "Edit the image content without changing the cube-face layout."
         }
     }
 }

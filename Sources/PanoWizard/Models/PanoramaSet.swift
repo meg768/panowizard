@@ -17,6 +17,6 @@ struct PanoramaSet: Identifiable, Hashable, Sendable {
     }
 
     var detail: String {
-        "\(images.count) bilder"
+        "\(images.count) images"
     }
 }

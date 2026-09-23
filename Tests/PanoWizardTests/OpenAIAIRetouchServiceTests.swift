@@ -20,7 +20,7 @@ struct OpenAIAIRetouchServiceTests {
             apiKey: " test-key \n",
             imageData: Data([0x01, 0x02, 0x03]),
             filename: "nadir.png",
-            prompt: "Ta bort stativet",
+            prompt: "Remove the tripod",
             size: 2_048,
             boundary: "test-boundary"
         )
@@ -34,7 +34,7 @@ struct OpenAIAIRetouchServiceTests {
         )
         let body = String(decoding: request.httpBody ?? Data(), as: UTF8.self)
         #expect(body.contains("name=\"model\"\r\n\r\ngpt-image-2"))
-        #expect(body.contains("name=\"prompt\"\r\n\r\nTa bort stativet"))
+        #expect(body.contains("name=\"prompt\"\r\n\r\nRemove the tripod"))
         #expect(body.contains("name=\"size\"\r\n\r\n2048x2048"))
         #expect(body.contains("name=\"quality\"\r\n\r\nhigh"))
         #expect(body.contains("name=\"output_format\"\r\n\r\npng"))
@@ -69,7 +69,7 @@ struct OpenAIAIRetouchServiceTests {
                 from: response,
                 statusCode: 401
             )
-            Issue.record("Ett API-fel förväntades")
+            Issue.record("An API error was expected")
         } catch let error as OpenAIImageEditError {
             #expect(
                 error == .api(
@@ -78,7 +78,7 @@ struct OpenAIAIRetouchServiceTests {
                 )
             )
         } catch {
-            Issue.record("Oväntad feltyp: \(error)")
+            Issue.record("Unexpected error type: \(error)")
         }
     }
 }

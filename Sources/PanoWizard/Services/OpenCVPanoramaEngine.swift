@@ -6,7 +6,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
     static let outputWidth = 4096
     // These on-disk identifiers must remain stable so a source-only rename
     // does not invalidate previously verified alignment caches.
-    static let alignmentCacheCompatibilityKey = "trial-native-weak-crosslink-v1"
+    static let alignmentCacheFormatKey = "trial-native-weak-crosslink-v1"
 
     func stitch(
         _ panorama: PanoramaSet,
@@ -61,7 +61,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
             try context.checkCancellation()
             context.report(
                 Double(index) / Double(images.count) * 0.08,
-                "Förbereder källbilder…"
+                "Preparing source images…"
             )
             let sourceURL = workDirectory.appending(path: "source-\(index).tif")
             try MaskedSourceImageWriter.write(
@@ -121,12 +121,12 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
         guard succeeded != 0 else {
             throw PanoramaEngineError.stitchingFailed(
                 errorPointer.map { String(cString: $0) }
-                    ?? "Panoramamotorn misslyckades."
+                    ?? "The panorama engine failed."
             )
         }
         guard fileManager.fileExists(atPath: outputURL.path) else {
             throw PanoramaEngineError.stitchingFailed(
-                "Panoramamotorn skapade ingen panoramabild."
+                "The panorama engine did not create a panorama image."
             )
         }
 
@@ -138,7 +138,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
             withIntermediateDirectories: true
         )
         try fileManager.copyItem(at: outputURL, to: retainedURL)
-        context.report(1, "Panoramat är klart")
+        context.report(1, "Panorama complete")
         return PanoramaStitchResult(
             url: retainedURL,
             coveragePercent: report.coveragePercent,
@@ -152,7 +152,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
         masks: [UUID: Data]
     ) throws -> URL {
         var digest = SHA256()
-        digest.update(data: Data(alignmentCacheCompatibilityKey.utf8))
+        digest.update(data: Data(alignmentCacheFormatKey.utf8))
         let fileManager = FileManager.default
         for image in images {
             digest.update(data: Data(image.id.uuidString.utf8))
@@ -222,7 +222,7 @@ private let progressCallback: PWProgressCallback = {
         .takeUnretainedValue()
     execution.report(
         fraction,
-        stage.map { String(cString: $0) } ?? "Sammanfogar panorama…"
+        stage.map { String(cString: $0) } ?? "Stitching panorama…"
     )
 }
 

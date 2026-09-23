@@ -23,7 +23,7 @@ enum PanoramaEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .insufficientImages:
-            "Minst två aktiva bilder krävs för sammanfogning."
+            "At least two active images are required for stitching."
         case .stitchingFailed(let message):
             message
         }

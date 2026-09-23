@@ -10,9 +10,9 @@ enum SourceImageRasterError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unreadableMask:
-            "Masken kunde inte läsas."
+            "The mask could not be read."
         case .rotationFailed:
-            "Bilden kunde inte roteras."
+            "The image could not be rotated."
         }
     }
 }

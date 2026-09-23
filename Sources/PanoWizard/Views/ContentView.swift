@@ -183,24 +183,24 @@ struct ContentView: View {
                 Button {
                     model.sourceMaskTool = .brush
                 } label: {
-                    Label("Pensel", systemImage: "paintbrush.pointed")
+                    Label("Brush", systemImage: "paintbrush.pointed")
                 }
                 .buttonStyle(MaskToolbarButtonStyle(
                     isSelected: model.sourceMaskTool == .brush,
                     showsTitle: true
                 ))
-                .help("Pensel")
+                .help("Brush")
 
                 Button {
                     model.sourceMaskTool = .rectangle
                 } label: {
-                    Label("Rektangel", systemImage: "rectangle.dashed")
+                    Label("Rectangle", systemImage: "rectangle.dashed")
                 }
                 .buttonStyle(MaskToolbarButtonStyle(
                     isSelected: model.sourceMaskTool == .rectangle,
                     showsTitle: true
                 ))
-                .help("Rektangel")
+                .help("Rectangle")
             }
 
             maskToolbarDivider
@@ -210,7 +210,7 @@ struct ContentView: View {
                     model.sourceMaskIntent = .exclude
                 } label: {
                     Label {
-                        Text("Uteslut")
+                        Text("Exclude")
                     } icon: {
                         Image(systemName: "circle.fill")
                             .foregroundStyle(.red)
@@ -220,13 +220,13 @@ struct ContentView: View {
                     isSelected: model.sourceMaskIntent == .exclude,
                     showsTitle: true
                 ))
-                .help("Uteslut")
+                .help("Exclude")
 
                 Button {
                     model.sourceMaskIntent = .protect
                 } label: {
                     Label {
-                        Text("Skydda")
+                        Text("Protect")
                     } icon: {
                         Image(systemName: "circle.fill")
                             .foregroundStyle(.green)
@@ -236,7 +236,7 @@ struct ContentView: View {
                     isSelected: model.sourceMaskIntent == .protect,
                     showsTitle: true
                 ))
-                .help("Skydda")
+                .help("Protect")
             }
 
             maskToolbarDivider
@@ -245,32 +245,32 @@ struct ContentView: View {
                 Button {
                     model.undoMask()
                 } label: {
-                    Label("Ångra maskändring", systemImage: "arrow.uturn.backward")
+                    Label("Undo Mask Change", systemImage: "arrow.uturn.backward")
                 }
                 .buttonStyle(MaskToolbarButtonStyle())
                 .disabled(!model.canUndoMask)
-                .help("Ångra maskändring (⌘Z)")
+                .help("Undo mask change (⌘Z)")
 
                 Button {
                     model.invertSelectedMask()
                 } label: {
                     Label(
-                        "Invertera aktuell mask",
+                        "Invert Current Mask",
                         systemImage: "circle.lefthalf.filled"
                     )
                 }
                 .buttonStyle(MaskToolbarButtonStyle())
                 .disabled(selectedMaskData == nil)
-                .help("Invertera aktuell mask")
+                .help("Invert current mask")
 
                 Button(role: .destructive) {
                     model.clearSelectedMask()
                 } label: {
-                    Label("Nollställ aktuell mask", systemImage: "trash")
+                    Label("Clear Current Mask", systemImage: "trash")
                 }
                 .buttonStyle(MaskToolbarButtonStyle())
                 .disabled(selectedMaskData == nil)
-                .help("Nollställ aktuell mask")
+                .help("Clear current mask")
             }
 
             maskToolbarDivider
@@ -279,10 +279,10 @@ struct ContentView: View {
                 guard let image = model.selectedSourceImage else { return }
                 model.rotateSourceImageLeft(image.id)
             } label: {
-                Label("Rotera bilden åt vänster", systemImage: "rotate.left")
+                Label("Rotate Image Left", systemImage: "rotate.left")
             }
             .buttonStyle(MaskToolbarButtonStyle())
-            .help("Rotera bilden 90° åt vänster")
+            .help("Rotate the image 90° counterclockwise")
         }
     }
 
@@ -313,14 +313,14 @@ private struct PanoramaStitchProgressSheet: View {
 
             VStack(spacing: 4) {
                 Text(model.stitchStage.isEmpty
-                    ? "Skapar panorama…"
+                    ? "Creating panorama…"
                     : model.stitchStage)
                     .font(.headline)
-                Text("Det kan ta några minuter.")
+                Text("This may take a few minutes.")
                     .foregroundStyle(.secondary)
             }
 
-            Button("Avbryt", role: .cancel) {
+            Button("Cancel", role: .cancel) {
                 model.cancelStitch()
             }
         }

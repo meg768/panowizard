@@ -79,17 +79,15 @@ struct PanoProjectDocument: FileDocument, Equatable {
         decoder.dateDecodingStrategy = .iso8601
         project = try decoder.decode(PanoProject.self, from: projectData)
 
-        guard project.formatVersion >= PanoProject.oldestReadableFormatVersion,
-              project.formatVersion <= PanoProject.currentFormatVersion else {
+        guard project.formatVersion == PanoProject.currentFormatVersion else {
             throw CocoaError(
                 .fileReadUnsupportedScheme,
                 userInfo: [
                     NSLocalizedDescriptionKey:
-                        "Projektformatet stöds inte av den här versionen av PanoWizard."
+                        "This project format is not supported by this version of PanoWizard."
                 ]
             )
         }
-        project.migrateToCurrentFormat()
         masks = [:]
         if let maskWrappers = wrappers["masks"]?.fileWrappers {
             for (filename, wrapper) in maskWrappers {

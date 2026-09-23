@@ -1,134 +1,156 @@
 # PanoWizard
 
-PanoWizard är en native macOS-app för att skapa kompletta 360° × 180°-
-panoraman från överlappande fisheye-bilder. Appen hanterar import, källurval,
-maskning, automatisk geometrisk justering, sömval, färg- och tonutjämning,
-förhandsvisning, retusch och export i ett sammanhållet projekt.
+PanoWizard is a native macOS application for creating complete 360° × 180°
+panoramas from overlapping fisheye photographs. It combines source-image
+management, masking, automatic geometric alignment, seam selection, color and
+exposure balancing, interactive preview, retouching, and export in one project.
 
-## Arbetsflöde
+## What PanoWizard can do
 
-1. Skapa ett projekt och importera minst två överlappande bilder.
-2. Kontrollera bildordningen och välj vid behov bildtyp: Automatisk,
-   Panoramaring eller Reparationsbild.
-3. Markera en källbild för att automatiskt öppna dess maskredigering och måla
-   vid behov röda exkluderingsmasker eller gröna skyddsmasker.
-4. Rotera vid behov den markerade källbilden ett kvarts varv åt vänster med
-   rotationsknappen sist i maskverktygsraden.
-5. Välj **Skapa panorama** och granska den equirektangulära 2:1-bilden i
-   360°-förhandsvisningen.
-6. AI-retuschera vid behov nadir eller zenit, eller exportera hela resultatet
-   som en kubkarta för extern redigering.
+- Build a full 2:1 equirectangular panorama from two or more overlapping
+  fisheye images.
+- Detect and optimize the shared camera and lens geometry automatically.
+- Treat images as part of the main panorama ring or as repair images used only
+  to fill missing coverage.
+- Apply editable exclusion masks and seam-priority masks to individual source
+  images.
+- Correct source orientation in 90-degree steps without modifying the original
+  files.
+- Balance color and exposure across overlaps while preserving image detail.
+- Preview the result interactively as a spherical 360° panorama.
+- Retouch the nadir or zenith with an optional OpenAI-powered workflow.
+- Export and re-import a lossless cube map for editing in an external image
+  editor.
+- Create a configurable Little Planet image from the completed panorama.
+- Export the finished panorama as JPEG or PNG, or as a self-contained
+  interactive HTML file.
 
-Röda masker tar bort källpixlar före geometri, radiometri och compositing.
-Gröna masker skickas separat och ger källan prioritet vid sömval. Motorn
-syntetiserar aldrig bildinnehåll där giltigt källunderlag saknas.
+PanoWizard never synthesizes missing scene content during stitching. Areas with
+no valid source coverage remain empty until they are repaired or retouched.
 
-## Panoramamotorn
+## Using PanoWizard
 
-Appen har en enda inbyggd C++17/OpenCV-motor bakom en liten C-brygga till
-Swift. Den körs i processen och startar inga externa verktyg.
+1. Create a project and import at least two overlapping images. All images in a
+   panorama must have the same pixel dimensions.
+2. Review the image order. If necessary, classify an image as **Automatic**,
+   **Panorama Ring**, or **Repair Image**.
+3. Select a source image to open its mask editor automatically.
+4. Paint a red exclusion mask over source content that must not be used. Paint a
+   green protection mask where that source should be preferred during seam
+   selection.
+5. If necessary, rotate the selected source image counterclockwise in
+   90-degree steps with the rotation button at the end of the mask toolbar.
+6. Choose **Create Panorama** and inspect the equirectangular result in the
+   interactive 360° preview.
+7. Optionally retouch the nadir or zenith, exchange a cube map with an external
+   editor, or create a Little Planet image.
+8. Export the finished result.
 
-Den faktiska huvudkedjan är:
+### Source masks
 
-1. Orienterade källbilder skrivs som TIFF med exkluderingsmasken i alpha.
-2. En gemensam optisk bildcirkel detekteras.
-3. SIFT-features matchas ömsesidigt och filtreras med rotationsbaserad RANSAC.
-4. Kamerarotationer och fisheye-linsmodell optimeras robust och horisonten
-   rätas upp.
-5. Ringbilder projiceras sfäriskt till equirektangulära lager. Separata
-   reparationsbilder registreras mot ringen och används endast för att fylla
-   täckning.
-6. Global överlappsradiometri, redundansundertryckning och central
-   täckningsprioritet beräknas.
-7. GraphCut väljer ägare och sömgeometri. Skyddsmasker och konfliktinformation
-   ingår i beslutet.
-8. Validerad sömlokal lågfrekevent färg- och tonkorrigering appliceras
-   symmetriskt på de redan warpade källagren utan att ändra ownership.
-9. Den innehållsanpassade compositorn kombinerar en smal detaljövergång med
-   bredare lågfrekevent utjämning i konsekventa områden. Struktur och konflikt
-   skyddas, med en upplösningsskalad och hårt begränsad minimum-feather för
-   svåra högkonfliktsömmar.
-10. Resultatet skrivs som en komplett equirektangulär JPEG och rapporterar
-    täckningsgrad samt hålpixlar.
+Red masks exclude source pixels before geometry estimation, radiometric
+correction, and compositing. Green masks are passed separately to the panorama
+engine and influence seam priority; they never create new image content.
 
-Alignment-cache nycklas av motorformat, källornas identitet och metadata,
-bildroll, riktning och röda masker. Ändrad geometriindata eller
-exkluderingsmask ger därför en ny lösning.
+Changing an exclusion mask invalidates the relevant alignment cache, so the
+next panorama build uses the updated source data. Protection masks influence
+seam selection without changing the underlying source pixels.
 
-Källbilder i samma panorama måste ha samma pixelmått. Minst två aktiva,
-överlappande bilder krävs.
+### Retouching and alternative exports
 
-## Retusch och export
+AI retouching is an optional post-processing step and does not affect panorama
+alignment or seam selection. PanoWizard stores the prompt, working mask, raw AI
+result, and accepted local patch in the project. Large connected black holes
+caused by source masks automatically become an editable starting mask for AI
+retouching.
 
-PanoWizard kan exportera JPEG, PNG och TIFF samt en självständig interaktiv
-HTML-fil. Little Planet skapar en separat stereografisk PNG från det redan
-färdiga panoramat; rotation, planetstorlek, horisonthöjd och bakgrund kan
-justeras i en live-förhandsvisning.
+For manual external retouching, PanoWizard can export the currently visible
+panorama as a lossless PNG cube map. Its six 2048 × 2048 faces use a standard
+4 × 3 cross layout. An imported cube map is stored separately and can become
+the base for later local AI retouching.
 
-AI-retusch av nadir och zenit är ett valfritt lokalt eftersteg och påverkar
-aldrig stitchning, geometri eller sömval. Prompt, arbetsmask, rått AI-resultat
-och godkänd lokal patch sparas i projektet. Stora sammanhängande svarta hål
-från källmaskerna blir automatiskt en redigerbar AI-retuschmask; penseln kan
-utöka eller ändra den före retuscheringen.
+Little Planet export creates a stereographic PNG from the completed panorama.
+Rotation, output size, horizon height, and background can be adjusted in a live
+preview.
 
-För manuell extern retusch kan det aktuella synliga panoramat exporteras som
-en förlustfri PNG-kubkarta. De sex 2048 × 2048-pixels kubsidorna ligger i en
-standardiserad 4 × 3-korslayout. En återimporterad kubkarta sparas separat i
-projektet och blir bas för eventuell senare lokal AI-retusch. Ett nytt
-panoramabygge tar bort efterföljande retuscher men behåller källbilder och
-källmasker.
+Building a new panorama removes downstream retouch results while preserving the
+source images and source masks.
 
-## Projektformat
+## How it works
 
-Projektformat v7 lagrar källor, roller, manuell bildrotation, masker, färdigt
-panorama, förhandsvisningsvy, polretuscher och importerad kubretusch i
-projektpaketet. Format v6 kan fortfarande öppnas och migreras; okända
-föråldrade fält ignoreras.
+PanoWizard uses a single in-process C++17/OpenCV panorama engine behind a small
+C bridge to Swift. It does not launch external stitching tools.
 
-## Bygga och köra
+The engine:
 
-Krav:
+1. Writes oriented source images as TIFF files with exclusion masks stored in
+   alpha.
+2. Detects a common optical image circle.
+3. Matches SIFT features and filters them with rotation-based RANSAC.
+4. Jointly optimizes camera rotations and the fisheye lens model, then levels
+   the horizon.
+5. Projects panorama-ring images onto spherical equirectangular layers and
+   registers repair images separately.
+6. Computes global overlap radiometry, redundancy suppression, and central
+   coverage priority.
+7. Uses GraphCut to choose source ownership and seam geometry, including
+   protection-mask and conflict information.
+8. Applies validated, seam-local, low-frequency color and tone correction to
+   the warped source layers without changing ownership.
+9. Combines narrow detail transitions with wider low-frequency balancing in
+   consistent regions while protecting structure and high-conflict areas.
+10. Writes a complete 2:1 equirectangular JPEG and reports coverage and hole
+    statistics.
+
+The alignment cache is keyed by the engine format, source identity and
+metadata, image role, orientation, and red exclusion masks.
+
+## Project files
+
+The project format is version 7. It stores source images, roles, manual
+rotation, masks, the completed panorama, preview state, pole retouches, and an
+imported cube-map retouch in one project package. PanoWizard accepts version 7
+projects only; other project-format versions are rejected.
+
+## Building from source
+
+### Requirements
 
 - macOS 26 SDK
 - Swift 6.2
-- de versionslåsta OpenCV-biblioteken i `Vendor/OpenCV`
+- The pinned OpenCV headers and dynamic libraries in `Vendor/OpenCV`
 
-Utvecklingsbygge och körning:
+The OpenCV dependencies are expected to be present in the repository. No
+system-wide OpenCV installation is required.
+
+### Development build
+
+From the repository root, build and run the Swift package:
 
 ```sh
 swift build
 swift run PanoWizard
 ```
 
-Lokalt signerat appaket:
+### Build a macOS application bundle
+
+Create a locally signed application bundle with:
 
 ```sh
 ./Scripts/build-app.sh
 open build/PanoWizard.app
 ```
 
-Skriptet höjer versionsnumret i `VERSION` ett steg (`1.0` → `1.1` → `1.2`), skapar
-`build/PanoWizard.app`, bäddar in OpenCV-dylibs och signerar appen ad hoc.
-Samma version används som Git-tagg när bygget senare committas. Bilder i
-`Sources/PanoWizard/Resources/Backgrounds` (`jpg`, `jpeg` eller `png`)
-paketeras automatiskt och används växelvis i välkomstvyn.
+The script derives the app version from the local build start time using
+`YY.MM.DD.HH.MM` (year, month, day, hour, minute), creates
+`build/PanoWizard.app`, embeds the OpenCV dynamic libraries, and applies an ad
+hoc signature. Background images in
+`Sources/PanoWizard/Resources/Backgrounds` with a `jpg`, `jpeg`, or `png`
+extension are bundled automatically and rotated in the welcome view.
 
-## Projektstruktur
+## Tests
 
-- `Sources/PanoWizard/Application` – app- och dokumentlivscykel
-- `Sources/PanoWizard/Models` – projekt-, käll- och maskmodeller
-- `Sources/PanoWizard/Services` – motoradapter, import, export och retusch
-- `Sources/PanoWizard/Views` – SwiftUI-gränssnitt och panoramavy
-- `Sources/OpenCVBridge` – C-API och native panoramaimplementation
-- `Sources/PanoWizard/Resources` – resurser som Swift Package Manager bäddar in
-- `Resources` – appikon och `Info.plist` för appaketet
-- `Scripts` – reproducerbar paketering av appen
-- `Tests/PanoWizardTests` – fokuserade enhets- och motortester
-- `Vendor/OpenCV` – versionslåsta headers och dynamiska bibliotek
-
-## Tester
-
-Kör i första hand den minsta relevanta sviten:
+Run the smallest relevant test suite while developing:
 
 ```sh
 swift test --filter OpenCVPanoramaEngineTests
@@ -136,6 +158,20 @@ swift test --filter PanoProjectTests
 swift test --filter LittlePlanetRendererTests
 ```
 
-Motortesterna verifierar bland annat 2:1-utdata, cacheåteranvändning,
-masköverföring och källurval. Visuella bildregressioner använder uttryckligt
-valda originalprojekt och körs separat; de ingår inte i en vanlig build.
+The engine tests cover behavior such as 2:1 output, alignment-cache reuse, mask
+transfer, and source selection. Visual image regressions use explicitly chosen
+original projects and are run separately; they are not part of a normal build.
+
+## Repository layout
+
+- `Sources/PanoWizard/Application` — application and document lifecycle
+- `Sources/PanoWizard/Models` — project, source-image, and mask models
+- `Sources/PanoWizard/Services` — engine adapter, import, export, and retouching
+- `Sources/PanoWizard/Views` — SwiftUI interface and panorama viewer
+- `Sources/OpenCVBridge` — C API and native panorama implementation
+- `Sources/PanoWizard/Resources` — resources bundled by Swift Package Manager
+- `Resources` — application icons and `Info.plist` for the app bundle
+- `Scripts` — reproducible application packaging
+- `Tests/PanoWizardTests` — focused unit and engine tests
+- `Vendor/OpenCV` — pinned OpenCV headers and dynamic libraries
+- `CONTEXT.md` — canonical technical context and maintenance rules

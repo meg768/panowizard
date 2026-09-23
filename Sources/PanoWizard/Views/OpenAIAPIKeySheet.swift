@@ -12,27 +12,26 @@ struct OpenAIAPIKeySheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("OpenAI API-nyckel")
+            Text("OpenAI API Key")
                 .font(.title2.bold())
 
             VStack(alignment: .leading, spacing: 10) {
                 Text(
-                    "AI-retuscheringen använder OpenAI API. För att använda "
-                        + "funktionen behöver du en egen API-nyckel från "
-                        + "OpenAI. API-användningen debiteras separat av "
-                        + "OpenAI och ingår inte i ChatGPT- eller "
-                        + "Codex-abonnemang."
+                    "AI retouching uses the OpenAI API. To use this feature, "
+                        + "you need your own OpenAI API key. API usage is "
+                        + "billed separately by OpenAI and is not included in "
+                        + "a ChatGPT or Codex subscription."
                 )
                 Text(
-                    "Har du redan en API-nyckel klistrar du in den nedan. "
-                        + "Annars öppnar du OpenAI, loggar in, skapar en ny "
-                        + "secret key och kopierar den hit."
+                    "If you already have an API key, paste it below. "
+                        + "Otherwise, open OpenAI, sign in, create a new "
+                        + "secret key, and copy it here."
                 )
             }
             .foregroundStyle(.secondary)
 
             Link(
-                "Öppna OpenAI API-nycklar…",
+                "Open OpenAI API Keys…",
                 destination: URL(string: "https://platform.openai.com/api-keys")!
             )
 
@@ -56,10 +55,10 @@ struct OpenAIAPIKeySheet: View {
 
             HStack {
                 Spacer()
-                Button("Avbryt", role: .cancel) {
+                Button("Cancel", role: .cancel) {
                     dismiss()
                 }
-                Button("Spara") {
+                Button("Save") {
                     save()
                 }
                 .keyboardShortcut(.defaultAction)

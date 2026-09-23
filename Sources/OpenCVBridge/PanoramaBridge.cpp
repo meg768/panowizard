@@ -98,7 +98,7 @@ thread_local StitchCallbacks stitchCallbacks;
 void checkCancellation() {
     if (stitchCallbacks.cancellation != nullptr
         && stitchCallbacks.cancellation(stitchCallbacks.context) != 0) {
-        throw std::runtime_error("Panoramabygget avbröts.");
+        throw std::runtime_error("Panorama creation was cancelled.");
     }
 }
 
@@ -241,7 +241,7 @@ std::pair<cv::Matx33d, std::vector<unsigned char>> ransacRotation(
 Source readSource(const char *imagePath, const char *protectedPath) {
     cv::Mat raw = cv::imread(imagePath, cv::IMREAD_UNCHANGED);
     if (raw.empty()) {
-        throw std::runtime_error("Källbilden kunde inte läsas: " + std::string(imagePath));
+        throw std::runtime_error("The source image could not be read: " + std::string(imagePath));
     }
     Source result;
     if (raw.channels() == 4) {
@@ -263,7 +263,7 @@ Source readSource(const char *imagePath, const char *protectedPath) {
     if (protectedPath != nullptr && protectedPath[0] != '\0') {
         cv::Mat protectedImage = cv::imread(protectedPath, cv::IMREAD_UNCHANGED);
         if (protectedImage.empty()) {
-            throw std::runtime_error("En skyddsmask kunde inte läsas.");
+            throw std::runtime_error("A protection mask could not be read.");
         }
         if (protectedImage.size() != raw.size()) {
             cv::resize(
@@ -363,7 +363,7 @@ std::vector<Features> extractFeatures(
         cv::Mat descriptors;
         sift->detectAndCompute(gray, usable, keypoints, descriptors);
         if (descriptors.empty() || keypoints.size() < 20) {
-            throw std::runtime_error("För få användbara bilddetaljer i en källbild.");
+            throw std::runtime_error("A source image contains too few usable image features.");
         }
         Features features;
         features.descriptors = descriptors;
@@ -560,7 +560,7 @@ std::vector<cv::Matx33d> buildInitialRotations(
             }
         }
         if (bestNode < 0) {
-            throw std::runtime_error("Bildgrafen är inte sammanhängande.");
+            throw std::runtime_error("The image graph is not connected.");
         }
         matrices[bestNode] = bestMatrix;
         assigned[bestNode] = 1;
@@ -706,7 +706,7 @@ std::vector<int> initialTreeEdges(
             }
         }
         if (bestNode < 0) {
-            throw std::runtime_error("Bildgrafen är inte sammanhängande.");
+            throw std::runtime_error("The image graph is not connected.");
         }
         assigned[bestNode] = 1;
         result.push_back(bestEdge);
@@ -1417,14 +1417,14 @@ cv::Matx33d registerSupplementalView(
     }
     if (sourceRays.size() < 20) {
         throw std::runtime_error(
-            "En reparationsbild kunde inte registreras mot panoramaringen."
+            "A repair image could not be registered against the panorama ring."
         );
     }
     auto [rotation, selected] = ransacRotation(sourceRays, targetRays);
     if (selected.empty()
         || std::accumulate(selected.begin(), selected.end(), 0) < 20) {
         throw std::runtime_error(
-            "En reparationsbild ligger för långt från panoramaringen för automatisk registrering."
+            "A repair image is too far from the panorama ring for automatic registration."
         );
     }
     return rotation;
@@ -3485,7 +3485,7 @@ std::pair<double, int> renderPanorama(
     for (int index = 0; index < int(sources.size()); ++index) {
         checkCancellation();
         reportProgress(
-            "Projicerar källbilder…",
+            "Projecting source images…",
             0.62 + 0.14 * double(index) / double(sources.size())
         );
         cv::Mat validSource;
@@ -3551,7 +3551,7 @@ std::pair<double, int> renderPanorama(
         warps.push_back(std::move(warp));
     }
 
-    reportProgress("Matchar exponering och färg…", 0.78);
+    reportProgress("Matching exposure and color…", 0.78);
     const RadiometryLayers projectedLayers = {warps, radiometryWarps};
     const RadiometryLayers compensatedLayers = compensateRadiometry(
         warps, radiometryWarps, width
@@ -3570,7 +3570,7 @@ std::pair<double, int> renderPanorama(
     const std::vector<cv::Mat> seamMasks = preferCentralCoverage(
         compensatedLayers.compositing, redundantMasks
     );
-    reportProgress("Beräknar sömmar…", 0.87);
+    reportProgress("Calculating seams…", 0.87);
     cv::Mat conflictMask;
     cv::Mat labels = graphCutLabels(
         compensatedLayers.compositing, seamMasks, width, height, conflictMask
@@ -3584,7 +3584,7 @@ std::pair<double, int> renderPanorama(
         acceptedLayers.compositing, acceptedLayers.measurement,
         labels, conflictMask, width
     );
-    reportProgress("Blandar originalpixlar…", 0.94);
+    reportProgress("Blending original pixels…", 0.94);
     cv::Mat result = contentAdaptiveBlend(
         warps, labels, conflictMask, width, height
     );
@@ -3594,7 +3594,7 @@ std::pair<double, int> renderPanorama(
         cv::IMWRITE_JPEG_OPTIMIZE, 1
     };
     if (!cv::imwrite(outputPath, result, parameters)) {
-        throw std::runtime_error("Panoramamotorn kunde inte skriva panoramabilden.");
+        throw std::runtime_error("The panorama engine could not write the panorama image.");
     }
     return {coverage, holes};
 }
@@ -3621,20 +3621,20 @@ int PWStitchPanorama(
     } callbackReset;
     try {
         if (imagePaths == nullptr || outputPath == nullptr || imageCount < 2) {
-            throw std::runtime_error("Panoramamotorn kräver minst två källbilder.");
+            throw std::runtime_error("The panorama engine requires at least two source images.");
         }
         if (outputWidth < 512 || outputWidth % 2 != 0) {
-            throw std::runtime_error("Panoramabredden måste vara ett jämnt tal på minst 512 pixlar.");
+            throw std::runtime_error("The panorama width must be an even number of at least 512 pixels.");
         }
         std::vector<Source> sources;
         std::vector<unsigned char> resolvedRoles(imageCount, 0);
         for (int index = 0; index < imageCount; ++index) {
             reportProgress(
-                "Läser källbilder…",
+                "Reading source images…",
                 0.08 + 0.08 * double(index) / double(imageCount)
             );
             if (imagePaths[index] == nullptr) {
-                throw std::runtime_error("En källbild saknar sökväg.");
+                throw std::runtime_error("A source image has no path.");
             }
             sources.push_back(readSource(
                 imagePaths[index],
@@ -3646,10 +3646,10 @@ int PWStitchPanorama(
                 );
             }
             if (index > 0 && sources[index].image.size() != sources[0].image.size()) {
-                throw std::runtime_error("Panoramamotorn kräver källbilder med samma pixelmått.");
+                throw std::runtime_error("The panorama engine requires source images with identical pixel dimensions.");
             }
         }
-        reportProgress("Analyserar objektivets bildcirkel…", 0.17);
+        reportProgress("Analyzing the lens image circle…", 0.17);
         const OpticalSupport optical = commonOpticalSupport(sources);
         Alignment alignment;
         const std::string cachePath = alignmentCachePath == nullptr
@@ -3668,11 +3668,11 @@ int PWStitchPanorama(
             initialLens.k1 = initialK1;
             initialLens.cx = sources.front().image.cols / 2.0;
             initialLens.cy = sources.front().image.rows / 2.0;
-            reportProgress("Detekterar bildfeatures…", 0.23);
+            reportProgress("Detecting image features…", 0.23);
             const std::vector<Features> features = extractFeatures(
                 sources, optical.mask
             );
-            reportProgress("Matchar överlappande bilder…", 0.35);
+            reportProgress("Matching overlapping images…", 0.35);
             const EdgeSets edgeSets = buildEdges(
                 sources, features, initialLens
             );
@@ -3693,7 +3693,7 @@ int PWStitchPanorama(
             }
             if (ringIndices.size() < 2) {
                 throw std::runtime_error(
-                    "Panoramaringen kräver minst två bilder."
+                    "The panorama ring requires at least two images."
                 );
             }
             const std::vector<Edge> ringEdges = subsetEdges(
@@ -3704,12 +3704,12 @@ int PWStitchPanorama(
             );
             if (!isGraphConnected(int(ringIndices.size()), ringEdges)) {
                 throw std::runtime_error(
-                    "Panoramaringen är inte sammanhängande. Reparationsbilder används inte för att överbrygga saknat ringöverlapp."
+                    "The panorama ring is not connected. Repair images are not used to bridge missing ring overlap."
                 );
             }
             const std::vector<cv::Matx33d> initialRotations =
                 buildInitialRotations(int(ringIndices.size()), ringEdges);
-            reportProgress("Optimerar kameror och linsmodell…", 0.46);
+            reportProgress("Optimizing cameras and lens model…", 0.46);
             Alignment ringAlignment = optimizeGeometry(
                 ringSources, ringEdges, weakRingEdges,
                 initialRotations, initialLens,
@@ -3729,7 +3729,7 @@ int PWStitchPanorama(
                     sources.front().image.size(), ringAlignment.lens
                 );
             }
-            reportProgress("Rätar upp horisonten…", 0.56);
+            reportProgress("Leveling the horizon…", 0.56);
             const std::vector<cv::Matx33d> leveledRing = levelRotations(
                 ringAlignment.rotations
             );
@@ -3741,7 +3741,7 @@ int PWStitchPanorama(
             alignment.gains = exposureGains(sources, edges);
             saveCache(cachePath, alignment, sources.front().image.size());
         } else {
-            reportProgress("Använder sparad bildjustering…", 0.58);
+            reportProgress("Using saved image alignment…", 0.58);
         }
         detectSupplementalViews(resolvedRoles, alignment.rotations);
         const auto [coverage, holes] = renderPanorama(
@@ -3754,14 +3754,14 @@ int PWStitchPanorama(
             report->usedAlignmentCache = usedCache ? 1 : 0;
         }
         if (errorMessage != nullptr) *errorMessage = nullptr;
-        reportProgress("Panoramat är klart", 1.0);
+        reportProgress("Panorama complete", 1.0);
         return 1;
     } catch (const cv::Exception &error) {
         setErrorMessage(errorMessage, "OpenCV: " + std::string(error.what()));
     } catch (const std::exception &error) {
         setErrorMessage(errorMessage, error.what());
     } catch (...) {
-        setErrorMessage(errorMessage, "Panoramamotorn misslyckades av okänd orsak.");
+        setErrorMessage(errorMessage, "The panorama engine failed for an unknown reason.");
     }
     return 0;
 }

@@ -15,8 +15,8 @@ final class PanoramaRetouchController {
         panel.isExtensionHidden = false
         panel.directoryURL = projectDirectoryURL
         panel.nameFieldStringValue = "cube"
-        panel.title = "Exportera kubkarta"
-        panel.prompt = "Exportera"
+        panel.title = "Export Cube Map"
+        panel.prompt = "Export"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         model.exportCubeMap(to: url)
     }
@@ -27,8 +27,8 @@ final class PanoramaRetouchController {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.nameFieldStringValue = "cube"
-        panel.title = "Importera kubkarta"
-        panel.prompt = "Importera"
+        panel.title = "Import Cube Map"
+        panel.prompt = "Import"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         model.importCubeMap(from: url)
     }
@@ -49,8 +49,8 @@ struct PanoramaRetouchView: View {
 
                 Section {
                     Text(
-                        "Retuscher sparas separat i projektet och ändrar inte "
-                            + "källbilder, masker eller panoramageometri."
+                        "Retouches are stored separately in the project and do "
+                            + "not alter source images, masks, or panorama geometry."
                     )
                     .foregroundStyle(.secondary)
                 }
@@ -59,13 +59,13 @@ struct PanoramaRetouchView: View {
         } else {
             ContentUnavailableView {
                 Label(
-                    "Inget panorama att retuschera",
+                    "No Panorama to Retouch",
                     systemImage: "paintbrush.pointed"
                 )
             } description: {
-                Text("Generera panoramat för att skapa plana polsidor.")
+                Text("Create the panorama to generate flat pole faces.")
             } actions: {
-                Button("Generera") {
+                Button("Create") {
                     model.stitch()
                 }
                 .buttonStyle(WorkspaceToolbarPillStyle())
@@ -79,13 +79,13 @@ struct PanoramaRetouchView: View {
         Section(pole.displayName) {
             LabeledContent(
                 "Format",
-                value: "PNG · 2048 × 2048 px · 90° kubsida"
+                value: "PNG · 2048 × 2048 px · 90° cube face"
             )
             LabeledContent(
                 "Status",
                 value: model.retouchURL(for: pole) == nil
-                    ? "Ingen retusch"
-                    : "Retusch aktiv"
+                    ? "No retouch"
+                    : "Retouch active"
             )
 
             HStack(spacing: 8) {
@@ -93,7 +93,7 @@ struct PanoramaRetouchView: View {
                     onAIRetouch(pole)
                 } label: {
                     Label(
-                        "AI-retuschera \(pole.localizedName)…",
+                        "AI Retouch \(pole.displayName)…",
                         systemImage: "wand.and.sparkles"
                     )
                 }
@@ -101,7 +101,7 @@ struct PanoramaRetouchView: View {
 
                 if model.retouchURL(for: pole) != nil {
                     Button(
-                        "Ta bort \(pole.localizedName)retusch",
+                        "Remove \(pole.displayName) Retouch",
                         role: .destructive
                     ) {
                         model.removeRetouch(for: pole)
@@ -114,14 +114,14 @@ struct PanoramaRetouchView: View {
 
             if model.retouchURL(for: pole) != nil {
                 Label(
-                    "Retuschen visas ovanpå panoramat vid "
+                    "The retouch is displayed over the panorama at the "
                         + "\(pole.displayName.lowercased()).",
                     systemImage: "checkmark.circle.fill"
                 )
                 .foregroundStyle(.green)
             } else {
                 Text(
-                    "AI-retuschera \(pole.localizedName) direkt i PanoWizard."
+                    "AI retouch the \(pole.localizedName) directly in PanoWizard."
                 )
                 .foregroundStyle(.secondary)
             }
@@ -129,20 +129,20 @@ struct PanoramaRetouchView: View {
     }
 
     private var cubeMapSection: some View {
-        Section("Kubkarta") {
+        Section("Cube Map") {
             LabeledContent(
                 "Format",
-                value: "PNG · 8192 × 6144 px · 6 kubsidor à 2048 × 2048 px"
+                value: "PNG · 8192 × 6144 px · 6 cube faces at 2048 × 2048 px"
             )
             LabeledContent("Status") {
                 HStack(spacing: 8) {
                     Text(
                         model.cubeRetouchURL == nil
-                            ? "Ingen importerad kubkarta"
-                            : "Kubkarta aktiv"
+                            ? "No imported cube map"
+                            : "Cube map active"
                     )
                     if model.cubeRetouchURL != nil {
-                        Button("Ta bort kubretusch", systemImage: "trash", role: .destructive) {
+                        Button("Remove Cube Retouch", systemImage: "trash", role: .destructive) {
                             model.removeCubeRetouch()
                         }
                         .labelStyle(.iconOnly)
@@ -159,14 +159,14 @@ struct PanoramaRetouchView: View {
                         projectDirectoryURL: projectDirectoryURL
                     )
                 } label: {
-                    Label("Exportera kubkarta…", systemImage: "square.and.arrow.up")
+                    Label("Export Cube Map…", systemImage: "square.and.arrow.up")
                 }
                 .accessibilityIdentifier("export-cube-map")
 
                 Button {
                     controller.importCubeMap(model: model)
                 } label: {
-                    Label("Importera kubkarta…", systemImage: "square.and.arrow.down")
+                    Label("Import Cube Map…", systemImage: "square.and.arrow.down")
                 }
                 .accessibilityIdentifier("import-cube-map")
             }
@@ -174,8 +174,8 @@ struct PanoramaRetouchView: View {
             .disabled(model.phase != .ready)
 
             Text(
-                "Exportera hela panoramat som en kubkarta, redigera den i ett "
-                    + "externt bildprogram och importera den färdiga kubkartan igen."
+                "Export the entire panorama as a cube map, edit it in an "
+                    + "external image editor, and import the finished cube map again."
             )
             .foregroundStyle(.secondary)
         }
@@ -214,20 +214,20 @@ struct AIRetouchSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("AI-retuschera \(pole.displayName.lowercased())")
+                Text("AI Retouch \(pole.displayName)")
                     .font(.title2.bold())
                 Text(
-                    "Bilden skickas till OpenAI. Ingen retusch aktiveras "
-                        + "förrän du väljer Använd."
+                    "The image is sent to OpenAI. No retouch is activated "
+                        + "until you choose Apply."
                 )
                 .foregroundStyle(.secondary)
             }
 
             HStack(alignment: .top, spacing: 16) {
                 AIRetouchImagePane(
-                    title: "Före",
-                    footer: "Dra panorerar · rulla zoomar · ⌘-dra målar · "
-                        + "⌘⌥-dra suddar · ⌘Z ångrar"
+                    title: "Before",
+                    footer: "Drag to pan · scroll to zoom · ⌘-drag to paint · "
+                        + "⌘⌥-drag to erase · ⌘Z to undo"
                 ) {
                     if let source {
                         AIRetouchImageViewport(
@@ -241,12 +241,12 @@ struct AIRetouchSheet: View {
                         .id("ai-retouch-before-viewport")
                     } else {
                         AIRetouchImagePlaceholder(
-                            text: "Förbereder bilden…",
+                            text: "Preparing image…",
                             showsProgress: errorMessage == nil
                         )
                     }
                 } trailing: {
-                    Button("Ta bort mask", role: .destructive) {
+                    Button("Clear Mask", role: .destructive) {
                         clearMask()
                     }
                     .disabled(maskData == nil || isWorking)
@@ -257,8 +257,8 @@ struct AIRetouchSheet: View {
                 }
 
                 AIRetouchImagePane(
-                    title: "Efter",
-                    footer: "Dra panorerar · rulla eller nyp zoomar"
+                    title: "After",
+                    footer: "Drag to pan · scroll or pinch to zoom"
                 ) {
                     if let afterURL {
                         AIRetouchImageViewport(
@@ -272,7 +272,7 @@ struct AIRetouchSheet: View {
                         .id("ai-retouch-after-viewport")
                     } else {
                         AIRetouchImagePlaceholder(
-                            text: "AI-resultatet visas här efter retuschering."
+                            text: "The AI result appears here after retouching."
                         )
                     }
                 } trailing: {
@@ -289,7 +289,7 @@ struct AIRetouchSheet: View {
                     .padding(6)
             } label: {
                 HStack(spacing: 5) {
-                    Text("Instruktion")
+                    Text("Instruction")
                     Button {
                         restoreDefaultPrompt()
                     } label: {
@@ -297,8 +297,8 @@ struct AIRetouchSheet: View {
                     }
                     .buttonStyle(.plain)
                     .controlSize(.small)
-                    .help("Återställ standardinstruktion")
-                    .accessibilityLabel("Återställ standardinstruktion")
+                    .help("Restore default instruction")
+                    .accessibilityLabel("Restore default instruction")
                     .disabled(!canRestoreDefaultPrompt)
                 }
             }
@@ -310,30 +310,30 @@ struct AIRetouchSheet: View {
             }
 
             HStack {
-                Button("Avbryt", role: .cancel) {
+                Button("Cancel", role: .cancel) {
                     cancelAndDismiss()
                 }
                 Spacer()
                 Button(
                     storedAPIKey == nil
-                        ? "Skapa API-nyckel…"
-                        : "Ändra API-nyckel…"
+                        ? "Create API Key…"
+                        : "Change API Key…"
                 ) {
                     isAPIKeySheetPresented = true
                 }
                 if preview != nil {
-                    Button("Försök igen") {
+                    Button("Try Again") {
                         generate()
                     }
                     .disabled(isWorking || !canGenerate)
 
-                    Button("Använd") {
+                    Button("Apply") {
                         applyPreview()
                     }
                     .keyboardShortcut(.defaultAction)
                     .disabled(isWorking)
                 } else {
-                    Button("AI-retuschera") {
+                    Button("AI Retouch") {
                         generate()
                     }
                     .keyboardShortcut(.defaultAction)
@@ -361,14 +361,14 @@ struct AIRetouchSheet: View {
             AIRetouchProgressSheet(onCancel: cancelGeneration)
         }
         .alert(
-            "API-nyckel saknas",
+            "API Key Missing",
             isPresented: $isMissingAPIKeyAlertPresented
         ) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(
-                "Du behöver skapa en OpenAI API-nyckel innan du kan använda "
-                    + "AI-retuschering."
+                "You need to create an OpenAI API key before you can use "
+                    + "AI retouching."
             )
         }
         .onDisappear {
@@ -520,32 +520,32 @@ struct AIRetouchSheet: View {
     private static func defaultPrompt(for pole: PanoramaPole) -> String {
         if pole == .nadir {
             return """
-                Detta är nadirytan i ett 360°-panorama. Det maskerade området har tagits bort och ska rekonstrueras.
+                This is the nadir surface of a 360° panorama. The masked area has been removed and must be reconstructed.
 
-                Fyll det saknade området fotorealistiskt utifrån den omgivande bilden. Fortsätt befintliga strukturer, linjer, mönster, fogar och texturer geometriskt och perspektiviskt korrekt.
+                Fill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.
 
-                Rekonstruktionen ska smälta omärkligt samman med den omgivande originalbilden. Anpassa lokalt exponering, ljusstyrka, färgton, vitbalans, kontrast, skärpa, textur och brus så att ingen synlig gräns eller tonkant uppstår runt det rekonstruerade området.
+                The reconstruction must blend seamlessly with the surrounding original image. Locally match exposure, brightness, hue, white balance, contrast, sharpness, texture, and noise so that no visible boundary or tonal edge appears around the reconstructed area.
 
-                Övergången mellan rekonstruerat och ursprungligt bildinnehåll ska vara mjuk och gradvis. Undvik en jämnt avgränsad eller maskformad förändring i ljus eller färg.
+                The transition between reconstructed and original image content must be smooth and gradual. Avoid a uniformly bounded or mask-shaped change in light or color.
 
-                Bevara bildens befintliga geometri och perspektiv. Ändra inte objekt eller strukturer som inte behöver rekonstrueras för att fylla det saknade området.
+                Preserve the image's existing geometry and perspective. Do not alter objects or structures that do not need to be reconstructed to fill the missing area.
 
-                Gör ingen global bildbehandling. Alla anpassningar av färg, ton och exponering ska vara lokala och endast göras i den omfattning som krävs för att rekonstruktionen ska bli osynlig.
+                Do not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.
                 """
         }
 
         return """
-            Detta är zenitytan i ett 360°-panorama. Det maskerade området har tagits bort och ska rekonstrueras.
+            This is the zenith surface of a 360° panorama. The masked area has been removed and must be reconstructed.
 
-            Fyll det saknade området fotorealistiskt utifrån den omgivande bilden. Fortsätt befintliga strukturer, linjer, mönster, fogar och texturer geometriskt och perspektiviskt korrekt.
+            Fill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.
 
-            Rekonstruktionen ska smälta omärkligt samman med den omgivande originalbilden. Anpassa lokalt exponering, ljusstyrka, färgton, vitbalans, kontrast, skärpa, textur och brus så att ingen synlig gräns eller tonkant uppstår runt det rekonstruerade området.
+            The reconstruction must blend seamlessly with the surrounding original image. Locally match exposure, brightness, hue, white balance, contrast, sharpness, texture, and noise so that no visible boundary or tonal edge appears around the reconstructed area.
 
-            Övergången mellan rekonstruerat och ursprungligt bildinnehåll ska vara mjuk och gradvis. Undvik en jämnt avgränsad eller maskformad förändring i ljus eller färg.
+            The transition between reconstructed and original image content must be smooth and gradual. Avoid a uniformly bounded or mask-shaped change in light or color.
 
-            Bevara bildens befintliga geometri och perspektiv. Ändra inte objekt eller strukturer som inte behöver rekonstrueras för att fylla det saknade området.
+            Preserve the image's existing geometry and perspective. Do not alter objects or structures that do not need to be reconstructed to fill the missing area.
 
-            Gör ingen global bildbehandling. Alla anpassningar av färg, ton och exponering ska vara lokala och endast göras i den omfattning som krävs för att rekonstruktionen ska bli osynlig.
+            Do not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.
             """
     }
 
@@ -560,13 +560,13 @@ private struct AIRetouchProgressSheet: View {
                 .controlSize(.small)
 
             VStack(spacing: 4) {
-                Text("OpenAI retuscherar bilden…")
+                Text("OpenAI is retouching the image…")
                     .font(.headline)
-                Text("Det kan ta upp till två minuter.")
+                Text("This may take up to two minutes.")
                     .foregroundStyle(.secondary)
             }
 
-            Button("Avbryt", role: .cancel, action: onCancel)
+            Button("Cancel", role: .cancel, action: onCancel)
         }
         .padding(24)
         .frame(width: 320)

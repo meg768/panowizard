@@ -4,13 +4,13 @@ import ImageIO
 import UniformTypeIdentifiers
 
 enum LittlePlanetProjection: String, CaseIterable, Sendable {
-    case stereographic = "Stereografisk"
+    case stereographic = "Stereographic"
 }
 
 enum LittlePlanetBackground: String, CaseIterable, Sendable {
     case transparent = "Transparent"
-    case black = "Svart"
-    case white = "Vit"
+    case black = "Black"
+    case white = "White"
 }
 
 struct LittlePlanetSettings: Equatable, Sendable {

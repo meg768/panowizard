@@ -24,7 +24,7 @@ enum MaskedSourceImageWriter {
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else {
-            throw PanoramaEngineError.stitchingFailed("Maskbilden kunde inte skapas.")
+            throw PanoramaEngineError.stitchingFailed("The mask image could not be created.")
         }
         let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
         context.draw(image, in: bounds)
@@ -33,7 +33,7 @@ enum MaskedSourceImageWriter {
                   let mask = CGImageSourceCreateImageAtIndex(maskSource, 0, nil)
             else {
                 throw PanoramaEngineError.stitchingFailed(
-                    "Masken för \(sourceImage.filename) kunde inte läsas."
+                    "The mask for \(sourceImage.filename) could not be read."
                 )
             }
             context.setBlendMode(.destinationOut)
@@ -46,13 +46,13 @@ enum MaskedSourceImageWriter {
                 1,
                 nil
               ) else {
-            throw PanoramaEngineError.stitchingFailed("Maskbilden kunde inte sparas.")
+            throw PanoramaEngineError.stitchingFailed("The mask image could not be saved.")
         }
         CGImageDestinationAddImage(destination, result, [
             kCGImagePropertyTIFFDictionary: [kCGImagePropertyTIFFCompression: 5]
         ] as CFDictionary)
         guard CGImageDestinationFinalize(destination) else {
-            throw PanoramaEngineError.stitchingFailed("Maskbilden kunde inte sparas.")
+            throw PanoramaEngineError.stitchingFailed("The mask image could not be saved.")
         }
     }
 }

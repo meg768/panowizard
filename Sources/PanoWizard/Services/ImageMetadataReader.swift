@@ -11,7 +11,7 @@ enum ImageMetadataError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unreadableImage(let url):
-            "Kunde inte läsa \(url.lastPathComponent)."
+            "Could not read \(url.lastPathComponent)."
         }
     }
 }
@@ -60,7 +60,7 @@ struct ImageMetadataReader: ImageMetadataReading {
                 lens: LensDescription(
                     model: lensModel ?? (
                         lensKind == .fisheye
-                            ? "Fisheye (identifierat från bilden)"
+                            ? "Fisheye (identified from the image)"
                             : nil
                     ),
                     focalLengthIn35mm: focalLength,

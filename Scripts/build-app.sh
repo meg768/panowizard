@@ -5,7 +5,6 @@ set -euo pipefail
 project_directory=${0:A:h:h}
 app_bundle="$project_directory/build/PanoWizard.app"
 info_plist="$project_directory/Resources/Info.plist"
-version_file="$project_directory/VERSION"
 staging_directory=$(mktemp -d "${TMPDIR:-/tmp}/PanoWizard-build.XXXXXX")
 staging_app_bundle="$staging_directory/PanoWizard.app"
 contents_directory="$staging_app_bundle/Contents"
@@ -19,17 +18,11 @@ trap cleanup EXIT
 
 cd "$project_directory"
 
-current_version=$(<"$version_file")
-if [[ ! "$current_version" =~ ^[0-9]+\.[0-9]+$ ]]; then
-    echo "Appversionen måste ha formatet major.minor: $current_version" >&2
-    exit 1
-fi
-version_major=${current_version%%.*}
-version_minor=${current_version##*.}
-next_version="$version_major.$((version_minor + 1))"
-print -r -- "$next_version" > "$version_file"
+build_epoch=$(date +%s)
+build_version=$(date -r "$build_epoch" '+%y.%m.%d.%H.%M')
+build_timestamp=$(date -r "$build_epoch" '+%Y-%m-%d %H:%M')
 
-echo "Bygger PanoWizard $next_version"
+echo "Building PanoWizard $build_version"
 swift build --configuration release --arch arm64
 
 resources_directory="$contents_directory/Resources"
@@ -41,14 +34,13 @@ install -m 644 \
     "$info_plist" \
     "$contents_directory/Info.plist"
 /usr/libexec/PlistBuddy -c \
-    "Set :CFBundleShortVersionString $next_version" \
+    "Set :CFBundleShortVersionString $build_version" \
     "$contents_directory/Info.plist"
 /usr/libexec/PlistBuddy -c \
-    "Set :CFBundleVersion $next_version" \
+    "Set :CFBundleVersion $build_version" \
     "$contents_directory/Info.plist"
-build_timestamp=$(date '+%Y-%m-%d %H:%M')
 /usr/libexec/PlistBuddy -c \
-    "Add :NSHumanReadableCopyright string Byggd $build_timestamp" \
+    "Add :NSHumanReadableCopyright string Built $build_timestamp" \
     "$contents_directory/Info.plist"
 install -m 644 \
     "$project_directory/Resources/Icons/PanoWizardProject.icns" \
@@ -89,7 +81,7 @@ for attempt in {1..40}; do
     sleep 0.1
 done
 if [[ "$verified" != true ]]; then
-    echo "Apppaketets signatur kunde inte verifieras." >&2
+    echo "The app bundle signature could not be verified." >&2
     exit 1
 fi
 

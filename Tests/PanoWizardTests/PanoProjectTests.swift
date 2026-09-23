@@ -22,46 +22,38 @@ struct PanoProjectTests {
         #expect(decoded.formatVersion == 7)
     }
 
-    @Test("Version 6 engine fields migrate while composition roles survive")
-    func legacyCompositionRolesSurviveMigration() throws {
-        let id = UUID()
-        let imageID = UUID()
+    @Test("Project reader rejects noncurrent formats")
+    func rejectsNoncurrentFormat() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizard-Version-Test-\(UUID())",
+            directoryHint: .isDirectory
+        )
+        let projectURL = directory.appending(
+            path: "Unsupported.pw",
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(
+            at: projectURL,
+            withIntermediateDirectories: true
+        )
         let json = """
         {
           "formatVersion": 6,
-          "id": "\(id.uuidString)",
-          "title": "Äldre projekt",
+          "id": "\(UUID().uuidString)",
+          "title": "Unsupported Project",
           "createdAt": "2026-01-01T00:00:00Z",
           "modifiedAt": "2026-01-01T00:00:00Z",
-          "stitching": {"projection":"equirectangular","lensProfile":"sigma8DX"},
-          "controlPoints": [{"firstImage":0,"secondImage":1}],
-          "nadirRepairPlacement": {"imageID":"\(imageID.uuidString)"},
-          "images": [{
-            "id": "\(imageID.uuidString)",
-            "url": "file:///tmp/source.jpg",
-            "captureDate": null,
-            "pixelWidth": 100,
-            "pixelHeight": 80,
-            "cameraModel": null,
-            "lens": {"model":null,"focalLengthIn35mm":8,"kind":"fisheye"},
-            "role": "fillOnly",
-            "automaticRole": "alignment",
-            "direction": "nadir",
-            "isEnabled": true
-          }]
+          "images": []
         }
         """
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        try Data(json.utf8).write(
+            to: projectURL.appending(path: "project.json")
+        )
 
-        var project = try decoder.decode(PanoProject.self, from: Data(json.utf8))
-        project.migrateToCurrentFormat()
-
-        #expect(project.formatVersion == 7)
-        #expect(project.images.count == 1)
-        #expect(project.images[0].id == imageID)
-        #expect(project.images[0].isEnabled)
-        #expect(project.images[0].effectiveRole == .fillOnly)
+        #expect(throws: (any Error).self) {
+            try PanoProjectDocument(contentsOf: projectURL)
+        }
     }
 
     @Test("Removing a source remains safe")

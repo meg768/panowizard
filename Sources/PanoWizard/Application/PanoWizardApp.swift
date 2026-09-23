@@ -227,7 +227,7 @@ private struct SourceMaskMenuCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .undoRedo) {
-            Button("Ångra maskändring") {
+            Button("Undo Mask Change") {
                 actions?.undo()
             }
             .keyboardShortcut("z")
@@ -242,20 +242,20 @@ private struct ProjectDocumentMenuCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .saveItem) {
-            Button("Stäng") {
+            Button("Close") {
                 (NSApp.keyWindow ?? NSApp.mainWindow)?.performClose(nil)
             }
             .keyboardShortcut("w")
 
             Divider()
 
-            Button("Spara") {
+            Button("Save") {
                 actions?.save()
             }
             .keyboardShortcut("s")
             .disabled(actions == nil)
 
-            Button("Spara som…") {
+            Button("Save As…") {
                 actions?.saveAs()
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
@@ -270,7 +270,7 @@ private struct PanoramaMenuCommands: Commands {
 
     var body: some Commands {
         CommandMenu("Panorama") {
-            Button("Skapa panorama") {
+            Button("Create Panorama") {
                 actions?.createPanorama()
             }
             .keyboardShortcut("r", modifiers: .option)
@@ -278,13 +278,13 @@ private struct PanoramaMenuCommands: Commands {
 
             Divider()
 
-            Button("Förhandsvisning") {
+            Button("Preview") {
                 actions?.showPreview()
             }
             .keyboardShortcut("p", modifiers: .option)
             .disabled(actions?.canShowPanorama != true)
 
-            Button("Exportera…") {
+            Button("Export…") {
                 actions?.showExport()
             }
             .keyboardShortcut("e", modifiers: .option)
@@ -417,7 +417,7 @@ private struct ProjectDocumentView: View {
             projectDirectoryURL: saveURL?.deletingLastPathComponent()
                 ?? model.sourceDirectoryURL
         )
-            .navigationSubtitle(isDirty ? "Redigerad" : "")
+            .navigationSubtitle(isDirty ? "Edited" : "")
             .focusedSceneValue(
                 \.projectDocumentCommandActions,
                 ProjectDocumentCommandActions(
@@ -439,34 +439,34 @@ private struct ProjectDocumentView: View {
                 updateWindowState()
             }
             .dismissalConfirmationDialog(
-                "Vill du spara ändringarna?",
+                "Do You Want to Save Your Changes?",
                 shouldPresent: isDirty
             ) {
-                Button("Spara", role: .cancel) {
+                Button("Save", role: .cancel) {
                     DispatchQueue.main.async {
                         saveBeforeClosing()
                     }
                 }
                 .keyboardShortcut(.defaultAction)
 
-                Button("Spara inte", role: .destructive) {
+                Button("Don't Save", role: .destructive) {
                     PanoWizardApplicationDelegate.shared?
                         .discardAndContinueTermination(for: projectWindow)
                 }
-                Button("Avbryt", role: .cancel) {
+                Button("Cancel", role: .cancel) {
                     PanoWizardApplicationDelegate.shared?
                         .cancelPendingTermination(for: projectWindow)
                 }
             } message: {
-                Text("Ändringarna går förlorade om du inte sparar dem.")
+                Text("Your changes will be lost if you don't save them.")
             }
-            .alert("Kunde inte spara", isPresented: Binding(
+            .alert("Could Not Save", isPresented: Binding(
                 get: { saveError != nil },
                 set: { if !$0 { saveError = nil } }
             )) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(saveError ?? "Okänt fel")
+                Text(saveError ?? "Unknown error")
             }
             .onAppear {
                 dismissWindow(id: "welcome")
@@ -564,14 +564,14 @@ private struct ProjectDocumentView: View {
         panel.allowedContentTypes = [.panoWizardProject]
         panel.canCreateDirectories = true
         panel.isExtensionHidden = true
-        panel.title = "Spara panorama"
-        panel.prompt = "Spara"
+        panel.title = "Save Panorama"
+        panel.prompt = "Save"
         panel.directoryURL = saveURL?.deletingLastPathComponent()
             ?? model.sourceDirectoryURL
         panel.nameFieldStringValue = saveURL?
             .deletingPathExtension()
             .lastPathComponent
-            ?? "Namnlöst"
+            ?? "Untitled"
         return panel
     }
 

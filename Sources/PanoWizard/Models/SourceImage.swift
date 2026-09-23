@@ -82,33 +82,4 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
         rotation.swapsDimensions ? pixelWidth : pixelHeight
     }
 
-    private enum CodingKeys: String, CodingKey {
-        case id, url, captureDate, pixelWidth, pixelHeight, cameraModel, lens
-        case direction, role, automaticRole, automaticDirection, isEnabled
-        case rotation
-    }
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        id = try values.decode(UUID.self, forKey: .id)
-        url = try values.decode(URL.self, forKey: .url)
-        captureDate = try values.decodeIfPresent(Date.self, forKey: .captureDate)
-        pixelWidth = try values.decode(Int.self, forKey: .pixelWidth)
-        pixelHeight = try values.decode(Int.self, forKey: .pixelHeight)
-        cameraModel = try values.decodeIfPresent(String.self, forKey: .cameraModel)
-        lens = try values.decode(LensDescription.self, forKey: .lens)
-        direction = try values.decodeIfPresent(Direction.self, forKey: .direction)
-            ?? .horizontal
-        role = try values.decodeIfPresent(Role.self, forKey: .role) ?? .automatic
-        automaticRole = try values.decodeIfPresent(
-            Role.self, forKey: .automaticRole
-        )
-        automaticDirection = try values.decodeIfPresent(
-            Direction.self, forKey: .automaticDirection
-        )
-        isEnabled = try values.decodeIfPresent(Bool.self, forKey: .isEnabled)
-            ?? true
-        rotation = try values.decodeIfPresent(Rotation.self, forKey: .rotation)
-            ?? .none
-    }
 }

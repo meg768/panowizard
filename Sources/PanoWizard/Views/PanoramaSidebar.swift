@@ -8,15 +8,15 @@ struct PanoramaSidebar: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                Text("Källbilder").font(.headline)
+                Text("Source Images").font(.headline)
                 Spacer(minLength: 12)
                 Button {
                     model.isImporterPresented = true
                 } label: {
-                    Label("Lägg till", systemImage: "plus")
+                    Label("Add", systemImage: "plus")
                 }
                 .buttonStyle(WorkspaceToolbarPillStyle())
-                .help("Lägg till källbilder")
+                .help("Add source images")
             }
             .padding(.horizontal, 16)
             .frame(height: 44)
@@ -36,17 +36,17 @@ struct PanoramaSidebar: View {
                     if !model.project.images.isEmpty {
                         Section {
                             navigationRow(
-                                "Förhandsvisa",
+                                "Preview",
                                 systemImage: "eye",
                                 selection: .panorama
                             )
                             navigationRow(
-                                "Retuschering",
+                                "Retouch",
                                 systemImage: "paintbrush.pointed",
                                 selection: .retouch
                             )
                             navigationRow(
-                                "Exportera",
+                                "Export",
                                 systemImage: "square.and.arrow.up",
                                 selection: .export
                             )
@@ -59,11 +59,11 @@ struct PanoramaSidebar: View {
                                 Button {
                                     model.stitch()
                                 } label: {
-                                    Label("Skapa", systemImage: "pano")
+                                    Label("Create", systemImage: "pano")
                                 }
                                 .buttonStyle(WorkspaceToolbarPillStyle())
                                 .disabled(!model.canStitch)
-                                .help("Skapa panorama med aktuella bilder och masker")
+                                .help("Create a panorama with the current images and masks")
                             }
                             .textCase(nil)
                             .padding(.horizontal, 4)
@@ -78,9 +78,9 @@ struct PanoramaSidebar: View {
 
                 if model.project.images.isEmpty {
                     ContentUnavailableView(
-                        "Inga bilder",
+                        "No Images",
                         systemImage: "photo.on.rectangle.angled",
-                        description: Text("Dra in bilder för att börja.")
+                        description: Text("Drag in images to get started.")
                     )
                     .allowsHitTesting(false)
                 }
@@ -91,38 +91,38 @@ struct PanoramaSidebar: View {
             pendingDeletion = model.selectedSourceImage
         }
         .confirmationDialog(
-            "Ta bort källbild?",
+            "Remove Source Image?",
             isPresented: Binding(
                 get: { pendingDeletion != nil },
                 set: { if !$0 { pendingDeletion = nil } }
             ),
             presenting: pendingDeletion
         ) { image in
-            Button("Ta bort från projektet", role: .destructive) {
+            Button("Remove from Project", role: .destructive) {
                 model.removeSourceImage(image.id)
             }
-            Button("Ta bort källfilen", role: .destructive) {
+            Button("Move Source File to Trash", role: .destructive) {
                 do {
                     try model.moveSourceImageToTrash(image.id)
                 } catch {
-                    deletionError = "\(image.filename) kunde inte flyttas till "
-                        + "Papperskorgen: \(error.localizedDescription)"
+                    deletionError = "\(image.filename) could not be moved to "
+                        + "the Trash: \(error.localizedDescription)"
                 }
             }
-            Button("Avbryt", role: .cancel) {}
+            Button("Cancel", role: .cancel) {}
         } message: { image in
             Text(
-                "\(image.filename) kan tas bort från projektet eller flyttas "
-                    + "till Papperskorgen."
+                "\(image.filename) can be removed from the project or moved "
+                    + "to the Trash."
             )
         }
-        .alert("Kunde inte ta bort källfilen", isPresented: Binding(
+        .alert("Could Not Remove Source File", isPresented: Binding(
             get: { deletionError != nil },
             set: { if !$0 { deletionError = nil } }
         )) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(deletionError ?? "Okänt fel")
+            Text(deletionError ?? "Unknown error")
         }
     }
 
@@ -146,7 +146,7 @@ struct PanoramaSidebar: View {
                 .buttonStyle(.plain)
                 .focusable(false)
                 .allowsHitTesting(isSelected)
-                .help(image.isEnabled ? "Inaktivera bilden" : "Aktivera bilden")
+                .help(image.isEnabled ? "Disable image" : "Enable image")
 
                 SourceThumbnail(image: image)
                     .frame(width: 52, height: 38)
@@ -165,12 +165,12 @@ struct PanoramaSidebar: View {
                             || model.protectedMaskDataByImageID[image.id] != nil {
                             Image(systemName: "rectangle.inset.filled")
                                 .foregroundStyle(.red)
-                                .help("Bilden har en individuell mask")
+                                .help("The image has an individual mask")
                         }
                         if image.effectiveRole == .fillOnly {
                             Image(systemName: "wrench.and.screwdriver.fill")
                                 .foregroundStyle(.orange)
-                                .help("Reparationsbild – påverkar inte panoramaringens geometri")
+                                .help("Repair image — does not affect panorama-ring geometry")
                         }
                     }
                     .font(.caption)
@@ -183,12 +183,12 @@ struct PanoramaSidebar: View {
         .padding(.vertical, 4)
         .tag(ProjectSelection.source(image.id))
         .contextMenu {
-            Menu("Bildtyp") {
-                roleButton("Automatisk", role: .automatic, image: image)
-                roleButton("Panoramaring", role: .alignment, image: image)
-                roleButton("Reparationsbild", role: .fillOnly, image: image)
+            Menu("Image Type") {
+                roleButton("Automatic", role: .automatic, image: image)
+                roleButton("Panorama Ring", role: .alignment, image: image)
+                roleButton("Repair Image", role: .fillOnly, image: image)
             }
-            Button("Ta bort bild…", role: .destructive) {
+            Button("Remove Image…", role: .destructive) {
                 model.selectSourceImage(image.id)
                 pendingDeletion = image
             }

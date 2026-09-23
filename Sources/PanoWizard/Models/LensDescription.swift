@@ -18,6 +18,6 @@ struct LensDescription: Codable, Hashable, Sendable {
         if let focalLengthIn35mm {
             return "\(focalLengthIn35mm.formatted(.number.precision(.fractionLength(0)))) mm"
         }
-        return "Okänt objektiv"
+        return "Unknown lens"
     }
 }

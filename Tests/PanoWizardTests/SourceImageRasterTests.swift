@@ -110,32 +110,6 @@ struct SourceImageRasterTests {
         #expect(model.protectedMaskDataByImageID[image.id] == nil)
     }
 
-    @Test("Older source records default to no manual rotation")
-    func legacyRotationDefault() throws {
-        let id = UUID()
-        let json = """
-        {
-          "id": "\(id.uuidString)",
-          "url": "file:///tmp/source.nef",
-          "pixelWidth": 3872,
-          "pixelHeight": 2592,
-          "cameraModel": "NIKON D80",
-          "lens": {"model":"Sigma 8mm","focalLengthIn35mm":8,"kind":"fisheye"},
-          "direction": "horizontal",
-          "role": "automatic",
-          "isEnabled": true
-        }
-        """
-        let image = try JSONDecoder().decode(
-            SourceImage.self,
-            from: Data(json.utf8)
-        )
-
-        #expect(image.rotation == .none)
-        #expect(image.orientedPixelWidth == 3872)
-        #expect(image.orientedPixelHeight == 2592)
-    }
-
     @Test("A failed trash move keeps the source in the project")
     @MainActor
     func failedTrashMoveIsNonDestructive() {

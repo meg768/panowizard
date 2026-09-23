@@ -40,17 +40,17 @@ struct PanoramaExportView: View {
     var body: some View {
         if let panoramaURL = model.currentPanoramaURL {
             Form {
-                Section("Panoramabild") {
-                    LabeledContent("Format", value: "Equirektangulär · 2:1")
-                    Picker("Storlek", selection: $controller.maximumWidth) {
+                Section("Panorama Image") {
+                    LabeledContent("Format", value: "Equirectangular · 2:1")
+                    Picker("Size", selection: $controller.maximumWidth) {
                         Text("Original").tag(0)
                         Text("4096 px").tag(4_096)
                         Text("2048 px").tag(2_048)
                     }
-                    Picker("JPEG-kvalitet", selection: $controller.jpegQuality) {
+                    Picker("JPEG Quality", selection: $controller.jpegQuality) {
                         Text("Normal").tag(0.82)
-                        Text("Hög").tag(0.92)
-                        Text("Maximal").tag(0.98)
+                        Text("High").tag(0.92)
+                        Text("Maximum").tag(0.98)
                     }
 
                     HStack(spacing: 8) {
@@ -70,7 +70,7 @@ struct PanoramaExportView: View {
                                 )
                             } label: {
                                 Label(
-                                    "Spara \(format.rawValue)…",
+                                    "Save \(format.rawValue)…",
                                     systemImage: "square.and.arrow.down"
                                 )
                             }
@@ -79,10 +79,10 @@ struct PanoramaExportView: View {
                     .buttonStyle(WorkspaceToolbarPillStyle())
                 }
 
-                Section("Interaktivt panorama") {
+                Section("Interactive Panorama") {
                     Text(
-                        "En självständig HTML-fil som kan öppnas i en modern "
-                            + "webbläsare utan andra tillhörande filer."
+                        "A self-contained HTML file that opens in a modern "
+                            + "web browser without any additional files."
                     )
                     .foregroundStyle(.secondary)
 
@@ -95,7 +95,7 @@ struct PanoramaExportView: View {
                         )
                     } label: {
                         Label(
-                            "Spara HTML…",
+                            "Save HTML…",
                             systemImage: "square.and.arrow.down"
                         )
                     }
@@ -104,14 +104,14 @@ struct PanoramaExportView: View {
                 }
 
                 Section("Little Planet") {
-                    Text("Skapa en \"liten planet\" från ditt panoramabild.")
+                    Text("Create a Little Planet image from your panorama.")
                         .foregroundStyle(.secondary)
 
                     Button {
                         isLittlePlanetPresented = true
                     } label: {
                         Label(
-                            "Skapa Little Planet…",
+                            "Create Little Planet…",
                             systemImage: "square.and.arrow.down"
                         )
                     }
@@ -130,31 +130,31 @@ struct PanoramaExportView: View {
                     projectDirectoryURL: projectDirectoryURL
                 )
             }
-            .alert("Exporten misslyckades", isPresented: Binding(
+            .alert("Export Failed", isPresented: Binding(
                 get: { controller.errorMessage != nil },
                 set: { if !$0 { controller.errorMessage = nil } }
             )) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(controller.errorMessage ?? "Okänt fel")
+                Text(controller.errorMessage ?? "Unknown error")
             }
         } else {
             ContentUnavailableView {
                 Label(
-                    "Inget panorama att exportera",
+                    "No Panorama to Export",
                     systemImage: "square.and.arrow.up"
                 )
             } description: {
-                Text("Generera panoramat för att fortsätta.")
+                Text("Create the panorama to continue.")
             } actions: {
                 Button {
                     model.stitch()
                 } label: {
-                    Text("Generera")
+                    Text("Create")
                 }
                 .buttonStyle(WorkspaceToolbarPillStyle())
                 .disabled(!model.canStitch)
-                .help("Skapa panorama med nuvarande bilder och masker")
+                .help("Create a panorama with the current images and masks")
             }
         }
     }
@@ -189,8 +189,8 @@ extension PanoramaExportController {
             projectTitle: model.project.title
         )
         panel.nameFieldStringValue = "\(name).html"
-        panel.title = "Exportera interaktivt panorama"
-        panel.prompt = "Exportera"
+        panel.title = "Export Interactive Panorama"
+        panel.prompt = "Export"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         model.exportHTML(to: url, initialViewpoint: viewpoint)
     }
@@ -214,8 +214,8 @@ extension PanoramaExportController {
             projectTitle: projectTitle
         )
         panel.nameFieldStringValue = "\(name).\(format.filenameExtension)"
-        panel.title = "Spara panorama som \(format.rawValue)"
-        panel.prompt = "Spara"
+        panel.title = "Save Panorama as \(format.rawValue)"
+        panel.prompt = "Save"
         guard panel.runModal() == .OK, let destinationURL = panel.url else {
             return
         }

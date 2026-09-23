@@ -26,15 +26,15 @@ struct StatusBar: View {
                                 ?? details)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
-                            Text("Visa orsak")
+                            Text("Show Details")
                                 .foregroundStyle(.tint)
                         }
                     }
                     .buttonStyle(.plain)
-                    .help("Visa fullständig felrapport och loggplats")
+                    .help("Show the full error report and log location")
                     .popover(isPresented: $showsFailureDetails) {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Åtgärden misslyckades")
+                            Text("The Operation Failed")
                                 .font(.headline)
                             ScrollView {
                                 Text(details)
@@ -42,7 +42,7 @@ struct StatusBar: View {
                                     .textSelection(.enabled)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            Button("Stäng") {
+                            Button("Close") {
                                 showsFailureDetails = false
                             }
                             .keyboardShortcut(.cancelAction)
@@ -61,12 +61,12 @@ struct StatusBar: View {
             Spacer()
 
             if !model.project.images.isEmpty {
-                Text("\(model.project.images.count) bilder")
+                Text("\(model.project.images.count) images")
                     .foregroundStyle(.secondary)
             }
 
             if model.skippedFileCount > 0 {
-                Text("\(model.skippedFileCount) kunde inte läsas")
+                Text("\(model.skippedFileCount) could not be read")
                     .foregroundStyle(.secondary)
             }
         }
@@ -99,14 +99,14 @@ struct StatusBar: View {
            let holes = model.lastStitchHoleCount {
             if holes > 0 {
                 return String(
-                    format: "Panorama klart · %.2f %% täckning · %d pixlar saknar omaskat underlag",
+                    format: "Panorama complete · %.2f %% coverage · %d pixels lack unmasked source data",
                     coverage,
                     holes
                 )
             }
             return model.usedAlignmentCache
-                ? "Panorama klart · 100 % täckning · alignment-cache användes"
-                : "Panorama klart · 100 % täckning"
+                ? "Panorama complete · 100% coverage · alignment cache used"
+                : "Panorama complete · 100% coverage"
         }
         guard model.phase == .ready,
               model.selectedSourceImage != nil,
@@ -114,19 +114,19 @@ struct StatusBar: View {
             return model.phase.message
         }
         guard model.isSourceMaskEditing else {
-            return "Dra panorerar · rulla zoomar"
+            return "Drag to pan · scroll to zoom"
         }
         let action: String
         if model.sourceMaskTool == .rectangle {
-            action = "markerar ett rektangulärt område"
+            action = "selects a rectangular area"
         } else if model.sourceMaskIntent == .erase {
-            action = "suddar masken"
+            action = "erases the mask"
         } else if model.sourceMaskIntent == .protect {
-            action = "målar en grön skyddsmask"
+            action = "paints a green protection mask"
         } else {
-            action = "målar en röd exkluderingsmask"
+            action = "paints a red exclusion mask"
         }
-        return "Dra panorerar · rulla zoomar · ⌘-dra \(action) · "
-            + "⌘⌥-dra suddar"
+        return "Drag to pan · scroll to zoom · ⌘-drag \(action) · "
+            + "⌘⌥-drag erases"
     }
 }

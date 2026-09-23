@@ -25,11 +25,11 @@ final class AppModel {
 
         var message: String {
             switch self {
-            case .ready: "Redo"
-            case .importing: "Läser bilder och metadata…"
-            case .stitching: "Sammanfogar panorama…"
-            case .retouching: "Retuscherar polbild…"
-            case .exporting: "Exporterar…"
+            case .ready: "Ready"
+            case .importing: "Reading images and metadata…"
+            case .stitching: "Stitching panorama…"
+            case .retouching: "Retouching pole image…"
+            case .exporting: "Exporting…"
             case .failed(let message): message
             }
         }
@@ -101,41 +101,39 @@ final class AppModel {
         nadirAIRetouchMaskData: Data? = nil,
         zenithAIRetouchMaskData: Data? = nil
     ) {
-        var migrated = project
-        migrated.migrateToCurrentFormat()
-        self.project = migrated
+        self.project = project
         self.importer = importer
         self.grouper = grouper
         self.panoramaEngine = panoramaEngine
         self.exporter = exporter
         maskDataByImageID = masks
         protectedMaskDataByImageID = protectedMasks
-        panoramaViewpoint = migrated.previewViewpoint ?? PanoramaViewpoint()
-        selection = migrated.images.first.map { .source($0.id) }
-        isSourceMaskEditing = !migrated.images.isEmpty
+        panoramaViewpoint = project.previewViewpoint ?? PanoramaViewpoint()
+        selection = project.images.first.map { .source($0.id) }
+        isSourceMaskEditing = !project.images.isEmpty
         stitchedResultURL = panoramaData.flatMap {
-            Self.restoreData($0, filename: "\(migrated.id)-panorama.jpg")
+            Self.restoreData($0, filename: "\(project.id)-panorama.jpg")
         }
         nadirOverlayURL = nadirOverlayData.flatMap {
-            Self.restoreData($0, filename: "\(migrated.id)-nadir-overlay.png")
+            Self.restoreData($0, filename: "\(project.id)-nadir-overlay.png")
         }
         zenithOverlayURL = zenithOverlayData.flatMap {
-            Self.restoreData($0, filename: "\(migrated.id)-zenith-overlay.png")
+            Self.restoreData($0, filename: "\(project.id)-zenith-overlay.png")
         }
         nadirRetouchURL = nadirRetouchData.flatMap {
-            Self.restoreData($0, filename: "\(migrated.id)-nadir-retouch.png")
+            Self.restoreData($0, filename: "\(project.id)-nadir-retouch.png")
         }
         zenithRetouchURL = zenithRetouchData.flatMap {
-            Self.restoreData($0, filename: "\(migrated.id)-zenith-retouch.png")
+            Self.restoreData($0, filename: "\(project.id)-zenith-retouch.png")
         }
         nadirAIRetouchResultURL = nadirAIRetouchResultData.flatMap {
-            Self.restoreData($0, filename: "\(migrated.id)-nadir-ai-result.png")
+            Self.restoreData($0, filename: "\(project.id)-nadir-ai-result.png")
         }
         zenithAIRetouchResultURL = zenithAIRetouchResultData.flatMap {
-            Self.restoreData($0, filename: "\(migrated.id)-zenith-ai-result.png")
+            Self.restoreData($0, filename: "\(project.id)-zenith-ai-result.png")
         }
         cubeRetouchURL = cubeRetouchData.flatMap {
-            Self.restoreData($0, filename: "\(migrated.id)-cube-retouch.png")
+            Self.restoreData($0, filename: "\(project.id)-cube-retouch.png")
         }
         self.nadirAIRetouchMaskData = nadirAIRetouchMaskData
         self.zenithAIRetouchMaskData = zenithAIRetouchMaskData
@@ -322,7 +320,7 @@ final class AppModel {
         let operationID = UUID()
         stitchOperationID = operationID
         stitchProgress = 0
-        stitchStage = "Förbereder panoramamotor…"
+        stitchStage = "Preparing panorama engine…"
         phase = .stitching
         let masks = maskDataByImageID
         let protectedMasks = protectedMaskDataByImageID
@@ -354,14 +352,14 @@ final class AppModel {
                 lastStitchHoleCount = result.holeCount
                 usedAlignmentCache = result.usedAlignmentCache
                 stitchProgress = 1
-                stitchStage = "Panoramat är klart"
+                stitchStage = "Panorama complete"
                 selection = .panorama
                 panoramaRevision += 1
                 phase = .ready
             } catch is CancellationError {
                 guard stitchOperationID == operationID else { return }
                 phase = .ready
-                stitchStage = "Panoramabygget avbröts"
+                stitchStage = "Panorama creation cancelled"
             } catch {
                 guard stitchOperationID == operationID else { return }
                 phase = .failed(error.localizedDescription)
@@ -373,7 +371,7 @@ final class AppModel {
     func cancelStitch() {
         guard let stitchTask else { return }
         stitchTask.cancel()
-        stitchStage = "Avbryter panoramabygget…"
+        stitchStage = "Cancelling panorama creation…"
     }
 
     func maskData(for id: UUID) -> Data? {
@@ -748,7 +746,7 @@ final class AppModel {
                         to: destination
                     )
                 }.value
-                let obsoleteURLs = [
+                let replacedRetouchURLs = [
                     cubeRetouchURL,
                     nadirOverlayURL,
                     zenithOverlayURL,
@@ -764,7 +762,7 @@ final class AppModel {
                 zenithRetouchURL = nil
                 nadirAIRetouchResultURL = nil
                 zenithAIRetouchResultURL = nil
-                for url in obsoleteURLs where url != destination {
+                for url in replacedRetouchURLs where url != destination {
                     try? FileManager.default.removeItem(at: url)
                 }
                 selection = .panorama

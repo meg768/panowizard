@@ -15,13 +15,13 @@ struct PanoramaLaunchView: View {
             chooseImages: chooseImages,
             openProject: chooseProject
         )
-        .alert("Kunde inte öppna", isPresented: Binding(
+        .alert("Could Not Open", isPresented: Binding(
             get: { importError != nil },
             set: { if !$0 { importError = nil } }
         )) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(importError ?? "Okänt fel")
+            Text(importError ?? "Unknown error")
         }
         .background(WelcomeWindowZoomer())
     }
@@ -31,8 +31,8 @@ struct PanoramaLaunchView: View {
         panel.allowedContentTypes = [.image]
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
-        panel.title = "Välj källbilder"
-        panel.prompt = "Välj bilder"
+        panel.title = "Choose Source Images"
+        panel.prompt = "Choose Images"
         guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
 
         importImages(panel.urls)
@@ -43,8 +43,8 @@ struct PanoramaLaunchView: View {
         panel.allowedContentTypes = [.panoWizardProject]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.title = "Öppna panorama"
-        panel.prompt = "Öppna"
+        panel.title = "Open Panorama"
+        panel.prompt = "Open"
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         Task {
@@ -76,7 +76,7 @@ struct PanoramaLaunchView: View {
                 .flatMap(\.images)
             guard !images.isEmpty else {
                 isImporting = false
-                importError = "Ingen av de valda filerna kunde läsas som en bild."
+                importError = "None of the selected files could be read as an image."
                 return
             }
 
@@ -141,10 +141,10 @@ struct PanoramaWelcomeView: View {
                             .symbolRenderingMode(.hierarchical)
 
                         VStack(spacing: 8) {
-                            Text("Skapa ett panorama")
+                            Text("Create a Panorama")
                                 .font(.system(size: 34, weight: .semibold))
                             Text(
-                                "Välj överlappande bilder – PanoWizard ordnar resten."
+                                "Choose overlapping images — PanoWizard handles the rest."
                             )
                             .font(.title3)
                             .foregroundStyle(.white.opacity(0.78))
@@ -161,8 +161,8 @@ struct PanoramaWelcomeView: View {
                                 }
                                 Text(
                                     isImporting
-                                        ? "Läser bilder…"
-                                        : "Skapa ditt panorama"
+                                        ? "Reading images…"
+                                        : "Create Your Panorama"
                                 )
                             }
                             .font(.headline)
@@ -177,7 +177,7 @@ struct PanoramaWelcomeView: View {
 
                         if let openProject {
                             Button(action: openProject) {
-                                Label("Öppna panorama…", systemImage: "folder")
+                                Label("Open Panorama…", systemImage: "folder")
                                     .font(.headline)
                                     .foregroundStyle(.white.opacity(0.92))
                                     .padding(.horizontal, 18)

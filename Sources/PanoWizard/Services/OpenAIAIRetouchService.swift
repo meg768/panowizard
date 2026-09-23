@@ -23,11 +23,11 @@ enum AIRetouchError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .panoramaUnavailable:
-            "Generera panoramat innan du använder AI-retusch."
+            "Create the panorama before using AI retouching."
         case .emptyPrompt:
-            "Beskriv vad som ska retuscheras."
+            "Describe what should be retouched."
         case .missingMask:
-            "Måla området som ska retuscheras."
+            "Paint the area to retouch."
         }
     }
 }
@@ -41,13 +41,13 @@ enum OpenAIImageEditError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            "Ange en OpenAI API-nyckel."
+            "Enter an OpenAI API key."
         case .invalidResponse:
-            "OpenAI returnerade ett ogiltigt svar."
+            "OpenAI returned an invalid response."
         case .invalidImageData:
-            "OpenAI-svaret innehöll ingen läsbar bild."
+            "The OpenAI response did not contain a readable image."
         case let .api(statusCode, message):
-            "OpenAI-fel \(statusCode): \(message)"
+            "OpenAI error \(statusCode): \(message)"
         }
     }
 }

@@ -52,8 +52,8 @@ final class LittlePlanetExportController {
         )
         let name = trimmedName.flatMap { $0.isEmpty ? nil : $0 } ?? projectTitle
         panel.nameFieldStringValue = "\(name)-little-planet.png"
-        panel.title = "Spara Little Planet"
-        panel.prompt = "Spara"
+        panel.title = "Save Little Planet"
+        panel.prompt = "Save"
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         let settings = settings
@@ -121,7 +121,7 @@ struct LittlePlanetExportSheet: View {
         @Bindable var controller = controller
         VStack(spacing: 0) {
             HStack {
-                Text("Skapa Little Planet")
+                Text("Create Little Planet")
                     .font(.headline)
                 Spacer()
             }
@@ -135,7 +135,7 @@ struct LittlePlanetExportSheet: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 Form {
-                    Picker("Projektion", selection: $controller.settings.projection) {
+                    Picker("Projection", selection: $controller.settings.projection) {
                         ForEach(LittlePlanetProjection.allCases, id: \.self) {
                             Text($0.rawValue).tag($0)
                         }
@@ -143,27 +143,27 @@ struct LittlePlanetExportSheet: View {
                     .pickerStyle(.menu)
 
                     valueSlider(
-                        "Rotera",
+                        "Rotation",
                         value: $controller.settings.rotationDegrees,
                         range: -180...180,
                         suffix: "°"
                     )
 
                     valueSlider(
-                        "Zoom / planetstorlek",
+                        "Zoom / Planet Size",
                         value: $controller.settings.zoomPercent,
                         range: 50...150,
                         suffix: "%"
                     )
 
                     valueSlider(
-                        "Horisont höjd",
+                        "Horizon Height",
                         value: $controller.settings.horizonPercent,
                         range: 25...75,
                         suffix: "%"
                     )
 
-                    Picker("Bakgrund", selection: $controller.settings.background) {
+                    Picker("Background", selection: $controller.settings.background) {
                         ForEach(LittlePlanetBackground.allCases, id: \.self) {
                             Text($0.rawValue).tag($0)
                         }
@@ -180,9 +180,9 @@ struct LittlePlanetExportSheet: View {
 
             HStack {
                 Spacer()
-                Button("Avbryt") { dismiss() }
+                Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Spara…") {
+                Button("Save…") {
                     controller.save(
                         projectName: projectName,
                         projectTitle: projectTitle,
@@ -206,13 +206,13 @@ struct LittlePlanetExportSheet: View {
                 zenithRetouchURL: zenithRetouchURL
             )
         }
-        .alert("Little Planet misslyckades", isPresented: Binding(
+        .alert("Little Planet Failed", isPresented: Binding(
             get: { controller.errorMessage != nil },
             set: { if !$0 { controller.errorMessage = nil } }
         )) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(controller.errorMessage ?? "Okänt fel")
+            Text(controller.errorMessage ?? "Unknown error")
         }
     }
 

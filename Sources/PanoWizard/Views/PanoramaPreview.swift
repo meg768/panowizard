@@ -49,26 +49,26 @@ struct PanoramaPreview: View {
                 } else if let imageURL {
                     VStack(spacing: 12) {
                         ZoomableImageView(url: imageURL)
-                        Text("\(panorama.images.count) källbilder väntar på sammanfogning")
+                        Text("\(panorama.images.count) source images are waiting to be stitched")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
                 } else {
                     ContentUnavailableView {
-                        Label("Inget panorama skapat", systemImage: "panorama")
+                        Label("No Panorama Created", systemImage: "panorama")
                     } description: {
                         Text(
-                            "Skapa panoramat för att förhandsvisa det i 360°."
+                            "Create the panorama to preview it in 360°."
                         )
                     }
                 }
             } else {
                 ContentUnavailableView {
-                    Label("Dra in dina bilder", systemImage: "photo.badge.plus")
+                    Label("Drag In Your Images", systemImage: "photo.badge.plus")
                 } description: {
-                    Text("Släpp en mapp eller flera överlappande bilder här.")
+                    Text("Drop a folder or several overlapping images here.")
                 } actions: {
-                    Text("PanoWizard läser metadata och ordnar bilderna automatiskt.")
+                    Text("PanoWizard reads metadata and arranges the images automatically.")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
@@ -431,7 +431,7 @@ private struct SourceMaskEditor: View {
                     }
                 }
             } else {
-                ContentUnavailableView("Bilden kunde inte läsas", systemImage: "photo")
+                ContentUnavailableView("The Image Could Not Be Read", systemImage: "photo")
             }
         }
         .background(.background)
@@ -965,7 +965,7 @@ private struct ZoomableImageView: View {
                 lastScale = 1
             }
         } else {
-            ContentUnavailableView("Ingen förhandsvisning", systemImage: "photo")
+            ContentUnavailableView("No Preview", systemImage: "photo")
         }
     }
 

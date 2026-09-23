@@ -2,7 +2,6 @@ import Foundation
 
 struct PanoProject: Codable, Equatable, Sendable {
     static let currentFormatVersion = 7
-    static let oldestReadableFormatVersion = 6
 
     var formatVersion: Int
     var id: UUID
@@ -17,7 +16,7 @@ struct PanoProject: Codable, Equatable, Sendable {
     init(
         formatVersion: Int = Self.currentFormatVersion,
         id: UUID = UUID(),
-        title: String = "Namnlöst panorama",
+        title: String = "Untitled Panorama",
         createdAt: Date = .now,
         modifiedAt: Date = .now,
         images: [SourceImage] = [],
@@ -43,7 +42,7 @@ struct PanoProject: Codable, Equatable, Sendable {
     mutating func replaceImages(_ images: [SourceImage]) {
         self.images = images
         touch()
-        if title == "Namnlöst panorama", let first = images.first {
+        if title == "Untitled Panorama", let first = images.first {
             title = first.captureDate?.formatted(
                 date: .abbreviated,
                 time: .omitted
@@ -98,10 +97,6 @@ struct PanoProject: Codable, Equatable, Sendable {
             zenithAIRetouchPrompt = nil
         }
         touch()
-    }
-
-    mutating func migrateToCurrentFormat() {
-        formatVersion = Self.currentFormatVersion
     }
 
     private mutating func touch() {

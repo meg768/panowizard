@@ -9,7 +9,7 @@ struct PoleRetouchServiceTests {
     @Test
     func poleIdentityRemainsExplicit() {
         #expect(PanoramaPole.zenith.rawValue == "zenith")
-        #expect(PanoramaPole.zenith.localizedName == "zenit")
+        #expect(PanoramaPole.zenith.localizedName == "zenith")
         #expect(PanoramaPole.zenith.pitchDegrees == 90)
         #expect(PanoramaPole.nadir.rawValue == "nadir")
         #expect(PanoramaPole.nadir.localizedName == "nadir")

@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleDevelopmentRegion</key>
-    <string>sv</string>
+	<string>en</string>
     <key>CFBundleDisplayName</key>
     <string>PanoWizard</string>
     <key>CFBundleExecutable</key>
@@ -32,7 +32,7 @@
             <key>CFBundleTypeIconFile</key>
             <string>PanoWizardProject.icns</string>
             <key>CFBundleTypeName</key>
-            <string>PanoWizard-projekt</string>
+			<string>PanoWizard Project</string>
             <key>CFBundleTypeRole</key>
             <string>Editor</string>
             <key>LSHandlerRank</key>
@@ -57,7 +57,7 @@
                 <string>com.apple.package</string>
             </array>
             <key>UTTypeDescription</key>
-            <string>PanoWizard-projekt</string>
+			<string>PanoWizard Project</string>
             <key>UTTypeIdentifier</key>
             <string>se.egelberg.panowizard.project</string>
             <key>UTTypeTagSpecification</key>
