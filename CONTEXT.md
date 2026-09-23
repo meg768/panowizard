@@ -14,6 +14,13 @@ instructions belong in `README.md`.
   special cases.
 - Engine output must be a complete equirectangular 360° × 180° panorama with a
   2:1 aspect ratio.
+- PanoWizard is designed for one complete horizontal ring of overlapping
+  fisheye images covering the full 360° sweep and the required vertical field.
+  It is not a multi-row panorama stitcher. Separate repair images may fill
+  local missing coverage but must not be treated as additional geometry rows.
+  The engine's two-source minimum is only defensive input validation; it must
+  not be documented as a sufficient capture workflow. Two or three source
+  images are not sufficient for a complete panorama.
 - The `best-ever` tag is the manually verified visual reference for panoramas
   A–S. Do not change verified image behavior without a clear reason and an
   explicitly scoped validation plan.

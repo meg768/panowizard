@@ -1,17 +1,20 @@
 # PanoWizard
 
 PanoWizard is a native macOS application for creating complete 360° × 180°
-panoramas from overlapping fisheye photographs. It combines source-image
-management, masking, automatic geometric alignment, seam selection, color and
-exposure balancing, interactive preview, retouching, and export in one project.
+panoramas from one horizontal ring of overlapping fisheye photographs. The
+single-row source ring must cover the entire 360° sweep and provide enough
+vertical coverage for the finished sphere. PanoWizard is not a multi-row
+panorama stitcher. It combines source-image management, masking, automatic
+geometric alignment, seam selection, color and exposure balancing, interactive
+preview, retouching, and export in one project.
 
 ## What PanoWizard can do
 
-- Build a full 2:1 equirectangular panorama from two or more overlapping
-  fisheye images.
+- Build a full 2:1 equirectangular panorama from one complete, overlapping 360°
+  ring of fisheye images.
 - Detect and optimize the shared camera and lens geometry automatically.
-- Treat images as part of the main panorama ring or as repair images used only
-  to fill missing coverage.
+- Treat images as part of the single panorama ring or as separate repair images
+  used only to fill local missing coverage, never as additional rows.
 - Apply editable exclusion masks and seam-priority masks to individual source
   images.
 - Correct source orientation in 90-degree steps without modifying the original
@@ -30,8 +33,10 @@ no valid source coverage remain empty until they are repaired or retouched.
 
 ## Using PanoWizard
 
-1. Create a project and import at least two overlapping images. All images in a
-   panorama must have the same pixel dimensions.
+1. Create a project and import the complete single-row image ring for the full
+   360° panorama. Two or three source images are not sufficient, and multi-row
+   capture sets are not supported. All images in the panorama must have the
+   same pixel dimensions.
 2. Review the image order. If necessary, classify an image as **Automatic**,
    **Panorama Ring**, or **Repair Image**.
 3. Select a source image to open its mask editor automatically.
