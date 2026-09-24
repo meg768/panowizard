@@ -115,6 +115,9 @@ separate from production code.
   future languages through an Apple String Catalog and the macOS language
   preference; do not add a parallel in-app language switch without an explicit
   product requirement.
+- Sidebar header actions must share the same visual trailing inset. In
+  particular, the Panorama `Create` button must align with the Source Images
+  `Add` button even though they live in different SwiftUI containers.
 - Use domain names that describe permanent behavior; do not label active code
   as a prototype or experiment.
 - Comments should explain why non-trivial logic or an invariant exists, not

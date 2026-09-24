@@ -66,7 +66,8 @@ struct PanoramaSidebar: View {
                                 .help("Create a panorama with the current images and masks")
                             }
                             .textCase(nil)
-                            .padding(.horizontal, 4)
+                            .padding(.leading, 4)
+                            .padding(.trailing, 20)
                             .padding(.vertical, 4)
                         }
                     }
