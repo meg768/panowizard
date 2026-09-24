@@ -281,6 +281,12 @@ final class AppModel {
         invalidatePanorama()
     }
 
+    func selectAndToggleSourceImageEnabled(_ id: SourceImage.ID) {
+        guard project.images.contains(where: { $0.id == id }) else { return }
+        selection = .source(id)
+        toggleSourceImageEnabled(id)
+    }
+
     func setSourceImageRole(_ id: SourceImage.ID, role: SourceImage.Role) {
         guard let index = project.images.firstIndex(where: { $0.id == id }),
               project.images[index].role != role else { return }

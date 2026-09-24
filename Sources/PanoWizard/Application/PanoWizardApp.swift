@@ -148,7 +148,19 @@ struct PanoramaCommandActions {
     let canStitch: Bool
     let createPanorama: () -> Void
     let showPreview: () -> Void
+    let showRetouch: () -> Void
     let showExport: () -> Void
+}
+
+struct ImageCommandItem: Identifiable {
+    let id: SourceImage.ID
+    let filename: String
+    let isSelected: Bool
+}
+
+struct ImagesCommandActions {
+    let images: [ImageCommandItem]
+    let selectImage: (SourceImage.ID) -> Void
 }
 
 struct ProjectDocumentCommandActions {
@@ -169,11 +181,20 @@ private struct PanoramaCommandActionsKey: FocusedValueKey {
     typealias Value = PanoramaCommandActions
 }
 
+private struct ImagesCommandActionsKey: FocusedValueKey {
+    typealias Value = ImagesCommandActions
+}
+
 private struct SourceMaskCommandActionsKey: FocusedValueKey {
     typealias Value = SourceMaskCommandActions
 }
 
 extension FocusedValues {
+    var imagesCommandActions: ImagesCommandActions? {
+        get { self[ImagesCommandActionsKey.self] }
+        set { self[ImagesCommandActionsKey.self] = newValue }
+    }
+
     var panoramaCommandActions: PanoramaCommandActions? {
         get { self[PanoramaCommandActionsKey.self] }
         set { self[PanoramaCommandActionsKey.self] = newValue }
@@ -216,6 +237,7 @@ struct PanoWizardApp: App {
         .commands {
             ProjectDocumentMenuCommands()
             SourceMaskMenuCommands()
+            ImagesMenuCommands()
             PanoramaMenuCommands()
         }
     }
@@ -232,6 +254,46 @@ private struct SourceMaskMenuCommands: Commands {
             }
             .keyboardShortcut("z")
             .disabled(actions?.canUndo != true)
+        }
+    }
+}
+
+private struct ImagesMenuCommands: Commands {
+    @FocusedValue(\.imagesCommandActions)
+    private var actions
+
+    var body: some Commands {
+        CommandMenu("Images") {
+            ForEach(
+                Array((actions?.images ?? []).enumerated()),
+                id: \.element.id
+            ) { index, image in
+                if index < 9 {
+                    imageButton(image, number: index + 1)
+                        .keyboardShortcut(
+                            KeyEquivalent(Character(String(index + 1))),
+                            modifiers: .option
+                        )
+                } else {
+                    imageButton(image, number: index + 1)
+                }
+            }
+        }
+    }
+
+    private func imageButton(
+        _ image: ImageCommandItem,
+        number: Int
+    ) -> some View {
+        Button {
+            actions?.selectImage(image.id)
+        } label: {
+            let title = "\(number). \(image.filename)"
+            if image.isSelected {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
         }
     }
 }
@@ -284,7 +346,13 @@ private struct PanoramaMenuCommands: Commands {
             .keyboardShortcut("p", modifiers: .option)
             .disabled(actions?.canShowPanorama != true)
 
-            Button("Export…") {
+            Button("Retouch") {
+                actions?.showRetouch()
+            }
+            .keyboardShortcut("t", modifiers: .option)
+            .disabled(actions?.canShowPanorama != true)
+
+            Button("Export") {
                 actions?.showExport()
             }
             .keyboardShortcut("e", modifiers: .option)

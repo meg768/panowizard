@@ -55,6 +55,9 @@ instructions belong in `README.md`.
   post-processing step.
 - `Sources/PanoWizard/ViewModels/AppModel.swift` connects the document, engine,
   preview, retouching, and export behavior to the UI lifecycle.
+- The `Images` application menu mirrors source-image order in the sidebar. Its
+  first nine items use Option-1 through Option-9 to select images; selection
+  never changes whether an image participates in stitching.
 
 ## Sensitive panorama pipeline
 
@@ -116,8 +119,13 @@ separate from production code.
   preference; do not add a parallel in-app language switch without an explicit
   product requirement.
 - Sidebar header actions must share the same visual trailing inset. In
-  particular, the Panorama `Create` button must align with the Source Images
+  particular, the Panorama `Create` button must align with the Images
   `Add` button even though they live in different SwiftUI containers.
+- The numbered control in an image row both selects that row and toggles the
+  image's stitch inclusion. Clicking elsewhere in the row only selects it.
+- Source changes that invalidate a generated panorama continue immediately
+  without an extra confirmation dialog, including when retouch output is
+  discarded.
 - Use domain names that describe permanent behavior; do not label active code
   as a prototype or experiment.
 - Comments should explain why non-trivial logic or an invariant exists, not

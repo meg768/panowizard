@@ -67,6 +67,20 @@ struct PanoProjectTests {
         #expect(project.images.map(\.id) == [second.id])
     }
 
+    @Test("Number control selects and toggles its source image")
+    @MainActor
+    func selectAndToggleSource() {
+        let first = sourceImage()
+        let second = sourceImage()
+        let model = AppModel.live(project: PanoProject(images: [first, second]))
+
+        model.selectAndToggleSourceImageEnabled(second.id)
+
+        #expect(model.selection == .source(second.id))
+        #expect(model.project.images[0].isEnabled)
+        #expect(!model.project.images[1].isEnabled)
+    }
+
     @Test("Project package keeps AI results, patches, and masks separate")
     func storesOriginalAIRetouchResults() throws {
         let directory = FileManager.default.temporaryDirectory.appending(

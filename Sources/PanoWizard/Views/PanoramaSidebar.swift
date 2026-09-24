@@ -8,7 +8,7 @@ struct PanoramaSidebar: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                Text("Source Images").font(.headline)
+                Text("Images").font(.headline)
                 Spacer(minLength: 12)
                 Button {
                     model.isImporterPresented = true
@@ -128,10 +128,9 @@ struct PanoramaSidebar: View {
     }
 
     private func sourceRow(index: Int, image: SourceImage) -> some View {
-        let isSelected = model.selectedSourceImage?.id == image.id
         return HStack(spacing: 10) {
                 Button {
-                    model.toggleSourceImageEnabled(image.id)
+                    model.selectAndToggleSourceImageEnabled(image.id)
                 } label: {
                     Text("\(index + 1)")
                         .font(.callout.monospacedDigit().weight(.semibold))
@@ -146,7 +145,6 @@ struct PanoramaSidebar: View {
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
-                .allowsHitTesting(isSelected)
                 .help(image.isEnabled ? "Disable image" : "Enable image")
 
                 SourceThumbnail(image: image)

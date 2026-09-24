@@ -53,7 +53,21 @@ struct ContentView: View {
                 canStitch: model.canStitch,
                 createPanorama: model.stitch,
                 showPreview: { model.selection = .panorama },
+                showRetouch: { model.selection = .retouch },
                 showExport: { model.selection = .export }
+            )
+        )
+        .focusedSceneValue(
+            \.imagesCommandActions,
+            ImagesCommandActions(
+                images: model.project.images.map { image in
+                    ImageCommandItem(
+                        id: image.id,
+                        filename: image.filename,
+                        isSelected: model.selectedSourceImage?.id == image.id
+                    )
+                },
+                selectImage: model.selectSourceImage
             )
         )
         .focusedSceneValue(
