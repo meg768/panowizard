@@ -180,6 +180,10 @@ proof that visual output is unchanged.
 - `build-app.sh` derives the app version from the local build start time in
   `YY.MM.DD.HH.MM` (year, month, day, hour, minute) format and writes it into
   the built app. There is no version file in the repository.
+- `build-distribution.sh` packages the existing built app into a compressed
+  DMG with an Applications shortcut and SHA-256 file. Production mode must use
+  Developer ID signing, hardened runtime, Apple notarization, and stapling;
+  `--local` is explicitly unnotarized and only for local testing.
 - When the user says `commit`, treat it as an approved restore point: use the
   version embedded by the latest `build-app.sh` invocation in
   `build/PanoWizard.app`, build and test without rebuilding the app solely for

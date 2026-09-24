@@ -161,6 +161,31 @@ hoc signature. Background images in
 `Sources/PanoWizard/Resources/Backgrounds` with a `jpg`, `jpeg`, or `png`
 extension are bundled automatically and rotated in the welcome view.
 
+### Build a macOS distribution
+
+The standard distribution is a compressed DMG containing `PanoWizard.app` and
+an Applications-folder shortcut. First build the app, then create a local
+development DMG with:
+
+```sh
+./Scripts/build-app.sh
+./Scripts/build-distribution.sh --local
+```
+
+The local DMG is ad hoc signed and is not suitable for public distribution.
+For a Gatekeeper-ready release, install a **Developer ID Application**
+certificate and save notarization credentials with `notarytool`. Then run:
+
+```sh
+PANOWIZARD_SIGN_IDENTITY="Developer ID Application: Example (TEAMID)" \
+PANOWIZARD_NOTARY_PROFILE="PanoWizard" \
+./Scripts/build-distribution.sh
+```
+
+Production mode signs the embedded OpenCV libraries and app with hardened
+runtime, signs and submits the DMG for Apple notarization, staples the ticket,
+validates the result, and writes a matching SHA-256 file beside the DMG.
+
 ## Tests
 
 Run the smallest relevant test suite while developing:
