@@ -46,9 +46,6 @@ struct PoleRetouchService: Sendable {
     private static let aiPatchFeatherFraction = 0.01
     private static let radiometricBandOuterFeatherMultiple = 4.0
     private static let radiometricClipMargin = 8.0 / 255.0
-    private static let automaticHoleChannelThreshold = 16.0 / 255.0
-    private static let automaticHoleMinimumAreaFraction = 0.0001
-    private static let automaticHoleMinimumPixels = 32
 
     func exportPlate(
         panoramaURL: URL,
@@ -101,7 +98,6 @@ struct PoleRetouchService: Sendable {
                         over: pixel
                     )
                 }
-                pixel.a = 1
                 result.setPixel(pixel, x: x, y: y)
             }
         }
@@ -208,63 +204,21 @@ struct PoleRetouchService: Sendable {
             mask = RGBAImage(width: expectedSize, height: expectedSize)
         }
 
-        let pixelCount = source.width * source.height
-        var candidate = [Bool](repeating: false, count: pixelCount)
+        var foundTransparency = false
         for y in 0..<source.height {
             for x in 0..<source.width {
-                let pixel = source.pixel(x: x, y: y)
-                candidate[y * source.width + x] = max(
-                    pixel.r,
-                    pixel.g,
-                    pixel.b
-                ) <= Self.automaticHoleChannelThreshold
-            }
-        }
-
-        let minimumArea = max(
-            Self.automaticHoleMinimumPixels,
-            Int(Double(pixelCount) * Self.automaticHoleMinimumAreaFraction)
-        )
-        var visited = [Bool](repeating: false, count: pixelCount)
-        var foundHole = false
-        for start in 0..<pixelCount where candidate[start] && !visited[start] {
-            visited[start] = true
-            var component = [start]
-            var cursor = 0
-            while cursor < component.count {
-                let index = component[cursor]
-                cursor += 1
-                let x = index % source.width
-                let y = index / source.width
-                for offsetY in -1...1 {
-                    for offsetX in -1...1
-                    where offsetX != 0 || offsetY != 0 {
-                        let neighborX = x + offsetX
-                        let neighborY = y + offsetY
-                        guard neighborX >= 0, neighborX < source.width,
-                              neighborY >= 0, neighborY < source.height else {
-                            continue
-                        }
-                        let neighbor = neighborY * source.width + neighborX
-                        guard candidate[neighbor], !visited[neighbor] else {
-                            continue
-                        }
-                        visited[neighbor] = true
-                        component.append(neighbor)
-                    }
+                guard source.pixel(x: x, y: y).a == 0 else {
+                    continue
                 }
-            }
-            guard component.count >= minimumArea else { continue }
-            foundHole = true
-            for index in component {
+                foundTransparency = true
                 mask.setPixel(
                     Pixel(r: 1, g: 0.12, b: 0.08, a: 1),
-                    x: index % source.width,
-                    y: index / source.width
+                    x: x,
+                    y: y
                 )
             }
         }
-        return foundHole ? try mask.pngData() : existingMaskData
+        return foundTransparency ? try mask.pngData() : existingMaskData
     }
 
     func prepareAIRetouchPatch(

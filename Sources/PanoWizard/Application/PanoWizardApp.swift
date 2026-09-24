@@ -149,6 +149,7 @@ struct PanoramaCommandActions {
     let createPanorama: () -> Void
     let showPreview: () -> Void
     let showRetouch: () -> Void
+    let showAdjust: () -> Void
     let showExport: () -> Void
 }
 
@@ -350,6 +351,12 @@ private struct PanoramaMenuCommands: Commands {
                 actions?.showRetouch()
             }
             .keyboardShortcut("t", modifiers: .option)
+            .disabled(actions?.canShowPanorama != true)
+
+            Button("Adjust") {
+                actions?.showAdjust()
+            }
+            .keyboardShortcut("a", modifiers: .option)
             .disabled(actions?.canShowPanorama != true)
 
             Button("Export") {

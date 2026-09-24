@@ -24,6 +24,7 @@ preview, retouching, and export in one project.
 - Retouch the nadir or zenith with an optional OpenAI-powered workflow.
 - Export and re-import a lossless cube map for editing in an external image
   editor.
+- Apply non-destructive global light and color adjustments after retouching.
 - Create a configurable Little Planet image from the completed panorama.
 - Export the finished panorama as JPEG or PNG, or as a self-contained
   interactive HTML file.
@@ -41,15 +42,16 @@ no valid source coverage remain empty until they are repaired or retouched.
    **Panorama Ring**, or **Repair Image**.
 3. Select a source image to open its mask editor automatically.
 4. Paint a red exclusion mask over source content that must not be used. Paint a
-   green protection mask where that source should be preferred during seam
+   green inclusion mask where that source should be preferred during seam
    selection.
 5. If necessary, rotate the selected source image counterclockwise in
    90-degree steps with the rotation button at the end of the mask toolbar.
 6. Choose **Create Panorama** and inspect the equirectangular result in the
    interactive 360° preview.
-7. Optionally retouch the nadir or zenith, exchange a cube map with an external
-   editor, or create a Little Planet image.
-8. Export the finished result.
+7. Optionally retouch the nadir or zenith or exchange a cube map with an
+   external editor.
+8. Adjust the finished panorama's light and color non-destructively.
+9. Export the panorama or create a Little Planet image.
 
 ### Source masks
 
@@ -58,16 +60,16 @@ correction, and compositing. Green masks are passed separately to the panorama
 engine and influence seam priority; they never create new image content.
 
 Changing an exclusion mask invalidates the relevant alignment cache, so the
-next panorama build uses the updated source data. Protection masks influence
+next panorama build uses the updated source data. Inclusion masks influence
 seam selection without changing the underlying source pixels.
 
 ### Retouching and alternative exports
 
 AI retouching is an optional post-processing step and does not affect panorama
 alignment or seam selection. PanoWizard stores the prompt, working mask, raw AI
-result, and accepted local patch in the project. Large connected black holes
-caused by source masks automatically become an editable starting mask for AI
-retouching.
+result, and accepted local patch in the project. Transparent pixels
+automatically become an editable starting mask for AI retouching. Opaque black
+pixels remain ordinary image content and are never inferred to be holes.
 
 For manual external retouching, PanoWizard can export the currently visible
 panorama as a lossless PNG cube map. Its six 2048 × 2048 faces use a standard
@@ -77,6 +79,11 @@ the base for later local AI retouching.
 Little Planet export creates a stereographic PNG from the completed panorama.
 Rotation, output size, horizon height, and background can be adjusted in a live
 preview.
+
+Global adjustments are saved as project settings and applied after local
+retouching. They appear in the spherical preview and in JPEG, PNG, interactive
+HTML, and Little Planet exports. Cube-map export for external retouching stays
+unadjusted so imported edits remain below the global adjustment layer.
 
 Building a new panorama removes downstream retouch results while preserving the
 source images and source masks.
@@ -112,9 +119,10 @@ metadata, image role, orientation, and red exclusion masks.
 
 ## Project files
 
-The project format is version 7. It stores source images, roles, manual
+The project format is version 8. It stores source images, roles, manual
 rotation, masks, the completed panorama, preview state, pole retouches, and an
-imported cube-map retouch in one project package. PanoWizard accepts version 7
+imported cube-map retouch, plus global panorama adjustments, in one project
+package. PanoWizard accepts version 8
 projects only; other project-format versions are rejected.
 
 ## Building from source

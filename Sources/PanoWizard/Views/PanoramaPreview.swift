@@ -10,6 +10,7 @@ struct PanoramaPreview: View {
     let zenithOverlayURL: URL?
     let nadirRetouchURL: URL?
     let zenithRetouchURL: URL?
+    let adjustments: PanoramaAdjustments
     let selectedSource: SourceImage?
     let maskData: Data?
     let protectedMaskData: Data?
@@ -32,6 +33,7 @@ struct PanoramaPreview: View {
                         zenithOverlayURL: zenithOverlayURL,
                         nadirRetouchURL: nadirRetouchURL,
                         zenithRetouchURL: zenithRetouchURL,
+                        adjustments: adjustments,
                         initialViewpoint: initialViewpoint,
                         onViewpointChange: onViewpointChange
                     )

@@ -62,8 +62,11 @@ struct PanoramaExportView: View {
                                 controller.exportImage(
                                     format: format,
                                     from: panoramaURL,
+                                    nadirOverlayURL: model.nadirOverlayURL,
+                                    zenithOverlayURL: model.zenithOverlayURL,
                                     nadirRetouchURL: model.nadirRetouchURL,
                                     zenithRetouchURL: model.zenithRetouchURL,
+                                    adjustments: model.panoramaAdjustments,
                                     projectName: projectName,
                                     projectTitle: model.project.title,
                                     projectDirectoryURL: projectDirectoryURL
@@ -123,8 +126,11 @@ struct PanoramaExportView: View {
             .sheet(isPresented: $isLittlePlanetPresented) {
                 LittlePlanetExportSheet(
                     panoramaURL: panoramaURL,
+                    nadirOverlayURL: model.nadirOverlayURL,
+                    zenithOverlayURL: model.zenithOverlayURL,
                     nadirRetouchURL: model.nadirRetouchURL,
                     zenithRetouchURL: model.zenithRetouchURL,
+                    adjustments: model.panoramaAdjustments,
                     projectName: projectName,
                     projectTitle: model.project.title,
                     projectDirectoryURL: projectDirectoryURL
@@ -198,8 +204,11 @@ extension PanoramaExportController {
     func exportImage(
         format: PanoramaImageFormat,
         from sourceURL: URL,
+        nadirOverlayURL: URL?,
+        zenithOverlayURL: URL?,
         nadirRetouchURL: URL?,
         zenithRetouchURL: URL?,
+        adjustments: PanoramaAdjustments,
         projectName: String?,
         projectTitle: String,
         projectDirectoryURL: URL?
@@ -223,27 +232,22 @@ extension PanoramaExportController {
         let quality = jpegQuality
         Task {
             do {
-                let exportSourceURL: URL
-                if nadirRetouchURL != nil || zenithRetouchURL != nil {
-                    let temporaryURL = FileManager.default.temporaryDirectory
-                        .appending(path: "\(UUID().uuidString)-retouched-panorama.png")
-                    try await Task.detached(priority: .userInitiated) {
-                        try PoleRetouchService().flattenRetouches(
-                            panoramaURL: sourceURL,
-                            nadirRetouchURL: nadirRetouchURL,
-                            zenithRetouchURL: zenithRetouchURL,
-                            to: temporaryURL
-                        )
-                    }.value
-                    exportSourceURL = temporaryURL
-                } else {
-                    exportSourceURL = sourceURL
-                }
+                let exportSourceURL = FileManager.default.temporaryDirectory
+                    .appending(path: "\(UUID().uuidString)-rendered-panorama.png")
                 defer {
-                    if exportSourceURL != sourceURL {
-                        try? FileManager.default.removeItem(at: exportSourceURL)
-                    }
+                    try? FileManager.default.removeItem(at: exportSourceURL)
                 }
+                try await Task.detached(priority: .userInitiated) {
+                    try PanoramaAdjustmentProcessor.writeRenderedPanorama(
+                        panoramaURL: sourceURL,
+                        nadirOverlayURL: nadirOverlayURL,
+                        zenithOverlayURL: zenithOverlayURL,
+                        nadirRetouchURL: nadirRetouchURL,
+                        zenithRetouchURL: zenithRetouchURL,
+                        adjustments: adjustments,
+                        to: exportSourceURL
+                    )
+                }.value
                 try Self.writeImage(
                     from: exportSourceURL,
                     to: destinationURL,

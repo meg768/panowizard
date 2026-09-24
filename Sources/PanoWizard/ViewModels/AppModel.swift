@@ -4,6 +4,7 @@ import Observation
 enum ProjectSelection: Hashable {
     case panorama
     case retouch
+    case adjust
     case export
     case source(SourceImage.ID)
 }
@@ -178,13 +179,14 @@ final class AppModel {
     var panorama: PanoramaSet? { project.images.isEmpty ? nil : project.panorama }
     var sourceDirectoryURL: URL? { project.images.first?.url.deletingLastPathComponent() }
     var currentPanoramaURL: URL? { cubeRetouchURL ?? stitchedResultURL }
+    var panoramaAdjustments: PanoramaAdjustments { project.panoramaAdjustments }
 
     var selectedPreviewURL: URL? {
         switch selection {
         case .panorama: currentPanoramaURL
         case .source(let id):
             project.images.first { $0.id == id }?.url ?? project.images.first?.url
-        case .retouch, .export: nil
+        case .retouch, .adjust, .export: nil
         case nil: currentPanoramaURL ?? project.images.first?.url
         }
     }
@@ -209,6 +211,25 @@ final class AppModel {
         guard panoramaViewpoint != viewpoint else { return }
         panoramaViewpoint = viewpoint
         project.previewViewpoint = viewpoint
+    }
+
+    func setPanoramaAdjustment(
+        _ keyPath: WritableKeyPath<PanoramaAdjustments, Double>,
+        to value: Double
+    ) {
+        var adjustments = panoramaAdjustments
+        adjustments[keyPath: keyPath] = value
+        project.setPanoramaAdjustments(adjustments)
+    }
+
+    func resetPanoramaAdjustment(
+        _ keyPath: WritableKeyPath<PanoramaAdjustments, Double>
+    ) {
+        setPanoramaAdjustment(keyPath, to: 0)
+    }
+
+    func resetPanoramaAdjustments() {
+        project.setPanoramaAdjustments(.neutral)
     }
 
     func importURLs(_ urls: [URL]) {
@@ -354,6 +375,7 @@ final class AppModel {
                 nadirAIRetouchResultURL = nil
                 zenithAIRetouchResultURL = nil
                 cubeRetouchURL = nil
+                project.setPanoramaAdjustments(.neutral)
                 lastStitchCoverage = result.coveragePercent
                 lastStitchHoleCount = result.holeCount
                 usedAlignmentCache = result.usedAlignmentCache
@@ -544,7 +566,6 @@ final class AppModel {
         let sourceURL = directory.appending(path: "\(pole.rawValue)-source.png")
         let overlayURL = pole == .nadir ? nadirOverlayURL : zenithOverlayURL
         let existingMaskData = aiRetouchMaskData(for: pole)
-        let hasSourceExclusions = !maskDataByImageID.isEmpty
         phase = .retouching
         defer { if phase == .retouching { phase = .ready } }
         try FileManager.default.createDirectory(
@@ -560,7 +581,6 @@ final class AppModel {
                     pole: pole,
                     to: sourceURL
                 )
-                guard hasSourceExclusions else { return existingMaskData }
                 return try PoleRetouchService().prepareAIRetouchMask(
                     from: sourceURL,
                     existingMaskData: existingMaskData,
@@ -802,6 +822,7 @@ final class AppModel {
                     zenithOverlayURL: zenithOverlayURL,
                     nadirRetouchURL: nadirRetouchURL,
                     zenithRetouchURL: zenithRetouchURL,
+                    adjustments: panoramaAdjustments,
                     title: project.title,
                     initialViewpoint: initialViewpoint,
                     to: destinationURL
@@ -874,6 +895,7 @@ final class AppModel {
         nadirAIRetouchResultURL = nil
         zenithAIRetouchResultURL = nil
         cubeRetouchURL = nil
+        project.setPanoramaAdjustments(.neutral)
         lastStitchCoverage = nil
         lastStitchHoleCount = nil
         usedAlignmentCache = false

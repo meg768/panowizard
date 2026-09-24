@@ -13,6 +13,7 @@ protocol PanoramaExporting: Sendable {
         zenithOverlayURL: URL?,
         nadirRetouchURL: URL?,
         zenithRetouchURL: URL?,
+        adjustments: PanoramaAdjustments,
         title: String,
         initialViewpoint: PanoramaViewpoint,
         to destinationURL: URL
@@ -26,6 +27,7 @@ struct FilePanoramaExporter: PanoramaExporting {
         zenithOverlayURL: URL?,
         nadirRetouchURL: URL?,
         zenithRetouchURL: URL?,
+        adjustments: PanoramaAdjustments,
         title: String,
         initialViewpoint: PanoramaViewpoint,
         to destinationURL: URL
@@ -56,6 +58,7 @@ struct FilePanoramaExporter: PanoramaExporting {
                 zenithOverlayBase64: zenithOverlay,
                 nadirRetouchBase64: nadirRetouch,
                 zenithRetouchBase64: zenithRetouch,
+                adjustments: adjustments.sanitized,
                 initialViewpoint: initialViewpoint
             )
             try html.write(
@@ -73,6 +76,7 @@ struct FilePanoramaExporter: PanoramaExporting {
         zenithOverlayBase64: String?,
         nadirRetouchBase64: String?,
         zenithRetouchBase64: String?,
+        adjustments: PanoramaAdjustments,
         initialViewpoint: PanoramaViewpoint
     ) -> String {
         let nadirOverlaySource = nadirOverlayBase64.map {
@@ -112,7 +116,19 @@ struct FilePanoramaExporter: PanoramaExporting {
         const vertex=`attribute vec2 p;varying vec2 n;void main(){n=p;gl_Position=vec4(p,0.,1.);}`;
         const fragment=`precision highp float;varying vec2 n;uniform sampler2D pano,nadirRepair,zenithRepair,nadirRetouch,zenithRetouch;
         uniform float yaw,pitch,fov,aspect,hasNadirRepair,hasZenithRepair,hasNadirRetouch,hasZenithRetouch;
+        uniform float exposure,brightness,contrast,highlights,shadows,whites,blacks,temperature,tint,vibrance,saturation;
         const float PI=3.141592653589793;
+        vec3 toLinear(vec3 c){vec3 lo=c/12.92;vec3 hi=pow((c+.055)/1.055,vec3(2.4));return mix(lo,hi,step(vec3(.04045),c));}
+        vec3 toSRGB(vec3 c){vec3 lo=c*12.92;vec3 hi=1.055*pow(c,vec3(1./2.4))-.055;return mix(lo,hi,step(vec3(.0031308),c));}
+        vec3 adjust(vec3 encoded,vec2 uv){vec3 c=toLinear(clamp(encoded,0.,1.));
+        c*=exp2(exposure);c+=brightness*.0025;float l=dot(c,vec3(.2126,.7152,.0722));
+        c+=shadows*.0035*pow(clamp(1.-l,0.,1.),2.);c+=highlights*.0035*pow(clamp(l,0.,1.),2.);
+        float wm=smoothstep(.55,1.,l),bm=1.-smoothstep(0.,.45,l);c*=1.+whites*.0035*wm;c+=blacks*.002*bm;
+        c=(c-.18)*exp2(contrast/100.)+.18;c=clamp(c,0.,1.);float te=temperature/100.,ti=tint/100.;
+        c.r+=te*(1.-c.r)*.12;c.b-=te*(1.-c.b)*.12;c.r+=ti*(1.-c.r)*.04;c.g-=ti*(1.-c.g)*.08;c.b+=ti*(1.-c.b)*.04;
+        l=dot(c,vec3(.2126,.7152,.0722));float ch=max(c.r,max(c.g,c.b))-min(c.r,min(c.g,c.b));
+        c=mix(vec3(l),c,1.+vibrance/100.*(1.-clamp(ch,0.,1.)));l=dot(c,vec3(.2126,.7152,.0722));
+        c=mix(vec3(l),c,1.+saturation/100.);return toSRGB(clamp(c,0.,1.));}
         void main(){float t=tan(fov*.5);vec3 d=normalize(vec3(n.x*aspect*t,n.y*t,1.));
         float cp=cos(pitch),sp=sin(pitch);d=vec3(d.x,d.y*cp-d.z*sp,d.y*sp+d.z*cp);
         float cy=cos(yaw),sy=sin(yaw);d=vec3(d.x*cy+d.z*sy,d.y,-d.x*sy+d.z*cy);
@@ -126,7 +142,7 @@ struct FilePanoramaExporter: PanoramaExporting {
         vec2 q=vec2(.5)+.5*z.xy/z.z;vec4 o=texture2D(zenithRetouch,q);
         c.rgb=mix(c.rgb,o.rgb,o.a);}if(hasNadirRetouch>.5&&r.z>.0001){
         vec2 q=vec2(.5)+.5*r.xy/r.z;vec4 o=texture2D(nadirRetouch,q);
-        c.rgb=mix(c.rgb,o.rgb,o.a);}gl_FragColor=vec4(c.rgb,1.);}`;
+        c.rgb=mix(c.rgb,o.rgb,o.a);}gl_FragColor=vec4(adjust(c.rgb,uv),1.);}`;
         function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);
         gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(s);return s}
         const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vertex));
@@ -156,6 +172,17 @@ struct FilePanoramaExporter: PanoramaExporting {
         gl.uniform1f(gl.getUniformLocation(program,"hasZenithRepair"),zenithOverlaySource?1:0);
         gl.uniform1f(gl.getUniformLocation(program,"hasNadirRetouch"),nadirRetouchSource?1:0);
         gl.uniform1f(gl.getUniformLocation(program,"hasZenithRetouch"),zenithRetouchSource?1:0);
+        gl.uniform1f(gl.getUniformLocation(program,"exposure"),\(adjustments.exposure));
+        gl.uniform1f(gl.getUniformLocation(program,"brightness"),\(adjustments.brightness));
+        gl.uniform1f(gl.getUniformLocation(program,"contrast"),\(adjustments.contrast));
+        gl.uniform1f(gl.getUniformLocation(program,"highlights"),\(adjustments.highlights));
+        gl.uniform1f(gl.getUniformLocation(program,"shadows"),\(adjustments.shadows));
+        gl.uniform1f(gl.getUniformLocation(program,"whites"),\(adjustments.whites));
+        gl.uniform1f(gl.getUniformLocation(program,"blacks"),\(adjustments.blacks));
+        gl.uniform1f(gl.getUniformLocation(program,"temperature"),\(adjustments.temperature));
+        gl.uniform1f(gl.getUniformLocation(program,"tint"),\(adjustments.tint));
+        gl.uniform1f(gl.getUniformLocation(program,"vibrance"),\(adjustments.vibrance));
+        gl.uniform1f(gl.getUniformLocation(program,"saturation"),\(adjustments.saturation));
         const PI=Math.PI;
         let y=\(initialViewpoint.yawRadians),
         p=\(initialViewpoint.pitchRadians),

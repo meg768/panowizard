@@ -54,6 +54,7 @@ struct ContentView: View {
                 createPanorama: model.stitch,
                 showPreview: { model.selection = .panorama },
                 showRetouch: { model.selection = .retouch },
+                showAdjust: { model.selection = .adjust },
                 showExport: { model.selection = .export }
             )
         )
@@ -118,6 +119,8 @@ struct ContentView: View {
                         projectName: projectName,
                         projectDirectoryURL: projectDirectoryURL
                     )
+                } else if model.selection == .adjust {
+                    PanoramaAdjustView(model: model)
                 } else if model.selection == .retouch {
                     PanoramaRetouchView(
                         model: model,
@@ -138,6 +141,7 @@ struct ContentView: View {
                         zenithOverlayURL: model.zenithOverlayURL,
                         nadirRetouchURL: model.nadirRetouchURL,
                         zenithRetouchURL: model.zenithRetouchURL,
+                        adjustments: model.panoramaAdjustments,
                         selectedSource: model.selectedSourceImage,
                         maskData: model.selectedSourceImage.flatMap {
                             model.maskDataByImageID[$0.id]
@@ -240,7 +244,7 @@ struct ContentView: View {
                     model.sourceMaskIntent = .protect
                 } label: {
                     Label {
-                        Text("Protect")
+                        Text("Include")
                     } icon: {
                         Image(systemName: "circle.fill")
                             .foregroundStyle(.green)
@@ -250,7 +254,7 @@ struct ContentView: View {
                     isSelected: model.sourceMaskIntent == .protect,
                     showsTitle: true
                 ))
-                .help("Protect")
+                .help("Include")
             }
 
             maskToolbarDivider

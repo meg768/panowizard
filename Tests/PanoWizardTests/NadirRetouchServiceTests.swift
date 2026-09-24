@@ -178,16 +178,16 @@ struct PoleRetouchServiceTests {
     }
 
     @Test
-    func aiRetouchMaskIncludesLargeBlackHolesAndExistingPaint() throws {
+    func aiRetouchMaskUsesTransparencyAndPreservesOpaqueBlack() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let sourceURL = directory.appending(path: "source.png")
         let existingURL = directory.appending(path: "existing.png")
         try writeImage(width: 64, height: 64, to: sourceURL) { x, y in
             if (20..<32).contains(x), (20..<32).contains(y) {
-                return (12, 8, 4, 255)
+                return (0, 0, 0, 0)
             }
-            if (2..<4).contains(x), (2..<4).contains(y) {
+            if (2..<8).contains(x), (2..<8).contains(y) {
                 return (0, 0, 0, 255)
             }
             return (80, 100, 120, 255)
@@ -210,6 +210,45 @@ struct PoleRetouchServiceTests {
         #expect(mask.pixel(x: 50, y: 50).3 == 255)
         #expect(mask.pixel(x: 2, y: 2).3 == 0)
         #expect(mask.pixel(x: 10, y: 10).3 == 0)
+    }
+
+    @Test
+    func exportedPlatePreservesAlpha() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let transparentURL = directory.appending(path: "transparent.png")
+        let blackURL = directory.appending(path: "black.png")
+        let transparentPlateURL = directory.appending(
+            path: "transparent-plate.png"
+        )
+        let blackPlateURL = directory.appending(path: "black-plate.png")
+        try writeImage(width: 64, height: 32, to: transparentURL) { _, _ in
+            (0, 0, 0, 0)
+        }
+        try writeImage(width: 64, height: 32, to: blackURL) { _, _ in
+            (0, 0, 0, 255)
+        }
+
+        let service = PoleRetouchService()
+        try service.exportPlate(
+            panoramaURL: transparentURL,
+            repairOverlayURL: nil,
+            existingRetouchURL: nil,
+            pole: .nadir,
+            to: transparentPlateURL,
+            size: 32
+        )
+        try service.exportPlate(
+            panoramaURL: blackURL,
+            repairOverlayURL: nil,
+            existingRetouchURL: nil,
+            pole: .nadir,
+            to: blackPlateURL,
+            size: 32
+        )
+
+        #expect(try pixels(at: transparentPlateURL).pixel(x: 16, y: 16).3 == 0)
+        #expect(try pixels(at: blackPlateURL).pixel(x: 16, y: 16).3 == 255)
     }
 
     @Test

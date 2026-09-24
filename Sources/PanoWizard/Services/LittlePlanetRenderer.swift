@@ -28,10 +28,16 @@ struct LittlePlanetSource: Sendable {
 
     init(
         panoramaURL: URL,
+        nadirOverlayURL: URL?,
+        zenithOverlayURL: URL?,
         nadirRetouchURL: URL?,
-        zenithRetouchURL: URL?
+        zenithRetouchURL: URL?,
+        adjustments: PanoramaAdjustments
     ) throws {
-        guard nadirRetouchURL != nil || zenithRetouchURL != nil else {
+        let needsRendering = nadirOverlayURL != nil || zenithOverlayURL != nil
+            || nadirRetouchURL != nil || zenithRetouchURL != nil
+            || !adjustments.isNeutral
+        guard needsRendering else {
             try self.init(url: panoramaURL)
             return
         }
@@ -39,10 +45,13 @@ struct LittlePlanetSource: Sendable {
             path: "\(UUID().uuidString)-little-planet-panorama.png"
         )
         defer { try? FileManager.default.removeItem(at: flattenedURL) }
-        try PoleRetouchService().flattenRetouches(
+        try PanoramaAdjustmentProcessor.writeRenderedPanorama(
             panoramaURL: panoramaURL,
+            nadirOverlayURL: nadirOverlayURL,
+            zenithOverlayURL: zenithOverlayURL,
             nadirRetouchURL: nadirRetouchURL,
             zenithRetouchURL: zenithRetouchURL,
+            adjustments: adjustments,
             to: flattenedURL
         )
         try self.init(url: flattenedURL)

@@ -2,12 +2,20 @@ import Foundation
 import Testing
 @testable import PanoWizard
 
-@Suite("Project format 7")
+@Suite("Project format 8")
 struct PanoProjectTests {
-    @Test("Round-trip keeps sources and automatic metadata")
+    @Test("Round-trip keeps sources, metadata, and adjustments")
     func roundTrip() throws {
         let image = sourceImage()
-        let project = PanoProject(images: [image])
+        let adjustments = PanoramaAdjustments(
+            exposure: 0.75,
+            contrast: 18,
+            temperature: -12
+        )
+        let project = PanoProject(
+            images: [image],
+            panoramaAdjustments: adjustments
+        )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let decoder = JSONDecoder()
@@ -19,7 +27,8 @@ struct PanoProjectTests {
         )
 
         #expect(decoded == project)
-        #expect(decoded.formatVersion == 7)
+        #expect(decoded.formatVersion == 8)
+        #expect(decoded.panoramaAdjustments == adjustments)
     }
 
     @Test("Project reader rejects noncurrent formats")
@@ -37,17 +46,13 @@ struct PanoProjectTests {
             at: projectURL,
             withIntermediateDirectories: true
         )
-        let json = """
-        {
-          "formatVersion": 6,
-          "id": "\(UUID().uuidString)",
-          "title": "Unsupported Project",
-          "createdAt": "2026-01-01T00:00:00Z",
-          "modifiedAt": "2026-01-01T00:00:00Z",
-          "images": []
-        }
-        """
-        try Data(json.utf8).write(
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let project = PanoProject(
+            formatVersion: 7,
+            title: "Unsupported Project"
+        )
+        try encoder.encode(project).write(
             to: projectURL.appending(path: "project.json")
         )
 
@@ -72,13 +77,17 @@ struct PanoProjectTests {
     func selectAndToggleSource() {
         let first = sourceImage()
         let second = sourceImage()
-        let model = AppModel.live(project: PanoProject(images: [first, second]))
+        let model = AppModel.live(project: PanoProject(
+            images: [first, second],
+            panoramaAdjustments: PanoramaAdjustments(exposure: 1)
+        ))
 
         model.selectAndToggleSourceImageEnabled(second.id)
 
         #expect(model.selection == .source(second.id))
         #expect(model.project.images[0].isEnabled)
         #expect(!model.project.images[1].isEnabled)
+        #expect(model.panoramaAdjustments.isNeutral)
     }
 
     @Test("Project package keeps AI results, patches, and masks separate")

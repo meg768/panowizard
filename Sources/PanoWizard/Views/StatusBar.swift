@@ -122,7 +122,7 @@ struct StatusBar: View {
         } else if model.sourceMaskIntent == .erase {
             action = "erases the mask"
         } else if model.sourceMaskIntent == .protect {
-            action = "paints a green protection mask"
+            action = "paints a green inclusion mask"
         } else {
             action = "paints a red exclusion mask"
         }

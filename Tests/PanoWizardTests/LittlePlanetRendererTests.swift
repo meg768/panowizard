@@ -51,8 +51,11 @@ struct LittlePlanetRendererTests {
 
         let source = try LittlePlanetSource(
             panoramaURL: panoramaURL,
+            nadirOverlayURL: nil,
+            zenithOverlayURL: nil,
             nadirRetouchURL: nadirRetouchURL,
-            zenithRetouchURL: zenithRetouchURL
+            zenithRetouchURL: zenithRetouchURL,
+            adjustments: .neutral
         )
         let nadir = pixel(source, x: 180, y: 0)
         let zenith = pixel(source, x: 180, y: 179)

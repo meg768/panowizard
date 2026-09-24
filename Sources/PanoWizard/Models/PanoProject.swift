@@ -1,7 +1,7 @@
 import Foundation
 
 struct PanoProject: Codable, Equatable, Sendable {
-    static let currentFormatVersion = 7
+    static let currentFormatVersion = 8
 
     var formatVersion: Int
     var id: UUID
@@ -12,6 +12,7 @@ struct PanoProject: Codable, Equatable, Sendable {
     var nadirAIRetouchPrompt: String?
     var zenithAIRetouchPrompt: String?
     var previewViewpoint: PanoramaViewpoint?
+    var panoramaAdjustments: PanoramaAdjustments
 
     init(
         formatVersion: Int = Self.currentFormatVersion,
@@ -22,7 +23,8 @@ struct PanoProject: Codable, Equatable, Sendable {
         images: [SourceImage] = [],
         nadirAIRetouchPrompt: String? = nil,
         zenithAIRetouchPrompt: String? = nil,
-        previewViewpoint: PanoramaViewpoint? = nil
+        previewViewpoint: PanoramaViewpoint? = nil,
+        panoramaAdjustments: PanoramaAdjustments = .neutral
     ) {
         self.formatVersion = formatVersion
         self.id = id
@@ -33,6 +35,7 @@ struct PanoProject: Codable, Equatable, Sendable {
         self.nadirAIRetouchPrompt = nadirAIRetouchPrompt
         self.zenithAIRetouchPrompt = zenithAIRetouchPrompt
         self.previewViewpoint = previewViewpoint
+        self.panoramaAdjustments = panoramaAdjustments
     }
 
     var panorama: PanoramaSet {
@@ -69,6 +72,13 @@ struct PanoProject: Codable, Equatable, Sendable {
             return
         }
         images[index].rotation = images[index].rotation.rotatedLeft
+        touch()
+    }
+
+    mutating func setPanoramaAdjustments(_ adjustments: PanoramaAdjustments) {
+        let sanitized = adjustments.sanitized
+        guard panoramaAdjustments != sanitized else { return }
+        panoramaAdjustments = sanitized
         touch()
     }
 

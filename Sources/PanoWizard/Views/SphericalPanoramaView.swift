@@ -8,6 +8,7 @@ struct SphericalPanoramaView: View {
     let zenithOverlayURL: URL?
     let nadirRetouchURL: URL?
     let zenithRetouchURL: URL?
+    let adjustments: PanoramaAdjustments
     let initialViewpoint: PanoramaViewpoint
     let onViewpointChange: (PanoramaViewpoint) -> Void
 
@@ -18,6 +19,7 @@ struct SphericalPanoramaView: View {
             zenithOverlayURL: zenithOverlayURL,
             nadirRetouchURL: nadirRetouchURL,
             zenithRetouchURL: zenithRetouchURL,
+            adjustments: adjustments,
             initialViewpoint: initialViewpoint,
             onViewpointChange: onViewpointChange
         )
@@ -34,6 +36,7 @@ private struct SphericalMetalView: NSViewRepresentable {
     let zenithOverlayURL: URL?
     let nadirRetouchURL: URL?
     let zenithRetouchURL: URL?
+    let adjustments: PanoramaAdjustments
     let initialViewpoint: PanoramaViewpoint
     let onViewpointChange: (PanoramaViewpoint) -> Void
 
@@ -48,6 +51,7 @@ private struct SphericalMetalView: NSViewRepresentable {
         context.coordinator.zenithOverlayURL = zenithOverlayURL
         context.coordinator.nadirRetouchURL = nadirRetouchURL
         context.coordinator.zenithRetouchURL = zenithRetouchURL
+        context.coordinator.adjustments = adjustments
         context.coordinator.renderer = try? SphericalPanoramaRenderer(
             view: view,
             imageURL: url,
@@ -55,6 +59,7 @@ private struct SphericalMetalView: NSViewRepresentable {
             zenithOverlayURL: zenithOverlayURL,
             nadirRetouchURL: nadirRetouchURL,
             zenithRetouchURL: zenithRetouchURL,
+            adjustments: adjustments,
             initialViewpoint: initialViewpoint,
             onViewpointChange: onViewpointChange
         )
@@ -81,6 +86,10 @@ private struct SphericalMetalView: NSViewRepresentable {
                 zenithRetouchURL: zenithRetouchURL
             )
         }
+        if context.coordinator.adjustments != adjustments {
+            context.coordinator.adjustments = adjustments
+            context.coordinator.renderer?.setAdjustments(adjustments)
+        }
     }
 
     final class Coordinator {
@@ -90,6 +99,7 @@ private struct SphericalMetalView: NSViewRepresentable {
         var zenithOverlayURL: URL?
         var nadirRetouchURL: URL?
         var zenithRetouchURL: URL?
+        var adjustments = PanoramaAdjustments.neutral
     }
 }
 
@@ -158,6 +168,9 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         var hasZenithOverlay: UInt32
         var hasNadirRetouch: UInt32
         var hasZenithRetouch: UInt32
+        var lightAdjustments: SIMD4<Float>
+        var toneAdjustments: SIMD4<Float>
+        var colorAdjustments: SIMD4<Float>
     }
 
     private let device: MTLDevice
@@ -172,6 +185,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     private var yaw: Float = 0
     private var pitch: Float = 0
     private var verticalFieldOfView: Float = 75 * .pi / 180
+    private var adjustments: PanoramaAdjustments
     private let onViewpointChange: (PanoramaViewpoint) -> Void
 
     init(
@@ -181,6 +195,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         zenithOverlayURL: URL?,
         nadirRetouchURL: URL?,
         zenithRetouchURL: URL?,
+        adjustments: PanoramaAdjustments,
         initialViewpoint: PanoramaViewpoint,
         onViewpointChange: @escaping (PanoramaViewpoint) -> Void
     ) throws {
@@ -195,6 +210,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         self.commandQueue = commandQueue
         self.view = view
         self.onViewpointChange = onViewpointChange
+        self.adjustments = adjustments.sanitized
         yaw = Float(initialViewpoint.yawRadians)
         pitch = Float(initialViewpoint.pitchRadians)
         verticalFieldOfView = Float(
@@ -223,7 +239,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         texture = try? loader.newTexture(
             URL: panoramaURL,
             options: [
-                .SRGB: true,
+                .SRGB: false,
                 .origin: MTKTextureLoader.Origin.topLeft,
                 .textureUsage: MTLTextureUsage.shaderRead.rawValue
             ]
@@ -232,7 +248,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             overlayTexture = try? loader.newTexture(
                 URL: overlayURL,
                 options: [
-                    .SRGB: true,
+                    .SRGB: false,
                     .origin: MTKTextureLoader.Origin.topLeft,
                     .textureUsage: MTLTextureUsage.shaderRead.rawValue
                 ]
@@ -246,7 +262,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             zenithOverlayTexture = try? loader.newTexture(
                 URL: zenithOverlayURL,
                 options: [
-                    .SRGB: true,
+                    .SRGB: false,
                     .origin: MTKTextureLoader.Origin.topLeft,
                     .textureUsage: MTLTextureUsage.shaderRead.rawValue
                 ]
@@ -258,7 +274,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             nadirRetouchTexture = try? loader.newTexture(
                 URL: nadirRetouchURL,
                 options: [
-                    .SRGB: true,
+                    .SRGB: false,
                     .origin: MTKTextureLoader.Origin.topLeft,
                     .textureUsage: MTLTextureUsage.shaderRead.rawValue
                 ]
@@ -270,7 +286,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             zenithRetouchTexture = try? loader.newTexture(
                 URL: zenithRetouchURL,
                 options: [
-                    .SRGB: true,
+                    .SRGB: false,
                     .origin: MTKTextureLoader.Origin.topLeft,
                     .textureUsage: MTLTextureUsage.shaderRead.rawValue
                 ]
@@ -278,6 +294,11 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         } else {
             zenithRetouchTexture = nil
         }
+        view?.setNeedsDisplay(view?.bounds ?? .zero)
+    }
+
+    func setAdjustments(_ adjustments: PanoramaAdjustments) {
+        self.adjustments = adjustments.sanitized
         view?.setNeedsDisplay(view?.bounds ?? .zero)
     }
 
@@ -351,7 +372,25 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             hasOverlay: overlayTexture == nil ? 0 : 1,
             hasZenithOverlay: zenithOverlayTexture == nil ? 0 : 1,
             hasNadirRetouch: nadirRetouchTexture == nil ? 0 : 1,
-            hasZenithRetouch: zenithRetouchTexture == nil ? 0 : 1
+            hasZenithRetouch: zenithRetouchTexture == nil ? 0 : 1,
+            lightAdjustments: SIMD4(
+                Float(adjustments.exposure),
+                Float(adjustments.brightness),
+                Float(adjustments.contrast),
+                Float(adjustments.highlights)
+            ),
+            toneAdjustments: SIMD4(
+                Float(adjustments.shadows),
+                Float(adjustments.whites),
+                Float(adjustments.blacks),
+                0
+            ),
+            colorAdjustments: SIMD4(
+                Float(adjustments.temperature),
+                Float(adjustments.tint),
+                Float(adjustments.vibrance),
+                Float(adjustments.saturation)
+            )
         )
 
         encoder.setRenderPipelineState(pipeline)
@@ -397,7 +436,63 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         uint hasZenithOverlay;
         uint hasNadirRetouch;
         uint hasZenithRetouch;
+        float4 lightAdjustments;
+        float4 toneAdjustments;
+        float4 colorAdjustments;
     };
+
+    float3 srgbToLinear(float3 color) {
+        float3 low = color / 12.92;
+        float3 high = pow((color + 0.055) / 1.055, float3(2.4));
+        return select(high, low, color <= 0.04045);
+    }
+
+    float3 applyAdjustments(
+        float3 encodedColor,
+        float2 coordinate,
+        constant Uniforms &uniforms
+    ) {
+        float3 color = srgbToLinear(clamp(encodedColor, 0.0, 1.0));
+        float exposure = uniforms.lightAdjustments.x;
+        float brightness = uniforms.lightAdjustments.y / 100.0;
+        float contrast = uniforms.lightAdjustments.z / 100.0;
+        float highlights = uniforms.lightAdjustments.w / 100.0;
+        float shadows = uniforms.toneAdjustments.x / 100.0;
+        float whites = uniforms.toneAdjustments.y / 100.0;
+        float blacks = uniforms.toneAdjustments.z / 100.0;
+        float temperature = uniforms.colorAdjustments.x / 100.0;
+        float tint = uniforms.colorAdjustments.y / 100.0;
+        float vibrance = uniforms.colorAdjustments.z / 100.0;
+        float saturation = uniforms.colorAdjustments.w / 100.0;
+
+        color *= exp2(exposure);
+        color += brightness * 0.25;
+        float luminance = dot(color, float3(0.2126, 0.7152, 0.0722));
+        color += shadows * pow(clamp(1.0 - luminance, 0.0, 1.0), 2.0) * 0.35;
+        color += highlights * pow(clamp(luminance, 0.0, 1.0), 2.0) * 0.35;
+        float whiteMask = smoothstep(0.55, 1.0, luminance);
+        float blackMask = 1.0 - smoothstep(0.0, 0.45, luminance);
+        color *= 1.0 + whites * whiteMask * 0.35;
+        color += blacks * blackMask * 0.20;
+        color = (color - 0.18) * exp2(contrast) + 0.18;
+        color = clamp(color, 0.0, 1.0);
+
+        color.r += temperature * (1.0 - color.r) * 0.12;
+        color.b -= temperature * (1.0 - color.b) * 0.12;
+        color.r += tint * (1.0 - color.r) * 0.04;
+        color.g -= tint * (1.0 - color.g) * 0.08;
+        color.b += tint * (1.0 - color.b) * 0.04;
+
+        luminance = dot(color, float3(0.2126, 0.7152, 0.0722));
+        float maximum = max(color.r, max(color.g, color.b));
+        float minimum = min(color.r, min(color.g, color.b));
+        float chroma = maximum - minimum;
+        float vibranceFactor = 1.0 + vibrance * (1.0 - clamp(chroma, 0.0, 1.0));
+        color = mix(float3(luminance), color, vibranceFactor);
+        color = mix(float3(luminance), color, 1.0 + saturation);
+
+        return clamp(color, 0.0, 1.0);
+    }
 
     vertex VertexOut panoramaVertex(uint vertexID [[vertex_id]]) {
         const float2 positions[3] = {
@@ -494,18 +589,12 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
                 base.rgb = mix(base.rgb, retouch.rgb, retouch.a);
             }
         }
-        if (uniforms.hasOverlay == 0 && uniforms.hasNadirRetouch == 0) {
-            return float4(base.rgb, 1.0);
-        }
         float3 localRay = float3(
             direction.x,
             -direction.z,
             -direction.y
         );
-        if (localRay.z <= 0.0001) {
-            return base;
-        }
-        if (uniforms.hasOverlay != 0) {
+        if (localRay.z > 0.0001 && uniforms.hasOverlay != 0) {
             constexpr float localProjectionScale = 0.2886751346;
             float2 localCoordinate = float2(0.5)
                 + localProjectionScale * localRay.xy / localRay.z;
@@ -515,7 +604,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             );
             base.rgb = mix(base.rgb, repair.rgb, repair.a);
         }
-        if (uniforms.hasNadirRetouch != 0) {
+        if (localRay.z > 0.0001 && uniforms.hasNadirRetouch != 0) {
             float2 retouchCoordinate = float2(0.5)
                 + 0.5 * localRay.xy / localRay.z;
             float4 retouch = nadirRetouch.sample(
@@ -524,7 +613,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             );
             base.rgb = mix(base.rgb, retouch.rgb, retouch.a);
         }
-        return float4(base.rgb, 1.0);
+        return float4(applyAdjustments(base.rgb, coordinate, uniforms), 1.0);
     }
     """
 

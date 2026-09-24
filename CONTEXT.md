@@ -27,15 +27,20 @@ instructions belong in `README.md`.
 - AI retouching, cube-map retouching, and Little Planet rendering are
   post-processing steps that read the completed panorama. They must never be
   connected to geometry, ownership, seam selection, or blending.
-- The flat pole image used by AI retouching automatically creates an editable
-  base mask from large connected black holes originating in the source masks.
-  This base mask is merged with the saved brush mask and never changes panorama
-  masks or engine behavior.
+- Global panorama adjustments are a final non-destructive post-processing
+  layer after repair overlays, pole retouching, and imported cube-map retouch.
+  They affect preview and finished exports, but cube-map export for external
+  retouching intentionally remains unadjusted.
+- The flat pole image used by AI retouching preserves alpha and automatically
+  creates an editable base mask from fully transparent pixels only. RGB values
+  must never be used to infer missing coverage: opaque black is ordinary image
+  content. The base mask is merged with the saved brush mask and never changes
+  panorama masks or engine behavior.
 
 ## Architecture
 
 - `Sources/PanoWizard/Models/PanoProject.swift` defines project format version
-  7. The document reader accepts that version only.
+  8. The document reader accepts that version only.
 - `Sources/PanoWizard/Services/OpenCVPanoramaEngine.swift` prepares oriented
   TIFF sources and masks, selects the cache file, and forwards progress and
   cancellation through the C API.
@@ -137,9 +142,11 @@ separate from production code.
   directory.
 - Do not put file names, test-case identifiers, or local paths into production
   decisions.
-- Do not add migrations or fallback decoding for older project formats. When
-  the format changes, update the version, current reader and writer, tests,
-  `README.md`, and this file together.
+- During development, the project format is intentionally never backward
+  compatible. Do not add migrations, fallback decoding, or optional legacy
+  fields unless the user explicitly reverses this policy. When the format
+  changes, update the version, current reader and writer, tests, `README.md`,
+  and this file together.
 - Update `README.md` and this file when architecture or maintenance rules
   actually change. Do not create historical documents for temporary
   investigations.

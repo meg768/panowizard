@@ -18,8 +18,11 @@ final class LittlePlanetExportController {
 
     func load(
         sourceURL: URL,
+        nadirOverlayURL: URL?,
+        zenithOverlayURL: URL?,
         nadirRetouchURL: URL?,
-        zenithRetouchURL: URL?
+        zenithRetouchURL: URL?,
+        adjustments: PanoramaAdjustments
     ) {
         guard source == nil else { return }
         Task {
@@ -27,8 +30,11 @@ final class LittlePlanetExportController {
                 source = try await Task.detached(priority: .userInitiated) {
                     try LittlePlanetSource(
                         panoramaURL: sourceURL,
+                        nadirOverlayURL: nadirOverlayURL,
+                        zenithOverlayURL: zenithOverlayURL,
                         nadirRetouchURL: nadirRetouchURL,
-                        zenithRetouchURL: zenithRetouchURL
+                        zenithRetouchURL: zenithRetouchURL,
+                        adjustments: adjustments
                     )
                 }.value
                 isLoading = false
@@ -108,8 +114,11 @@ final class LittlePlanetExportController {
 
 struct LittlePlanetExportSheet: View {
     let panoramaURL: URL
+    let nadirOverlayURL: URL?
+    let zenithOverlayURL: URL?
     let nadirRetouchURL: URL?
     let zenithRetouchURL: URL?
+    let adjustments: PanoramaAdjustments
     let projectName: String?
     let projectTitle: String
     let projectDirectoryURL: URL?
@@ -202,8 +211,11 @@ struct LittlePlanetExportSheet: View {
         .task {
             controller.load(
                 sourceURL: panoramaURL,
+                nadirOverlayURL: nadirOverlayURL,
+                zenithOverlayURL: zenithOverlayURL,
                 nadirRetouchURL: nadirRetouchURL,
-                zenithRetouchURL: zenithRetouchURL
+                zenithRetouchURL: zenithRetouchURL,
+                adjustments: adjustments
             )
         }
         .alert("Little Planet Failed", isPresented: Binding(
