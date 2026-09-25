@@ -4,7 +4,6 @@ import Observation
 enum ProjectSelection: Hashable {
     case panorama
     case retouch
-    case adjust
     case export
     case source(SourceImage.ID)
 }
@@ -186,7 +185,7 @@ final class AppModel {
         case .panorama: currentPanoramaURL
         case .source(let id):
             project.images.first { $0.id == id }?.url ?? project.images.first?.url
-        case .retouch, .adjust, .export: nil
+        case .retouch, .export: nil
         case nil: currentPanoramaURL ?? project.images.first?.url
         }
     }

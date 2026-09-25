@@ -1,5 +1,10 @@
 import AppKit
 
+enum MaskOverlayAppearance {
+    static let committedOpacity = 0.55
+    static let activeStrokeOpacity = 0.8
+}
+
 enum ImageSurfaceInteraction: Equatable, Sendable {
     case navigate
     case edit

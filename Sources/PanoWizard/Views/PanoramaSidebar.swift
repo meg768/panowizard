@@ -46,11 +46,6 @@ struct PanoramaSidebar: View {
                                 selection: .retouch
                             )
                             navigationRow(
-                                "Adjust",
-                                systemImage: "slider.horizontal.3",
-                                selection: .adjust
-                            )
-                            navigationRow(
                                 "Export",
                                 systemImage: "square.and.arrow.up",
                                 selection: .export

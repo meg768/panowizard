@@ -1013,7 +1013,11 @@ private final class AIRetouchImageDocumentView: NSView {
         guard let image else { return }
         draw(image, fraction: 1, operation: .copy)
         if let maskImage {
-            draw(maskImage, fraction: 1, operation: .sourceOver)
+            draw(
+                maskImage,
+                fraction: CGFloat(MaskOverlayAppearance.committedOpacity),
+                operation: .sourceOver
+            )
         }
         drawActiveStroke()
         drawBrushCursor()
@@ -1190,12 +1194,22 @@ private final class AIRetouchImageDocumentView: NSView {
             ))
             (isErasingStroke
                 ? NSColor.white.withAlphaComponent(0.72)
-                : NSColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)).setFill()
+                : NSColor(
+                    red: 1,
+                    green: 0.12,
+                    blue: 0.08,
+                    alpha: CGFloat(MaskOverlayAppearance.activeStrokeOpacity)
+                )).setFill()
             path.fill()
         } else {
             (isErasingStroke
                 ? NSColor.white.withAlphaComponent(0.72)
-                : NSColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)).setStroke()
+                : NSColor(
+                    red: 1,
+                    green: 0.12,
+                    blue: 0.08,
+                    alpha: CGFloat(MaskOverlayAppearance.activeStrokeOpacity)
+                )).setStroke()
             path.stroke()
         }
     }

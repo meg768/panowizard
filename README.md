@@ -50,7 +50,8 @@ no valid source coverage remain empty until they are repaired or retouched.
    interactive 360° preview.
 7. Optionally retouch the nadir or zenith or exchange a cube map with an
    external editor.
-8. Adjust the finished panorama's light and color non-destructively.
+8. Open the Adjustments panel in Preview to tune the finished panorama's
+   light and color non-destructively.
 9. Export the panorama or create a Little Planet image.
 
 ### Source masks

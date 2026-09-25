@@ -14,6 +14,8 @@ struct ContentView: View {
     @State private var exportController = PanoramaExportController()
     @State private var retouchController = PanoramaRetouchController()
     @State private var aiRetouchPresentation: AIRetouchPresentation?
+    @State private var showsAdjustmentInspectorInPreview = false
+    @State private var showsOriginalAdjustments = false
     @AppStorage("PanoWizard.ProjectWindow.sidebarWidth")
     private var savedSidebarWidth = 300.0
 
@@ -54,7 +56,6 @@ struct ContentView: View {
                 createPanorama: model.stitch,
                 showPreview: { model.selection = .panorama },
                 showRetouch: { model.selection = .retouch },
-                showAdjust: { model.selection = .adjust },
                 showExport: { model.selection = .export }
             )
         )
@@ -94,6 +95,14 @@ struct ContentView: View {
         .sheet(isPresented: stitchPresentation) {
             PanoramaStitchProgressSheet(model: model)
         }
+        .onChange(of: model.selection) {
+            showsOriginalAdjustments = false
+        }
+        .onChange(of: model.currentPanoramaURL) {
+            guard model.currentPanoramaURL == nil else { return }
+            showsAdjustmentInspectorInPreview = false
+            showsOriginalAdjustments = false
+        }
     }
 
     private var stitchPresentation: Binding<Bool> {
@@ -119,8 +128,6 @@ struct ContentView: View {
                         projectName: projectName,
                         projectDirectoryURL: projectDirectoryURL
                     )
-                } else if model.selection == .adjust {
-                    PanoramaAdjustView(model: model)
                 } else if model.selection == .retouch {
                     PanoramaRetouchView(
                         model: model,
@@ -133,38 +140,58 @@ struct ContentView: View {
                         }
                     )
                 } else {
-                    PanoramaPreview(
-                        panorama: model.panorama,
-                        imageURL: model.selectedPreviewURL,
-                        isStitched: model.isShowingStitchedPanorama,
-                        nadirOverlayURL: model.nadirOverlayURL,
-                        zenithOverlayURL: model.zenithOverlayURL,
-                        nadirRetouchURL: model.nadirRetouchURL,
-                        zenithRetouchURL: model.zenithRetouchURL,
-                        adjustments: model.panoramaAdjustments,
-                        selectedSource: model.selectedSourceImage,
-                        maskData: model.selectedSourceImage.flatMap {
-                            model.maskDataByImageID[$0.id]
-                        },
-                        protectedMaskData: model.selectedSourceImage.flatMap {
-                            model.protectedMaskDataByImageID[$0.id]
-                        },
-                        isMaskEditing: model.isSourceMaskEditing,
-                        maskTool: model.sourceMaskTool,
-                        maskIntent: model.sourceMaskIntent,
-                        initialViewpoint: model.panoramaViewpoint,
-                        onViewpointChange: model.setPanoramaViewpoint,
-                        onMasksChange: { red, green in
-                            guard let image = model.selectedSourceImage else { return }
-                            model.setSourceMasks(
-                                red: red, green: green, for: image.id
-                            )
-                        }
-                    )
+                    previewWorkspace
                 }
             }
         } status: {
             StatusBar(model: model)
+        }
+    }
+
+    private var previewWorkspace: some View {
+        HSplitView {
+            PanoramaPreview(
+                panorama: model.panorama,
+                imageURL: model.selectedPreviewURL,
+                isStitched: model.isShowingStitchedPanorama,
+                nadirOverlayURL: model.nadirOverlayURL,
+                zenithOverlayURL: model.zenithOverlayURL,
+                nadirRetouchURL: model.nadirRetouchURL,
+                zenithRetouchURL: model.zenithRetouchURL,
+                adjustments: previewAdjustments,
+                selectedSource: model.selectedSourceImage,
+                maskData: model.selectedSourceImage.flatMap {
+                    model.maskDataByImageID[$0.id]
+                },
+                protectedMaskData: model.selectedSourceImage.flatMap {
+                    model.protectedMaskDataByImageID[$0.id]
+                },
+                isMaskEditing: model.isSourceMaskEditing,
+                maskTool: model.sourceMaskTool,
+                maskIntent: model.sourceMaskIntent,
+                initialViewpoint: model.panoramaViewpoint,
+                onViewpointChange: model.setPanoramaViewpoint,
+                onMasksChange: { red, green in
+                    guard let image = model.selectedSourceImage else { return }
+                    model.setSourceMasks(red: red, green: green, for: image.id)
+                }
+            )
+            .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
+
+            if model.isShowingStitchedPanorama
+                && showsAdjustmentInspectorInPreview {
+                PanoramaAdjustPanel(
+                    model: model,
+                    showsOriginal: $showsOriginalAdjustments
+                )
+                .frame(
+                    minWidth: 260,
+                    idealWidth: 300,
+                    maxWidth: 380,
+                    maxHeight: .infinity
+                )
+                .background(Color(nsColor: .windowBackgroundColor))
+            }
         }
     }
 
@@ -180,6 +207,18 @@ struct ContentView: View {
         HStack(spacing: 6) {
             toolbarCenter
             Spacer(minLength: 0)
+            if model.isShowingStitchedPanorama {
+                Button {
+                    toggleAdjustmentInspector()
+                } label: {
+                    Label("Adjustments", systemImage: "slider.horizontal.3")
+                }
+                .buttonStyle(MaskToolbarButtonStyle(
+                    isSelected: showsAdjustmentInspectorInPreview,
+                    showsTitle: true
+                ))
+                .help("Show or hide panorama adjustments")
+            }
         }
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -316,7 +355,22 @@ struct ContentView: View {
     }
 
     private var showsWorkspaceToolRow: Bool {
-        model.selectedSourceImage != nil && model.isSourceMaskEditing
+        model.isShowingStitchedPanorama
+            || (model.selectedSourceImage != nil && model.isSourceMaskEditing)
+    }
+
+    private var previewAdjustments: PanoramaAdjustments {
+        showsOriginalAdjustments && showsAdjustmentInspectorInPreview
+            ? .neutral
+            : model.panoramaAdjustments
+    }
+
+    private func toggleAdjustmentInspector() {
+        guard model.currentPanoramaURL != nil else { return }
+        showsAdjustmentInspectorInPreview.toggle()
+        if !showsAdjustmentInspectorInPreview {
+            showsOriginalAdjustments = false
+        }
     }
 
 }

@@ -168,7 +168,7 @@ private struct SourceMaskEditor: View {
                                         width: displaySize.width,
                                         height: displaySize.height
                                     )
-                                    .opacity(0.55)
+                                    .opacity(MaskOverlayAppearance.committedOpacity)
                                     .allowsHitTesting(false)
                             }
 
@@ -179,7 +179,7 @@ private struct SourceMaskEditor: View {
                                         width: displaySize.width,
                                         height: displaySize.height
                                     )
-                                    .opacity(0.55)
+                                    .opacity(MaskOverlayAppearance.committedOpacity)
                                     .allowsHitTesting(false)
                             }
 
@@ -249,7 +249,9 @@ private struct SourceMaskEditor: View {
                                 } else {
                                     context.stroke(
                                         path,
-                                        with: .color(strokeColor.opacity(0.8)),
+                                        with: .color(strokeColor.opacity(
+                                            MaskOverlayAppearance.activeStrokeOpacity
+                                        )),
                                         style: style
                                     )
                                 }

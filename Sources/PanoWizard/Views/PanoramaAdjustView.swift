@@ -1,70 +1,11 @@
 import SwiftUI
 
-struct PanoramaAdjustView: View {
+struct PanoramaAdjustPanel: View {
     @Bindable var model: AppModel
-    @State private var showsOriginal = false
+    @Binding var showsOriginal: Bool
     @State private var expandedGroups: Set<String> = ["Light", "Color"]
 
     var body: some View {
-        if let panoramaURL = model.currentPanoramaURL {
-            HStack(spacing: 0) {
-                VStack(spacing: 0) {
-                    HStack {
-                        Text("Adjust Panorama")
-                            .font(.headline)
-                        Spacer()
-                        Button {
-                            showsOriginal.toggle()
-                        } label: {
-                            Label("Original", systemImage: "circle.lefthalf.filled")
-                        }
-                        .buttonStyle(WorkspaceToolbarPillStyle())
-                        .background(
-                            showsOriginal
-                                ? Color.accentColor.opacity(0.16)
-                                : Color.clear,
-                            in: Capsule()
-                        )
-                        .help("Compare with the unadjusted panorama")
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 16)
-
-                    SphericalPanoramaView(
-                        url: panoramaURL,
-                        overlayURL: model.nadirOverlayURL,
-                        zenithOverlayURL: model.zenithOverlayURL,
-                        nadirRetouchURL: model.nadirRetouchURL,
-                        zenithRetouchURL: model.zenithRetouchURL,
-                        adjustments: showsOriginal
-                            ? .neutral
-                            : model.panoramaAdjustments,
-                        initialViewpoint: model.panoramaViewpoint,
-                        onViewpointChange: model.setPanoramaViewpoint
-                    )
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                Divider()
-
-                inspector
-                    .frame(width: 300)
-                    .background(.bar)
-            }
-        } else {
-            ContentUnavailableView {
-                Label("No Panorama to Adjust", systemImage: "slider.horizontal.3")
-            } description: {
-                Text("Create the panorama to continue.")
-            } actions: {
-                Button("Create") { model.stitch() }
-                    .buttonStyle(WorkspaceToolbarPillStyle())
-                    .disabled(!model.canStitch)
-            }
-        }
-    }
-
-    private var inspector: some View {
         VStack(spacing: 0) {
             HStack {
                 Text("Adjustments")
@@ -78,6 +19,24 @@ struct PanoramaAdjustView: View {
                 .disabled(model.panoramaAdjustments.isNeutral)
             }
             .padding(16)
+
+            Divider()
+
+            Button {
+                showsOriginal.toggle()
+            } label: {
+                Label("Original", systemImage: "circle.lefthalf.filled")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(WorkspaceToolbarPillStyle())
+            .background(
+                showsOriginal
+                    ? Color.accentColor.opacity(0.16)
+                    : Color.clear,
+                in: Capsule()
+            )
+            .padding(16)
+            .help("Compare with the unadjusted panorama")
 
             Divider()
 

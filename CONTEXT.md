@@ -31,6 +31,9 @@ instructions belong in `README.md`.
   layer after repair overlays, pole retouching, and imported cube-map retouch.
   They affect preview and finished exports, but cube-map export for external
   retouching intentionally remains unadjusted.
+- Global adjustments live in a trailing panel embedded in Preview. They are
+  not a separate sidebar destination. The Preview toolbar toggles the panel,
+  and that choice is remembered only for the current app session.
 - The flat pole image used by AI retouching preserves alpha and automatically
   creates an editable base mask from fully transparent pixels only. RGB values
   must never be used to infer missing coverage: opaque black is ordinary image
