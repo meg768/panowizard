@@ -40,6 +40,35 @@ instructions belong in `README.md`.
   content. The base mask is merged with the saved brush mask and never changes
   panorama masks or engine behavior.
 
+## Planned retouch patches
+
+The next retouch design should stay deliberately small and high-level:
+
+- Replace the Nadir/Zenith-specific workflow with arbitrary retouch patches
+  only after the general patch workflow has feature parity and is verified.
+- The Retouch view should offer `AI Patch` and `Manual Patch`, followed by a
+  simple list of applied patches. Creation order is layer order; the newest
+  patch wins where patches overlap. Manual reordering is not part of version 1.
+- A patch is a rectilinear view projected onto the panorama at a saved
+  orientation and field of view. Cube-map retouching may remain available as
+  an advanced workflow for broad edits.
+- An AI patch uses an explicit editable mask and a saved prompt, like the
+  current AI retouch workflow, but may target any panorama direction.
+- A manual patch is a single modal export/edit/import/apply workflow. Its
+  original image exists only temporarily while the dialog is open. On Apply,
+  save only the imported edited image and the projection metadata needed to
+  render it. Do not add a mask, feather control, draft state, persistent
+  original, history, resume support, or automatic image analysis. The user is
+  responsible for leaving unchanged context around the edited area so the
+  imported patch joins cleanly.
+- Applied patches may be enabled, disabled, selected to recenter Preview, or
+  deleted. Upstream panorama invalidation may discard them consistently with
+  the current post-processing model.
+- Composite patches before global adjustments so Preview and every finished
+  export share the same result.
+
+This section records an approved direction, not an implemented feature.
+
 ## Architecture
 
 - `Sources/PanoWizard/Models/PanoProject.swift` defines project format version
