@@ -91,6 +91,11 @@ struct PanoramaAdjustmentProcessorTests {
         #expect(html.contains("program,\"brightness\"),-17.0"))
         #expect(!html.contains("vignette"))
         #expect(!html.contains("adjustments.exposure"))
+        #expect(html.contains("bool inBounds(vec2 q)"))
+        #expect(html.contains("if(inBounds(q)){vec4 o=texture2D(nadirRepair,q)"))
+        #expect(html.contains("if(inBounds(q)){vec4 o=texture2D(zenithRepair,q)"))
+        #expect(html.contains("if(inBounds(q)){vec4 o=texture2D(nadirRetouch,q)"))
+        #expect(html.contains("if(inBounds(q)){vec4 o=texture2D(zenithRetouch,q)"))
     }
 
     private func adjusted(

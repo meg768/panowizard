@@ -120,6 +120,7 @@ struct FilePanoramaExporter: PanoramaExporting {
         const float PI=3.141592653589793;
         vec3 toLinear(vec3 c){vec3 lo=c/12.92;vec3 hi=pow((c+.055)/1.055,vec3(2.4));return mix(lo,hi,step(vec3(.04045),c));}
         vec3 toSRGB(vec3 c){vec3 lo=c*12.92;vec3 hi=1.055*pow(c,vec3(1./2.4))-.055;return mix(lo,hi,step(vec3(.0031308),c));}
+        bool inBounds(vec2 q){return q.x>=0.&&q.x<=1.&&q.y>=0.&&q.y<=1.;}
         vec3 adjust(vec3 encoded,vec2 uv){vec3 c=toLinear(clamp(encoded,0.,1.));
         c*=exp2(exposure);c+=brightness*.0025;float l=dot(c,vec3(.2126,.7152,.0722));
         c+=shadows*.0035*pow(clamp(1.-l,0.,1.),2.);c+=highlights*.0035*pow(clamp(l,0.,1.),2.);
@@ -135,14 +136,15 @@ struct FilePanoramaExporter: PanoramaExporting {
         vec2 uv=vec2(fract(.5+atan(d.x,d.z)/(2.*PI)),.5-asin(clamp(d.y,-1.,1.))/PI);
         vec4 c=texture2D(pano,uv);vec3 r=vec3(d.x,-d.z,-d.y);
         if(hasNadirRepair>.5&&r.z>.0001){vec2 q=vec2(.5)+.2886751346*r.xy/r.z;
-        vec4 o=texture2D(nadirRepair,q);c.rgb=mix(c.rgb,o.rgb,o.a);}
+        if(inBounds(q)){vec4 o=texture2D(nadirRepair,q);c.rgb=mix(c.rgb,o.rgb,o.a);}}
         vec3 z=vec3(d.x,d.z,d.y);if(hasZenithRepair>.5&&z.z>.0001){
-        vec2 q=vec2(.5)+.2886751346*z.xy/z.z;vec4 o=texture2D(zenithRepair,q);
-        c.rgb=mix(c.rgb,o.rgb,o.a);}if(hasZenithRetouch>.5&&z.z>.0001){
-        vec2 q=vec2(.5)+.5*z.xy/z.z;vec4 o=texture2D(zenithRetouch,q);
-        c.rgb=mix(c.rgb,o.rgb,o.a);}if(hasNadirRetouch>.5&&r.z>.0001){
-        vec2 q=vec2(.5)+.5*r.xy/r.z;vec4 o=texture2D(nadirRetouch,q);
-        c.rgb=mix(c.rgb,o.rgb,o.a);}gl_FragColor=vec4(adjust(c.rgb,uv),1.);}`;
+        vec2 q=vec2(.5)+.2886751346*z.xy/z.z;
+        if(inBounds(q)){vec4 o=texture2D(zenithRepair,q);c.rgb=mix(c.rgb,o.rgb,o.a);}}
+        if(hasZenithRetouch>.5&&z.z>.0001){vec2 q=vec2(.5)+.5*z.xy/z.z;
+        if(inBounds(q)){vec4 o=texture2D(zenithRetouch,q);c.rgb=mix(c.rgb,o.rgb,o.a);}}
+        if(hasNadirRetouch>.5&&r.z>.0001){vec2 q=vec2(.5)+.5*r.xy/r.z;
+        if(inBounds(q)){vec4 o=texture2D(nadirRetouch,q);c.rgb=mix(c.rgb,o.rgb,o.a);}}
+        gl_FragColor=vec4(adjust(c.rgb,uv),1.);}`;
         function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);
         gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(s);return s}
         const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vertex));
