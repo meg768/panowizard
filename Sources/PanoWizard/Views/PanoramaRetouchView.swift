@@ -26,19 +26,6 @@ struct PanoramaRetouchView: View {
                     HStack(spacing: 8) {
                         Button {
                             presentPatch(RetouchPatchPresentation(
-                                kind: .ai,
-                                viewpoint: model.panoramaViewpoint
-                            ))
-                        } label: {
-                            Label(
-                                "Add AI patch",
-                                systemImage: "wand.and.sparkles"
-                            )
-                        }
-                        .accessibilityIdentifier("add-ai-patch")
-
-                        Button {
-                            presentPatch(RetouchPatchPresentation(
                                 kind: .manual,
                                 viewpoint: model.panoramaViewpoint
                             ))
@@ -49,6 +36,19 @@ struct PanoramaRetouchView: View {
                             )
                         }
                         .accessibilityIdentifier("add-manual-patch")
+
+                        Button {
+                            presentPatch(RetouchPatchPresentation(
+                                kind: .ai,
+                                viewpoint: model.panoramaViewpoint
+                            ))
+                        } label: {
+                            Label(
+                                "Add AI patch",
+                                systemImage: "wand.and.sparkles"
+                            )
+                        }
+                        .accessibilityIdentifier("add-ai-patch")
                     }
                     .buttonStyle(WorkspaceToolbarPillStyle())
                     .disabled(model.phase != .ready)
@@ -264,7 +264,7 @@ struct ManualRetouchSheet: View {
         panel.allowedContentTypes = [.png]
         panel.canCreateDirectories = true
         panel.directoryURL = projectDirectoryURL
-        panel.nameFieldStringValue = "retouch-patch.png"
+        panel.nameFieldStringValue = "patch.png"
         panel.title = "Export Retouch Patch"
         panel.prompt = "Export"
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -281,6 +281,8 @@ struct ManualRetouchSheet: View {
         panel.allowedContentTypes = [.png]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
+        panel.directoryURL = projectDirectoryURL
+        panel.nameFieldStringValue = "patch.png"
         panel.title = "Import Retouch Patch"
         panel.prompt = "Import"
         guard panel.runModal() == .OK, let url = panel.url else { return }

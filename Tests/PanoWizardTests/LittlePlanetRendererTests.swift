@@ -122,11 +122,13 @@ struct LittlePlanetRendererTests {
         let bytes = try #require(CFDataGetBytePtr(resultData))
         let center = (50 * 100 + 50) * 4
         let outsideHorizon = (50 * 100 + 85) * 4
+        let nearEdge = (50 * 100 + 2) * 4
 
         #expect(bytes[center + 1] > 180)
         #expect(bytes[center + 2] < 80)
         #expect(bytes[outsideHorizon] < 80)
         #expect(bytes[outsideHorizon + 2] > 180)
+        #expect(bytes[nearEdge + 3] >= 248)
         #expect(bytes[3] == 0)
     }
 

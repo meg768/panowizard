@@ -3,10 +3,6 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-enum LittlePlanetProjection: String, CaseIterable, Sendable {
-    case stereographic = "Stereographic"
-}
-
 enum LittlePlanetBackground: String, CaseIterable, Sendable {
     case transparent = "Transparent"
     case black = "Black"
@@ -14,9 +10,7 @@ enum LittlePlanetBackground: String, CaseIterable, Sendable {
 }
 
 struct LittlePlanetSettings: Equatable, Sendable {
-    var projection = LittlePlanetProjection.stereographic
     var rotationDegrees = 0.0
-    var zoomPercent = 100.0
     var horizonPercent = 50.0
     var background = LittlePlanetBackground.transparent
 }
@@ -91,7 +85,9 @@ enum LittlePlanetRenderer {
         guard side > 0 else { throw CocoaError(.fileWriteUnknown) }
         var output = [UInt8](repeating: 0, count: side * side * 4)
         let center = Double(side) / 2.0
-        let radius = Double(side) * 0.46 * settings.zoomPercent / 100.0
+        // Leave a two-pixel safety margin around the largest circle that fits
+        // in the square output.
+        let radius = max(Double(side) / 2.0 - 2.0, 1.0)
         let horizon = min(max(settings.horizonPercent / 100.0, 0.01), 0.99)
         let rotation = settings.rotationDegrees * .pi / 180.0
         let background: (Double, Double, Double, Double) = switch settings.background {

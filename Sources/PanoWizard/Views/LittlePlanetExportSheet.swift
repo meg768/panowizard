@@ -144,25 +144,11 @@ struct LittlePlanetExportSheet: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 Form {
-                    Picker("Projection", selection: $controller.settings.projection) {
-                        ForEach(LittlePlanetProjection.allCases, id: \.self) {
-                            Text($0.rawValue).tag($0)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
                     valueSlider(
                         "Rotation",
                         value: $controller.settings.rotationDegrees,
                         range: -180...180,
                         suffix: "°"
-                    )
-
-                    valueSlider(
-                        "Zoom / Planet Size",
-                        value: $controller.settings.zoomPercent,
-                        range: 50...150,
-                        suffix: "%"
                     )
 
                     valueSlider(

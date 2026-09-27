@@ -64,7 +64,7 @@ seam selection without changing the underlying source pixels.
 ### Retouching and alternative exports
 
 Retouching is an optional post-processing step and does not affect panorama
-alignment or seam selection. `Add AI patch` and `Add manual patch` open at
+alignment or seam selection. `Add manual patch` and `Add AI patch` open at
 the direction and zoom last shown in Preview. The square Before pane is the
 live panorama viewer. For an AI patch, pan or zoom to the desired view, then
 choose **Mask** to freeze that view. Drag to paint, Option-drag to erase, and
@@ -81,8 +81,8 @@ source-image masks. Only the explicitly painted mask is sent as editable;
 opaque black pixels remain ordinary image content.
 
 Little Planet export creates a stereographic PNG from the completed panorama.
-Rotation, output size, horizon height, and background can be adjusted in a live
-preview.
+Rotation, horizon height, and background can be adjusted in a live preview.
+The planet is rendered as large as possible with a two-pixel safety margin.
 
 Global adjustments are saved as project settings and applied after local
 retouching. They appear in the spherical preview and in JPEG, PNG, interactive

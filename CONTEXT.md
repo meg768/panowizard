@@ -53,7 +53,7 @@ instructions belong in `README.md`.
 
 Retouching uses one deliberately small, high-level model:
 
-- The Retouch view offers `Add AI patch` and `Add manual patch`, followed by a
+- The Retouch view offers `Add manual patch` and `Add AI patch`, followed by a
   simple list of applied patches. Creation order is layer order; the newest
   patch wins where patches overlap. Manual reordering is not part of version 1.
 - A patch is a rectilinear view projected onto the panorama at a saved

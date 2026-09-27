@@ -262,29 +262,16 @@ struct ContentView: View {
     @ViewBuilder
     private var sourceMaskToolbarCenter: some View {
         HStack(spacing: 5) {
-            HStack(spacing: 2) {
-                Button {
-                    model.sourceMaskTool = .brush
-                } label: {
-                    Label("Brush", systemImage: "paintbrush.pointed")
-                }
-                .buttonStyle(MaskToolbarButtonStyle(
-                    isSelected: model.sourceMaskTool == .brush,
-                    showsTitle: true
-                ))
-                .help("Brush")
-
-                Button {
-                    model.sourceMaskTool = .rectangle
-                } label: {
-                    Label("Rectangle", systemImage: "rectangle.dashed")
-                }
-                .buttonStyle(MaskToolbarButtonStyle(
-                    isSelected: model.sourceMaskTool == .rectangle,
-                    showsTitle: true
-                ))
-                .help("Rectangle")
+            Button {
+                model.sourceMaskTool = .brush
+            } label: {
+                Label("Brush", systemImage: "paintbrush.pointed")
             }
+            .buttonStyle(MaskToolbarButtonStyle(
+                isSelected: true,
+                showsTitle: true
+            ))
+            .help("Brush")
 
             maskToolbarDivider
 
