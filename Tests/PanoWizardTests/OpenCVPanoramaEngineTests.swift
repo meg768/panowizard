@@ -126,7 +126,7 @@ struct OpenCVPanoramaEngineTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let source = directory.appending(path: "source.jpg")
         try writeTexturedImage(to: source)
-        let output = directory.appending(path: "result.jpg")
+        let output = directory.appending(path: "result.png")
         let cache = directory.appending(path: "alignment.yml")
         let allocation = strdup(source.path(percentEncoded: false))
         defer { free(allocation) }
@@ -166,12 +166,20 @@ struct OpenCVPanoramaEngineTests {
         let bitmap = try #require(NSBitmapImageRep(
             data: Data(contentsOf: output)
         ))
+        #expect(bitmap.hasAlpha)
         var channelDifference = 0.0
         var brightness = 0.0
         var sampleCount = 0.0
+        var transparentCount = 0
+        var opaqueCount = 0
         for y in stride(from: 16, to: bitmap.pixelsHigh, by: 32) {
             for x in stride(from: 16, to: bitmap.pixelsWide, by: 32) {
                 guard let color = bitmap.colorAt(x: x, y: y) else { continue }
+                if color.alphaComponent < 0.01 {
+                    transparentCount += 1
+                } else if color.alphaComponent > 0.99 {
+                    opaqueCount += 1
+                }
                 let red = Double(color.redComponent)
                 let green = Double(color.greenComponent)
                 let blue = Double(color.blueComponent)
@@ -182,6 +190,8 @@ struct OpenCVPanoramaEngineTests {
             }
         }
         #expect(sampleCount > 0)
+        #expect(transparentCount > 0)
+        #expect(opaqueCount > 0)
         #expect(channelDifference / sampleCount < 0.04)
         #expect(brightness / sampleCount > 0.08)
 

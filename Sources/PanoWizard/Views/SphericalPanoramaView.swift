@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import MetalKit
 import SwiftUI
 
@@ -11,8 +12,52 @@ struct SphericalPanoramaView: View {
     let adjustments: PanoramaAdjustments
     let initialViewpoint: PanoramaViewpoint
     let onViewpointChange: (PanoramaViewpoint) -> Void
+    let maskData: Data?
+    let isMaskEditing: Bool
+    let onMaskChange: (Data?) -> Void
+    let addsWorkspacePadding: Bool
 
+    init(
+        url: URL,
+        overlayURL: URL?,
+        zenithOverlayURL: URL?,
+        nadirRetouchURL: URL?,
+        zenithRetouchURL: URL?,
+        adjustments: PanoramaAdjustments,
+        initialViewpoint: PanoramaViewpoint,
+        onViewpointChange: @escaping (PanoramaViewpoint) -> Void,
+        maskData: Data? = nil,
+        isMaskEditing: Bool = false,
+        onMaskChange: @escaping (Data?) -> Void = { _ in },
+        addsWorkspacePadding: Bool = true
+    ) {
+        self.url = url
+        self.overlayURL = overlayURL
+        self.zenithOverlayURL = zenithOverlayURL
+        self.nadirRetouchURL = nadirRetouchURL
+        self.zenithRetouchURL = zenithRetouchURL
+        self.adjustments = adjustments
+        self.initialViewpoint = initialViewpoint
+        self.onViewpointChange = onViewpointChange
+        self.maskData = maskData
+        self.isMaskEditing = isMaskEditing
+        self.onMaskChange = onMaskChange
+        self.addsWorkspacePadding = addsWorkspacePadding
+    }
+
+    @ViewBuilder
     var body: some View {
+        if addsWorkspacePadding {
+            metalView
+                .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
+                .padding(.horizontal, 24)
+                .padding(.top, 18)
+        } else {
+            metalView
+        }
+    }
+
+    private var metalView: some View {
         SphericalMetalView(
             url: url,
             overlayURL: overlayURL,
@@ -21,12 +66,12 @@ struct SphericalPanoramaView: View {
             zenithRetouchURL: zenithRetouchURL,
             adjustments: adjustments,
             initialViewpoint: initialViewpoint,
-            onViewpointChange: onViewpointChange
+            onViewpointChange: onViewpointChange,
+            maskData: maskData,
+            isMaskEditing: isMaskEditing,
+            onMaskChange: onMaskChange
         )
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
-            .padding(.horizontal, 24)
-            .padding(.top, 18)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -39,6 +84,9 @@ private struct SphericalMetalView: NSViewRepresentable {
     let adjustments: PanoramaAdjustments
     let initialViewpoint: PanoramaViewpoint
     let onViewpointChange: (PanoramaViewpoint) -> Void
+    let maskData: Data?
+    let isMaskEditing: Bool
+    let onMaskChange: (Data?) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -64,6 +112,11 @@ private struct SphericalMetalView: NSViewRepresentable {
             onViewpointChange: onViewpointChange
         )
         view.panoramaRenderer = context.coordinator.renderer
+        view.configureMask(
+            data: maskData,
+            isEditing: isMaskEditing,
+            onChange: onMaskChange
+        )
         return view
     }
 
@@ -90,6 +143,11 @@ private struct SphericalMetalView: NSViewRepresentable {
             context.coordinator.adjustments = adjustments
             context.coordinator.renderer?.setAdjustments(adjustments)
         }
+        view.configureMask(
+            data: maskData,
+            isEditing: isMaskEditing,
+            onChange: onMaskChange
+        )
     }
 
     final class Coordinator {
@@ -104,8 +162,21 @@ private struct SphericalMetalView: NSViewRepresentable {
 }
 
 private final class PanoramaMTKView: MTKView {
+    fileprivate static let screenBrushDiameter: CGFloat = 48
+    private static let transparentCursor = NSCursor(
+        image: NSImage(size: CGSize(width: 1, height: 1)),
+        hotSpot: .zero
+    )
     weak var panoramaRenderer: SphericalPanoramaRenderer?
     private var previousDragLocation: CGPoint?
+    private let maskOverlay = SphericalMaskOverlayView()
+    private var maskData: Data?
+    private var isMaskEditing = false
+    private var onMaskChange: (Data?) -> Void = { _ in }
+    private var activeStroke: [CGPoint] = []
+    private var isErasingStroke = false
+    private var trackingAreaReference: NSTrackingArea?
+    private var modifierMonitor: Any?
 
     init() {
         super.init(frame: .zero, device: MTLCreateSystemDefaultDevice())
@@ -115,18 +186,100 @@ private final class PanoramaMTKView: MTKView {
         enableSetNeedsDisplay = true
         isPaused = true
         framebufferOnly = true
+        addSubview(maskOverlay)
     }
 
     required init(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
     }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            removeModifierMonitor()
+        } else {
+            window?.acceptsMouseMovedEvents = true
+            installModifierMonitor()
+        }
+        window?.invalidateCursorRects(for: self)
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(
+            bounds,
+            cursor: isMaskEditing ? Self.transparentCursor : .openHand
+        )
+    }
+
+    override func updateTrackingAreas() {
+        if let trackingAreaReference {
+            removeTrackingArea(trackingAreaReference)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [
+                .mouseMoved,
+                .mouseEnteredAndExited,
+                .activeInKeyWindow,
+                .inVisibleRect
+            ],
+            owner: self
+        )
+        addTrackingArea(area)
+        trackingAreaReference = area
+        super.updateTrackingAreas()
+    }
+
+    override func layout() {
+        super.layout()
+        maskOverlay.frame = bounds
+    }
+
+    func configureMask(
+        data: Data?,
+        isEditing: Bool,
+        onChange: @escaping (Data?) -> Void
+    ) {
+        if isMaskEditing != isEditing {
+            previousDragLocation = nil
+            activeStroke = []
+            isErasingStroke = false
+            maskOverlay.activeStroke = []
+            maskOverlay.hoverPoint = nil
+            window?.invalidateCursorRects(for: self)
+        }
+        maskData = data
+        isMaskEditing = isEditing
+        onMaskChange = onChange
+        maskOverlay.maskData = data
+    }
+
     override func mouseDown(with event: NSEvent) {
+        if isMaskEditing {
+            isErasingStroke = event.modifierFlags.contains(.option)
+            let point = convert(event.locationInWindow, from: nil)
+            activeStroke = [point]
+            maskOverlay.activeStroke = activeStroke
+            maskOverlay.isErasingStroke = isErasingStroke
+            maskOverlay.hoverPoint = point
+            maskOverlay.isEraseCursor = isErasingStroke
+            return
+        }
         previousDragLocation = convert(event.locationInWindow, from: nil)
     }
 
     override func mouseDragged(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
+        if !activeStroke.isEmpty {
+            if activeStroke.last != location {
+                activeStroke.append(location)
+                maskOverlay.activeStroke = activeStroke
+                maskOverlay.hoverPoint = location
+            }
+            return
+        }
+        guard !isMaskEditing else { return }
         if let previousDragLocation {
             let horizontal = location.x - previousDragLocation.x
             let vertical = location.y - previousDragLocation.y
@@ -139,21 +292,214 @@ private final class PanoramaMTKView: MTKView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if !activeStroke.isEmpty {
+            let width = max(bounds.width, 1)
+            let height = max(bounds.height, 1)
+            let points = activeStroke.map {
+                MaskPoint(
+                    x: $0.x / width,
+                    y: 1 - $0.y / height
+                )
+            }
+            let size = RetouchPatchService.patchSize
+            let radius = Self.screenBrushDiameter / 2 / width * CGFloat(size)
+            onMaskChange(SourceMaskRasterizer.applying(
+                stroke: points,
+                radius: radius,
+                erasing: isErasingStroke,
+                to: maskData,
+                width: size,
+                height: size
+            ))
+            activeStroke = []
+            isErasingStroke = false
+            maskOverlay.activeStroke = []
+            maskOverlay.isErasingStroke = false
+            maskOverlay.isEraseCursor = event.modifierFlags.contains(.option)
+            return
+        }
         previousDragLocation = nil
     }
 
     override func scrollWheel(with event: NSEvent) {
+        guard !isMaskEditing else { return }
         panoramaRenderer?.zoom(by: Float(
             ImageSurfaceScroll.dominantDelta(for: event)
         ))
     }
 
     override func magnify(with event: NSEvent) {
+        guard !isMaskEditing else { return }
         panoramaRenderer?.magnify(by: Float(event.magnification))
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard isMaskEditing else { return }
+        maskOverlay.hoverPoint = convert(event.locationInWindow, from: nil)
+        maskOverlay.isEraseCursor = event.modifierFlags.contains(.option)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        guard isMaskEditing else { return }
+        maskOverlay.hoverPoint = convert(event.locationInWindow, from: nil)
+        maskOverlay.isEraseCursor = event.modifierFlags.contains(.option)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        maskOverlay.hoverPoint = nil
     }
 
     func resetViewpoint() {
         panoramaRenderer?.resetViewpoint()
+    }
+
+    private func installModifierMonitor() {
+        guard modifierMonitor == nil else { return }
+        modifierMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: .flagsChanged
+        ) { [weak self] event in
+            guard let self,
+                  event.window == nil || event.window === self.window else {
+                return event
+            }
+            if self.isMaskEditing {
+                self.maskOverlay.isEraseCursor =
+                    event.modifierFlags.contains(.option)
+            }
+            return event
+        }
+    }
+
+    private func removeModifierMonitor() {
+        if let modifierMonitor { NSEvent.removeMonitor(modifierMonitor) }
+        modifierMonitor = nil
+    }
+}
+
+private final class SphericalMaskOverlayView: NSView {
+    var maskData: Data? {
+        didSet {
+            maskImage = maskData.flatMap(Self.loadImage)
+            needsDisplay = true
+        }
+    }
+    var activeStroke: [CGPoint] = [] {
+        didSet { needsDisplay = true }
+    }
+    var isErasingStroke = false {
+        didSet { needsDisplay = true }
+    }
+    var hoverPoint: CGPoint? {
+        didSet { needsDisplay = true }
+    }
+    var isEraseCursor = false {
+        didSet { needsDisplay = true }
+    }
+
+    private var maskImage: CGImage?
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        if let maskImage, let context = NSGraphicsContext.current?.cgContext {
+            context.saveGState()
+            context.setAlpha(CGFloat(MaskOverlayAppearance.committedOpacity))
+            context.draw(maskImage, in: bounds)
+            context.restoreGState()
+        }
+        drawActiveStroke()
+        drawBrushCursor()
+    }
+
+    private func drawActiveStroke() {
+        guard !activeStroke.isEmpty else { return }
+        let path = NSBezierPath()
+        path.lineWidth = PanoramaMTKView.screenBrushDiameter
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        path.move(to: activeStroke[0])
+        for point in activeStroke.dropFirst() { path.line(to: point) }
+        if activeStroke.count == 1 {
+            let radius = PanoramaMTKView.screenBrushDiameter / 2
+            path.appendOval(in: CGRect(
+                x: activeStroke[0].x - radius,
+                y: activeStroke[0].y - radius,
+                width: radius * 2,
+                height: radius * 2
+            ))
+        }
+        if isErasingStroke,
+           let context = NSGraphicsContext.current?.cgContext {
+            context.saveGState()
+            context.setBlendMode(.clear)
+            NSColor.white.set()
+            if activeStroke.count == 1 {
+                path.fill()
+            } else {
+                path.stroke()
+            }
+            context.restoreGState()
+        } else {
+            NSColor.systemRed.withAlphaComponent(
+                CGFloat(MaskOverlayAppearance.activeStrokeOpacity)
+            ).set()
+            if activeStroke.count == 1 {
+                path.fill()
+            } else {
+                path.stroke()
+            }
+        }
+    }
+
+    private func drawBrushCursor() {
+        guard let hoverPoint else { return }
+        let radius = PanoramaMTKView.screenBrushDiameter / 2
+        let cursor = NSBezierPath(ovalIn: CGRect(
+            x: hoverPoint.x - radius,
+            y: hoverPoint.y - radius,
+            width: radius * 2,
+            height: radius * 2
+        ))
+        cursor.lineWidth = 3
+        NSColor.black.withAlphaComponent(0.85).setStroke()
+        cursor.stroke()
+        cursor.lineWidth = 1
+        NSColor.white.setStroke()
+        cursor.stroke()
+
+        let center = NSBezierPath(ovalIn: CGRect(
+            x: hoverPoint.x - 1.5,
+            y: hoverPoint.y - 1.5,
+            width: 3,
+            height: 3
+        ))
+        NSColor.white.setFill()
+        center.fill()
+
+        guard isEraseCursor else { return }
+        let slash = NSBezierPath()
+        let offset = radius * 0.7
+        slash.move(to: CGPoint(
+            x: hoverPoint.x - offset,
+            y: hoverPoint.y - offset
+        ))
+        slash.line(to: CGPoint(
+            x: hoverPoint.x + offset,
+            y: hoverPoint.y + offset
+        ))
+        slash.lineWidth = 3
+        NSColor.black.withAlphaComponent(0.85).setStroke()
+        slash.stroke()
+        slash.lineWidth = 1
+        NSColor.white.setStroke()
+        slash.stroke()
+    }
+
+    private static func loadImage(_ data: Data) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil)
+        else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 }
 

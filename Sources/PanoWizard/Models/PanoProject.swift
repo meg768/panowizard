@@ -1,7 +1,36 @@
 import Foundation
 
+struct RetouchPatch: Codable, Equatable, Identifiable, Sendable {
+    enum Kind: String, Codable, Sendable {
+        case ai
+        case manual
+
+        var displayName: String { self == .ai ? "AI Patch" : "Manual Patch" }
+    }
+
+    var id: UUID
+    var kind: Kind
+    var viewpoint: PanoramaViewpoint
+    var isEnabled: Bool
+    var prompt: String?
+
+    init(
+        id: UUID = UUID(),
+        kind: Kind,
+        viewpoint: PanoramaViewpoint,
+        isEnabled: Bool = true,
+        prompt: String? = nil
+    ) {
+        self.id = id
+        self.kind = kind
+        self.viewpoint = viewpoint
+        self.isEnabled = isEnabled
+        self.prompt = prompt
+    }
+}
+
 struct PanoProject: Codable, Equatable, Sendable {
-    static let currentFormatVersion = 8
+    static let currentFormatVersion = 10
 
     var formatVersion: Int
     var id: UUID
@@ -9,8 +38,7 @@ struct PanoProject: Codable, Equatable, Sendable {
     var createdAt: Date
     var modifiedAt: Date
     var images: [SourceImage]
-    var nadirAIRetouchPrompt: String?
-    var zenithAIRetouchPrompt: String?
+    var retouchPatches: [RetouchPatch]
     var previewViewpoint: PanoramaViewpoint?
     var panoramaAdjustments: PanoramaAdjustments
 
@@ -21,8 +49,7 @@ struct PanoProject: Codable, Equatable, Sendable {
         createdAt: Date = .now,
         modifiedAt: Date = .now,
         images: [SourceImage] = [],
-        nadirAIRetouchPrompt: String? = nil,
-        zenithAIRetouchPrompt: String? = nil,
+        retouchPatches: [RetouchPatch] = [],
         previewViewpoint: PanoramaViewpoint? = nil,
         panoramaAdjustments: PanoramaAdjustments = .neutral
     ) {
@@ -32,8 +59,7 @@ struct PanoProject: Codable, Equatable, Sendable {
         self.createdAt = Self.secondPrecision(createdAt)
         self.modifiedAt = Self.secondPrecision(modifiedAt)
         self.images = images
-        self.nadirAIRetouchPrompt = nadirAIRetouchPrompt
-        self.zenithAIRetouchPrompt = zenithAIRetouchPrompt
+        self.retouchPatches = retouchPatches
         self.previewViewpoint = previewViewpoint
         self.panoramaAdjustments = panoramaAdjustments
     }
@@ -82,30 +108,9 @@ struct PanoProject: Codable, Equatable, Sendable {
         touch()
     }
 
-    func aiRetouchPrompt(for pole: PanoramaPole) -> String? {
-        pole == .nadir ? nadirAIRetouchPrompt : zenithAIRetouchPrompt
-    }
-
-    mutating func setAIRetouchPrompt(
-        _ prompt: String,
-        for pole: PanoramaPole
-    ) {
-        guard aiRetouchPrompt(for: pole) != prompt else { return }
-        if pole == .nadir {
-            nadirAIRetouchPrompt = prompt
-        } else {
-            zenithAIRetouchPrompt = prompt
-        }
-        touch()
-    }
-
-    mutating func clearAIRetouchPrompt(for pole: PanoramaPole) {
-        guard aiRetouchPrompt(for: pole) != nil else { return }
-        if pole == .nadir {
-            nadirAIRetouchPrompt = nil
-        } else {
-            zenithAIRetouchPrompt = nil
-        }
+    mutating func setRetouchPatches(_ patches: [RetouchPatch]) {
+        guard retouchPatches != patches else { return }
+        retouchPatches = patches
         touch()
     }
 

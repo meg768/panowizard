@@ -21,9 +21,7 @@ preview, retouching, and export in one project.
   files.
 - Balance color and exposure across overlaps while preserving image detail.
 - Preview the result interactively as a spherical 360° panorama.
-- Retouch the nadir or zenith with an optional OpenAI-powered workflow.
-- Export and re-import a lossless cube map for editing in an external image
-  editor.
+- Add AI or manually edited retouch patches anywhere in the panorama.
 - Apply non-destructive global light and color adjustments after retouching.
 - Create a configurable Little Planet image from the completed panorama.
 - Export the finished panorama as JPEG or PNG, or as a self-contained
@@ -48,8 +46,7 @@ no valid source coverage remain empty until they are repaired or retouched.
    90-degree steps with the rotation button at the end of the mask toolbar.
 6. Choose **Create Panorama** and inspect the equirectangular result in the
    interactive 360° preview.
-7. Optionally retouch the nadir or zenith or exchange a cube map with an
-   external editor.
+7. Optionally add AI or manually edited patches to local panorama areas.
 8. Open the Adjustments panel in Preview to tune the finished panorama's
    light and color non-destructively.
 9. Export the panorama or create a Little Planet image.
@@ -66,16 +63,22 @@ seam selection without changing the underlying source pixels.
 
 ### Retouching and alternative exports
 
-AI retouching is an optional post-processing step and does not affect panorama
-alignment or seam selection. PanoWizard stores the prompt, working mask, raw AI
-result, and accepted local patch in the project. Transparent pixels
-automatically become an editable starting mask for AI retouching. Opaque black
-pixels remain ordinary image content and are never inferred to be holes.
+Retouching is an optional post-processing step and does not affect panorama
+alignment or seam selection. `Add AI patch` and `Add manual patch` open at
+the direction and zoom last shown in Preview. The square Before pane is the
+live panorama viewer. For an AI patch, pan or zoom to the desired view, then
+choose **Mask** to freeze that view. Drag to paint, Option-drag to erase, and
+choose **Clear Mask** to discard the mask and resume navigation. Manual Patch
+is a modal export, external edit, import, and Apply workflow using a
+2048 × 2048 PNG. The project stores only the finished manual patch and the
+projection needed to place it.
 
-For manual external retouching, PanoWizard can export the currently visible
-panorama as a lossless PNG cube map. Its six 2048 × 2048 faces use a standard
-4 × 3 cross layout. An imported cube map is stored separately and can become
-the base for later local AI retouching.
+Applied patches form a simple ordered list. Newer patches appear over older
+ones where they overlap, and each patch can be shown, hidden, or deleted. To
+change a patch, delete it and create a new one.
+The AI mask starts empty and is independent of panorama transparency and
+source-image masks. Only the explicitly painted mask is sent as editable;
+opaque black pixels remain ordinary image content.
 
 Little Planet export creates a stereographic PNG from the completed panorama.
 Rotation, output size, horizon height, and background can be adjusted in a live
@@ -83,8 +86,7 @@ preview.
 
 Global adjustments are saved as project settings and applied after local
 retouching. They appear in the spherical preview and in JPEG, PNG, interactive
-HTML, and Little Planet exports. Cube-map export for external retouching stays
-unadjusted so imported edits remain below the global adjustment layer.
+HTML, and Little Planet exports.
 
 Building a new panorama removes downstream retouch results while preserving the
 source images and source masks.
@@ -120,10 +122,10 @@ metadata, image role, orientation, and red exclusion masks.
 
 ## Project files
 
-The project format is version 8. It stores source images, roles, manual
-rotation, masks, the completed panorama, preview state, pole retouches, and an
-imported cube-map retouch, plus global panorama adjustments, in one project
-package. PanoWizard accepts version 8
+The project format is version 10. It stores source images, roles, manual
+rotation, masks, the completed panorama, preview state, ordered retouch
+patches, and global panorama adjustments in one project package. PanoWizard
+accepts version 10
 projects only; other project-format versions are rejected.
 
 ## Building from source

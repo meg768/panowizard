@@ -3,54 +3,81 @@ import ImageIO
 import SwiftUI
 import UniformTypeIdentifiers
 
-@MainActor
-final class PanoramaRetouchController {
-    func exportCubeMap(
-        model: AppModel,
-        projectDirectoryURL: URL?
-    ) {
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.png]
-        panel.canCreateDirectories = true
-        panel.isExtensionHidden = false
-        panel.directoryURL = projectDirectoryURL
-        panel.nameFieldStringValue = "cube"
-        panel.title = "Export Cube Map"
-        panel.prompt = "Export"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        model.exportCubeMap(to: url)
-    }
+enum RetouchPatchDialogKind {
+    case ai
+    case manual
+}
 
-    func importCubeMap(model: AppModel) {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.png]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.nameFieldStringValue = "cube"
-        panel.title = "Import Cube Map"
-        panel.prompt = "Import"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        model.importCubeMap(from: url)
-    }
+struct RetouchPatchPresentation: Identifiable {
+    let id = UUID()
+    let kind: RetouchPatchDialogKind
+    let viewpoint: PanoramaViewpoint
 }
 
 struct PanoramaRetouchView: View {
     @Bindable var model: AppModel
     let projectDirectoryURL: URL?
-    let controller: PanoramaRetouchController
-    let onAIRetouch: (PanoramaPole) -> Void
+    let presentPatch: (RetouchPatchPresentation) -> Void
 
     var body: some View {
         if model.stitchedResultURL != nil {
             Form {
-                poleSection(.nadir)
-                poleSection(.zenith)
-                cubeMapSection
+                Section {
+                    HStack(spacing: 8) {
+                        Button {
+                            presentPatch(RetouchPatchPresentation(
+                                kind: .ai,
+                                viewpoint: model.panoramaViewpoint
+                            ))
+                        } label: {
+                            Label(
+                                "Add AI patch",
+                                systemImage: "wand.and.sparkles"
+                            )
+                        }
+                        .accessibilityIdentifier("add-ai-patch")
+
+                        Button {
+                            presentPatch(RetouchPatchPresentation(
+                                kind: .manual,
+                                viewpoint: model.panoramaViewpoint
+                            ))
+                        } label: {
+                            Label(
+                                "Add manual patch",
+                                systemImage: "paintbrush"
+                            )
+                        }
+                        .accessibilityIdentifier("add-manual-patch")
+                    }
+                    .buttonStyle(WorkspaceToolbarPillStyle())
+                    .disabled(model.phase != .ready)
+
+                    Text(
+                        "New patches open at the direction and zoom currently "
+                            + "shown in Preview. Pan or zoom directly in the "
+                            + "patch dialog to choose the exact area."
+                    )
+                    .foregroundStyle(.secondary)
+                }
+
+                Section("Patches") {
+                    if model.retouchPatches.isEmpty {
+                        Text("No retouch patches")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(
+                            Array(model.retouchPatches.reversed())
+                        ) { patch in
+                            retouchPatchRow(patch)
+                        }
+                    }
+                }
 
                 Section {
                     Text(
-                        "Retouches are stored separately in the project and do "
-                            + "not alter source images, masks, or panorama geometry."
+                        "Patches are stored separately and do not alter "
+                            + "source images, masks, or panorama geometry."
                     )
                     .foregroundStyle(.secondary)
                 }
@@ -58,142 +85,250 @@ struct PanoramaRetouchView: View {
             .formStyle(.grouped)
         } else {
             ContentUnavailableView {
-                Label(
-                    "No Panorama to Retouch",
-                    systemImage: "paintbrush.pointed"
-                )
+                Label("No Panorama to Retouch", systemImage: "paintbrush.pointed")
             } description: {
-                Text("Create the panorama to generate flat pole faces.")
+                Text("Create the panorama before adding retouch patches.")
             } actions: {
-                Button("Create") {
-                    model.stitch()
-                }
-                .buttonStyle(WorkspaceToolbarPillStyle())
-                .disabled(!model.canStitch)
+                Button("Create") { model.stitch() }
+                    .buttonStyle(WorkspaceToolbarPillStyle())
+                    .disabled(!model.canStitch)
             }
         }
     }
 
-    @ViewBuilder
-    private func poleSection(_ pole: PanoramaPole) -> some View {
-        Section(pole.displayName) {
-            LabeledContent(
-                "Format",
-                value: "PNG · 2048 × 2048 px · 90° cube face"
-            )
-            LabeledContent(
-                "Status",
-                value: model.retouchURL(for: pole) == nil
-                    ? "No retouch"
-                    : "Retouch active"
-            )
-
-            HStack(spacing: 8) {
-                Button {
-                    onAIRetouch(pole)
-                } label: {
-                    Label(
-                        "AI Retouch \(pole.displayName)…",
-                        systemImage: "wand.and.sparkles"
-                    )
-                }
-                .accessibilityIdentifier("ai-retouch-\(pole.rawValue)")
-
-                if model.retouchURL(for: pole) != nil {
-                    Button(
-                        "Remove \(pole.displayName) Retouch",
-                        role: .destructive
-                    ) {
-                        model.removeRetouch(for: pole)
-                    }
-                    .accessibilityIdentifier("remove-retouch-\(pole.rawValue)")
-                }
+    private func retouchPatchRow(_ patch: RetouchPatch) -> some View {
+        HStack(spacing: 12) {
+            if let url = model.retouchPatchURLs[patch.id],
+               let image = NSImage(contentsOf: url) {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 54, height: 42)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
             }
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .disabled(model.phase != .ready)
 
-            if model.retouchURL(for: pole) != nil {
-                Label(
-                    "The retouch is displayed over the panorama at the "
-                        + "\(pole.displayName.lowercased()).",
-                    systemImage: "checkmark.circle.fill"
-                )
-                .foregroundStyle(.green)
-            } else {
+            Button {
+                model.showRetouchPatch(patch)
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(patch.kind.displayName)
+                    Text(patch.isEnabled ? "Active" : "Hidden")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+
+            Toggle("Enabled", isOn: Binding(
+                get: { patch.isEnabled },
+                set: { _ in model.toggleRetouchPatch(patch.id) }
+            ))
+            .labelsHidden()
+
+            Button("Delete Patch", systemImage: "trash", role: .destructive) {
+                model.removeRetouchPatch(patch.id)
+            }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
+        }
+    }
+}
+
+struct ManualRetouchSheet: View {
+    @Bindable var model: AppModel
+    let projectDirectoryURL: URL?
+    let onDismiss: () -> Void
+
+    @State private var viewpoint: PanoramaViewpoint
+    @State private var source: AIRetouchSource?
+    @State private var importedURL: URL?
+    @State private var errorMessage: String?
+    @State private var isWorking = false
+
+    init(
+        model: AppModel,
+        viewpoint: PanoramaViewpoint,
+        projectDirectoryURL: URL?,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.model = model
+        self.projectDirectoryURL = projectDirectoryURL
+        self.onDismiss = onDismiss
+        _viewpoint = State(initialValue: viewpoint)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Manual Retouch Patch")
+                    .font(.title2.bold())
                 Text(
-                    "AI retouch the \(pole.localizedName) directly in PanoWizard."
+                    "Export this view, edit it externally, then import the "
+                        + "finished 2048 × 2048 PNG."
                 )
                 .foregroundStyle(.secondary)
             }
+
+            HStack(alignment: .top, spacing: 16) {
+                AIRetouchImagePane(
+                    title: "Before",
+                    footer: "Drag to pan · scroll or pinch to zoom"
+                ) {
+                    if let panoramaURL = model.currentPanoramaURL {
+                        RetouchPatchPanoramaViewport(
+                            url: panoramaURL,
+                            initialViewpoint: viewpoint,
+                            onViewpointChange: handleViewpointChange
+                        )
+                    } else {
+                        AIRetouchImagePlaceholder(
+                            text: "The panorama is unavailable."
+                        )
+                    }
+                } trailing: { EmptyView() }
+
+                AIRetouchImagePane(
+                    title: "After",
+                    footer: "Leave unchanged image content around edited areas."
+                ) {
+                    if let importedURL {
+                        AIRetouchImageViewport(
+                            url: importedURL,
+                            maskData: nil,
+                            interaction: .pan,
+                            isEnabled: true,
+                            onMaskChange: { _ in },
+                            onUndo: {}
+                        )
+                    } else {
+                        AIRetouchImagePlaceholder(
+                            text: "The imported patch appears here."
+                        )
+                    }
+                } trailing: { EmptyView() }
+            }
+
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+
+            HStack {
+                Button("Cancel", role: .cancel, action: onDismiss)
+                Spacer()
+                Button("Export…") { Task { await exportSource() } }
+                    .disabled(isWorking)
+                Button("Import…") { importPatch() }
+                    .disabled(source == nil || isWorking)
+                Button("Apply") { applyPatch() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(importedURL == nil || isWorking)
+            }
+        }
+        .padding(22)
+        .frame(width: 780)
+        .onDisappear {
+            if let source { model.discardRetouchPatchSource(source) }
         }
     }
 
-    private var cubeMapSection: some View {
-        Section("Cube Map") {
-            LabeledContent(
-                "Format",
-                value: "PNG · 8192 × 6144 px · 6 cube faces at 2048 × 2048 px"
+    private func handleViewpointChange(_ newViewpoint: PanoramaViewpoint) {
+        guard viewpoint != newViewpoint else { return }
+        viewpoint = newViewpoint
+        if let source { model.discardRetouchPatchSource(source) }
+        source = nil
+        importedURL = nil
+        errorMessage = nil
+    }
+
+    private func loadSource() async -> AIRetouchSource? {
+        if let source { return source }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let loaded = try await model.createRetouchPatchSource(at: viewpoint)
+            source = loaded
+            return loaded
+        } catch is CancellationError {
+            return nil
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    private func exportSource() async {
+        guard let source = await loadSource() else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.png]
+        panel.canCreateDirectories = true
+        panel.directoryURL = projectDirectoryURL
+        panel.nameFieldStringValue = "retouch-patch.png"
+        panel.title = "Export Retouch Patch"
+        panel.prompt = "Export"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try Data(contentsOf: source.sourceURL).write(to: url, options: .atomic)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func importPatch() {
+        guard let source else { return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.title = "Import Retouch Patch"
+        panel.prompt = "Import"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let destination = source.directoryURL.appending(path: "imported.png")
+        do {
+            try RetouchPatchService().prepareImportedPatch(
+                from: url,
+                to: destination
             )
-            LabeledContent("Status") {
-                HStack(spacing: 8) {
-                    Text(
-                        model.cubeRetouchURL == nil
-                            ? "No imported cube map"
-                            : "Cube map active"
-                    )
-                    if model.cubeRetouchURL != nil {
-                        Button("Remove Cube Retouch", systemImage: "trash", role: .destructive) {
-                            model.removeCubeRetouch()
-                        }
-                        .labelStyle(.iconOnly)
-                        .buttonStyle(.borderless)
-                        .accessibilityIdentifier("remove-cube-retouch")
-                    }
-                }
-            }
+            importedURL = destination
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
 
-            HStack(spacing: 8) {
-                Button {
-                    controller.exportCubeMap(
-                        model: model,
-                        projectDirectoryURL: projectDirectoryURL
-                    )
-                } label: {
-                    Label("Export Cube Map…", systemImage: "square.and.arrow.up")
-                }
-                .accessibilityIdentifier("export-cube-map")
-
-                Button {
-                    controller.importCubeMap(model: model)
-                } label: {
-                    Label("Import Cube Map…", systemImage: "square.and.arrow.down")
-                }
-                .accessibilityIdentifier("import-cube-map")
-            }
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .disabled(model.phase != .ready)
-
-            Text(
-                "Export the entire panorama as a cube map, edit it in an "
-                    + "external image editor, and import the finished cube map again."
+    private func applyPatch() {
+        guard let importedURL, let source else { return }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try model.applyManualRetouchPatch(
+                from: importedURL,
+                viewpoint: source.viewpoint
             )
-            .foregroundStyle(.secondary)
+            onDismiss()
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 }
 
 struct AIRetouchSheet: View {
-    @Environment(\.dismiss) private var dismiss
     @Bindable var model: AppModel
-    let pole: PanoramaPole
+    let onDismiss: () -> Void
 
+    @State private var viewpoint: PanoramaViewpoint
     @State private var prompt: String
     @State private var source: AIRetouchSource?
+    @State private var sourceTask: Task<Void, Never>?
+    @State private var sourceRequestID: UUID?
     @State private var preview: AIRetouchPreview?
     @State private var maskData: Data?
     @State private var maskHistory: [Data?] = []
     @State private var errorMessage: String?
     @State private var generationTask: Task<Void, Never>?
+    @State private var isMaskMode = false
+    @State private var isPreparingSource = false
     @State private var isWorking = false
     @State private var storedAPIKey: String?
     @State private var isAPIKeySheetPresented = false
@@ -201,20 +336,21 @@ struct AIRetouchSheet: View {
 
     private let keyStore = OpenAIAPIKeyStore()
 
-    init(model: AppModel, pole: PanoramaPole) {
+    init(
+        model: AppModel,
+        viewpoint: PanoramaViewpoint,
+        onDismiss: @escaping () -> Void
+    ) {
         self.model = model
-        self.pole = pole
-        _prompt = State(
-            initialValue: model.aiRetouchPrompt(for: pole)
-                ?? Self.defaultPrompt(for: pole)
-        )
-        _maskData = State(initialValue: model.aiRetouchMaskData(for: pole))
+        self.onDismiss = onDismiss
+        _viewpoint = State(initialValue: viewpoint)
+        _prompt = State(initialValue: Self.defaultPrompt)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("AI Retouch \(pole.displayName)")
+                Text("AI Retouch Patch")
                     .font(.title2.bold())
                 Text(
                     "The image is sent to OpenAI. No retouch is activated "
@@ -226,31 +362,53 @@ struct AIRetouchSheet: View {
             HStack(alignment: .top, spacing: 16) {
                 AIRetouchImagePane(
                     title: "Before",
-                    footer: "Drag to pan · scroll to zoom · ⌘-drag to paint · "
-                        + "⌘⌥-drag to erase · ⌘Z to undo"
+                    footer: isMaskMode
+                        ? "Drag to paint · ⌥-drag to erase · ⌘Z to undo · "
+                            + "Clear Mask to navigate"
+                        : "Drag to pan · scroll or pinch to zoom"
                 ) {
-                    if let source {
-                        AIRetouchImageViewport(
-                            url: source.sourceURL,
-                            maskData: maskData,
-                            interaction: .mask,
-                            isEnabled: !isWorking,
-                            onMaskChange: applyMaskChange,
-                            onUndo: undoMaskChange
-                        )
-                        .id("ai-retouch-before-viewport")
+                    if let panoramaURL = model.currentPanoramaURL {
+                        ZStack {
+                            RetouchPatchPanoramaViewport(
+                                url: panoramaURL,
+                                initialViewpoint: viewpoint,
+                                onViewpointChange: handleViewpointChange,
+                                maskData: maskData,
+                                isMaskEditing: isMaskMode
+                                    && !isPreparingSource
+                                    && !isWorking,
+                                onMaskChange: applyMaskChange
+                            )
+                            .allowsHitTesting(
+                                !isPreparingSource && !isWorking
+                            )
+
+                            if isPreparingSource {
+                                ProgressView()
+                                    .controlSize(.regular)
+                            }
+                        }
                     } else {
                         AIRetouchImagePlaceholder(
-                            text: "Preparing image…",
-                            showsProgress: errorMessage == nil
+                            text: "The panorama is unavailable."
                         )
                     }
                 } trailing: {
-                    Button("Clear Mask", role: .destructive) {
-                        clearMask()
+                    if isMaskMode {
+                        Button("Clear Mask", role: .destructive) {
+                            clearMask()
+                        }
+                        .disabled(isWorking)
+                        .accessibilityIdentifier("clear-ai-retouch-mask")
+                    } else {
+                        Button {
+                            beginMaskMode()
+                        } label: {
+                            Label("Mask", systemImage: "paintbrush")
+                        }
+                        .disabled(isWorking)
+                        .accessibilityIdentifier("activate-ai-retouch-mask")
                     }
-                    .disabled(maskData == nil || isWorking)
-                    .accessibilityIdentifier("clear-ai-retouch-mask")
                 }
                 .background {
                     AIRetouchMaskUndoMonitor(onUndo: undoMaskChange)
@@ -279,7 +437,6 @@ struct AIRetouchSheet: View {
                     EmptyView()
                 }
             }
-            .frame(height: 430)
 
             GroupBox {
                 TextEditor(text: $prompt)
@@ -342,15 +499,9 @@ struct AIRetouchSheet: View {
             }
         }
         .padding(22)
-        .frame(
-            minWidth: 760,
-            idealWidth: 900,
-            minHeight: 720,
-            idealHeight: 820
-        )
+        .frame(width: 780)
         .task {
             storedAPIKey = keyStore.load()
-            await loadSource()
         }
         .sheet(isPresented: $isAPIKeySheetPresented) {
             OpenAIAPIKeySheet {
@@ -372,51 +523,81 @@ struct AIRetouchSheet: View {
             )
         }
         .onDisappear {
+            sourceTask?.cancel()
             generationTask?.cancel()
             if let preview {
                 model.discardAIRetouchPreview(preview)
             }
             if let source {
-                model.discardAIRetouchSource(source)
+                model.discardRetouchPatchSource(source)
             }
         }
     }
 
     private var canGenerate: Bool {
-        source != nil
+        isMaskMode
+            && source != nil
             && maskData != nil
             && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var afterURL: URL? {
         preview?.compositedURL
-            ?? model.aiRetouchResultURL(for: pole)
-            ?? model.retouchURL(for: pole)
     }
 
     private var canRestoreDefaultPrompt: Bool {
-        prompt != Self.defaultPrompt(for: pole)
-            || model.aiRetouchPrompt(for: pole) != nil
+        prompt != Self.defaultPrompt
     }
 
     private func restoreDefaultPrompt() {
-        prompt = Self.defaultPrompt(for: pole)
-        model.clearAIRetouchPrompt(for: pole)
+        prompt = Self.defaultPrompt
     }
 
-    private func loadSource() async {
-        guard source == nil else { return }
-        do {
-            let loadedSource = try await model.createAIRetouchSource(for: pole)
-            source = loadedSource
-            if loadedSource.initialMaskData != maskData {
-                maskData = loadedSource.initialMaskData
-                model.setAIRetouchMaskData(maskData, for: pole)
+    private func handleViewpointChange(_ newViewpoint: PanoramaViewpoint) {
+        guard !isMaskMode, viewpoint != newViewpoint else { return }
+        viewpoint = newViewpoint
+    }
+
+    private func beginMaskMode() {
+        guard !isMaskMode, !isWorking else { return }
+        isMaskMode = true
+        isPreparingSource = true
+        maskData = nil
+        maskHistory = []
+        errorMessage = nil
+        invalidatePreview()
+
+        sourceTask?.cancel()
+        if let source { model.discardRetouchPatchSource(source) }
+        source = nil
+
+        let capturedViewpoint = viewpoint
+        let requestID = UUID()
+        sourceRequestID = requestID
+        sourceTask = Task {
+            do {
+                let loadedSource = try await model.createRetouchPatchSource(
+                    at: capturedViewpoint
+                )
+                guard !Task.isCancelled,
+                      sourceRequestID == requestID,
+                      isMaskMode else {
+                    model.discardRetouchPatchSource(loadedSource)
+                    return
+                }
+                source = loadedSource
+                errorMessage = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled, sourceRequestID == requestID else {
+                    return
+                }
+                errorMessage = error.localizedDescription
             }
-        } catch is CancellationError {
-            return
-        } catch {
-            errorMessage = error.localizedDescription
+            if sourceRequestID == requestID {
+                isPreparingSource = false
+            }
         }
     }
 
@@ -427,7 +608,6 @@ struct AIRetouchSheet: View {
             return
         }
         errorMessage = nil
-        model.setAIRetouchPrompt(prompt, for: pole)
         guard let source else {
             errorMessage = AIRetouchError.panoramaUnavailable.localizedDescription
             return
@@ -441,7 +621,6 @@ struct AIRetouchSheet: View {
             do {
                 let newPreview = try await model.createAIRetouchPreview(
                     source: source,
-                    for: pole,
                     maskData: maskData,
                     prompt: prompt,
                     apiKey: apiKey
@@ -464,12 +643,16 @@ struct AIRetouchSheet: View {
     }
 
     private func applyPreview() {
-        guard let preview else { return }
+        guard let preview, let maskData else { return }
         do {
-            try model.applyAIRetouchPreview(preview)
+            try model.applyAIRetouchPreview(
+                preview,
+                prompt: prompt,
+                maskData: maskData
+            )
             model.discardAIRetouchPreview(preview)
             self.preview = nil
-            dismiss()
+            onDismiss()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -481,7 +664,7 @@ struct AIRetouchSheet: View {
             model.discardAIRetouchPreview(preview)
             self.preview = nil
         }
-        dismiss()
+        onDismiss()
     }
 
     private func cancelGeneration() {
@@ -489,26 +672,33 @@ struct AIRetouchSheet: View {
     }
 
     private func applyMaskChange(_ newMaskData: Data?) {
-        guard !isWorking, newMaskData != maskData else { return }
+        guard isMaskMode, !isWorking, newMaskData != maskData else { return }
         maskHistory.append(maskData)
         maskData = newMaskData
-        model.setAIRetouchMaskData(newMaskData, for: pole)
         invalidatePreview()
     }
 
     private func undoMaskChange() {
-        guard !isWorking, let previous = maskHistory.popLast() else { return }
+        guard isMaskMode,
+              !isWorking,
+              let previous = maskHistory.popLast() else { return }
         maskData = previous
-        model.setAIRetouchMaskData(previous, for: pole)
         invalidatePreview()
     }
 
     private func clearMask() {
-        guard !isWorking, maskData != nil else { return }
-        maskHistory.append(maskData)
+        guard isMaskMode, !isWorking else { return }
+        sourceTask?.cancel()
+        sourceTask = nil
+        sourceRequestID = nil
+        isPreparingSource = false
+        if let source { model.discardRetouchPatchSource(source) }
+        source = nil
         maskData = nil
-        model.setAIRetouchMaskData(nil, for: pole)
+        maskHistory = []
         invalidatePreview()
+        errorMessage = nil
+        isMaskMode = false
     }
 
     private func invalidatePreview() {
@@ -517,25 +707,8 @@ struct AIRetouchSheet: View {
         self.preview = nil
     }
 
-    private static func defaultPrompt(for pole: PanoramaPole) -> String {
-        if pole == .nadir {
-            return """
-                This is the nadir surface of a 360° panorama. The masked area has been removed and must be reconstructed.
-
-                Fill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.
-
-                The reconstruction must blend seamlessly with the surrounding original image. Locally match exposure, brightness, hue, white balance, contrast, sharpness, texture, and noise so that no visible boundary or tonal edge appears around the reconstructed area.
-
-                The transition between reconstructed and original image content must be smooth and gradual. Avoid a uniformly bounded or mask-shaped change in light or color.
-
-                Preserve the image's existing geometry and perspective. Do not alter objects or structures that do not need to be reconstructed to fill the missing area.
-
-                Do not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.
-                """
-        }
-
-        return """
-            This is the zenith surface of a 360° panorama. The masked area has been removed and must be reconstructed.
+    private static let defaultPrompt = """
+            This is a flat view of part of a 360° panorama. The masked area has been removed and must be reconstructed.
 
             Fill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.
 
@@ -547,8 +720,33 @@ struct AIRetouchSheet: View {
 
             Do not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.
             """
-    }
 
+}
+
+private struct RetouchPatchPanoramaViewport: View {
+    let url: URL
+    let initialViewpoint: PanoramaViewpoint
+    let onViewpointChange: (PanoramaViewpoint) -> Void
+    var maskData: Data? = nil
+    var isMaskEditing = false
+    var onMaskChange: (Data?) -> Void = { _ in }
+
+    var body: some View {
+        SphericalPanoramaView(
+            url: url,
+            overlayURL: nil,
+            zenithOverlayURL: nil,
+            nadirRetouchURL: nil,
+            zenithRetouchURL: nil,
+            adjustments: .neutral,
+            initialViewpoint: initialViewpoint,
+            onViewpointChange: onViewpointChange,
+            maskData: maskData,
+            isMaskEditing: isMaskEditing,
+            onMaskChange: onMaskChange,
+            addsWorkspacePadding: false
+        )
+    }
 }
 
 private struct AIRetouchProgressSheet: View {
@@ -603,9 +801,11 @@ private struct AIRetouchImagePane<Content: View, Trailing: View>: View {
             .frame(height: 24)
 
             content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(.black.opacity(0.07))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .frame(width: 360, height: 360)
+                .background(
+                    .black.opacity(0.07),
+                    in: RoundedRectangle(cornerRadius: 8)
+                )
 
             Text(footer)
                 .font(.caption)
@@ -613,7 +813,7 @@ private struct AIRetouchImagePane<Content: View, Trailing: View>: View {
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, minHeight: 30, alignment: .topLeading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: 360)
     }
 }
 

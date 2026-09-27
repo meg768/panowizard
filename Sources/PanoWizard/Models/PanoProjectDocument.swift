@@ -17,44 +17,23 @@ struct PanoProjectDocument: FileDocument, Equatable {
     var masks: [UUID: Data]
     var protectedMasks: [UUID: Data]
     var panoramaData: Data?
-    var nadirOverlayData: Data?
-    var zenithOverlayData: Data?
-    var nadirRetouchData: Data?
-    var zenithRetouchData: Data?
-    var nadirAIRetouchResultData: Data?
-    var zenithAIRetouchResultData: Data?
-    var cubeRetouchData: Data?
-    var nadirAIRetouchMaskData: Data?
-    var zenithAIRetouchMaskData: Data?
+    var retouchPatchData: [UUID: Data]
+    var aiRetouchMaskData: [UUID: Data]
 
     init(
         project: PanoProject = PanoProject(),
         masks: [UUID: Data] = [:],
         protectedMasks: [UUID: Data] = [:],
         panoramaData: Data? = nil,
-        nadirOverlayData: Data? = nil,
-        zenithOverlayData: Data? = nil,
-        nadirRetouchData: Data? = nil,
-        zenithRetouchData: Data? = nil,
-        nadirAIRetouchResultData: Data? = nil,
-        zenithAIRetouchResultData: Data? = nil,
-        cubeRetouchData: Data? = nil,
-        nadirAIRetouchMaskData: Data? = nil,
-        zenithAIRetouchMaskData: Data? = nil
+        retouchPatchData: [UUID: Data] = [:],
+        aiRetouchMaskData: [UUID: Data] = [:]
     ) {
         self.project = project
         self.masks = masks
         self.protectedMasks = protectedMasks
         self.panoramaData = panoramaData
-        self.nadirOverlayData = nadirOverlayData
-        self.zenithOverlayData = zenithOverlayData
-        self.nadirRetouchData = nadirRetouchData
-        self.zenithRetouchData = zenithRetouchData
-        self.nadirAIRetouchResultData = nadirAIRetouchResultData
-        self.zenithAIRetouchResultData = zenithAIRetouchResultData
-        self.cubeRetouchData = cubeRetouchData
-        self.nadirAIRetouchMaskData = nadirAIRetouchMaskData
-        self.zenithAIRetouchMaskData = zenithAIRetouchMaskData
+        self.retouchPatchData = retouchPatchData
+        self.aiRetouchMaskData = aiRetouchMaskData
     }
 
     init(configuration: ReadConfiguration) throws {
@@ -109,35 +88,14 @@ struct PanoProjectDocument: FileDocument, Equatable {
             }
         }
         panoramaData = wrappers["panorama"]?
-            .fileWrappers?["result.jpg"]?
+            .fileWrappers?["result.png"]?
             .regularFileContents
-        nadirOverlayData = wrappers["panorama"]?
-            .fileWrappers?["nadir-overlay.png"]?
-            .regularFileContents
-        zenithOverlayData = wrappers["panorama"]?
-            .fileWrappers?["zenith-overlay.png"]?
-            .regularFileContents
-        nadirRetouchData = wrappers["panorama"]?
-            .fileWrappers?["nadir-retouch.png"]?
-            .regularFileContents
-        zenithRetouchData = wrappers["panorama"]?
-            .fileWrappers?["zenith-retouch.png"]?
-            .regularFileContents
-        nadirAIRetouchResultData = wrappers["panorama"]?
-            .fileWrappers?["nadir-ai-result.png"]?
-            .regularFileContents
-        zenithAIRetouchResultData = wrappers["panorama"]?
-            .fileWrappers?["zenith-ai-result.png"]?
-            .regularFileContents
-        cubeRetouchData = wrappers["panorama"]?
-            .fileWrappers?["cube-retouch.png"]?
-            .regularFileContents
-        nadirAIRetouchMaskData = wrappers["panorama"]?
-            .fileWrappers?["nadir-ai-mask.png"]?
-            .regularFileContents
-        zenithAIRetouchMaskData = wrappers["panorama"]?
-            .fileWrappers?["zenith-ai-mask.png"]?
-            .regularFileContents
+        retouchPatchData = Self.dataByUUID(
+            in: wrappers["panorama"]?.fileWrappers?["patches"]
+        )
+        aiRetouchMaskData = Self.dataByUUID(
+            in: wrappers["panorama"]?.fileWrappers?["patch-masks"]
+        )
         if let projectURL {
             resolveSourceImages(
                 relativeTo: projectURL.deletingLastPathComponent()
@@ -183,53 +141,18 @@ struct PanoProjectDocument: FileDocument, Equatable {
 
         var panoramaChildren: [String: FileWrapper] = [:]
         if let panoramaData {
-            panoramaChildren["result.jpg"] = FileWrapper(
+            panoramaChildren["result.png"] = FileWrapper(
                 regularFileWithContents: panoramaData
             )
         }
-        if let nadirOverlayData {
-            panoramaChildren["nadir-overlay.png"] = FileWrapper(
-                regularFileWithContents: nadirOverlayData
+        if !retouchPatchData.isEmpty {
+            panoramaChildren["patches"] = Self.fileWrapper(
+                for: retouchPatchData
             )
         }
-        if let zenithOverlayData {
-            panoramaChildren["zenith-overlay.png"] = FileWrapper(
-                regularFileWithContents: zenithOverlayData
-            )
-        }
-        if let nadirRetouchData {
-            panoramaChildren["nadir-retouch.png"] = FileWrapper(
-                regularFileWithContents: nadirRetouchData
-            )
-        }
-        if let zenithRetouchData {
-            panoramaChildren["zenith-retouch.png"] = FileWrapper(
-                regularFileWithContents: zenithRetouchData
-            )
-        }
-        if let nadirAIRetouchResultData {
-            panoramaChildren["nadir-ai-result.png"] = FileWrapper(
-                regularFileWithContents: nadirAIRetouchResultData
-            )
-        }
-        if let zenithAIRetouchResultData {
-            panoramaChildren["zenith-ai-result.png"] = FileWrapper(
-                regularFileWithContents: zenithAIRetouchResultData
-            )
-        }
-        if let cubeRetouchData {
-            panoramaChildren["cube-retouch.png"] = FileWrapper(
-                regularFileWithContents: cubeRetouchData
-            )
-        }
-        if let nadirAIRetouchMaskData {
-            panoramaChildren["nadir-ai-mask.png"] = FileWrapper(
-                regularFileWithContents: nadirAIRetouchMaskData
-            )
-        }
-        if let zenithAIRetouchMaskData {
-            panoramaChildren["zenith-ai-mask.png"] = FileWrapper(
-                regularFileWithContents: zenithAIRetouchMaskData
+        if !aiRetouchMaskData.isEmpty {
+            panoramaChildren["patch-masks"] = Self.fileWrapper(
+                for: aiRetouchMaskData
             )
         }
         if !panoramaChildren.isEmpty {
@@ -238,6 +161,26 @@ struct PanoProjectDocument: FileDocument, Equatable {
             )
         }
         return FileWrapper(directoryWithFileWrappers: children)
+    }
+
+    private static func dataByUUID(in wrapper: FileWrapper?) -> [UUID: Data] {
+        guard let children = wrapper?.fileWrappers else { return [:] }
+        return Dictionary(uniqueKeysWithValues: children.compactMap { name, file in
+            guard name.hasSuffix(".png"),
+                  let id = UUID(uuidString: String(name.dropLast(4))),
+                  let data = file.regularFileContents else { return nil }
+            return (id, data)
+        })
+    }
+
+    private static func fileWrapper(for data: [UUID: Data]) -> FileWrapper {
+        FileWrapper(directoryWithFileWrappers: Dictionary(
+            uniqueKeysWithValues: data.map { id, contents in
+                ("\(id.uuidString).png", FileWrapper(
+                    regularFileWithContents: contents
+                ))
+            }
+        ))
     }
 
     func writeAtomically(to url: URL) throws {

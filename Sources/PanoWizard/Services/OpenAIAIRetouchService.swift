@@ -1,14 +1,13 @@
 import Foundation
 
 struct AIRetouchSource: Sendable {
-    let pole: PanoramaPole
+    let viewpoint: PanoramaViewpoint
     let directoryURL: URL
     let sourceURL: URL
-    let initialMaskData: Data?
 }
 
 struct AIRetouchPreview: Sendable {
-    let pole: PanoramaPole
+    let viewpoint: PanoramaViewpoint
     let directoryURL: URL
     let editedURL: URL
     let preparedURL: URL

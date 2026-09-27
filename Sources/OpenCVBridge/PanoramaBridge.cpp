@@ -3588,10 +3588,16 @@ std::pair<double, int> renderPanorama(
     cv::Mat result = contentAdaptiveBlend(
         warps, labels, conflictMask, width, height
     );
+    cv::Mat alpha;
+    cv::compare(labels, 0, alpha, cv::CMP_GE);
     cv::flip(result, result, 1);
+    cv::flip(alpha, alpha, 1);
+    std::vector<cv::Mat> channels;
+    cv::split(result, channels);
+    channels.push_back(alpha);
+    cv::merge(channels, result);
     const std::vector<int> parameters = {
-        cv::IMWRITE_JPEG_QUALITY, 96,
-        cv::IMWRITE_JPEG_OPTIMIZE, 1
+        cv::IMWRITE_PNG_COMPRESSION, 3
     };
     if (!cv::imwrite(outputPath, result, parameters)) {
         throw std::runtime_error("The panorama engine could not write the panorama image.");

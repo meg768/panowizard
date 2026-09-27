@@ -80,7 +80,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
             }
         }
 
-        let outputURL = workDirectory.appending(path: "panorama.jpg")
+        let outputURL = workDirectory.appending(path: "panorama.png")
         let cacheURL = try alignmentCacheURL(images: images, masks: masks)
         let compositionRoles = images.map { image -> UInt8 in
             if image.effectiveRole == .fillOnly { return 2 }
@@ -131,7 +131,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
         }
 
         let retainedURL = fileManager.temporaryDirectory.appending(
-            path: "PanoWizard/Results/\(UUID().uuidString).jpg"
+            path: "PanoWizard/Results/\(UUID().uuidString).png"
         )
         try fileManager.createDirectory(
             at: retainedURL.deletingLastPathComponent(),

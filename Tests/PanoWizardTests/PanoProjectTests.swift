@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import PanoWizard
 
-@Suite("Project format 8")
+@Suite("Project format 10")
 struct PanoProjectTests {
     @Test("Round-trip keeps sources, metadata, and adjustments")
     func roundTrip() throws {
@@ -27,7 +27,7 @@ struct PanoProjectTests {
         )
 
         #expect(decoded == project)
-        #expect(decoded.formatVersion == 8)
+        #expect(decoded.formatVersion == 10)
         #expect(decoded.panoramaAdjustments == adjustments)
     }
 
@@ -49,7 +49,7 @@ struct PanoProjectTests {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let project = PanoProject(
-            formatVersion: 7,
+            formatVersion: 8,
             title: "Unsupported Project"
         )
         try encoder.encode(project).write(
@@ -90,8 +90,22 @@ struct PanoProjectTests {
         #expect(model.panoramaAdjustments.isNeutral)
     }
 
-    @Test("Project package keeps AI results, patches, and masks separate")
-    func storesOriginalAIRetouchResults() throws {
+    @Test("A saved panorama opens directly in Preview")
+    @MainActor
+    func savedPanoramaOpensInPreview() {
+        let image = sourceImage()
+        let model = AppModel.live(
+            project: PanoProject(images: [image]),
+            panoramaData: Data([1, 2, 3])
+        )
+
+        #expect(model.stitchedResultURL != nil)
+        #expect(model.selection == .panorama)
+        #expect(!model.isSourceMaskEditing)
+    }
+
+    @Test("Project package keeps patch images and AI masks separate")
+    func storesRetouchPatches() throws {
         let directory = FileManager.default.temporaryDirectory.appending(
             path: "PanoWizard-Project-Test-\(UUID())",
             directoryHint: .isDirectory
@@ -105,73 +119,47 @@ struct PanoProjectTests {
             at: directory,
             withIntermediateDirectories: true
         )
-        let nadirPatch = Data([1, 2, 3])
-        let nadirOriginal = Data([4, 5, 6])
-        let zenithPatch = Data([7, 8, 9])
-        let zenithOriginal = Data([10, 11, 12])
-        let nadirMask = Data([13, 14, 15])
-        let zenithMask = Data([16, 17, 18])
-        let cubeRetouch = Data([19, 20, 21])
+        let aiPatch = RetouchPatch(
+            kind: .ai,
+            viewpoint: PanoramaViewpoint(
+                yawRadians: 0.4,
+                pitchRadians: -0.2,
+                verticalFieldOfViewDegrees: 70
+            ),
+            prompt: "Remove the tripod"
+        )
+        let manualPatch = RetouchPatch(
+            kind: .manual,
+            viewpoint: PanoramaViewpoint(yawRadians: -1.1)
+        )
+        let aiImage = Data([1, 2, 3])
+        let manualImage = Data([4, 5, 6])
+        let aiMask = Data([7, 8, 9])
+        let panorama = Data([10, 11, 12])
         let document = PanoProjectDocument(
-            nadirRetouchData: nadirPatch,
-            zenithRetouchData: zenithPatch,
-            nadirAIRetouchResultData: nadirOriginal,
-            zenithAIRetouchResultData: zenithOriginal,
-            cubeRetouchData: cubeRetouch,
-            nadirAIRetouchMaskData: nadirMask,
-            zenithAIRetouchMaskData: zenithMask
+            project: PanoProject(retouchPatches: [aiPatch, manualPatch]),
+            panoramaData: panorama,
+            retouchPatchData: [
+                aiPatch.id: aiImage,
+                manualPatch.id: manualImage
+            ],
+            aiRetouchMaskData: [aiPatch.id: aiMask]
         )
 
         try document.writeAtomically(to: projectURL)
         let restored = try PanoProjectDocument(contentsOf: projectURL)
 
-        #expect(restored.nadirRetouchData == nadirPatch)
-        #expect(restored.zenithRetouchData == zenithPatch)
-        #expect(restored.nadirAIRetouchResultData == nadirOriginal)
-        #expect(restored.zenithAIRetouchResultData == zenithOriginal)
-        #expect(restored.cubeRetouchData == cubeRetouch)
-        #expect(restored.nadirAIRetouchMaskData == nadirMask)
-        #expect(restored.zenithAIRetouchMaskData == zenithMask)
-    }
-
-    @Test("Applying AI retouch keeps generated image byte-for-byte")
-    @MainActor
-    func applyingAIRetouchKeepsGeneratedImage() throws {
-        let directory = FileManager.default.temporaryDirectory.appending(
-            path: "PanoWizard-AI-Apply-Test-\(UUID())",
-            directoryHint: .isDirectory
-        )
-        try FileManager.default.createDirectory(
-            at: directory,
-            withIntermediateDirectories: true
-        )
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let editedURL = directory.appending(path: "edited.png")
-        let preparedURL = directory.appending(path: "prepared.png")
-        let compositedURL = directory.appending(path: "composited.png")
-        let edited = Data([21, 22, 23, 24])
-        let prepared = Data([31, 32, 33, 34])
-        try edited.write(to: editedURL)
-        try prepared.write(to: preparedURL)
-        try prepared.write(to: compositedURL)
-        let preview = AIRetouchPreview(
-            pole: .nadir,
-            directoryURL: directory,
-            editedURL: editedURL,
-            preparedURL: preparedURL,
-            compositedURL: compositedURL
-        )
-        let model = AppModel.live()
-        let mask = Data([41, 42, 43])
-        model.setAIRetouchMaskData(mask, for: .nadir)
-
-        try model.applyAIRetouchPreview(preview)
-        defer { model.removeRetouch(for: .nadir) }
-
-        #expect(model.nadirAIRetouchResultData == edited)
-        #expect(model.nadirRetouchData == prepared)
-        #expect(model.nadirAIRetouchResultURL != model.nadirRetouchURL)
-        #expect(model.aiRetouchMaskData(for: .nadir) == mask)
+        #expect(restored.project.retouchPatches == [aiPatch, manualPatch])
+        #expect(restored.retouchPatchData[aiPatch.id] == aiImage)
+        #expect(restored.retouchPatchData[manualPatch.id] == manualImage)
+        #expect(restored.aiRetouchMaskData == [aiPatch.id: aiMask])
+        #expect(restored.panoramaData == panorama)
+        #expect(FileManager.default.fileExists(
+            atPath: projectURL.appending(path: "panorama/result.png").path
+        ))
+        #expect(!FileManager.default.fileExists(
+            atPath: projectURL.appending(path: "panorama/result.jpg").path
+        ))
     }
 
     private func sourceImage() -> SourceImage {

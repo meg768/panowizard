@@ -2,49 +2,62 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-private struct AIRetouchPresentation: Identifiable {
-    let id = UUID()
-    let pole: PanoramaPole
-}
-
 struct ContentView: View {
     @Bindable var model: AppModel
     let projectName: String?
     let projectDirectoryURL: URL?
     @State private var exportController = PanoramaExportController()
-    @State private var retouchController = PanoramaRetouchController()
-    @State private var aiRetouchPresentation: AIRetouchPresentation?
+    @State private var retouchPatchPresentation: RetouchPatchPresentation?
     @State private var showsAdjustmentInspectorInPreview = false
     @State private var showsOriginalAdjustments = false
     @AppStorage("PanoWizard.ProjectWindow.sidebarWidth")
     private var savedSidebarWidth = 300.0
 
     var body: some View {
-        Group {
-            if model.project.images.isEmpty {
-                PanoramaWelcomeView(
-                    isImporting: model.phase == .importing,
-                    chooseImages: {
-                        model.isImporterPresented = true
-                    },
-                    openProject: nil
-                )
-            } else {
-                NavigationSplitView {
-                    PanoramaSidebar(model: model)
-                        .onGeometryChange(for: CGFloat.self) { geometry in
-                            geometry.size.width
-                        } action: { width in
-                            persistSidebarWidth(width)
-                        }
-                        .navigationSplitViewColumnWidth(
-                            min: 220,
-                            ideal: min(max(savedSidebarWidth, 220), 520),
-                            max: 520
-                        )
-                } detail: {
-                    detailWorkspace
+        ZStack {
+            Group {
+                if model.project.images.isEmpty {
+                    PanoramaWelcomeView(
+                        isImporting: model.phase == .importing,
+                        chooseImages: {
+                            model.isImporterPresented = true
+                        },
+                        openProject: nil
+                    )
+                } else {
+                    NavigationSplitView {
+                        PanoramaSidebar(model: model)
+                            .onGeometryChange(for: CGFloat.self) { geometry in
+                                geometry.size.width
+                            } action: { width in
+                                persistSidebarWidth(width)
+                            }
+                            .navigationSplitViewColumnWidth(
+                                min: 220,
+                                ideal: min(max(savedSidebarWidth, 220), 520),
+                                max: 520
+                            )
+                    } detail: {
+                        detailWorkspace
+                    }
                 }
+            }
+            .disabled(retouchPatchPresentation != nil)
+
+            if let presentation = retouchPatchPresentation {
+                Color.black.opacity(0.48)
+                    .ignoresSafeArea()
+                retouchPatchDialog(presentation)
+                    .background(
+                        .ultraThickMaterial,
+                        in: RoundedRectangle(cornerRadius: 24)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 24)
+                            .strokeBorder(.primary.opacity(0.22))
+                    }
+                    .shadow(color: .black.opacity(0.45), radius: 28, y: 12)
+                    .padding(18)
             }
         }
         .focusedSceneValue(
@@ -89,9 +102,6 @@ struct ContentView: View {
             }
         }
         .fileDialogDefaultDirectory(model.sourceDirectoryURL)
-        .sheet(item: $aiRetouchPresentation) { presentation in
-            AIRetouchSheet(model: model, pole: presentation.pole)
-        }
         .sheet(isPresented: stitchPresentation) {
             PanoramaStitchProgressSheet(model: model)
         }
@@ -132,12 +142,7 @@ struct ContentView: View {
                     PanoramaRetouchView(
                         model: model,
                         projectDirectoryURL: projectDirectoryURL,
-                        controller: retouchController,
-                        onAIRetouch: { pole in
-                            aiRetouchPresentation = AIRetouchPresentation(
-                                pole: pole
-                            )
-                        }
+                        presentPatch: { retouchPatchPresentation = $0 }
                     )
                 } else {
                     previewWorkspace
@@ -148,16 +153,37 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
+    private func retouchPatchDialog(
+        _ presentation: RetouchPatchPresentation
+    ) -> some View {
+        switch presentation.kind {
+        case .ai:
+            AIRetouchSheet(
+                model: model,
+                viewpoint: presentation.viewpoint,
+                onDismiss: { retouchPatchPresentation = nil }
+            )
+        case .manual:
+            ManualRetouchSheet(
+                model: model,
+                viewpoint: presentation.viewpoint,
+                projectDirectoryURL: projectDirectoryURL,
+                onDismiss: { retouchPatchPresentation = nil }
+            )
+        }
+    }
+
     private var previewWorkspace: some View {
         HSplitView {
             PanoramaPreview(
                 panorama: model.panorama,
                 imageURL: model.selectedPreviewURL,
                 isStitched: model.isShowingStitchedPanorama,
-                nadirOverlayURL: model.nadirOverlayURL,
-                zenithOverlayURL: model.zenithOverlayURL,
-                nadirRetouchURL: model.nadirRetouchURL,
-                zenithRetouchURL: model.zenithRetouchURL,
+                nadirOverlayURL: nil,
+                zenithOverlayURL: nil,
+                nadirRetouchURL: nil,
+                zenithRetouchURL: nil,
                 adjustments: previewAdjustments,
                 selectedSource: model.selectedSourceImage,
                 maskData: model.selectedSourceImage.flatMap {

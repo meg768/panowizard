@@ -12,6 +12,14 @@ instructions belong in `README.md`.
 - Follow KISS: make the smallest clear change that solves the explicit task. Do
   not add parallel engine paths, hidden feature flags, or panorama-specific
   special cases.
+- Treat source-code simplicity as a product requirement. Challenge attractive
+  UX ideas when their benefit would require disproportionate state,
+  coordinate conversion, persistence, cancellation, undo, or special-case
+  behavior. Explicitly recommend deferring or rejecting such ideas instead of
+  silently expanding the architecture.
+- Prefer one complete, immediate workflow over drafts, background work queues,
+  parallel representations, or live temporary state shared between views.
+  Visual polish alone does not justify a new subsystem.
 - Engine output must be a complete equirectangular 360° × 180° panorama with a
   2:1 aspect ratio.
 - PanoWizard is designed for one complete horizontal ring of overlapping
@@ -24,36 +32,41 @@ instructions belong in `README.md`.
 - The `best-ever` tag is the manually verified visual reference for panoramas
   A–S. Do not change verified image behavior without a clear reason and an
   explicitly scoped validation plan.
-- AI retouching, cube-map retouching, and Little Planet rendering are
-  post-processing steps that read the completed panorama. They must never be
-  connected to geometry, ownership, seam selection, or blending.
+- Retouch patches and Little Planet rendering are post-processing steps that
+  read the completed panorama. They must never be connected to geometry,
+  ownership, seam selection, or blending.
+- The completed panorama is stored internally as an alpha-preserving PNG.
+  Transparent pixels are missing source coverage; opaque black pixels are
+  ordinary image content and must never be treated as missing coverage.
 - Global panorama adjustments are a final non-destructive post-processing
-  layer after repair overlays, pole retouching, and imported cube-map retouch.
-  They affect preview and finished exports, but cube-map export for external
-  retouching intentionally remains unadjusted.
+  layer after retouch patches. They affect preview and finished exports.
 - Global adjustments live in a trailing panel embedded in Preview. They are
   not a separate sidebar destination. The Preview toolbar toggles the panel,
   and that choice is remembered only for the current app session.
-- The flat pole image used by AI retouching preserves alpha and automatically
-  creates an editable base mask from fully transparent pixels only. RGB values
-  must never be used to infer missing coverage: opaque black is ordinary image
-  content. The base mask is merged with the saved brush mask and never changes
-  panorama masks or engine behavior.
+- The AI mask starts empty and remains independent of panorama transparency
+  and source-image masks. Only the explicitly painted mask becomes transparent
+  in the OpenAI input; existing transparent coverage outside it is submitted
+  as opaque black. The panorama itself remains alpha-preserving, and opaque
+  black is always ordinary image content.
 
-## Planned retouch patches
+## Retouch patches
 
-The next retouch design should stay deliberately small and high-level:
+Retouching uses one deliberately small, high-level model:
 
-- Replace the Nadir/Zenith-specific workflow with arbitrary retouch patches
-  only after the general patch workflow has feature parity and is verified.
-- The Retouch view should offer `AI Patch` and `Manual Patch`, followed by a
+- The Retouch view offers `Add AI patch` and `Add manual patch`, followed by a
   simple list of applied patches. Creation order is layer order; the newest
   patch wins where patches overlap. Manual reordering is not part of version 1.
 - A patch is a rectilinear view projected onto the panorama at a saved
-  orientation and field of view. Cube-map retouching may remain available as
-  an advanced workflow for broad edits.
+  orientation and field of view. Nadir, Zenith, and cube-map workflows are not
+  separate product concepts.
+- Each patch dialog starts at the current Preview viewpoint and uses the same
+  spherical renderer in its square Before pane. The user pans and zooms there.
+  Manual Export consumes that current view directly.
 - An AI patch uses an explicit editable mask and a saved prompt, like the
-  current AI retouch workflow, but may target any panorama direction.
+  current AI retouch workflow, but may target any panorama direction. The user
+  chooses `Mask` to freeze the current view and create the flat source once.
+  Plain drag then paints, Option-drag erases, and navigation remains locked.
+  `Clear Mask` discards the mask and generated result and returns to navigation.
 - A manual patch is a single modal export/edit/import/apply workflow. Its
   original image exists only temporarily while the dialog is open. On Apply,
   save only the imported edited image and the projection metadata needed to
@@ -62,17 +75,41 @@ The next retouch design should stay deliberately small and high-level:
   responsible for leaving unchanged context around the edited area so the
   imported patch joins cleanly.
 - Applied patches may be enabled, disabled, selected to recenter Preview, or
-  deleted. Upstream panorama invalidation may discard them consistently with
-  the current post-processing model.
+  deleted. To change a patch, delete it and create a new one. Upstream panorama
+  invalidation may discard patches consistently with the current
+  post-processing model.
 - Composite patches before global adjustments so Preview and every finished
   export share the same result.
 
-This section records an approved direction, not an implemented feature.
+### Deferred Preview-first patch workflow
+
+The following is a product idea to preserve for later evaluation. It is not
+approved for implementation now and must not be inferred as current behavior:
+
+- Preview is the natural place for the user to discover a local defect: “there
+  is something wrong here; I want to repair it.” A future explicit Patch mode
+  could let the user mark a square area directly in the main Preview.
+- Completing the selection would immediately capture that rectilinear view and
+  open the appropriate AI or manual patch dialog. Apply would add the finished
+  patch to the Retouch list; Cancel would discard the temporary selection and
+  add nothing. The project must not acquire draft or incomplete patch records.
+- The patch dialog would edit the captured flat image rather than provide a
+  second spherical navigator. Retouch would remain the place for managing
+  completed patches.
+- An AI mask in this workflow would start empty and remain independent of
+  source-image exclusion masks and panorama transparency. Existing transparent
+  coverage must not silently become an AI selection.
+- Patch capture must use the unadjusted retouch layer because global
+  adjustments are applied after retouch. Capturing already adjusted pixels
+  would apply those adjustments twice.
+- Keep this idea deliberately deferred. Do not add Preview selection tools,
+  draft model state, or project-format changes until the user explicitly asks
+  to implement it.
 
 ## Architecture
 
 - `Sources/PanoWizard/Models/PanoProject.swift` defines project format version
-  8. The document reader accepts that version only.
+  10. The document reader accepts that version only.
 - `Sources/PanoWizard/Services/OpenCVPanoramaEngine.swift` prepares oriented
   TIFF sources and masks, selects the cache file, and forwards progress and
   cancellation through the C API.
@@ -87,9 +124,9 @@ This section records an approved direction, not an implemented feature.
   names.
 - Green protection masks are passed separately to the engine and affect seam
   priority; they never create image content.
-- `Sources/PanoWizard/Services/CubeMapService.swift` exports and imports a
-  lossless 4 × 3 cross layout containing six cube faces as an isolated
-  post-processing step.
+- `RetouchPatchService` exports and reprojects a square rectilinear view at a
+  saved Preview orientation. Applied patches are cached as one equirectangular
+  working image so existing preview and export paths remain unchanged.
 - `Sources/PanoWizard/ViewModels/AppModel.swift` connects the document, engine,
   preview, retouching, and export behavior to the UI lifecycle.
 - The `Images` application menu mirrors source-image order in the sidebar. Its

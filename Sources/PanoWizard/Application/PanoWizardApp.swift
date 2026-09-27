@@ -464,15 +464,8 @@ private struct ProjectDocumentView: View {
             masks: initialDocument.masks,
             protectedMasks: initialDocument.protectedMasks,
             panoramaData: initialDocument.panoramaData,
-            nadirOverlayData: initialDocument.nadirOverlayData,
-            zenithOverlayData: initialDocument.zenithOverlayData,
-            nadirRetouchData: initialDocument.nadirRetouchData,
-            zenithRetouchData: initialDocument.zenithRetouchData,
-            nadirAIRetouchResultData: initialDocument.nadirAIRetouchResultData,
-            zenithAIRetouchResultData: initialDocument.zenithAIRetouchResultData,
-            cubeRetouchData: initialDocument.cubeRetouchData,
-            nadirAIRetouchMaskData: initialDocument.nadirAIRetouchMaskData,
-            zenithAIRetouchMaskData: initialDocument.zenithAIRetouchMaskData
+            retouchPatchData: initialDocument.retouchPatchData,
+            aiRetouchMaskData: initialDocument.aiRetouchMaskData
         ))
     }
 
@@ -551,29 +544,10 @@ private struct ProjectDocumentView: View {
             panoramaData: hasNewPanoramaData
                 ? model.panoramaData
                 : savedDocument.panoramaData,
-            nadirOverlayData: hasNewPanoramaData
-                ? model.nadirOverlayData
-                : savedDocument.nadirOverlayData,
-            zenithOverlayData: hasNewPanoramaData
-                ? model.zenithOverlayData
-                : savedDocument.zenithOverlayData,
-            nadirRetouchData: hasNewPanoramaData
-                ? model.nadirRetouchData
-                : savedDocument.nadirRetouchData,
-            zenithRetouchData: hasNewPanoramaData
-                ? model.zenithRetouchData
-                : savedDocument.zenithRetouchData,
-            nadirAIRetouchResultData: hasNewPanoramaData
-                ? model.nadirAIRetouchResultData
-                : savedDocument.nadirAIRetouchResultData,
-            zenithAIRetouchResultData: hasNewPanoramaData
-                ? model.zenithAIRetouchResultData
-                : savedDocument.zenithAIRetouchResultData,
-            cubeRetouchData: hasNewPanoramaData
-                ? model.cubeRetouchData
-                : savedDocument.cubeRetouchData,
-            nadirAIRetouchMaskData: model.nadirAIRetouchMaskData,
-            zenithAIRetouchMaskData: model.zenithAIRetouchMaskData
+            retouchPatchData: hasNewPanoramaData
+                ? model.retouchPatchData
+                : savedDocument.retouchPatchData,
+            aiRetouchMaskData: model.aiRetouchMaskDataByPatchID
         )
     }
 

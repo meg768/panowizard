@@ -167,58 +167,11 @@ struct PoleRetouchService: Sendable {
                 pixel.r *= retained
                 pixel.g *= retained
                 pixel.b *= retained
-                pixel.a *= retained
+                pixel.a = retained
                 image.setPixel(pixel, x: x, y: y)
             }
         }
         return try image.pngData()
-    }
-
-    func prepareAIRetouchMask(
-        from sourceURL: URL,
-        existingMaskData: Data?,
-        pole: PanoramaPole,
-        expectedSize: Int = Self.plateSize
-    ) throws -> Data? {
-        let source = try RGBAImage(contentsOf: sourceURL)
-        guard source.width == expectedSize, source.height == expectedSize else {
-            throw PoleRetouchError.invalidDimensions(
-                pole: pole,
-                expected: expectedSize,
-                width: source.width,
-                height: source.height
-            )
-        }
-        var mask: RGBAImage
-        if let existingMaskData {
-            mask = try RGBAImage(data: existingMaskData)
-            guard mask.width == expectedSize, mask.height == expectedSize else {
-                throw PoleRetouchError.invalidDimensions(
-                    pole: pole,
-                    expected: expectedSize,
-                    width: mask.width,
-                    height: mask.height
-                )
-            }
-        } else {
-            mask = RGBAImage(width: expectedSize, height: expectedSize)
-        }
-
-        var foundTransparency = false
-        for y in 0..<source.height {
-            for x in 0..<source.width {
-                guard source.pixel(x: x, y: y).a == 0 else {
-                    continue
-                }
-                foundTransparency = true
-                mask.setPixel(
-                    Pixel(r: 1, g: 0.12, b: 0.08, a: 1),
-                    x: x,
-                    y: y
-                )
-            }
-        }
-        return foundTransparency ? try mask.pngData() : existingMaskData
     }
 
     func prepareAIRetouchPatch(
@@ -529,6 +482,197 @@ struct PoleRetouchService: Sendable {
         }
     }
 
+}
+
+enum RetouchPatchError: LocalizedError {
+    case unreadableImage
+    case invalidDimensions(expected: Int, width: Int, height: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .unreadableImage:
+            "The patch image could not be read."
+        case let .invalidDimensions(expected, width, height):
+            "The patch must be \(expected) × \(expected) px, but the image is \(width) × \(height) px."
+        }
+    }
+}
+
+/// Projects the existing square retouch plate onto an arbitrary panorama view.
+/// Keeping the plate format and compositor makes general patches a small
+/// extension of the proven pole-retouch workflow rather than a second renderer.
+struct RetouchPatchService: Sendable {
+    static let patchSize = PoleRetouchService.plateSize
+
+    func exportPatch(
+        panoramaURL: URL,
+        viewpoint: PanoramaViewpoint,
+        to destinationURL: URL,
+        size: Int = Self.patchSize
+    ) throws {
+        let panorama = try RGBAImage(contentsOf: panoramaURL)
+        var result = RGBAImage(width: size, height: size)
+        let tangent = tan(viewpoint.verticalFieldOfViewDegrees * .pi / 360)
+        let cosPitch = cos(viewpoint.pitchRadians)
+        let sinPitch = sin(viewpoint.pitchRadians)
+        let cosYaw = cos(viewpoint.yawRadians)
+        let sinYaw = sin(viewpoint.yawRadians)
+
+        for y in 0..<size {
+            if Task.isCancelled { throw CancellationError() }
+            let localY = 1 - 2 * ((Double(y) + 0.5) / Double(size))
+            for x in 0..<size {
+                let localX = 2 * ((Double(x) + 0.5) / Double(size)) - 1
+                var directionX = localX * tangent
+                var directionY = localY * tangent
+                var directionZ = 1.0
+                let length = sqrt(
+                    directionX * directionX
+                        + directionY * directionY
+                        + directionZ * directionZ
+                )
+                directionX /= length
+                directionY /= length
+                directionZ /= length
+
+                let pitchedY = directionY * cosPitch - directionZ * sinPitch
+                let pitchedZ = directionY * sinPitch + directionZ * cosPitch
+                directionY = pitchedY
+                directionZ = pitchedZ
+                let yawedX = directionX * cosYaw + directionZ * sinYaw
+                let yawedZ = -directionX * sinYaw + directionZ * cosYaw
+                directionX = yawedX
+                directionZ = yawedZ
+
+                let longitude = atan2(directionX, directionZ)
+                let latitude = asin(min(max(directionY, -1), 1))
+                result.setPixel(
+                    panorama.sample(
+                        x: 0.5 + longitude / (2 * .pi),
+                        y: 0.5 - latitude / .pi,
+                        wrappingX: true
+                    ),
+                    x: x,
+                    y: y
+                )
+            }
+        }
+        try result.writePNG(to: destinationURL)
+    }
+
+    func prepareImportedPatch(
+        from sourceURL: URL,
+        to destinationURL: URL,
+        expectedSize: Int = Self.patchSize
+    ) throws {
+        let image = try RGBAImage(contentsOf: sourceURL)
+        guard image.width == expectedSize, image.height == expectedSize else {
+            throw RetouchPatchError.invalidDimensions(
+                expected: expectedSize,
+                width: image.width,
+                height: image.height
+            )
+        }
+        try image.writePNG(to: destinationURL)
+    }
+
+    func prepareAIRetouchInput(
+        from sourceURL: URL,
+        maskData: Data
+    ) throws -> Data {
+        try PoleRetouchService().prepareAIRetouchInput(
+            from: sourceURL,
+            maskData: maskData,
+            pole: .nadir
+        )
+    }
+
+    func prepareAIRetouchPatch(
+        originalURL: URL,
+        editedURL: URL,
+        maskData: Data,
+        overlayURL: URL,
+        previewURL: URL
+    ) throws {
+        try PoleRetouchService().prepareAIRetouchPatch(
+            originalURL: originalURL,
+            editedURL: editedURL,
+            maskData: maskData,
+            pole: .nadir,
+            overlayURL: overlayURL,
+            previewURL: previewURL
+        )
+    }
+
+    func render(
+        panoramaURL: URL,
+        patches: [(RetouchPatch, URL)],
+        to destinationURL: URL,
+        expectedPatchSize: Int = Self.patchSize
+    ) throws {
+        var panorama = try RGBAImage(contentsOf: panoramaURL)
+        let active: [(PanoramaViewpoint, RGBAImage)] = try patches.compactMap {
+            patch, url in
+            guard patch.isEnabled else { return nil }
+            let image = try RGBAImage(contentsOf: url)
+            guard image.width == expectedPatchSize,
+                  image.height == expectedPatchSize else {
+                throw RetouchPatchError.invalidDimensions(
+                    expected: expectedPatchSize,
+                    width: image.width,
+                    height: image.height
+                )
+            }
+            return (patch.viewpoint, image)
+        }
+
+        for y in 0..<panorama.height {
+            if Task.isCancelled { throw CancellationError() }
+            let latitude = (0.5 - (Double(y) + 0.5) / Double(panorama.height)) * .pi
+            let worldY = sin(latitude)
+            let horizontalRadius = cos(latitude)
+            for x in 0..<panorama.width {
+                let longitude = (
+                    (Double(x) + 0.5) / Double(panorama.width) - 0.5
+                ) * 2 * .pi
+                let worldX = sin(longitude) * horizontalRadius
+                let worldZ = cos(longitude) * horizontalRadius
+                var pixel = panorama.pixel(x: x, y: y)
+
+                for (viewpoint, patchImage) in active {
+                    let cosYaw = cos(viewpoint.yawRadians)
+                    let sinYaw = sin(viewpoint.yawRadians)
+                    let yawX = worldX * cosYaw - worldZ * sinYaw
+                    let yawZ = worldX * sinYaw + worldZ * cosYaw
+                    let cosPitch = cos(viewpoint.pitchRadians)
+                    let sinPitch = sin(viewpoint.pitchRadians)
+                    let localY = worldY * cosPitch + yawZ * sinPitch
+                    let localZ = -worldY * sinPitch + yawZ * cosPitch
+                    guard localZ > 0.000_1 else { continue }
+                    let tangent = tan(
+                        viewpoint.verticalFieldOfViewDegrees * .pi / 360
+                    )
+                    let ndcX = yawX / localZ / tangent
+                    let ndcY = localY / localZ / tangent
+                    guard (-1...1).contains(ndcX),
+                          (-1...1).contains(ndcY) else { continue }
+                    let overlay = patchImage.sample(
+                        x: (ndcX + 1) / 2,
+                        y: (1 - ndcY) / 2
+                    )
+                    let inverseAlpha = 1 - overlay.a
+                    pixel = Pixel(
+                        r: overlay.r + pixel.r * inverseAlpha,
+                        g: overlay.g + pixel.g * inverseAlpha,
+                        b: overlay.b + pixel.b * inverseAlpha,
+                        a: overlay.a + pixel.a * inverseAlpha
+                    )
+                }
+                panorama.setPixel(pixel, x: x, y: y)
+            }
+        }
+        try panorama.writePNG(to: destinationURL)
+    }
 }
 
 struct Pixel {

@@ -33,25 +33,6 @@ struct PoleRetouchServiceTests {
     }
 
     @Test
-    func preparesRequestedRealAutomaticMask() throws {
-        let environment = ProcessInfo.processInfo.environment
-        guard let sourcePath = environment["PANOWIZARD_AI_SOURCE"],
-              let outputPath = environment["PANOWIZARD_AI_AUTOMATIC_MASK"] else {
-            return
-        }
-        let generated = try PoleRetouchService().prepareAIRetouchMask(
-            from: URL(fileURLWithPath: sourcePath),
-            existingMaskData: nil,
-            pole: .nadir
-        )
-        let data = try #require(generated)
-        try data.write(
-            to: URL(fileURLWithPath: outputPath),
-            options: .atomic
-        )
-    }
-
-    @Test
     func preparesRequestedRealAIRetouchPatch() throws {
         let environment = ProcessInfo.processInfo.environment
         guard let panoramaPath = environment["PANOWIZARD_AI_PANORAMA"],
@@ -151,13 +132,16 @@ struct PoleRetouchServiceTests {
     }
 
     @Test
-    func aiRetouchInputMakesOnlyPaintedPixelsTransparent() throws {
+    func aiRetouchInputUsesOnlyExplicitMask() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let sourceURL = directory.appending(path: "source.png")
         let maskURL = directory.appending(path: "mask.png")
-        try writeImage(width: 64, height: 64, to: sourceURL) { _, _ in
-            (120, 80, 40, 255)
+        try writeImage(width: 64, height: 64, to: sourceURL) { x, y in
+            if x == 20 && y == 20 {
+                return (0, 0, 0, 0)
+            }
+            return (120, 80, 40, 255)
         }
         try writeImage(width: 64, height: 64, to: maskURL) { x, y in
             x == 32 && y == 32 ? (255, 0, 0, 255) : (0, 0, 0, 0)
@@ -175,41 +159,7 @@ struct PoleRetouchServiceTests {
 
         #expect(result.pixel(x: 32, y: 32) == (0, 0, 0, 0))
         #expect(result.pixel(x: 10, y: 10) == (120, 80, 40, 255))
-    }
-
-    @Test
-    func aiRetouchMaskUsesTransparencyAndPreservesOpaqueBlack() throws {
-        let directory = try temporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let sourceURL = directory.appending(path: "source.png")
-        let existingURL = directory.appending(path: "existing.png")
-        try writeImage(width: 64, height: 64, to: sourceURL) { x, y in
-            if (20..<32).contains(x), (20..<32).contains(y) {
-                return (0, 0, 0, 0)
-            }
-            if (2..<8).contains(x), (2..<8).contains(y) {
-                return (0, 0, 0, 255)
-            }
-            return (80, 100, 120, 255)
-        }
-        try writeImage(width: 64, height: 64, to: existingURL) { x, y in
-            x == 50 && y == 50 ? (255, 0, 0, 255) : (0, 0, 0, 0)
-        }
-
-        let generated = try PoleRetouchService().prepareAIRetouchMask(
-            from: sourceURL,
-            existingMaskData: try Data(contentsOf: existingURL),
-            pole: .nadir,
-            expectedSize: 64
-        )
-        let data = try #require(generated)
-        let outputURL = directory.appending(path: "mask.png")
-        try data.write(to: outputURL)
-        let mask = try pixels(at: outputURL)
-        #expect(mask.pixel(x: 24, y: 24) == (255, 31, 20, 255))
-        #expect(mask.pixel(x: 50, y: 50).3 == 255)
-        #expect(mask.pixel(x: 2, y: 2).3 == 0)
-        #expect(mask.pixel(x: 10, y: 10).3 == 0)
+        #expect(result.pixel(x: 20, y: 20) == (0, 0, 0, 255))
     }
 
     @Test
@@ -366,6 +316,49 @@ struct PoleRetouchServiceTests {
         let flattened = try pixels(at: flattenedURL)
         #expect(flattened.pixel(x: 180, y: 0).2 >= 248)
         #expect(flattened.pixel(x: 180, y: 90).2 == 0)
+    }
+
+    @Test
+    func arbitraryPatchUsesTheSavedViewpoint() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let panoramaURL = directory.appending(path: "panorama.png")
+        let patchURL = directory.appending(path: "patch.png")
+        let baseURL = directory.appending(path: "base.png")
+        let renderedURL = directory.appending(path: "rendered.png")
+        let viewpoint = PanoramaViewpoint(
+            yawRadians: .pi / 2,
+            pitchRadians: 0,
+            verticalFieldOfViewDegrees: 70
+        )
+        try writeImage(width: 360, height: 180, to: panoramaURL) { x, y in
+            (UInt8(x * 255 / 359), UInt8(y * 255 / 179), 40, 255)
+        }
+        try writeImage(width: 360, height: 180, to: baseURL) { _, _ in
+            (0, 0, 0, 255)
+        }
+
+        try RetouchPatchService().exportPatch(
+            panoramaURL: panoramaURL,
+            viewpoint: viewpoint,
+            to: patchURL,
+            size: 64
+        )
+        let patch = RetouchPatch(kind: .manual, viewpoint: viewpoint)
+        try RetouchPatchService().render(
+            panoramaURL: baseURL,
+            patches: [(patch, patchURL)],
+            to: renderedURL,
+            expectedPatchSize: 64
+        )
+
+        let source = try pixels(at: panoramaURL)
+        let rendered = try pixels(at: renderedURL)
+        let expected = source.pixel(x: 270, y: 90)
+        let actual = rendered.pixel(x: 270, y: 90)
+        #expect(abs(Int(expected.0) - Int(actual.0)) <= 2)
+        #expect(abs(Int(expected.1) - Int(actual.1)) <= 2)
+        #expect(rendered.pixel(x: 90, y: 90) == (0, 0, 0, 255))
     }
 
     private func temporaryDirectory() throws -> URL {

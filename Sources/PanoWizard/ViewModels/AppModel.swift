@@ -28,7 +28,7 @@ final class AppModel {
             case .ready: "Ready"
             case .importing: "Reading images and metadata…"
             case .stitching: "Stitching panorama…"
-            case .retouching: "Retouching pole image…"
+            case .retouching: "Preparing retouch patch…"
             case .exporting: "Exporting…"
             case .failed(let message): message
             }
@@ -58,16 +58,10 @@ final class AppModel {
     var isImporterPresented = false
     var skippedFileCount = 0
     var stitchedResultURL: URL?
+    var retouchedPanoramaURL: URL?
     var panoramaViewpoint = PanoramaViewpoint()
-    var nadirOverlayURL: URL?
-    var zenithOverlayURL: URL?
-    var nadirRetouchURL: URL?
-    var zenithRetouchURL: URL?
-    var nadirAIRetouchResultURL: URL?
-    var zenithAIRetouchResultURL: URL?
-    var cubeRetouchURL: URL?
-    var nadirAIRetouchMaskData: Data?
-    var zenithAIRetouchMaskData: Data?
+    var retouchPatchURLs: [UUID: URL] = [:]
+    var aiRetouchMaskDataByPatchID: [UUID: Data]
     var maskDataByImageID: [UUID: Data]
     var protectedMaskDataByImageID: [UUID: Data]
     var maskRevision = 0
@@ -91,15 +85,8 @@ final class AppModel {
         masks: [UUID: Data] = [:],
         protectedMasks: [UUID: Data] = [:],
         panoramaData: Data? = nil,
-        nadirOverlayData: Data? = nil,
-        zenithOverlayData: Data? = nil,
-        nadirRetouchData: Data? = nil,
-        zenithRetouchData: Data? = nil,
-        nadirAIRetouchResultData: Data? = nil,
-        zenithAIRetouchResultData: Data? = nil,
-        cubeRetouchData: Data? = nil,
-        nadirAIRetouchMaskData: Data? = nil,
-        zenithAIRetouchMaskData: Data? = nil
+        retouchPatchData: [UUID: Data] = [:],
+        aiRetouchMaskData: [UUID: Data] = [:]
     ) {
         self.project = project
         self.importer = importer
@@ -108,35 +95,24 @@ final class AppModel {
         self.exporter = exporter
         maskDataByImageID = masks
         protectedMaskDataByImageID = protectedMasks
+        aiRetouchMaskDataByPatchID = aiRetouchMaskData
         panoramaViewpoint = project.previewViewpoint ?? PanoramaViewpoint()
-        selection = project.images.first.map { .source($0.id) }
-        isSourceMaskEditing = !project.images.isEmpty
         stitchedResultURL = panoramaData.flatMap {
-            Self.restoreData($0, filename: "\(project.id)-panorama.jpg")
+            Self.restoreData($0, filename: "\(project.id)-panorama.png")
         }
-        nadirOverlayURL = nadirOverlayData.flatMap {
-            Self.restoreData($0, filename: "\(project.id)-nadir-overlay.png")
-        }
-        zenithOverlayURL = zenithOverlayData.flatMap {
-            Self.restoreData($0, filename: "\(project.id)-zenith-overlay.png")
-        }
-        nadirRetouchURL = nadirRetouchData.flatMap {
-            Self.restoreData($0, filename: "\(project.id)-nadir-retouch.png")
-        }
-        zenithRetouchURL = zenithRetouchData.flatMap {
-            Self.restoreData($0, filename: "\(project.id)-zenith-retouch.png")
-        }
-        nadirAIRetouchResultURL = nadirAIRetouchResultData.flatMap {
-            Self.restoreData($0, filename: "\(project.id)-nadir-ai-result.png")
-        }
-        zenithAIRetouchResultURL = zenithAIRetouchResultData.flatMap {
-            Self.restoreData($0, filename: "\(project.id)-zenith-ai-result.png")
-        }
-        cubeRetouchURL = cubeRetouchData.flatMap {
-            Self.restoreData($0, filename: "\(project.id)-cube-retouch.png")
-        }
-        self.nadirAIRetouchMaskData = nadirAIRetouchMaskData
-        self.zenithAIRetouchMaskData = zenithAIRetouchMaskData
+        selection = stitchedResultURL != nil
+            ? .panorama
+            : project.images.first.map { .source($0.id) }
+        isSourceMaskEditing = selectedSourceImage != nil
+        retouchPatchURLs = Dictionary(uniqueKeysWithValues:
+            retouchPatchData.compactMap { id, data in
+                Self.restoreData(
+                    data,
+                    filename: "\(project.id)-retouch-patch-\(id).png"
+                ).map { (id, $0) }
+            }
+        )
+        try? rebuildRetouchedPanorama()
     }
 
     static func live(
@@ -144,15 +120,8 @@ final class AppModel {
         masks: [UUID: Data] = [:],
         protectedMasks: [UUID: Data] = [:],
         panoramaData: Data? = nil,
-        nadirOverlayData: Data? = nil,
-        zenithOverlayData: Data? = nil,
-        nadirRetouchData: Data? = nil,
-        zenithRetouchData: Data? = nil,
-        nadirAIRetouchResultData: Data? = nil,
-        zenithAIRetouchResultData: Data? = nil,
-        cubeRetouchData: Data? = nil,
-        nadirAIRetouchMaskData: Data? = nil,
-        zenithAIRetouchMaskData: Data? = nil
+        retouchPatchData: [UUID: Data] = [:],
+        aiRetouchMaskData: [UUID: Data] = [:]
     ) -> AppModel {
         AppModel(
             project: project,
@@ -163,21 +132,14 @@ final class AppModel {
             masks: masks,
             protectedMasks: protectedMasks,
             panoramaData: panoramaData,
-            nadirOverlayData: nadirOverlayData,
-            zenithOverlayData: zenithOverlayData,
-            nadirRetouchData: nadirRetouchData,
-            zenithRetouchData: zenithRetouchData,
-            nadirAIRetouchResultData: nadirAIRetouchResultData,
-            zenithAIRetouchResultData: zenithAIRetouchResultData,
-            cubeRetouchData: cubeRetouchData,
-            nadirAIRetouchMaskData: nadirAIRetouchMaskData,
-            zenithAIRetouchMaskData: zenithAIRetouchMaskData
+            retouchPatchData: retouchPatchData,
+            aiRetouchMaskData: aiRetouchMaskData
         )
     }
 
     var panorama: PanoramaSet? { project.images.isEmpty ? nil : project.panorama }
     var sourceDirectoryURL: URL? { project.images.first?.url.deletingLastPathComponent() }
-    var currentPanoramaURL: URL? { cubeRetouchURL ?? stitchedResultURL }
+    var currentPanoramaURL: URL? { retouchedPanoramaURL ?? stitchedResultURL }
     var panoramaAdjustments: PanoramaAdjustments { project.panoramaAdjustments }
 
     var selectedPreviewURL: URL? {
@@ -367,13 +329,7 @@ final class AppModel {
                 }
                 guard stitchOperationID == operationID else { return }
                 stitchedResultURL = result.url
-                nadirOverlayURL = nil
-                zenithOverlayURL = nil
-                nadirRetouchURL = nil
-                zenithRetouchURL = nil
-                nadirAIRetouchResultURL = nil
-                zenithAIRetouchResultURL = nil
-                cubeRetouchURL = nil
+                clearRetouchPatches()
                 project.setPanoramaAdjustments(.neutral)
                 lastStitchCoverage = result.coveragePercent
                 lastStitchHoleCount = result.holeCount
@@ -471,127 +427,35 @@ final class AppModel {
         sourceMaskIntent == .protect ? .protected : .panorama
     }
 
-    func retouchURL(for pole: PanoramaPole) -> URL? {
-        pole == .nadir ? nadirRetouchURL : zenithRetouchURL
-    }
+    var retouchPatches: [RetouchPatch] { project.retouchPatches }
 
-    func aiRetouchResultURL(for pole: PanoramaPole) -> URL? {
-        pole == .nadir ? nadirAIRetouchResultURL : zenithAIRetouchResultURL
-    }
-
-    func aiRetouchMaskData(for pole: PanoramaPole) -> Data? {
-        pole == .nadir ? nadirAIRetouchMaskData : zenithAIRetouchMaskData
-    }
-
-    func setAIRetouchMaskData(_ data: Data?, for pole: PanoramaPole) {
-        guard aiRetouchMaskData(for: pole) != data else { return }
-        if pole == .nadir { nadirAIRetouchMaskData = data }
-        else { zenithAIRetouchMaskData = data }
-        aiRetouchMaskRevision += 1
-    }
-
-    func aiRetouchPrompt(for pole: PanoramaPole) -> String? {
-        project.aiRetouchPrompt(for: pole)
-    }
-
-    func setAIRetouchPrompt(_ prompt: String, for pole: PanoramaPole) {
-        project.setAIRetouchPrompt(prompt, for: pole)
-    }
-
-    func clearAIRetouchPrompt(for pole: PanoramaPole) {
-        project.clearAIRetouchPrompt(for: pole)
-    }
-
-    func exportRetouchPlate(for pole: PanoramaPole, to destinationURL: URL) {
-        guard let panoramaURL = currentPanoramaURL, phase == .ready else { return }
-        let overlayURL = pole == .nadir ? nadirOverlayURL : zenithOverlayURL
-        let existingURL = retouchURL(for: pole)
-        phase = .retouching
-        Task {
-            do {
-                try await Task.detached(priority: .userInitiated) {
-                    try PoleRetouchService().exportPlate(
-                        panoramaURL: panoramaURL,
-                        repairOverlayURL: overlayURL,
-                        existingRetouchURL: existingURL,
-                        pole: pole,
-                        to: destinationURL
-                    )
-                }.value
-                phase = .ready
-            } catch { phase = .failed(error.localizedDescription) }
-        }
-    }
-
-    func importRetouchPlate(for pole: PanoramaPole, from sourceURL: URL) {
-        guard stitchedResultURL != nil, phase == .ready else { return }
-        let directory = retouchDirectory
-        let destination = directory.appending(path: "\(pole.rawValue)-retouch.png")
-        phase = .retouching
-        Task {
-            do {
-                try FileManager.default.createDirectory(
-                    at: directory,
-                    withIntermediateDirectories: true
-                )
-                try await Task.detached(priority: .userInitiated) {
-                    try PoleRetouchService().prepareImportedPlate(
-                        from: sourceURL,
-                        pole: pole,
-                        to: destination
-                    )
-                }.value
-                if let oldResultURL = aiRetouchResultURL(for: pole) {
-                    try? FileManager.default.removeItem(at: oldResultURL)
-                }
-                setAIRetouchResultURL(nil, for: pole)
-                setRetouchURL(destination, for: pole)
-                selection = .panorama
-                panoramaRevision += 1
-                phase = .ready
-            } catch { phase = .failed(error.localizedDescription) }
-        }
-    }
-
-    func createAIRetouchSource(for pole: PanoramaPole) async throws
-        -> AIRetouchSource {
-        guard let panoramaURL = currentPanoramaURL, phase == .ready else {
+    func createRetouchPatchSource(
+        at viewpoint: PanoramaViewpoint
+    ) async throws -> AIRetouchSource {
+        guard let panoramaURL = currentPanoramaURL else {
             throw AIRetouchError.panoramaUnavailable
         }
         let directory = FileManager.default.temporaryDirectory.appending(
-            path: "PanoWizard/AIRetouch/\(project.id)/\(UUID())",
+            path: "PanoWizard/RetouchPatch/\(project.id)/\(UUID())",
             directoryHint: .isDirectory
         )
-        let sourceURL = directory.appending(path: "\(pole.rawValue)-source.png")
-        let overlayURL = pole == .nadir ? nadirOverlayURL : zenithOverlayURL
-        let existingMaskData = aiRetouchMaskData(for: pole)
-        phase = .retouching
-        defer { if phase == .retouching { phase = .ready } }
+        let sourceURL = directory.appending(path: "source.png")
         try FileManager.default.createDirectory(
             at: directory,
             withIntermediateDirectories: true
         )
         do {
-            let initialMaskData = try await Task.detached(priority: .userInitiated) {
-                try PoleRetouchService().exportPlate(
+            try await Task.detached(priority: .userInitiated) {
+                try RetouchPatchService().exportPatch(
                     panoramaURL: panoramaURL,
-                    repairOverlayURL: overlayURL,
-                    existingRetouchURL: nil,
-                    pole: pole,
+                    viewpoint: viewpoint,
                     to: sourceURL
                 )
-                return try PoleRetouchService().prepareAIRetouchMask(
-                    from: sourceURL,
-                    existingMaskData: existingMaskData,
-                    pole: pole
-                )
             }.value
-            try Task.checkCancellation()
             return AIRetouchSource(
-                pole: pole,
+                viewpoint: viewpoint,
                 directoryURL: directory,
-                sourceURL: sourceURL,
-                initialMaskData: initialMaskData
+                sourceURL: sourceURL
             )
         } catch {
             try? FileManager.default.removeItem(at: directory)
@@ -601,61 +465,55 @@ final class AppModel {
 
     func createAIRetouchPreview(
         source: AIRetouchSource,
-        for pole: PanoramaPole,
         maskData: Data?,
         prompt: String,
         apiKey: String
     ) async throws -> AIRetouchPreview {
         guard stitchedResultURL != nil,
               phase == .ready,
-              source.pole == pole,
               FileManager.default.fileExists(atPath: source.sourceURL.path)
         else { throw AIRetouchError.panoramaUnavailable }
         let prompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !prompt.isEmpty else { throw AIRetouchError.emptyPrompt }
+        guard let maskData else { throw AIRetouchError.missingMask }
         let directory = source.directoryURL.appending(
             path: "Previews/\(UUID())",
             directoryHint: .isDirectory
         )
-        let editedURL = directory.appending(path: "\(pole.rawValue)-edited.png")
-        let preparedURL = directory.appending(path: "\(pole.rawValue)-prepared.png")
-        let compositedURL = directory.appending(
-            path: "\(pole.rawValue)-composited.png"
-        )
+        let editedURL = directory.appending(path: "edited.png")
+        let preparedURL = directory.appending(path: "prepared.png")
+        let compositedURL = directory.appending(path: "composited.png")
         phase = .retouching
         defer { if phase == .retouching { phase = .ready } }
         try FileManager.default.createDirectory(
             at: directory,
             withIntermediateDirectories: true
         )
-        guard let maskData else { throw AIRetouchError.missingMask }
         let sourceData = try await Task.detached(priority: .userInitiated) {
-            return try PoleRetouchService().prepareAIRetouchInput(
+            try RetouchPatchService().prepareAIRetouchInput(
                 from: source.sourceURL,
-                maskData: maskData,
-                pole: pole
+                maskData: maskData
             )
         }.value
         let editedData = try await OpenAIImageEditService(apiKey: apiKey).edit(
             imageData: sourceData,
-            filename: "\(pole.rawValue).png",
+            filename: "patch.png",
             prompt: prompt,
-            size: PoleRetouchService.plateSize
+            size: RetouchPatchService.patchSize
         )
         try Task.checkCancellation()
         try await Task.detached(priority: .userInitiated) {
             try editedData.write(to: editedURL, options: .atomic)
-            try PoleRetouchService().prepareAIRetouchPatch(
+            try RetouchPatchService().prepareAIRetouchPatch(
                 originalURL: source.sourceURL,
                 editedURL: editedURL,
                 maskData: maskData,
-                pole: pole,
                 overlayURL: preparedURL,
                 previewURL: compositedURL
             )
         }.value
         return AIRetouchPreview(
-            pole: pole,
+            viewpoint: source.viewpoint,
             directoryURL: directory,
             editedURL: editedURL,
             preparedURL: preparedURL,
@@ -663,151 +521,86 @@ final class AppModel {
         )
     }
 
-    func applyAIRetouchPreview(_ preview: AIRetouchPreview) throws {
-        let revision = UUID().uuidString
-        let retouchDestination = retouchDirectory.appending(
-            path: "\(preview.pole.rawValue)-retouch-\(revision).png"
+    func applyAIRetouchPreview(
+        _ preview: AIRetouchPreview,
+        prompt: String,
+        maskData: Data
+    ) throws {
+        let patch = RetouchPatch(
+            kind: .ai,
+            viewpoint: preview.viewpoint,
+            prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         )
-        let resultDestination = retouchDirectory.appending(
-            path: "\(preview.pole.rawValue)-ai-result-\(revision).png"
+        try addRetouchPatch(
+            patch,
+            imageURL: preview.preparedURL,
+            maskData: maskData
         )
-        try FileManager.default.createDirectory(
-            at: retouchDirectory,
-            withIntermediateDirectories: true
+    }
+
+    func applyManualRetouchPatch(
+        from importedURL: URL,
+        viewpoint: PanoramaViewpoint
+    ) throws {
+        let patch = RetouchPatch(
+            kind: .manual,
+            viewpoint: viewpoint
         )
-        do {
-            try Data(contentsOf: preview.preparedURL).write(
-                to: retouchDestination,
-                options: .atomic
-            )
-            try Data(contentsOf: preview.editedURL).write(
-                to: resultDestination,
-                options: .atomic
-            )
-        } catch {
-            try? FileManager.default.removeItem(at: retouchDestination)
-            try? FileManager.default.removeItem(at: resultDestination)
-            throw error
-        }
-        let oldRetouchURL = retouchURL(for: preview.pole)
-        let oldResultURL = aiRetouchResultURL(for: preview.pole)
-        setRetouchURL(retouchDestination, for: preview.pole)
-        setAIRetouchResultURL(resultDestination, for: preview.pole)
-        if let oldRetouchURL, oldRetouchURL != retouchDestination {
-            try? FileManager.default.removeItem(at: oldRetouchURL)
-        }
-        if let oldResultURL, oldResultURL != resultDestination {
-            try? FileManager.default.removeItem(at: oldResultURL)
-        }
-        selection = .panorama
-        panoramaRevision += 1
+        try addRetouchPatch(
+            patch,
+            imageURL: importedURL,
+            maskData: nil
+        )
+    }
+
+    func discardRetouchPatchSource(_ source: AIRetouchSource) {
+        try? FileManager.default.removeItem(at: source.directoryURL)
     }
 
     func discardAIRetouchPreview(_ preview: AIRetouchPreview) {
         try? FileManager.default.removeItem(at: preview.directoryURL)
     }
 
-    func discardAIRetouchSource(_ source: AIRetouchSource) {
-        try? FileManager.default.removeItem(at: source.directoryURL)
-    }
-
-    func removeRetouch(for pole: PanoramaPole) {
-        guard let url = retouchURL(for: pole) else { return }
-        let resultURL = aiRetouchResultURL(for: pole)
-        setRetouchURL(nil, for: pole)
-        setAIRetouchResultURL(nil, for: pole)
-        try? FileManager.default.removeItem(at: url)
-        if let resultURL {
-            try? FileManager.default.removeItem(at: resultURL)
-        }
-        project.clearAIRetouchPrompt(for: pole)
-        panoramaRevision += 1
-    }
-
-    func exportCubeMap(to destinationURL: URL) {
-        guard let panoramaURL = currentPanoramaURL, phase == .ready else { return }
-        let nadirOverlayURL = nadirOverlayURL
-        let zenithOverlayURL = zenithOverlayURL
-        let nadirRetouchURL = nadirRetouchURL
-        let zenithRetouchURL = zenithRetouchURL
-        phase = .retouching
-        Task {
-            do {
-                try await Task.detached(priority: .userInitiated) {
-                    try CubeMapService().exportMap(
-                        panoramaURL: panoramaURL,
-                        nadirOverlayURL: nadirOverlayURL,
-                        zenithOverlayURL: zenithOverlayURL,
-                        nadirRetouchURL: nadirRetouchURL,
-                        zenithRetouchURL: zenithRetouchURL,
-                        to: destinationURL
-                    )
-                }.value
-                phase = .ready
-            } catch is CancellationError {
-                phase = .ready
-            } catch {
-                phase = .failed(error.localizedDescription)
-            }
+    func toggleRetouchPatch(_ id: UUID) {
+        guard let index = project.retouchPatches.firstIndex(where: {
+            $0.id == id
+        }) else { return }
+        let previousPatches = project.retouchPatches
+        var updatedPatches = previousPatches
+        updatedPatches[index].isEnabled.toggle()
+        project.setRetouchPatches(updatedPatches)
+        do {
+            try rebuildRetouchedPanorama()
+            panoramaRevision += 1
+        } catch {
+            project.setRetouchPatches(previousPatches)
+            phase = .failed(error.localizedDescription)
         }
     }
 
-    func importCubeMap(from sourceURL: URL) {
-        guard let stitchedResultURL, phase == .ready else { return }
-        let destination = retouchDirectory.appending(
-            path: "cube-retouch-\(UUID().uuidString).png"
-        )
-        phase = .retouching
-        Task {
-            do {
-                try FileManager.default.createDirectory(
-                    at: retouchDirectory,
-                    withIntermediateDirectories: true
-                )
-                try await Task.detached(priority: .userInitiated) {
-                    try CubeMapService().importMap(
-                        from: sourceURL,
-                        panoramaURL: stitchedResultURL,
-                        to: destination
-                    )
-                }.value
-                let replacedRetouchURLs = [
-                    cubeRetouchURL,
-                    nadirOverlayURL,
-                    zenithOverlayURL,
-                    nadirRetouchURL,
-                    zenithRetouchURL,
-                    nadirAIRetouchResultURL,
-                    zenithAIRetouchResultURL
-                ].compactMap { $0 }
-                cubeRetouchURL = destination
-                nadirOverlayURL = nil
-                zenithOverlayURL = nil
-                nadirRetouchURL = nil
-                zenithRetouchURL = nil
-                nadirAIRetouchResultURL = nil
-                zenithAIRetouchResultURL = nil
-                for url in replacedRetouchURLs where url != destination {
-                    try? FileManager.default.removeItem(at: url)
-                }
-                selection = .panorama
-                panoramaRevision += 1
-                phase = .ready
-            } catch is CancellationError {
-                try? FileManager.default.removeItem(at: destination)
-                phase = .ready
-            } catch {
-                try? FileManager.default.removeItem(at: destination)
-                phase = .failed(error.localizedDescription)
-            }
+    func removeRetouchPatch(_ id: UUID) {
+        guard project.retouchPatches.contains(where: { $0.id == id }) else {
+            return
+        }
+        let previousPatches = project.retouchPatches
+        project.setRetouchPatches(previousPatches.filter { $0.id != id })
+        let removedURL = retouchPatchURLs.removeValue(forKey: id)
+        let removedMask = aiRetouchMaskDataByPatchID.removeValue(forKey: id)
+        do {
+            try rebuildRetouchedPanorama()
+            if let removedURL { try? FileManager.default.removeItem(at: removedURL) }
+            panoramaRevision += 1
+        } catch {
+            project.setRetouchPatches(previousPatches)
+            if let removedURL { retouchPatchURLs[id] = removedURL }
+            if let removedMask { aiRetouchMaskDataByPatchID[id] = removedMask }
+            phase = .failed(error.localizedDescription)
         }
     }
 
-    func removeCubeRetouch() {
-        guard let cubeRetouchURL else { return }
-        self.cubeRetouchURL = nil
-        try? FileManager.default.removeItem(at: cubeRetouchURL)
-        panoramaRevision += 1
+    func showRetouchPatch(_ patch: RetouchPatch) {
+        setPanoramaViewpoint(patch.viewpoint)
+        selection = .panorama
     }
 
     func exportHTML(to destinationURL: URL, initialViewpoint: PanoramaViewpoint) {
@@ -817,10 +610,10 @@ final class AppModel {
             do {
                 try await exporter.exportHTML(
                     panoramaURL: panoramaURL,
-                    nadirOverlayURL: nadirOverlayURL,
-                    zenithOverlayURL: zenithOverlayURL,
-                    nadirRetouchURL: nadirRetouchURL,
-                    zenithRetouchURL: zenithRetouchURL,
+                    nadirOverlayURL: nil,
+                    zenithOverlayURL: nil,
+                    nadirRetouchURL: nil,
+                    zenithRetouchURL: nil,
                     adjustments: panoramaAdjustments,
                     title: project.title,
                     initialViewpoint: initialViewpoint,
@@ -832,18 +625,42 @@ final class AppModel {
     }
 
     var panoramaData: Data? { stitchedResultURL.flatMap { try? Data(contentsOf: $0) } }
-    var nadirOverlayData: Data? { nadirOverlayURL.flatMap { try? Data(contentsOf: $0) } }
-    var zenithOverlayData: Data? { zenithOverlayURL.flatMap { try? Data(contentsOf: $0) } }
-    var nadirRetouchData: Data? { nadirRetouchURL.flatMap { try? Data(contentsOf: $0) } }
-    var zenithRetouchData: Data? { zenithRetouchURL.flatMap { try? Data(contentsOf: $0) } }
-    var nadirAIRetouchResultData: Data? {
-        nadirAIRetouchResultURL.flatMap { try? Data(contentsOf: $0) }
+    var retouchPatchData: [UUID: Data] {
+        Dictionary(uniqueKeysWithValues: retouchPatchURLs.compactMap { id, url in
+            (try? Data(contentsOf: url)).map { (id, $0) }
+        })
     }
-    var zenithAIRetouchResultData: Data? {
-        zenithAIRetouchResultURL.flatMap { try? Data(contentsOf: $0) }
-    }
-    var cubeRetouchData: Data? {
-        cubeRetouchURL.flatMap { try? Data(contentsOf: $0) }
+
+    private func addRetouchPatch(
+        _ patch: RetouchPatch,
+        imageURL: URL,
+        maskData: Data?
+    ) throws {
+        let destination = retouchDirectory.appending(
+            path: "patch-\(patch.id).png"
+        )
+        try FileManager.default.createDirectory(
+            at: retouchDirectory,
+            withIntermediateDirectories: true
+        )
+        try RetouchPatchService().prepareImportedPatch(
+            from: imageURL,
+            to: destination
+        )
+        let oldPatches = project.retouchPatches
+        project.setRetouchPatches(oldPatches + [patch])
+        retouchPatchURLs[patch.id] = destination
+        if let maskData { aiRetouchMaskDataByPatchID[patch.id] = maskData }
+        do {
+            try rebuildRetouchedPanorama()
+            panoramaRevision += 1
+        } catch {
+            project.setRetouchPatches(oldPatches)
+            retouchPatchURLs[patch.id] = nil
+            aiRetouchMaskDataByPatchID[patch.id] = nil
+            try? FileManager.default.removeItem(at: destination)
+            throw error
+        }
     }
 
     private var retouchDirectory: URL {
@@ -853,14 +670,50 @@ final class AppModel {
         )
     }
 
-    private func setRetouchURL(_ url: URL?, for pole: PanoramaPole) {
-        if pole == .nadir { nadirRetouchURL = url }
-        else { zenithRetouchURL = url }
+    private func rebuildRetouchedPanorama() throws {
+        guard let stitchedResultURL else {
+            retouchedPanoramaURL = nil
+            return
+        }
+        let active = project.retouchPatches.compactMap { patch in
+            retouchPatchURLs[patch.id].map { (patch, $0) }
+        }
+        guard active.contains(where: { $0.0.isEnabled }) else {
+            if let retouchedPanoramaURL {
+                try? FileManager.default.removeItem(at: retouchedPanoramaURL)
+            }
+            retouchedPanoramaURL = nil
+            return
+        }
+        try FileManager.default.createDirectory(
+            at: retouchDirectory,
+            withIntermediateDirectories: true
+        )
+        let destination = retouchDirectory.appending(
+            path: "composite-\(UUID().uuidString).png"
+        )
+        try RetouchPatchService().render(
+            panoramaURL: stitchedResultURL,
+            patches: active,
+            to: destination
+        )
+        let oldURL = retouchedPanoramaURL
+        retouchedPanoramaURL = destination
+        if let oldURL, oldURL != destination {
+            try? FileManager.default.removeItem(at: oldURL)
+        }
     }
 
-    private func setAIRetouchResultURL(_ url: URL?, for pole: PanoramaPole) {
-        if pole == .nadir { nadirAIRetouchResultURL = url }
-        else { zenithAIRetouchResultURL = url }
+    private func clearRetouchPatches() {
+        let urls = Array(retouchPatchURLs.values)
+        if let retouchedPanoramaURL {
+            try? FileManager.default.removeItem(at: retouchedPanoramaURL)
+        }
+        retouchedPanoramaURL = nil
+        retouchPatchURLs = [:]
+        aiRetouchMaskDataByPatchID = [:]
+        project.setRetouchPatches([])
+        for url in urls { try? FileManager.default.removeItem(at: url) }
     }
 
     private func retainMasks(for images: [SourceImage]) {
@@ -887,13 +740,7 @@ final class AppModel {
 
     private func invalidatePanorama() {
         stitchedResultURL = nil
-        nadirOverlayURL = nil
-        zenithOverlayURL = nil
-        nadirRetouchURL = nil
-        zenithRetouchURL = nil
-        nadirAIRetouchResultURL = nil
-        zenithAIRetouchResultURL = nil
-        cubeRetouchURL = nil
+        clearRetouchPatches()
         project.setPanoramaAdjustments(.neutral)
         lastStitchCoverage = nil
         lastStitchHoleCount = nil
