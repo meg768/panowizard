@@ -70,8 +70,8 @@ live panorama viewer. For an AI patch, pan or zoom to the desired view, then
 choose **Mask** to freeze that view. Drag to paint, Option-drag to erase, and
 choose **Clear Mask** to discard the mask and resume navigation. Manual Patch
 is a modal export, external edit, import, and Apply workflow using a
-2048 × 2048 PNG. The project stores only the finished manual patch and the
-projection needed to place it.
+2048 × 2048 PNG named `patch.png` by default. The project stores only the
+finished manual patch and the projection needed to place it.
 
 Applied patches form a simple ordered list. Newer patches appear over older
 ones where they overlap, and each patch can be shown, hidden, or deleted. To
@@ -114,8 +114,8 @@ The engine:
    the warped source layers without changing ownership.
 9. Combines narrow detail transitions with wider low-frequency balancing in
    consistent regions while protecting structure and high-conflict areas.
-10. Writes a complete 2:1 equirectangular JPEG and reports coverage and hole
-    statistics.
+10. Writes a complete 2:1 alpha-preserving equirectangular PNG and reports
+    coverage and hole statistics.
 
 The alignment cache is keyed by the engine format, source identity and
 metadata, image role, orientation, and red exclusion masks.
@@ -125,8 +125,7 @@ metadata, image role, orientation, and red exclusion masks.
 The project format is version 10. It stores source images, roles, manual
 rotation, masks, the completed panorama, preview state, ordered retouch
 patches, and global panorama adjustments in one project package. PanoWizard
-accepts version 10
-projects only; other project-format versions are rejected.
+accepts version 10 projects only; other project-format versions are rejected.
 
 ## Building from source
 
