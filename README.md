@@ -64,12 +64,12 @@ seam selection without changing the underlying source pixels.
 ### Retouching and alternative exports
 
 Retouching is an optional post-processing step and does not affect panorama
-alignment or seam selection. `Add manual patch` and `Add AI patch` open at
-the direction and zoom last shown in Preview. The square Before pane is the
-live panorama viewer. For an AI patch, pan or zoom to the desired view, then
-choose **Mask** to freeze that view. Drag to paint, Option-drag to erase, and
-choose **Clear Mask** to discard the mask and resume navigation. Manual Patch
-is a modal export, external edit, import, and Apply workflow using a
+alignment or seam selection. Retouch contains a square panorama viewfinder
+that starts at the direction and zoom last shown in Preview. Position the exact
+area there, then choose `Add manual patch` or `Add AI patch` to capture that
+fixed view. In the AI dialog, drag pans within the captured image, scrolling
+zooms, Command-drag paints the mask, and Command-Option-drag erases. Manual
+Patch is a modal export, external edit, import, and Apply workflow using a
 2048 × 2048 PNG named `patch.png` by default. The project stores only the
 finished manual patch and the projection needed to place it.
 

@@ -36,14 +36,14 @@ struct PanoramaSidebar: View {
                     if !model.project.images.isEmpty {
                         Section {
                             navigationRow(
-                                "Preview",
-                                systemImage: "eye",
-                                selection: .panorama
-                            )
-                            navigationRow(
                                 "Retouch",
                                 systemImage: "paintbrush.pointed",
                                 selection: .retouch
+                            )
+                            navigationRow(
+                                "Preview",
+                                systemImage: "eye",
+                                selection: .panorama
                             )
                             navigationRow(
                                 "Export",

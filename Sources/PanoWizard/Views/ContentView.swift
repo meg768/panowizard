@@ -25,7 +25,7 @@ struct ContentView: View {
                         openProject: nil
                     )
                 } else {
-                    NavigationSplitView {
+                    NavigationSplitView(columnVisibility: .constant(.all)) {
                         PanoramaSidebar(model: model)
                             .onGeometryChange(for: CGFloat.self) { geometry in
                                 geometry.size.width
@@ -40,6 +40,8 @@ struct ContentView: View {
                     } detail: {
                         detailWorkspace
                     }
+                    .navigationSplitViewStyle(.balanced)
+                    .toolbar(removing: .sidebarToggle)
                 }
             }
             .disabled(retouchPatchPresentation != nil)
@@ -60,6 +62,11 @@ struct ContentView: View {
                     .padding(18)
             }
         }
+        .frame(
+            minWidth: minimumContentWidth,
+            minHeight: 600,
+            alignment: .topLeading
+        )
         .focusedSceneValue(
             \.panoramaCommandActions,
             PanoramaCommandActions(
@@ -175,7 +182,7 @@ struct ContentView: View {
     }
 
     private var previewWorkspace: some View {
-        HSplitView {
+        HStack(spacing: 0) {
             PanoramaPreview(
                 panorama: model.panorama,
                 imageURL: model.selectedPreviewURL,
@@ -202,23 +209,33 @@ struct ContentView: View {
                     model.setSourceMasks(red: red, green: green, for: image.id)
                 }
             )
-            .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
+            .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
 
             if model.isShowingStitchedPanorama
                 && showsAdjustmentInspectorInPreview {
+                Divider()
+
                 PanoramaAdjustPanel(
                     model: model,
                     showsOriginal: $showsOriginalAdjustments
                 )
-                .frame(
-                    minWidth: 260,
-                    idealWidth: 300,
-                    maxWidth: 380,
-                    maxHeight: .infinity
-                )
+                .frame(width: 260)
+                .frame(maxHeight: .infinity)
                 .background(Color(nsColor: .windowBackgroundColor))
             }
         }
+        .frame(
+            minWidth: isAdjustmentInspectorVisible ? 680 : 400,
+            alignment: .leading
+        )
+    }
+
+    private var isAdjustmentInspectorVisible: Bool {
+        model.isShowingStitchedPanorama && showsAdjustmentInspectorInPreview
+    }
+
+    private var minimumContentWidth: CGFloat {
+        isAdjustmentInspectorVisible ? 940 : 900
     }
 
     private func persistSidebarWidth(_ width: CGFloat) {

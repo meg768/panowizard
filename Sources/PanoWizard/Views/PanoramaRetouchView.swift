@@ -18,16 +18,52 @@ struct PanoramaRetouchView: View {
     @Bindable var model: AppModel
     let projectDirectoryURL: URL?
     let presentPatch: (RetouchPatchPresentation) -> Void
+    @State private var viewpoint: PanoramaViewpoint
+
+    init(
+        model: AppModel,
+        projectDirectoryURL: URL?,
+        presentPatch: @escaping (RetouchPatchPresentation) -> Void
+    ) {
+        self.model = model
+        self.projectDirectoryURL = projectDirectoryURL
+        self.presentPatch = presentPatch
+        _viewpoint = State(initialValue: model.panoramaViewpoint)
+    }
 
     var body: some View {
-        if model.stitchedResultURL != nil {
-            Form {
-                Section {
+        if let panoramaURL = model.currentPanoramaURL {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Retouch")
+                            .font(.title2.bold())
+                        Text(
+                            "Position the square view over the area you "
+                                + "want to repair."
+                        )
+                        .foregroundStyle(.secondary)
+                    }
+
+                    RetouchPatchPanoramaViewport(
+                        url: panoramaURL,
+                        initialViewpoint: viewpoint,
+                        onViewpointChange: { viewpoint = $0 }
+                    )
+                    .frame(width: 360, height: 360)
+                    .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
+                    .frame(maxWidth: .infinity)
+
+                    Text("Drag to pan · scroll or pinch to zoom")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+
                     HStack(spacing: 8) {
                         Button {
                             presentPatch(RetouchPatchPresentation(
                                 kind: .manual,
-                                viewpoint: model.panoramaViewpoint
+                                viewpoint: viewpoint
                             ))
                         } label: {
                             Label(
@@ -40,7 +76,7 @@ struct PanoramaRetouchView: View {
                         Button {
                             presentPatch(RetouchPatchPresentation(
                                 kind: .ai,
-                                viewpoint: model.panoramaViewpoint
+                                viewpoint: viewpoint
                             ))
                         } label: {
                             Label(
@@ -52,37 +88,38 @@ struct PanoramaRetouchView: View {
                     }
                     .buttonStyle(WorkspaceToolbarPillStyle())
                     .disabled(model.phase != .ready)
+                    .frame(maxWidth: .infinity)
 
-                    Text(
-                        "New patches open at the direction and zoom currently "
-                            + "shown in Preview. Pan or zoom directly in the "
-                            + "patch dialog to choose the exact area."
-                    )
-                    .foregroundStyle(.secondary)
-                }
+                    Divider()
 
-                Section("Patches") {
-                    if model.retouchPatches.isEmpty {
-                        Text("No retouch patches")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(
-                            Array(model.retouchPatches.reversed())
-                        ) { patch in
-                            retouchPatchRow(patch)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Patches")
+                            .font(.headline)
+
+                        if model.retouchPatches.isEmpty {
+                            Text("No retouch patches")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(
+                                Array(model.retouchPatches.reversed())
+                            ) { patch in
+                                retouchPatchRow(patch)
+                                Divider()
+                            }
                         }
                     }
-                }
 
-                Section {
                     Text(
                         "Patches are stored separately and do not alter "
                             + "source images, masks, or panorama geometry."
                     )
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                 }
+                .padding(24)
+                .frame(maxWidth: 900, alignment: .leading)
+                .frame(maxWidth: .infinity)
             }
-            .formStyle(.grouped)
         } else {
             ContentUnavailableView {
                 Label("No Panorama to Retouch", systemImage: "paintbrush.pointed")
@@ -140,7 +177,7 @@ struct ManualRetouchSheet: View {
     let projectDirectoryURL: URL?
     let onDismiss: () -> Void
 
-    @State private var viewpoint: PanoramaViewpoint
+    private let viewpoint: PanoramaViewpoint
     @State private var source: AIRetouchSource?
     @State private var importedURL: URL?
     @State private var errorMessage: String?
@@ -153,9 +190,9 @@ struct ManualRetouchSheet: View {
         onDismiss: @escaping () -> Void
     ) {
         self.model = model
+        self.viewpoint = viewpoint
         self.projectDirectoryURL = projectDirectoryURL
         self.onDismiss = onDismiss
-        _viewpoint = State(initialValue: viewpoint)
     }
 
     var body: some View {
@@ -175,15 +212,21 @@ struct ManualRetouchSheet: View {
                     title: "Before",
                     footer: "Drag to pan · scroll or pinch to zoom"
                 ) {
-                    if let panoramaURL = model.currentPanoramaURL {
-                        RetouchPatchPanoramaViewport(
-                            url: panoramaURL,
-                            initialViewpoint: viewpoint,
-                            onViewpointChange: handleViewpointChange
+                    if let source {
+                        AIRetouchImageViewport(
+                            url: source.sourceURL,
+                            maskData: nil,
+                            interaction: .pan,
+                            isEnabled: true,
+                            onMaskChange: { _ in },
+                            onUndo: {}
                         )
                     } else {
                         AIRetouchImagePlaceholder(
-                            text: "The panorama is unavailable."
+                            text: isWorking
+                                ? "Preparing the patch…"
+                                : "The patch is unavailable.",
+                            showsProgress: isWorking
                         )
                     }
                 } trailing: { EmptyView() }
@@ -228,18 +271,12 @@ struct ManualRetouchSheet: View {
         }
         .padding(22)
         .frame(width: 780)
+        .task {
+            _ = await loadSource()
+        }
         .onDisappear {
             if let source { model.discardRetouchPatchSource(source) }
         }
-    }
-
-    private func handleViewpointChange(_ newViewpoint: PanoramaViewpoint) {
-        guard viewpoint != newViewpoint else { return }
-        viewpoint = newViewpoint
-        if let source { model.discardRetouchPatchSource(source) }
-        source = nil
-        importedURL = nil
-        errorMessage = nil
     }
 
     private func loadSource() async -> AIRetouchSource? {
@@ -248,6 +285,10 @@ struct ManualRetouchSheet: View {
         defer { isWorking = false }
         do {
             let loaded = try await model.createRetouchPatchSource(at: viewpoint)
+            guard !Task.isCancelled else {
+                model.discardRetouchPatchSource(loaded)
+                return nil
+            }
             source = loaded
             return loaded
         } catch is CancellationError {
@@ -319,17 +360,14 @@ struct AIRetouchSheet: View {
     @Bindable var model: AppModel
     let onDismiss: () -> Void
 
-    @State private var viewpoint: PanoramaViewpoint
+    private let viewpoint: PanoramaViewpoint
     @State private var prompt: String
     @State private var source: AIRetouchSource?
-    @State private var sourceTask: Task<Void, Never>?
-    @State private var sourceRequestID: UUID?
     @State private var preview: AIRetouchPreview?
     @State private var maskData: Data?
     @State private var maskHistory: [Data?] = []
     @State private var errorMessage: String?
     @State private var generationTask: Task<Void, Never>?
-    @State private var isMaskMode = false
     @State private var isPreparingSource = false
     @State private var isWorking = false
     @State private var storedAPIKey: String?
@@ -344,8 +382,8 @@ struct AIRetouchSheet: View {
         onDismiss: @escaping () -> Void
     ) {
         self.model = model
+        self.viewpoint = viewpoint
         self.onDismiss = onDismiss
-        _viewpoint = State(initialValue: viewpoint)
         _prompt = State(initialValue: Self.defaultPrompt)
     }
 
@@ -364,53 +402,32 @@ struct AIRetouchSheet: View {
             HStack(alignment: .top, spacing: 16) {
                 AIRetouchImagePane(
                     title: "Before",
-                    footer: isMaskMode
-                        ? "Drag to paint · ⌥-drag to erase · ⌘Z to undo · "
-                            + "Clear Mask to navigate"
-                        : "Drag to pan · scroll or pinch to zoom"
+                    footer: "Drag to pan · scroll or pinch to zoom · "
+                        + "⌘-drag to paint · ⌘⌥-drag to erase · ⌘Z to undo"
                 ) {
-                    if let panoramaURL = model.currentPanoramaURL {
-                        ZStack {
-                            RetouchPatchPanoramaViewport(
-                                url: panoramaURL,
-                                initialViewpoint: viewpoint,
-                                onViewpointChange: handleViewpointChange,
-                                maskData: maskData,
-                                isMaskEditing: isMaskMode
-                                    && !isPreparingSource
-                                    && !isWorking,
-                                onMaskChange: applyMaskChange
-                            )
-                            .allowsHitTesting(
-                                !isPreparingSource && !isWorking
-                            )
-
-                            if isPreparingSource {
-                                ProgressView()
-                                    .controlSize(.regular)
-                            }
-                        }
+                    if let source {
+                        AIRetouchImageViewport(
+                            url: source.sourceURL,
+                            maskData: maskData,
+                            interaction: .mask,
+                            isEnabled: !isWorking,
+                            onMaskChange: applyMaskChange,
+                            onUndo: undoMaskChange
+                        )
                     } else {
                         AIRetouchImagePlaceholder(
-                            text: "The panorama is unavailable."
+                            text: isPreparingSource
+                                ? "Preparing the patch…"
+                                : "The patch is unavailable.",
+                            showsProgress: isPreparingSource
                         )
                     }
                 } trailing: {
-                    if isMaskMode {
-                        Button("Clear Mask", role: .destructive) {
-                            clearMask()
-                        }
-                        .disabled(isWorking)
-                        .accessibilityIdentifier("clear-ai-retouch-mask")
-                    } else {
-                        Button {
-                            beginMaskMode()
-                        } label: {
-                            Label("Mask", systemImage: "paintbrush")
-                        }
-                        .disabled(isWorking)
-                        .accessibilityIdentifier("activate-ai-retouch-mask")
+                    Button("Clear Mask", role: .destructive) {
+                        clearMask()
                     }
+                    .disabled(maskData == nil || isWorking)
+                    .accessibilityIdentifier("clear-ai-retouch-mask")
                 }
                 .background {
                     AIRetouchMaskUndoMonitor(onUndo: undoMaskChange)
@@ -504,6 +521,7 @@ struct AIRetouchSheet: View {
         .frame(width: 780)
         .task {
             storedAPIKey = keyStore.load()
+            await prepareSource()
         }
         .sheet(isPresented: $isAPIKeySheetPresented) {
             OpenAIAPIKeySheet {
@@ -525,7 +543,6 @@ struct AIRetouchSheet: View {
             )
         }
         .onDisappear {
-            sourceTask?.cancel()
             generationTask?.cancel()
             if let preview {
                 model.discardAIRetouchPreview(preview)
@@ -537,8 +554,7 @@ struct AIRetouchSheet: View {
     }
 
     private var canGenerate: Bool {
-        isMaskMode
-            && source != nil
+        source != nil
             && maskData != nil
             && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -555,51 +571,30 @@ struct AIRetouchSheet: View {
         prompt = Self.defaultPrompt
     }
 
-    private func handleViewpointChange(_ newViewpoint: PanoramaViewpoint) {
-        guard !isMaskMode, viewpoint != newViewpoint else { return }
-        viewpoint = newViewpoint
-    }
-
-    private func beginMaskMode() {
-        guard !isMaskMode, !isWorking else { return }
-        isMaskMode = true
+    private func prepareSource() async {
+        guard source == nil, !isPreparingSource else { return }
         isPreparingSource = true
+        defer { isPreparingSource = false }
         maskData = nil
         maskHistory = []
         errorMessage = nil
         invalidatePreview()
 
-        sourceTask?.cancel()
-        if let source { model.discardRetouchPatchSource(source) }
-        source = nil
-
-        let capturedViewpoint = viewpoint
-        let requestID = UUID()
-        sourceRequestID = requestID
-        sourceTask = Task {
-            do {
-                let loadedSource = try await model.createRetouchPatchSource(
-                    at: capturedViewpoint
-                )
-                guard !Task.isCancelled,
-                      sourceRequestID == requestID,
-                      isMaskMode else {
-                    model.discardRetouchPatchSource(loadedSource)
-                    return
-                }
-                source = loadedSource
-                errorMessage = nil
-            } catch is CancellationError {
+        do {
+            let loadedSource = try await model.createRetouchPatchSource(
+                at: viewpoint
+            )
+            guard !Task.isCancelled else {
+                model.discardRetouchPatchSource(loadedSource)
                 return
-            } catch {
-                guard !Task.isCancelled, sourceRequestID == requestID else {
-                    return
-                }
-                errorMessage = error.localizedDescription
             }
-            if sourceRequestID == requestID {
-                isPreparingSource = false
-            }
+            source = loadedSource
+            errorMessage = nil
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -674,33 +669,25 @@ struct AIRetouchSheet: View {
     }
 
     private func applyMaskChange(_ newMaskData: Data?) {
-        guard isMaskMode, !isWorking, newMaskData != maskData else { return }
+        guard !isWorking, newMaskData != maskData else { return }
         maskHistory.append(maskData)
         maskData = newMaskData
         invalidatePreview()
     }
 
     private func undoMaskChange() {
-        guard isMaskMode,
-              !isWorking,
+        guard !isWorking,
               let previous = maskHistory.popLast() else { return }
         maskData = previous
         invalidatePreview()
     }
 
     private func clearMask() {
-        guard isMaskMode, !isWorking else { return }
-        sourceTask?.cancel()
-        sourceTask = nil
-        sourceRequestID = nil
-        isPreparingSource = false
-        if let source { model.discardRetouchPatchSource(source) }
-        source = nil
+        guard !isWorking, maskData != nil else { return }
         maskData = nil
         maskHistory = []
         invalidatePreview()
         errorMessage = nil
-        isMaskMode = false
     }
 
     private func invalidatePreview() {
@@ -729,9 +716,6 @@ private struct RetouchPatchPanoramaViewport: View {
     let url: URL
     let initialViewpoint: PanoramaViewpoint
     let onViewpointChange: (PanoramaViewpoint) -> Void
-    var maskData: Data? = nil
-    var isMaskEditing = false
-    var onMaskChange: (Data?) -> Void = { _ in }
 
     var body: some View {
         SphericalPanoramaView(
@@ -743,9 +727,6 @@ private struct RetouchPatchPanoramaViewport: View {
             adjustments: .neutral,
             initialViewpoint: initialViewpoint,
             onViewpointChange: onViewpointChange,
-            maskData: maskData,
-            isMaskEditing: isMaskEditing,
-            onMaskChange: onMaskChange,
             addsWorkspacePadding: false
         )
     }

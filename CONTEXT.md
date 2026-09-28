@@ -53,20 +53,23 @@ instructions belong in `README.md`.
 
 Retouching uses one deliberately small, high-level model:
 
-- The Retouch view offers `Add manual patch` and `Add AI patch`, followed by a
-  simple list of applied patches. Creation order is layer order; the newest
-  patch wins where patches overlap. Manual reordering is not part of version 1.
+- The Retouch view contains a square spherical viewfinder initialized from the
+  current Preview viewpoint. The user positions the exact patch area there,
+  followed by `Add manual patch`, `Add AI patch`, and a simple list of applied
+  patches. Creation order is layer order; the newest patch wins where patches
+  overlap. Manual reordering is not part of version 1.
 - A patch is a rectilinear view projected onto the panorama at a saved
   orientation and field of view. Nadir, Zenith, and cube-map workflows are not
   separate product concepts.
-- Each patch dialog starts at the current Preview viewpoint and uses the same
-  spherical renderer in its square Before pane. The user pans and zooms there.
-  Manual Export consumes that current view directly.
+- The add buttons capture exactly the viewfinder's current square view. Patch
+  dialogs receive that fixed flat image and never change panorama orientation.
+  Dragging and scrolling inside a dialog pan and zoom only within the captured
+  image.
 - An AI patch uses an explicit editable mask and a saved prompt, like the
-  current AI retouch workflow, but may target any panorama direction. The user
-  chooses `Mask` to freeze the current view and create the flat source once.
-  Plain drag then paints, Option-drag erases, and navigation remains locked.
-  `Clear Mask` discards the mask and generated result and returns to navigation.
+  current AI retouch workflow, but may target any panorama direction. There is
+  no separate Mask mode: Command-drag paints, Command-Option-drag erases, and
+  `Clear Mask` discards the explicit mask and generated result. Plain drag and
+  scroll remain available for detailed navigation within the fixed image.
 - A manual patch is a single modal export/edit/import/apply workflow. Its
   original image exists only temporarily while the dialog is open. On Apply,
   save only the imported edited image and the projection metadata needed to

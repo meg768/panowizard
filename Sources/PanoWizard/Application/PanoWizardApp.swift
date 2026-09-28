@@ -335,21 +335,21 @@ private struct PanoramaMenuCommands: Commands {
             Button("Create Panorama") {
                 actions?.createPanorama()
             }
-            .keyboardShortcut("r", modifiers: .option)
+            .keyboardShortcut("c", modifiers: .option)
             .disabled(actions?.canStitch != true)
 
             Divider()
+
+            Button("Retouch") {
+                actions?.showRetouch()
+            }
+            .keyboardShortcut("r", modifiers: .option)
+            .disabled(actions?.canShowPanorama != true)
 
             Button("Preview") {
                 actions?.showPreview()
             }
             .keyboardShortcut("p", modifiers: .option)
-            .disabled(actions?.canShowPanorama != true)
-
-            Button("Retouch") {
-                actions?.showRetouch()
-            }
-            .keyboardShortcut("t", modifiers: .option)
             .disabled(actions?.canShowPanorama != true)
 
             Button("Export") {
