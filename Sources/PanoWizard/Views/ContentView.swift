@@ -262,19 +262,6 @@ struct ContentView: View {
     @ViewBuilder
     private var sourceMaskToolbarCenter: some View {
         HStack(spacing: 5) {
-            Button {
-                model.sourceMaskTool = .brush
-            } label: {
-                Label("Brush", systemImage: "paintbrush.pointed")
-            }
-            .buttonStyle(MaskToolbarButtonStyle(
-                isSelected: true,
-                showsTitle: true
-            ))
-            .help("Brush")
-
-            maskToolbarDivider
-
             HStack(spacing: 2) {
                 Button {
                     model.sourceMaskIntent = .exclude
