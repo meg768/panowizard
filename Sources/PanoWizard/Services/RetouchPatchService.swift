@@ -3,158 +3,48 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-enum PanoramaPole: String, Codable, CaseIterable, Sendable {
-    case zenith
-    case nadir
-
-    var pitchDegrees: Double { self == .zenith ? 90 : -90 }
-    var displayName: String { self == .zenith ? "Zenith" : "Nadir" }
-    var localizedName: String { displayName.lowercased() }
-}
-
-enum PoleRetouchError: LocalizedError {
+enum RetouchPatchError: LocalizedError {
     case unreadableImage
     case emptyMask
-    case invalidDimensions(
-        pole: PanoramaPole,
-        expected: Int,
-        width: Int,
-        height: Int
-    )
+    case invalidDimensions(expected: Int, width: Int, height: Int)
     case writeFailed
 
     var errorDescription: String? {
         switch self {
         case .unreadableImage:
-            "The image could not be read."
+            "The patch image could not be read."
         case .emptyMask:
             "Paint the area to retouch."
-        case let .invalidDimensions(pole, expected, width, height):
-            "The \(pole.displayName.lowercased()) plate must be \(expected) × \(expected) px, but the image is \(width) × \(height) px."
+        case let .invalidDimensions(expected, width, height):
+            "The patch must be \(expected) × \(expected) px, but the image is \(width) × \(height) px."
         case .writeFailed:
-            "The pole plate could not be saved."
+            "The patch image could not be saved."
         }
     }
 }
 
-struct PoleRetouchService: Sendable {
-    static let plateSize = 2_048
-    static let fieldOfViewDegrees = 90.0
-    private static let repairProjectionScale = 0.288_675_134_6
-    private static let retouchProjectionScale = 0.5
-    private static let edgeFeatherFraction = 0.06
+struct RetouchPatchService: Sendable {
+    static let patchSize = 2_048
     private static let aiPatchFeatherFraction = 0.01
     private static let radiometricBandOuterFeatherMultiple = 4.0
     private static let radiometricClipMargin = 8.0 / 255.0
 
-    func exportPlate(
-        panoramaURL: URL,
-        repairOverlayURL: URL?,
-        existingRetouchURL: URL?,
-        pole: PanoramaPole,
-        to destinationURL: URL,
-        size: Int = Self.plateSize
-    ) throws {
-        let panorama = try RGBAImage(contentsOf: panoramaURL)
-        let repairOverlay = try repairOverlayURL.map(RGBAImage.init(contentsOf:))
-        let existingRetouch = try existingRetouchURL.map(RGBAImage.init(contentsOf:))
-        var result = RGBAImage(width: size, height: size)
-
-        for y in 0..<size {
-            let localY = 2 * ((Double(y) + 0.5) / Double(size)) - 1
-            for x in 0..<size {
-                let localX = 2 * ((Double(x) + 0.5) / Double(size)) - 1
-                let directionLength = sqrt(localX * localX + localY * localY + 1)
-                let directionX = localX / directionLength
-                let directionY = (pole == .nadir ? -1 : 1) / directionLength
-                let directionZ = (pole == .nadir ? -localY : localY)
-                    / directionLength
-                let longitude = atan2(directionX, directionZ)
-                let latitude = asin(directionY)
-                let panoramaX = 0.5 + longitude / (2 * .pi)
-                let panoramaY = 0.5 - latitude / .pi
-                var pixel = panorama.sample(
-                    x: panoramaX,
-                    y: panoramaY,
-                    wrappingX: true
-                )
-
-                if let repairOverlay {
-                    let repairX = 0.5 + Self.repairProjectionScale * localX
-                    let repairY = 0.5 + Self.repairProjectionScale * localY
-                    if (0...1).contains(repairX), (0...1).contains(repairY) {
-                        pixel = Self.blend(
-                            repairOverlay.sample(x: repairX, y: repairY),
-                            over: pixel
-                        )
-                    }
-                }
-                if let existingRetouch {
-                    pixel = Self.blend(
-                        existingRetouch.sample(
-                            x: (Double(x) + 0.5) / Double(size),
-                            y: (Double(y) + 0.5) / Double(size)
-                        ),
-                        over: pixel
-                    )
-                }
-                result.setPixel(pixel, x: x, y: y)
-            }
-        }
-        try result.writePNG(to: destinationURL)
-    }
-
-    func prepareImportedPlate(
-        from sourceURL: URL,
-        pole: PanoramaPole,
-        to destinationURL: URL,
-        expectedSize: Int = Self.plateSize
-    ) throws {
-        var image = try RGBAImage(contentsOf: sourceURL)
-        guard image.width == expectedSize, image.height == expectedSize else {
-            throw PoleRetouchError.invalidDimensions(
-                pole: pole,
-                expected: expectedSize,
-                width: image.width,
-                height: image.height
-            )
-        }
-        let featherWidth = Double(expectedSize) * Self.edgeFeatherFraction
-        for y in 0..<image.height {
-            for x in 0..<image.width {
-                let distance = Double(min(x, y, image.width - 1 - x, image.height - 1 - y))
-                let t = min(max(distance / featherWidth, 0), 1)
-                let feather = t * t * (3 - 2 * t)
-                var pixel = image.pixel(x: x, y: y)
-                pixel.r *= feather
-                pixel.g *= feather
-                pixel.b *= feather
-                pixel.a *= feather
-                image.setPixel(pixel, x: x, y: y)
-            }
-        }
-        try image.writePNG(to: destinationURL)
-    }
-
     func prepareAIRetouchInput(
         from sourceURL: URL,
         maskData: Data,
-        pole: PanoramaPole,
-        expectedSize: Int = Self.plateSize
+        expectedSize: Int = Self.patchSize
     ) throws -> Data {
         var image = try RGBAImage(contentsOf: sourceURL)
         let mask = try RGBAImage(data: maskData)
         guard image.width == expectedSize, image.height == expectedSize else {
-            throw PoleRetouchError.invalidDimensions(
-                pole: pole,
+            throw RetouchPatchError.invalidDimensions(
                 expected: expectedSize,
                 width: image.width,
                 height: image.height
             )
         }
         guard mask.width == expectedSize, mask.height == expectedSize else {
-            throw PoleRetouchError.invalidDimensions(
-                pole: pole,
+            throw RetouchPatchError.invalidDimensions(
                 expected: expectedSize,
                 width: mask.width,
                 height: mask.height
@@ -178,18 +68,16 @@ struct PoleRetouchService: Sendable {
         originalURL: URL,
         editedURL: URL,
         maskData: Data,
-        pole: PanoramaPole,
         overlayURL: URL,
         previewURL: URL,
-        expectedSize: Int = Self.plateSize
+        expectedSize: Int = Self.patchSize
     ) throws {
         let original = try RGBAImage(contentsOf: originalURL)
         let edited = try RGBAImage(contentsOf: editedURL)
         let mask = try RGBAImage(data: maskData)
         for image in [original, edited, mask]
         where image.width != expectedSize || image.height != expectedSize {
-            throw PoleRetouchError.invalidDimensions(
-                pole: pole,
+            throw RetouchPatchError.invalidDimensions(
                 expected: expectedSize,
                 width: image.width,
                 height: image.height
@@ -204,7 +92,7 @@ struct PoleRetouchService: Sendable {
                 painted[y * width + x] = mask.pixel(x: x, y: y).a > 0
             }
         }
-        guard painted.contains(true) else { throw PoleRetouchError.emptyMask }
+        guard painted.contains(true) else { throw RetouchPatchError.emptyMask }
 
         let distance = Self.euclideanDistanceToPaintedArea(
             painted,
@@ -264,82 +152,6 @@ struct PoleRetouchService: Sendable {
         }
         try overlay.writePNG(to: overlayURL)
         try preview.writePNG(to: previewURL)
-    }
-
-    func flattenRetouches(
-        panoramaURL: URL,
-        nadirRetouchURL: URL?,
-        zenithRetouchURL: URL?,
-        to destinationURL: URL
-    ) throws {
-        try flattenPanorama(
-            panoramaURL: panoramaURL,
-            nadirOverlayURL: nil,
-            zenithOverlayURL: nil,
-            nadirRetouchURL: nadirRetouchURL,
-            zenithRetouchURL: zenithRetouchURL,
-            to: destinationURL
-        )
-    }
-
-    func flattenPanorama(
-        panoramaURL: URL,
-        nadirOverlayURL: URL?,
-        zenithOverlayURL: URL?,
-        nadirRetouchURL: URL?,
-        zenithRetouchURL: URL?,
-        to destinationURL: URL
-    ) throws {
-        var panorama = try RGBAImage(contentsOf: panoramaURL)
-        let overlays: [(PanoramaPole, RGBAImage)] = try [
-            nadirOverlayURL.map { (.nadir, try RGBAImage(contentsOf: $0)) },
-            zenithOverlayURL.map { (.zenith, try RGBAImage(contentsOf: $0)) }
-        ].compactMap { $0 }
-        let retouches: [(PanoramaPole, RGBAImage)] = try [
-            nadirRetouchURL.map { (.nadir, try RGBAImage(contentsOf: $0)) },
-            zenithRetouchURL.map { (.zenith, try RGBAImage(contentsOf: $0)) }
-        ].compactMap { $0 }
-        for y in 0..<panorama.height {
-            let latitude = (0.5 - (Double(y) + 0.5) / Double(panorama.height)) * .pi
-            let directionY = sin(latitude)
-            let horizontalRadius = cos(latitude)
-            for x in 0..<panorama.width {
-                let longitude = ((Double(x) + 0.5) / Double(panorama.width) - 0.5) * 2 * .pi
-                let directionX = sin(longitude) * horizontalRadius
-                let directionZ = cos(longitude) * horizontalRadius
-                var pixel = panorama.pixel(x: x, y: y)
-                for (pole, overlay) in overlays {
-                    let poleAxis = pole == .nadir ? -directionY : directionY
-                    guard poleAxis > 0.000_1 else { continue }
-                    let localX = directionX / poleAxis
-                    let localY = (pole == .nadir ? -directionZ : directionZ)
-                        / poleAxis
-                    let overlayX = 0.5 + Self.repairProjectionScale * localX
-                    let overlayY = 0.5 + Self.repairProjectionScale * localY
-                    guard (0...1).contains(overlayX),
-                          (0...1).contains(overlayY) else { continue }
-                    pixel = Self.blend(
-                        overlay.sample(x: overlayX, y: overlayY),
-                        over: pixel
-                    )
-                }
-                for (pole, retouch) in retouches {
-                    let poleAxis = pole == .nadir ? -directionY : directionY
-                    guard poleAxis > 0.000_1 else { continue }
-                    let localX = directionX / poleAxis
-                    let localY = (pole == .nadir ? -directionZ : directionZ)
-                        / poleAxis
-                    let retouchX = 0.5 + Self.retouchProjectionScale * localX
-                    let retouchY = 0.5 + Self.retouchProjectionScale * localY
-                    guard (0...1).contains(retouchX),
-                          (0...1).contains(retouchY) else { continue }
-                    let overlay = retouch.sample(x: retouchX, y: retouchY)
-                    pixel = Self.blend(overlay, over: pixel)
-                }
-                panorama.setPixel(pixel, x: x, y: y)
-            }
-        }
-        try panorama.writePNG(to: destinationURL)
     }
 
     private static func blend(_ foreground: Pixel, over background: Pixel) -> Pixel {
@@ -482,28 +294,6 @@ struct PoleRetouchService: Sendable {
         }
     }
 
-}
-
-enum RetouchPatchError: LocalizedError {
-    case unreadableImage
-    case invalidDimensions(expected: Int, width: Int, height: Int)
-
-    var errorDescription: String? {
-        switch self {
-        case .unreadableImage:
-            "The patch image could not be read."
-        case let .invalidDimensions(expected, width, height):
-            "The patch must be \(expected) × \(expected) px, but the image is \(width) × \(height) px."
-        }
-    }
-}
-
-/// Projects the existing square retouch plate onto an arbitrary panorama view.
-/// Keeping the plate format and compositor makes general patches a small
-/// extension of the proven pole-retouch workflow rather than a second renderer.
-struct RetouchPatchService: Sendable {
-    static let patchSize = PoleRetouchService.plateSize
-
     func exportPatch(
         panoramaURL: URL,
         viewpoint: PanoramaViewpoint,
@@ -574,34 +364,6 @@ struct RetouchPatchService: Sendable {
             )
         }
         try image.writePNG(to: destinationURL)
-    }
-
-    func prepareAIRetouchInput(
-        from sourceURL: URL,
-        maskData: Data
-    ) throws -> Data {
-        try PoleRetouchService().prepareAIRetouchInput(
-            from: sourceURL,
-            maskData: maskData,
-            pole: .nadir
-        )
-    }
-
-    func prepareAIRetouchPatch(
-        originalURL: URL,
-        editedURL: URL,
-        maskData: Data,
-        overlayURL: URL,
-        previewURL: URL
-    ) throws {
-        try PoleRetouchService().prepareAIRetouchPatch(
-            originalURL: originalURL,
-            editedURL: editedURL,
-            maskData: maskData,
-            pole: .nadir,
-            overlayURL: overlayURL,
-            previewURL: previewURL
-        )
     }
 
     func render(
@@ -695,19 +457,19 @@ struct RGBAImage {
 
     init(contentsOf url: URL) throws {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil)
-        else { throw PoleRetouchError.unreadableImage }
+        else { throw RetouchPatchError.unreadableImage }
         try self.init(source: source)
     }
 
     init(data: Data) throws {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil)
-        else { throw PoleRetouchError.unreadableImage }
+        else { throw RetouchPatchError.unreadableImage }
         try self.init(source: source)
     }
 
     private init(source: CGImageSource) throws {
         guard let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-        else { throw PoleRetouchError.unreadableImage }
+        else { throw RetouchPatchError.unreadableImage }
         width = image.width
         height = image.height
         bytes = Array(repeating: 0, count: width * height * 4)
@@ -725,7 +487,7 @@ struct RGBAImage {
             )
             return true
         }
-        guard rendered else { throw PoleRetouchError.unreadableImage }
+        guard rendered else { throw RetouchPatchError.unreadableImage }
     }
 
     func pixel(x: Int, y: Int) -> Pixel {
@@ -802,12 +564,12 @@ struct RGBAImage {
                 UTType.png.identifier as CFString,
                 1,
                 nil
-              ) else { throw PoleRetouchError.writeFailed }
+              ) else { throw RetouchPatchError.writeFailed }
         CGImageDestinationAddImage(destination, image, [
             kCGImagePropertyOrientation: 1
         ] as CFDictionary)
         guard CGImageDestinationFinalize(destination) else {
-            throw PoleRetouchError.writeFailed
+            throw RetouchPatchError.writeFailed
         }
     }
 
@@ -829,12 +591,12 @@ struct RGBAImage {
                 UTType.png.identifier as CFString,
                 1,
                 nil
-              ) else { throw PoleRetouchError.writeFailed }
+              ) else { throw RetouchPatchError.writeFailed }
         CGImageDestinationAddImage(destination, image, [
             kCGImagePropertyOrientation: 1
         ] as CFDictionary)
         guard CGImageDestinationFinalize(destination) else {
-            throw PoleRetouchError.writeFailed
+            throw RetouchPatchError.writeFailed
         }
         return data as Data
     }

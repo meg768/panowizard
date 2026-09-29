@@ -62,10 +62,6 @@ struct PanoramaExportView: View {
                                 controller.exportImage(
                                     format: format,
                                     from: panoramaURL,
-                                    nadirOverlayURL: nil,
-                                    zenithOverlayURL: nil,
-                                    nadirRetouchURL: nil,
-                                    zenithRetouchURL: nil,
                                     adjustments: model.panoramaAdjustments,
                                     projectName: projectName,
                                     projectTitle: model.project.title,
@@ -126,10 +122,6 @@ struct PanoramaExportView: View {
             .sheet(isPresented: $isLittlePlanetPresented) {
                 LittlePlanetExportSheet(
                     panoramaURL: panoramaURL,
-                    nadirOverlayURL: nil,
-                    zenithOverlayURL: nil,
-                    nadirRetouchURL: nil,
-                    zenithRetouchURL: nil,
                     adjustments: model.panoramaAdjustments,
                     projectName: projectName,
                     projectTitle: model.project.title,
@@ -204,10 +196,6 @@ extension PanoramaExportController {
     func exportImage(
         format: PanoramaImageFormat,
         from sourceURL: URL,
-        nadirOverlayURL: URL?,
-        zenithOverlayURL: URL?,
-        nadirRetouchURL: URL?,
-        zenithRetouchURL: URL?,
         adjustments: PanoramaAdjustments,
         projectName: String?,
         projectTitle: String,
@@ -240,10 +228,6 @@ extension PanoramaExportController {
                 try await Task.detached(priority: .userInitiated) {
                     try PanoramaAdjustmentProcessor.writeRenderedPanorama(
                         panoramaURL: sourceURL,
-                        nadirOverlayURL: nadirOverlayURL,
-                        zenithOverlayURL: zenithOverlayURL,
-                        nadirRetouchURL: nadirRetouchURL,
-                        zenithRetouchURL: zenithRetouchURL,
                         adjustments: adjustments,
                         to: exportSourceURL
                     )

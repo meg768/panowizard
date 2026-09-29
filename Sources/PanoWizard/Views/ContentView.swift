@@ -187,10 +187,6 @@ struct ContentView: View {
                 panorama: model.panorama,
                 imageURL: model.selectedPreviewURL,
                 isStitched: model.isShowingStitchedPanorama,
-                nadirOverlayURL: nil,
-                zenithOverlayURL: nil,
-                nadirRetouchURL: nil,
-                zenithRetouchURL: nil,
                 adjustments: previewAdjustments,
                 selectedSource: model.selectedSourceImage,
                 maskData: model.selectedSourceImage.flatMap {
@@ -412,6 +408,7 @@ private struct PanoramaStitchProgressSheet: View {
             Button("Cancel", role: .cancel) {
                 model.cancelStitch()
             }
+            .keyboardShortcut(.cancelAction)
         }
         .padding(24)
         .frame(width: 320)

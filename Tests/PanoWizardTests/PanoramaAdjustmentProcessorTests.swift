@@ -73,10 +73,6 @@ struct PanoramaAdjustmentProcessorTests {
 
         try await FilePanoramaExporter().exportHTML(
             panoramaURL: panoramaURL,
-            nadirOverlayURL: nil,
-            zenithOverlayURL: nil,
-            nadirRetouchURL: nil,
-            zenithRetouchURL: nil,
             adjustments: PanoramaAdjustments(
                 exposure: 1.25,
                 brightness: -17
@@ -91,11 +87,6 @@ struct PanoramaAdjustmentProcessorTests {
         #expect(html.contains("program,\"brightness\"),-17.0"))
         #expect(!html.contains("vignette"))
         #expect(!html.contains("adjustments.exposure"))
-        #expect(html.contains("bool inBounds(vec2 q)"))
-        #expect(html.contains("if(inBounds(q)){vec4 o=texture2D(nadirRepair,q)"))
-        #expect(html.contains("if(inBounds(q)){vec4 o=texture2D(zenithRepair,q)"))
-        #expect(html.contains("if(inBounds(q)){vec4 o=texture2D(nadirRetouch,q)"))
-        #expect(html.contains("if(inBounds(q)){vec4 o=texture2D(zenithRetouch,q)"))
     }
 
     private func adjusted(

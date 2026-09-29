@@ -259,6 +259,7 @@ struct ManualRetouchSheet: View {
 
             HStack {
                 Button("Cancel", role: .cancel, action: onDismiss)
+                    .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Export…") { Task { await exportSource() } }
                     .disabled(isWorking)
@@ -489,6 +490,7 @@ struct AIRetouchSheet: View {
                 Button("Cancel", role: .cancel) {
                     cancelAndDismiss()
                 }
+                .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button(
                     storedAPIKey == nil
@@ -720,10 +722,6 @@ private struct RetouchPatchPanoramaViewport: View {
     var body: some View {
         SphericalPanoramaView(
             url: url,
-            overlayURL: nil,
-            zenithOverlayURL: nil,
-            nadirRetouchURL: nil,
-            zenithRetouchURL: nil,
             adjustments: .neutral,
             initialViewpoint: initialViewpoint,
             onViewpointChange: onViewpointChange,
@@ -748,6 +746,7 @@ private struct AIRetouchProgressSheet: View {
             }
 
             Button("Cancel", role: .cancel, action: onCancel)
+                .keyboardShortcut(.cancelAction)
         }
         .padding(24)
         .frame(width: 320)

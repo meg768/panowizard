@@ -164,8 +164,10 @@ struct ImagesCommandActions {
 }
 
 struct ProjectDocumentCommandActions {
+    let canRevert: Bool
     let save: () -> Void
     let saveAs: () -> Void
+    let revert: () -> Void
 }
 
 struct SourceMaskCommandActions {
@@ -322,6 +324,13 @@ private struct ProjectDocumentMenuCommands: Commands {
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
             .disabled(actions == nil)
+
+            Divider()
+
+            Button("Revert") {
+                actions?.revert()
+            }
+            .disabled(actions?.canRevert != true)
         }
     }
 }
@@ -452,6 +461,8 @@ private struct ProjectDocumentView: View {
     @State private var saveURL: URL?
     @State private var projectWindow: NSWindow?
     @State private var saveError: String?
+    @State private var saveErrorTitle = "Could Not Save"
+    @State private var isRevertConfirmationPresented = false
 
     init(document: Binding<PanoProjectDocument>, documentURL: URL?) {
         let initialDocument = documentURL.flatMap {
@@ -482,8 +493,10 @@ private struct ProjectDocumentView: View {
             .focusedSceneValue(
                 \.projectDocumentCommandActions,
                 ProjectDocumentCommandActions(
+                    canRevert: saveURL != nil && isDirty,
                     save: { _ = save() },
-                    saveAs: { _ = saveAs() }
+                    saveAs: { _ = saveAs() },
+                    revert: { isRevertConfirmationPresented = true }
                 )
             )
             .background(ProjectWindowAccessor { window in
@@ -521,7 +534,19 @@ private struct ProjectDocumentView: View {
             } message: {
                 Text("Your changes will be lost if you don't save them.")
             }
-            .alert("Could Not Save", isPresented: Binding(
+            .confirmationDialog(
+                "Revert to the Last Saved Version?",
+                isPresented: $isRevertConfirmationPresented,
+                titleVisibility: .visible
+            ) {
+                Button("Revert", role: .destructive) {
+                    revertToSavedDocument()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("All changes since the last save will be lost.")
+            }
+            .alert(saveErrorTitle, isPresented: Binding(
                 get: { saveError != nil },
                 set: { if !$0 { saveError = nil } }
             )) {
@@ -628,8 +653,30 @@ private struct ProjectDocumentView: View {
             updateWindowState()
             return true
         } catch {
+            saveErrorTitle = "Could Not Save"
             saveError = error.localizedDescription
             return false
+        }
+    }
+
+    private func revertToSavedDocument() {
+        guard let saveURL else { return }
+        do {
+            let document = try PanoProjectDocument(contentsOf: saveURL)
+            savedDocument = document
+            model = AppModel.live(
+                project: document.project,
+                masks: document.masks,
+                protectedMasks: document.protectedMasks,
+                panoramaData: document.panoramaData,
+                retouchPatchData: document.retouchPatchData,
+                aiRetouchMaskData: document.aiRetouchMaskData
+            )
+            synchronizeSystemDocument(with: saveURL)
+            updateWindowState()
+        } catch {
+            saveErrorTitle = "Could Not Revert"
+            saveError = error.localizedDescription
         }
     }
 

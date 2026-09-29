@@ -58,6 +58,7 @@ struct OpenAIAPIKeySheet: View {
                 Button("Cancel", role: .cancel) {
                     dismiss()
                 }
+                .keyboardShortcut(.cancelAction)
                 Button("Save") {
                     save()
                 }

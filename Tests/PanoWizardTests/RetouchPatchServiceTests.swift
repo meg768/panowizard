@@ -5,131 +5,7 @@ import Testing
 import UniformTypeIdentifiers
 @testable import PanoWizard
 
-struct PoleRetouchServiceTests {
-    @Test
-    func poleIdentityRemainsExplicit() {
-        #expect(PanoramaPole.zenith.rawValue == "zenith")
-        #expect(PanoramaPole.zenith.localizedName == "zenith")
-        #expect(PanoramaPole.zenith.pitchDegrees == 90)
-        #expect(PanoramaPole.nadir.rawValue == "nadir")
-        #expect(PanoramaPole.nadir.localizedName == "nadir")
-        #expect(PanoramaPole.nadir.pitchDegrees == -90)
-    }
-
-    @Test
-    func exportsRequestedRealNadirPlate() throws {
-        let environment = ProcessInfo.processInfo.environment
-        guard let panoramaPath = environment["PANOWIZARD_NADIR_PANORAMA"],
-              let outputPath = environment["PANOWIZARD_NADIR_OUTPUT"] else {
-            return
-        }
-        try PoleRetouchService().exportPlate(
-            panoramaURL: URL(fileURLWithPath: panoramaPath),
-            repairOverlayURL: nil,
-            existingRetouchURL: nil,
-            pole: .nadir,
-            to: URL(fileURLWithPath: outputPath)
-        )
-    }
-
-    @Test
-    func preparesRequestedRealAIRetouchPatch() throws {
-        let environment = ProcessInfo.processInfo.environment
-        guard let panoramaPath = environment["PANOWIZARD_AI_PANORAMA"],
-              let maskPath = environment["PANOWIZARD_AI_MASK"],
-              let resultPath = environment["PANOWIZARD_AI_RESULT"],
-              let outputPath = environment["PANOWIZARD_AI_OUTPUT_DIRECTORY"] else {
-            return
-        }
-        let outputDirectory = URL(fileURLWithPath: outputPath)
-        try FileManager.default.createDirectory(
-            at: outputDirectory,
-            withIntermediateDirectories: true
-        )
-        let sourceURL = outputDirectory.appending(path: "source.png")
-        let overlayURL = outputDirectory.appending(path: "overlay.png")
-        let previewURL = outputDirectory.appending(path: "preview.png")
-        let flattenedURL = outputDirectory.appending(path: "flattened.png")
-        let baselineURL = outputDirectory.appending(path: "baseline.png")
-        let service = PoleRetouchService()
-        try service.exportPlate(
-            panoramaURL: URL(fileURLWithPath: panoramaPath),
-            repairOverlayURL: nil,
-            existingRetouchURL: nil,
-            pole: .nadir,
-            to: sourceURL
-        )
-        try service.prepareAIRetouchPatch(
-            originalURL: sourceURL,
-            editedURL: URL(fileURLWithPath: resultPath),
-            maskData: try Data(contentsOf: URL(fileURLWithPath: maskPath)),
-            pole: .nadir,
-            overlayURL: overlayURL,
-            previewURL: previewURL
-        )
-        try service.flattenRetouches(
-            panoramaURL: URL(fileURLWithPath: panoramaPath),
-            nadirRetouchURL: overlayURL,
-            zenithRetouchURL: nil,
-            to: flattenedURL
-        )
-        try service.flattenRetouches(
-            panoramaURL: URL(fileURLWithPath: panoramaPath),
-            nadirRetouchURL: nil,
-            zenithRetouchURL: nil,
-            to: baselineURL
-        )
-    }
-
-    @Test
-    func exportsNinetyDegreeNadirFaceFromEquirectangularPanorama() throws {
-        let directory = try temporaryDirectory()
-        let panoramaURL = directory.appending(path: "panorama.png")
-        let plateURL = directory.appending(path: "nadir.png")
-        try writeImage(width: 360, height: 180, to: panoramaURL) { x, y in
-            (UInt8(x * 255 / 359), UInt8(y * 255 / 179), 0, 255)
-        }
-
-        try PoleRetouchService().exportPlate(
-            panoramaURL: panoramaURL,
-            repairOverlayURL: nil,
-            existingRetouchURL: nil,
-            pole: .nadir,
-            to: plateURL,
-            size: 64
-        )
-
-        let plate = try pixels(at: plateURL)
-        #expect(plate.width == 64)
-        #expect(plate.height == 64)
-        let center = plate.pixel(x: 32, y: 32)
-        #expect(Int(center.1) >= 248)
-        let forwardEdge = plate.pixel(x: 31, y: 0)
-        #expect((120...136).contains(Int(forwardEdge.0)))
-        #expect((184...198).contains(Int(forwardEdge.1)))
-    }
-
-    @Test
-    func importedPlateGetsTransparentFeatherWithoutChangingItsSize() throws {
-        let directory = try temporaryDirectory()
-        let sourceURL = directory.appending(path: "edited.png")
-        let destinationURL = directory.appending(path: "prepared.png")
-        try writeImage(width: 64, height: 64, to: sourceURL) { _, _ in
-            (255, 0, 0, 255)
-        }
-
-        try PoleRetouchService().prepareImportedPlate(
-            from: sourceURL,
-            pole: .nadir,
-            to: destinationURL,
-            expectedSize: 64
-        )
-
-        let prepared = try pixels(at: destinationURL)
-        #expect(prepared.pixel(x: 0, y: 32).3 == 0)
-        #expect(prepared.pixel(x: 32, y: 32).3 == 255)
-        #expect(prepared.pixel(x: 32, y: 32).0 == 255)
-    }
+struct RetouchPatchServiceTests {
 
     @Test
     func aiRetouchInputUsesOnlyExplicitMask() throws {
@@ -147,10 +23,9 @@ struct PoleRetouchServiceTests {
             x == 32 && y == 32 ? (255, 0, 0, 255) : (0, 0, 0, 0)
         }
 
-        let resultData = try PoleRetouchService().prepareAIRetouchInput(
+        let resultData = try RetouchPatchService().prepareAIRetouchInput(
             from: sourceURL,
             maskData: try Data(contentsOf: maskURL),
-            pole: .nadir,
             expectedSize: 64
         )
         let resultURL = directory.appending(path: "result.png")
@@ -163,15 +38,15 @@ struct PoleRetouchServiceTests {
     }
 
     @Test
-    func exportedPlatePreservesAlpha() throws {
+    func exportedPatchPreservesAlpha() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let transparentURL = directory.appending(path: "transparent.png")
         let blackURL = directory.appending(path: "black.png")
-        let transparentPlateURL = directory.appending(
-            path: "transparent-plate.png"
+        let transparentPatchURL = directory.appending(
+            path: "transparent-patch.png"
         )
-        let blackPlateURL = directory.appending(path: "black-plate.png")
+        let blackPatchURL = directory.appending(path: "black-patch.png")
         try writeImage(width: 64, height: 32, to: transparentURL) { _, _ in
             (0, 0, 0, 0)
         }
@@ -179,26 +54,22 @@ struct PoleRetouchServiceTests {
             (0, 0, 0, 255)
         }
 
-        let service = PoleRetouchService()
-        try service.exportPlate(
+        let service = RetouchPatchService()
+        try service.exportPatch(
             panoramaURL: transparentURL,
-            repairOverlayURL: nil,
-            existingRetouchURL: nil,
-            pole: .nadir,
-            to: transparentPlateURL,
+            viewpoint: PanoramaViewpoint(),
+            to: transparentPatchURL,
             size: 32
         )
-        try service.exportPlate(
+        try service.exportPatch(
             panoramaURL: blackURL,
-            repairOverlayURL: nil,
-            existingRetouchURL: nil,
-            pole: .nadir,
-            to: blackPlateURL,
+            viewpoint: PanoramaViewpoint(),
+            to: blackPatchURL,
             size: 32
         )
 
-        #expect(try pixels(at: transparentPlateURL).pixel(x: 16, y: 16).3 == 0)
-        #expect(try pixels(at: blackPlateURL).pixel(x: 16, y: 16).3 == 255)
+        #expect(try pixels(at: transparentPatchURL).pixel(x: 16, y: 16).3 == 0)
+        #expect(try pixels(at: blackPatchURL).pixel(x: 16, y: 16).3 == 255)
     }
 
     @Test
@@ -224,11 +95,10 @@ struct PoleRetouchServiceTests {
             isPainted(x, y) ? (255, 0, 0, 255) : (0, 0, 0, 0)
         }
 
-        try PoleRetouchService().prepareAIRetouchPatch(
+        try RetouchPatchService().prepareAIRetouchPatch(
             originalURL: originalURL,
             editedURL: editedURL,
             maskData: try Data(contentsOf: maskURL),
-            pole: .nadir,
             overlayURL: overlayURL,
             previewURL: previewURL,
             expectedSize: size
@@ -241,81 +111,6 @@ struct PoleRetouchServiceTests {
         #expect(overlay.pixel(x: 0, y: 0) == (0, 0, 0, 0))
         #expect(preview.pixel(x: 0, y: 0) == (80, 100, 120, 255))
         #expect((1..<255).contains(Int(overlay.pixel(x: 95, y: 128).3)))
-    }
-
-    @Test
-    func flattenedRetouchAffectsNadirButNotHorizon() throws {
-        let directory = try temporaryDirectory()
-        let panoramaURL = directory.appending(path: "panorama.png")
-        let sourcePlateURL = directory.appending(path: "source-plate.png")
-        let preparedPlateURL = directory.appending(path: "plate.png")
-        let flattenedURL = directory.appending(path: "flattened.png")
-        try writeImage(width: 360, height: 180, to: panoramaURL) { _, _ in
-            (0, 0, 0, 255)
-        }
-        try writeImage(width: 64, height: 64, to: sourcePlateURL) { _, _ in
-            (255, 0, 0, 255)
-        }
-        try PoleRetouchService().prepareImportedPlate(
-            from: sourcePlateURL,
-            pole: .nadir,
-            to: preparedPlateURL,
-            expectedSize: 64
-        )
-
-        try PoleRetouchService().flattenRetouches(
-            panoramaURL: panoramaURL,
-            nadirRetouchURL: preparedPlateURL,
-            zenithRetouchURL: nil,
-            to: flattenedURL
-        )
-
-        let flattened = try pixels(at: flattenedURL)
-        #expect(flattened.pixel(x: 180, y: 179).0 >= 248)
-        #expect(flattened.pixel(x: 180, y: 90).0 == 0)
-    }
-
-    @Test
-    func exportsAndFlattensZenithWithoutAffectingHorizon() throws {
-        let directory = try temporaryDirectory()
-        let panoramaURL = directory.appending(path: "panorama.png")
-        let sourcePlateURL = directory.appending(path: "source-plate.png")
-        let preparedPlateURL = directory.appending(path: "zenith-plate.png")
-        let flattenedURL = directory.appending(path: "flattened.png")
-        let exportedURL = directory.appending(path: "exported-zenith.png")
-        try writeImage(width: 360, height: 180, to: panoramaURL) { x, y in
-            (UInt8(x * 255 / 359), UInt8(y * 255 / 179), 0, 255)
-        }
-
-        try PoleRetouchService().exportPlate(
-            panoramaURL: panoramaURL,
-            repairOverlayURL: nil,
-            existingRetouchURL: nil,
-            pole: .zenith,
-            to: exportedURL,
-            size: 64
-        )
-        let exported = try pixels(at: exportedURL)
-        #expect(Int(exported.pixel(x: 32, y: 32).1) <= 7)
-
-        try writeImage(width: 64, height: 64, to: sourcePlateURL) { _, _ in
-            (0, 0, 255, 255)
-        }
-        try PoleRetouchService().prepareImportedPlate(
-            from: sourcePlateURL,
-            pole: .zenith,
-            to: preparedPlateURL,
-            expectedSize: 64
-        )
-        try PoleRetouchService().flattenRetouches(
-            panoramaURL: panoramaURL,
-            nadirRetouchURL: nil,
-            zenithRetouchURL: preparedPlateURL,
-            to: flattenedURL
-        )
-        let flattened = try pixels(at: flattenedURL)
-        #expect(flattened.pixel(x: 180, y: 0).2 >= 248)
-        #expect(flattened.pixel(x: 180, y: 90).2 == 0)
     }
 
     @Test

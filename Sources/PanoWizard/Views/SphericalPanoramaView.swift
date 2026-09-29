@@ -1,47 +1,25 @@
 import Foundation
-import ImageIO
 import MetalKit
 import SwiftUI
 
 struct SphericalPanoramaView: View {
     let url: URL
-    let overlayURL: URL?
-    let zenithOverlayURL: URL?
-    let nadirRetouchURL: URL?
-    let zenithRetouchURL: URL?
     let adjustments: PanoramaAdjustments
     let initialViewpoint: PanoramaViewpoint
     let onViewpointChange: (PanoramaViewpoint) -> Void
-    let maskData: Data?
-    let isMaskEditing: Bool
-    let onMaskChange: (Data?) -> Void
     let addsWorkspacePadding: Bool
 
     init(
         url: URL,
-        overlayURL: URL?,
-        zenithOverlayURL: URL?,
-        nadirRetouchURL: URL?,
-        zenithRetouchURL: URL?,
         adjustments: PanoramaAdjustments,
         initialViewpoint: PanoramaViewpoint,
         onViewpointChange: @escaping (PanoramaViewpoint) -> Void,
-        maskData: Data? = nil,
-        isMaskEditing: Bool = false,
-        onMaskChange: @escaping (Data?) -> Void = { _ in },
         addsWorkspacePadding: Bool = true
     ) {
         self.url = url
-        self.overlayURL = overlayURL
-        self.zenithOverlayURL = zenithOverlayURL
-        self.nadirRetouchURL = nadirRetouchURL
-        self.zenithRetouchURL = zenithRetouchURL
         self.adjustments = adjustments
         self.initialViewpoint = initialViewpoint
         self.onViewpointChange = onViewpointChange
-        self.maskData = maskData
-        self.isMaskEditing = isMaskEditing
-        self.onMaskChange = onMaskChange
         self.addsWorkspacePadding = addsWorkspacePadding
     }
 
@@ -60,16 +38,9 @@ struct SphericalPanoramaView: View {
     private var metalView: some View {
         SphericalMetalView(
             url: url,
-            overlayURL: overlayURL,
-            zenithOverlayURL: zenithOverlayURL,
-            nadirRetouchURL: nadirRetouchURL,
-            zenithRetouchURL: zenithRetouchURL,
             adjustments: adjustments,
             initialViewpoint: initialViewpoint,
-            onViewpointChange: onViewpointChange,
-            maskData: maskData,
-            isMaskEditing: isMaskEditing,
-            onMaskChange: onMaskChange
+            onViewpointChange: onViewpointChange
         )
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
@@ -77,16 +48,9 @@ struct SphericalPanoramaView: View {
 
 private struct SphericalMetalView: NSViewRepresentable {
     let url: URL
-    let overlayURL: URL?
-    let zenithOverlayURL: URL?
-    let nadirRetouchURL: URL?
-    let zenithRetouchURL: URL?
     let adjustments: PanoramaAdjustments
     let initialViewpoint: PanoramaViewpoint
     let onViewpointChange: (PanoramaViewpoint) -> Void
-    let maskData: Data?
-    let isMaskEditing: Bool
-    let onMaskChange: (Data?) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -95,88 +59,52 @@ private struct SphericalMetalView: NSViewRepresentable {
     func makeNSView(context: Context) -> PanoramaMTKView {
         let view = PanoramaMTKView()
         context.coordinator.url = url
-        context.coordinator.overlayURL = overlayURL
-        context.coordinator.zenithOverlayURL = zenithOverlayURL
-        context.coordinator.nadirRetouchURL = nadirRetouchURL
-        context.coordinator.zenithRetouchURL = zenithRetouchURL
         context.coordinator.adjustments = adjustments
+        context.coordinator.viewpoint = initialViewpoint
+        context.coordinator.onViewpointChange = onViewpointChange
         context.coordinator.renderer = try? SphericalPanoramaRenderer(
             view: view,
             imageURL: url,
-            overlayURL: overlayURL,
-            zenithOverlayURL: zenithOverlayURL,
-            nadirRetouchURL: nadirRetouchURL,
-            zenithRetouchURL: zenithRetouchURL,
             adjustments: adjustments,
             initialViewpoint: initialViewpoint,
-            onViewpointChange: onViewpointChange
+            onViewpointChange: { [weak coordinator = context.coordinator]
+                viewpoint in
+                coordinator?.viewpoint = viewpoint
+                coordinator?.onViewpointChange?(viewpoint)
+            }
         )
         view.panoramaRenderer = context.coordinator.renderer
-        view.configureMask(
-            data: maskData,
-            isEditing: isMaskEditing,
-            onChange: onMaskChange
-        )
         return view
     }
 
     func updateNSView(_ view: PanoramaMTKView, context: Context) {
-        if context.coordinator.url != url
-            || context.coordinator.overlayURL != overlayURL
-            || context.coordinator.zenithOverlayURL != zenithOverlayURL
-            || context.coordinator.nadirRetouchURL != nadirRetouchURL
-            || context.coordinator.zenithRetouchURL != zenithRetouchURL {
+        context.coordinator.onViewpointChange = onViewpointChange
+        if context.coordinator.url != url {
             context.coordinator.url = url
-            context.coordinator.overlayURL = overlayURL
-            context.coordinator.zenithOverlayURL = zenithOverlayURL
-            context.coordinator.nadirRetouchURL = nadirRetouchURL
-            context.coordinator.zenithRetouchURL = zenithRetouchURL
-            context.coordinator.renderer?.loadTextures(
-                panoramaURL: url,
-                overlayURL: overlayURL,
-                zenithOverlayURL: zenithOverlayURL,
-                nadirRetouchURL: nadirRetouchURL,
-                zenithRetouchURL: zenithRetouchURL
-            )
+            context.coordinator.renderer?.loadTexture(panoramaURL: url)
         }
         if context.coordinator.adjustments != adjustments {
             context.coordinator.adjustments = adjustments
             context.coordinator.renderer?.setAdjustments(adjustments)
         }
-        view.configureMask(
-            data: maskData,
-            isEditing: isMaskEditing,
-            onChange: onMaskChange
-        )
+        if context.coordinator.viewpoint != initialViewpoint {
+            context.coordinator.viewpoint = initialViewpoint
+            context.coordinator.renderer?.setViewpoint(initialViewpoint)
+        }
     }
 
     final class Coordinator {
         var renderer: SphericalPanoramaRenderer?
         var url: URL?
-        var overlayURL: URL?
-        var zenithOverlayURL: URL?
-        var nadirRetouchURL: URL?
-        var zenithRetouchURL: URL?
         var adjustments = PanoramaAdjustments.neutral
+        var viewpoint = PanoramaViewpoint()
+        var onViewpointChange: ((PanoramaViewpoint) -> Void)?
     }
 }
 
 private final class PanoramaMTKView: MTKView {
-    fileprivate static let screenBrushDiameter: CGFloat = 48
-    private static let transparentCursor = NSCursor(
-        image: NSImage(size: CGSize(width: 1, height: 1)),
-        hotSpot: .zero
-    )
     weak var panoramaRenderer: SphericalPanoramaRenderer?
     private var previousDragLocation: CGPoint?
-    private let maskOverlay = SphericalMaskOverlayView()
-    private var maskData: Data?
-    private var isMaskEditing = false
-    private var onMaskChange: (Data?) -> Void = { _ in }
-    private var activeStroke: [CGPoint] = []
-    private var isErasingStroke = false
-    private var trackingAreaReference: NSTrackingArea?
-    private var modifierMonitor: Any?
 
     init() {
         super.init(frame: .zero, device: MTLCreateSystemDefaultDevice())
@@ -186,100 +114,23 @@ private final class PanoramaMTKView: MTKView {
         enableSetNeedsDisplay = true
         isPaused = true
         framebufferOnly = true
-        addSubview(maskOverlay)
     }
 
     required init(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
     }
 
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window == nil {
-            removeModifierMonitor()
-        } else {
-            window?.acceptsMouseMovedEvents = true
-            installModifierMonitor()
-        }
-        window?.invalidateCursorRects(for: self)
-    }
-
     override func resetCursorRects() {
         super.resetCursorRects()
-        addCursorRect(
-            bounds,
-            cursor: isMaskEditing ? Self.transparentCursor : .openHand
-        )
-    }
-
-    override func updateTrackingAreas() {
-        if let trackingAreaReference {
-            removeTrackingArea(trackingAreaReference)
-        }
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [
-                .mouseMoved,
-                .mouseEnteredAndExited,
-                .activeInKeyWindow,
-                .inVisibleRect
-            ],
-            owner: self
-        )
-        addTrackingArea(area)
-        trackingAreaReference = area
-        super.updateTrackingAreas()
-    }
-
-    override func layout() {
-        super.layout()
-        maskOverlay.frame = bounds
-    }
-
-    func configureMask(
-        data: Data?,
-        isEditing: Bool,
-        onChange: @escaping (Data?) -> Void
-    ) {
-        if isMaskEditing != isEditing {
-            previousDragLocation = nil
-            activeStroke = []
-            isErasingStroke = false
-            maskOverlay.activeStroke = []
-            maskOverlay.hoverPoint = nil
-            window?.invalidateCursorRects(for: self)
-        }
-        maskData = data
-        isMaskEditing = isEditing
-        onMaskChange = onChange
-        maskOverlay.maskData = data
+        addCursorRect(bounds, cursor: .openHand)
     }
 
     override func mouseDown(with event: NSEvent) {
-        if isMaskEditing {
-            isErasingStroke = event.modifierFlags.contains(.option)
-            let point = convert(event.locationInWindow, from: nil)
-            activeStroke = [point]
-            maskOverlay.activeStroke = activeStroke
-            maskOverlay.isErasingStroke = isErasingStroke
-            maskOverlay.hoverPoint = point
-            maskOverlay.isEraseCursor = isErasingStroke
-            return
-        }
         previousDragLocation = convert(event.locationInWindow, from: nil)
     }
 
     override func mouseDragged(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
-        if !activeStroke.isEmpty {
-            if activeStroke.last != location {
-                activeStroke.append(location)
-                maskOverlay.activeStroke = activeStroke
-                maskOverlay.hoverPoint = location
-            }
-            return
-        }
-        guard !isMaskEditing else { return }
         if let previousDragLocation {
             let horizontal = location.x - previousDragLocation.x
             let vertical = location.y - previousDragLocation.y
@@ -292,215 +143,23 @@ private final class PanoramaMTKView: MTKView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        if !activeStroke.isEmpty {
-            let width = max(bounds.width, 1)
-            let height = max(bounds.height, 1)
-            let points = activeStroke.map {
-                MaskPoint(
-                    x: $0.x / width,
-                    y: 1 - $0.y / height
-                )
-            }
-            let size = RetouchPatchService.patchSize
-            let radius = Self.screenBrushDiameter / 2 / width * CGFloat(size)
-            onMaskChange(SourceMaskRasterizer.applying(
-                stroke: points,
-                radius: radius,
-                erasing: isErasingStroke,
-                to: maskData,
-                width: size,
-                height: size
-            ))
-            activeStroke = []
-            isErasingStroke = false
-            maskOverlay.activeStroke = []
-            maskOverlay.isErasingStroke = false
-            maskOverlay.isEraseCursor = event.modifierFlags.contains(.option)
-            return
-        }
         previousDragLocation = nil
     }
 
     override func scrollWheel(with event: NSEvent) {
-        guard !isMaskEditing else { return }
         panoramaRenderer?.zoom(by: Float(
             ImageSurfaceScroll.dominantDelta(for: event)
         ))
     }
 
     override func magnify(with event: NSEvent) {
-        guard !isMaskEditing else { return }
         panoramaRenderer?.magnify(by: Float(event.magnification))
-    }
-
-    override func mouseMoved(with event: NSEvent) {
-        guard isMaskEditing else { return }
-        maskOverlay.hoverPoint = convert(event.locationInWindow, from: nil)
-        maskOverlay.isEraseCursor = event.modifierFlags.contains(.option)
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        guard isMaskEditing else { return }
-        maskOverlay.hoverPoint = convert(event.locationInWindow, from: nil)
-        maskOverlay.isEraseCursor = event.modifierFlags.contains(.option)
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        maskOverlay.hoverPoint = nil
     }
 
     func resetViewpoint() {
         panoramaRenderer?.resetViewpoint()
     }
 
-    private func installModifierMonitor() {
-        guard modifierMonitor == nil else { return }
-        modifierMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: .flagsChanged
-        ) { [weak self] event in
-            guard let self,
-                  event.window == nil || event.window === self.window else {
-                return event
-            }
-            if self.isMaskEditing {
-                self.maskOverlay.isEraseCursor =
-                    event.modifierFlags.contains(.option)
-            }
-            return event
-        }
-    }
-
-    private func removeModifierMonitor() {
-        if let modifierMonitor { NSEvent.removeMonitor(modifierMonitor) }
-        modifierMonitor = nil
-    }
-}
-
-private final class SphericalMaskOverlayView: NSView {
-    var maskData: Data? {
-        didSet {
-            maskImage = maskData.flatMap(Self.loadImage)
-            needsDisplay = true
-        }
-    }
-    var activeStroke: [CGPoint] = [] {
-        didSet { needsDisplay = true }
-    }
-    var isErasingStroke = false {
-        didSet { needsDisplay = true }
-    }
-    var hoverPoint: CGPoint? {
-        didSet { needsDisplay = true }
-    }
-    var isEraseCursor = false {
-        didSet { needsDisplay = true }
-    }
-
-    private var maskImage: CGImage?
-
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        if let maskImage, let context = NSGraphicsContext.current?.cgContext {
-            context.saveGState()
-            context.setAlpha(CGFloat(MaskOverlayAppearance.committedOpacity))
-            context.draw(maskImage, in: bounds)
-            context.restoreGState()
-        }
-        drawActiveStroke()
-        drawBrushCursor()
-    }
-
-    private func drawActiveStroke() {
-        guard !activeStroke.isEmpty else { return }
-        let path = NSBezierPath()
-        path.lineWidth = PanoramaMTKView.screenBrushDiameter
-        path.lineCapStyle = .round
-        path.lineJoinStyle = .round
-        path.move(to: activeStroke[0])
-        for point in activeStroke.dropFirst() { path.line(to: point) }
-        if activeStroke.count == 1 {
-            let radius = PanoramaMTKView.screenBrushDiameter / 2
-            path.appendOval(in: CGRect(
-                x: activeStroke[0].x - radius,
-                y: activeStroke[0].y - radius,
-                width: radius * 2,
-                height: radius * 2
-            ))
-        }
-        if isErasingStroke,
-           let context = NSGraphicsContext.current?.cgContext {
-            context.saveGState()
-            context.setBlendMode(.clear)
-            NSColor.white.set()
-            if activeStroke.count == 1 {
-                path.fill()
-            } else {
-                path.stroke()
-            }
-            context.restoreGState()
-        } else {
-            NSColor.systemRed.withAlphaComponent(
-                CGFloat(MaskOverlayAppearance.activeStrokeOpacity)
-            ).set()
-            if activeStroke.count == 1 {
-                path.fill()
-            } else {
-                path.stroke()
-            }
-        }
-    }
-
-    private func drawBrushCursor() {
-        guard let hoverPoint else { return }
-        let radius = PanoramaMTKView.screenBrushDiameter / 2
-        let cursor = NSBezierPath(ovalIn: CGRect(
-            x: hoverPoint.x - radius,
-            y: hoverPoint.y - radius,
-            width: radius * 2,
-            height: radius * 2
-        ))
-        cursor.lineWidth = 3
-        NSColor.black.withAlphaComponent(0.85).setStroke()
-        cursor.stroke()
-        cursor.lineWidth = 1
-        NSColor.white.setStroke()
-        cursor.stroke()
-
-        let center = NSBezierPath(ovalIn: CGRect(
-            x: hoverPoint.x - 1.5,
-            y: hoverPoint.y - 1.5,
-            width: 3,
-            height: 3
-        ))
-        NSColor.white.setFill()
-        center.fill()
-
-        guard isEraseCursor else { return }
-        let slash = NSBezierPath()
-        let offset = radius * 0.7
-        slash.move(to: CGPoint(
-            x: hoverPoint.x - offset,
-            y: hoverPoint.y - offset
-        ))
-        slash.line(to: CGPoint(
-            x: hoverPoint.x + offset,
-            y: hoverPoint.y + offset
-        ))
-        slash.lineWidth = 3
-        NSColor.black.withAlphaComponent(0.85).setStroke()
-        slash.stroke()
-        slash.lineWidth = 1
-        NSColor.white.setStroke()
-        slash.stroke()
-    }
-
-    private static func loadImage(_ data: Data) -> CGImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil)
-        else { return nil }
-        return CGImageSourceCreateImageAtIndex(source, 0, nil)
-    }
 }
 
 @MainActor
@@ -510,10 +169,6 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         var pitch: Float
         var verticalFieldOfView: Float
         var aspectRatio: Float
-        var hasOverlay: UInt32
-        var hasZenithOverlay: UInt32
-        var hasNadirRetouch: UInt32
-        var hasZenithRetouch: UInt32
         var lightAdjustments: SIMD4<Float>
         var toneAdjustments: SIMD4<Float>
         var colorAdjustments: SIMD4<Float>
@@ -524,10 +179,6 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     private let pipeline: MTLRenderPipelineState
     private weak var view: MTKView?
     private var texture: MTLTexture?
-    private var overlayTexture: MTLTexture?
-    private var zenithOverlayTexture: MTLTexture?
-    private var nadirRetouchTexture: MTLTexture?
-    private var zenithRetouchTexture: MTLTexture?
     private var yaw: Float = 0
     private var pitch: Float = 0
     private var verticalFieldOfView: Float = 75 * .pi / 180
@@ -537,10 +188,6 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     init(
         view: MTKView,
         imageURL: URL,
-        overlayURL: URL?,
-        zenithOverlayURL: URL?,
-        nadirRetouchURL: URL?,
-        zenithRetouchURL: URL?,
         adjustments: PanoramaAdjustments,
         initialViewpoint: PanoramaViewpoint,
         onViewpointChange: @escaping (PanoramaViewpoint) -> Void
@@ -565,22 +212,10 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         pipeline = try Self.makePipeline(device: device, pixelFormat: view.colorPixelFormat)
         super.init()
         view.delegate = self
-        loadTextures(
-            panoramaURL: imageURL,
-            overlayURL: overlayURL,
-            zenithOverlayURL: zenithOverlayURL,
-            nadirRetouchURL: nadirRetouchURL,
-            zenithRetouchURL: zenithRetouchURL
-        )
+        loadTexture(panoramaURL: imageURL)
     }
 
-    func loadTextures(
-        panoramaURL: URL,
-        overlayURL: URL?,
-        zenithOverlayURL: URL?,
-        nadirRetouchURL: URL?,
-        zenithRetouchURL: URL?
-    ) {
+    func loadTexture(panoramaURL: URL) {
         let loader = MTKTextureLoader(device: device)
         texture = try? loader.newTexture(
             URL: panoramaURL,
@@ -590,61 +225,21 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
                 .textureUsage: MTLTextureUsage.shaderRead.rawValue
             ]
         )
-        if let overlayURL {
-            overlayTexture = try? loader.newTexture(
-                URL: overlayURL,
-                options: [
-                    .SRGB: false,
-                    .origin: MTKTextureLoader.Origin.topLeft,
-                    .textureUsage: MTLTextureUsage.shaderRead.rawValue
-                ]
-            )
-            reportViewpoint()
-        } else {
-            overlayTexture = nil
-            reportViewpoint()
-        }
-        if let zenithOverlayURL {
-            zenithOverlayTexture = try? loader.newTexture(
-                URL: zenithOverlayURL,
-                options: [
-                    .SRGB: false,
-                    .origin: MTKTextureLoader.Origin.topLeft,
-                    .textureUsage: MTLTextureUsage.shaderRead.rawValue
-                ]
-            )
-        } else {
-            zenithOverlayTexture = nil
-        }
-        if let nadirRetouchURL {
-            nadirRetouchTexture = try? loader.newTexture(
-                URL: nadirRetouchURL,
-                options: [
-                    .SRGB: false,
-                    .origin: MTKTextureLoader.Origin.topLeft,
-                    .textureUsage: MTLTextureUsage.shaderRead.rawValue
-                ]
-            )
-        } else {
-            nadirRetouchTexture = nil
-        }
-        if let zenithRetouchURL {
-            zenithRetouchTexture = try? loader.newTexture(
-                URL: zenithRetouchURL,
-                options: [
-                    .SRGB: false,
-                    .origin: MTKTextureLoader.Origin.topLeft,
-                    .textureUsage: MTLTextureUsage.shaderRead.rawValue
-                ]
-            )
-        } else {
-            zenithRetouchTexture = nil
-        }
+        reportViewpoint()
         view?.setNeedsDisplay(view?.bounds ?? .zero)
     }
 
     func setAdjustments(_ adjustments: PanoramaAdjustments) {
         self.adjustments = adjustments.sanitized
+        view?.setNeedsDisplay(view?.bounds ?? .zero)
+    }
+
+    func setViewpoint(_ viewpoint: PanoramaViewpoint) {
+        yaw = Float(viewpoint.yawRadians)
+        pitch = Float(viewpoint.pitchRadians)
+        verticalFieldOfView = Float(
+            viewpoint.verticalFieldOfViewDegrees * .pi / 180
+        )
         view?.setNeedsDisplay(view?.bounds ?? .zero)
     }
 
@@ -715,10 +310,6 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             pitch: pitch,
             verticalFieldOfView: verticalFieldOfView,
             aspectRatio: Float(view.drawableSize.width / max(view.drawableSize.height, 1)),
-            hasOverlay: overlayTexture == nil ? 0 : 1,
-            hasZenithOverlay: zenithOverlayTexture == nil ? 0 : 1,
-            hasNadirRetouch: nadirRetouchTexture == nil ? 0 : 1,
-            hasZenithRetouch: zenithRetouchTexture == nil ? 0 : 1,
             lightAdjustments: SIMD4(
                 Float(adjustments.exposure),
                 Float(adjustments.brightness),
@@ -741,10 +332,6 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
 
         encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentTexture(texture, index: 0)
-        encoder.setFragmentTexture(overlayTexture, index: 1)
-        encoder.setFragmentTexture(zenithOverlayTexture, index: 2)
-        encoder.setFragmentTexture(nadirRetouchTexture, index: 3)
-        encoder.setFragmentTexture(zenithRetouchTexture, index: 4)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
@@ -778,10 +365,6 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         float pitch;
         float verticalFieldOfView;
         float aspectRatio;
-        uint hasOverlay;
-        uint hasZenithOverlay;
-        uint hasNadirRetouch;
-        uint hasZenithRetouch;
         float4 lightAdjustments;
         float4 toneAdjustments;
         float4 colorAdjustments;
@@ -855,10 +438,6 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     fragment float4 panoramaFragment(
         VertexOut in [[stage_in]],
         texture2d<float> panorama [[texture(0)]],
-        texture2d<float> nadirOverlay [[texture(1)]],
-        texture2d<float> zenithOverlay [[texture(2)]],
-        texture2d<float> nadirRetouch [[texture(3)]],
-        texture2d<float> zenithRetouch [[texture(4)]],
         constant Uniforms &uniforms [[buffer(0)]]
     ) {
         constexpr sampler panoramaSampler(
@@ -866,12 +445,6 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             filter::linear,
             mip_filter::linear
         );
-        constexpr sampler overlaySampler(
-            address::clamp_to_zero,
-            filter::linear,
-            mip_filter::linear
-        );
-
         float tangent = tan(uniforms.verticalFieldOfView * 0.5);
         float3 direction = normalize(float3(
             in.ndc.x * uniforms.aspectRatio * tangent,
@@ -902,63 +475,6 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             0.5 - latitude / M_PI_F
         );
         float4 base = panorama.sample(panoramaSampler, coordinate);
-        if (uniforms.hasZenithOverlay != 0) {
-            float3 zenithRay = float3(
-                direction.x,
-                direction.z,
-                direction.y
-            );
-            if (zenithRay.z > 0.0001) {
-                constexpr float zenithProjectionScale = 0.2886751346;
-                float2 zenithCoordinate = float2(0.5)
-                    + zenithProjectionScale * zenithRay.xy / zenithRay.z;
-                float4 zenith = zenithOverlay.sample(
-                    overlaySampler,
-                    zenithCoordinate
-                );
-                base.rgb = mix(base.rgb, zenith.rgb, zenith.a);
-            }
-        }
-        if (uniforms.hasZenithRetouch != 0) {
-            float3 zenithRay = float3(
-                direction.x,
-                direction.z,
-                direction.y
-            );
-            if (zenithRay.z > 0.0001) {
-                float2 retouchCoordinate = float2(0.5)
-                    + 0.5 * zenithRay.xy / zenithRay.z;
-                float4 retouch = zenithRetouch.sample(
-                    overlaySampler,
-                    retouchCoordinate
-                );
-                base.rgb = mix(base.rgb, retouch.rgb, retouch.a);
-            }
-        }
-        float3 localRay = float3(
-            direction.x,
-            -direction.z,
-            -direction.y
-        );
-        if (localRay.z > 0.0001 && uniforms.hasOverlay != 0) {
-            constexpr float localProjectionScale = 0.2886751346;
-            float2 localCoordinate = float2(0.5)
-                + localProjectionScale * localRay.xy / localRay.z;
-            float4 repair = nadirOverlay.sample(
-                overlaySampler,
-                localCoordinate
-            );
-            base.rgb = mix(base.rgb, repair.rgb, repair.a);
-        }
-        if (localRay.z > 0.0001 && uniforms.hasNadirRetouch != 0) {
-            float2 retouchCoordinate = float2(0.5)
-                + 0.5 * localRay.xy / localRay.z;
-            float4 retouch = nadirRetouch.sample(
-                overlaySampler,
-                retouchCoordinate
-            );
-            base.rgb = mix(base.rgb, retouch.rgb, retouch.a);
-        }
         return float4(applyAdjustments(base.rgb, coordinate, uniforms), 1.0);
     }
     """

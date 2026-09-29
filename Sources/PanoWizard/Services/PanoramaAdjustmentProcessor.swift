@@ -3,33 +3,11 @@ import Foundation
 enum PanoramaAdjustmentProcessor {
     static func writeRenderedPanorama(
         panoramaURL: URL,
-        nadirOverlayURL: URL?,
-        zenithOverlayURL: URL?,
-        nadirRetouchURL: URL?,
-        zenithRetouchURL: URL?,
         adjustments: PanoramaAdjustments,
         to destinationURL: URL
     ) throws {
-        let hasLayers = nadirOverlayURL != nil || zenithOverlayURL != nil
-            || nadirRetouchURL != nil || zenithRetouchURL != nil
-        let compositeURL = FileManager.default.temporaryDirectory.appending(
-            path: "\(UUID().uuidString)-panorama-composite.png"
-        )
-        if hasLayers {
-            try PoleRetouchService().flattenPanorama(
-                panoramaURL: panoramaURL,
-                nadirOverlayURL: nadirOverlayURL,
-                zenithOverlayURL: zenithOverlayURL,
-                nadirRetouchURL: nadirRetouchURL,
-                zenithRetouchURL: zenithRetouchURL,
-                to: compositeURL
-            )
-        }
-        defer {
-            if hasLayers { try? FileManager.default.removeItem(at: compositeURL) }
-        }
         try writeAdjustedImage(
-            from: hasLayers ? compositeURL : panoramaURL,
+            from: panoramaURL,
             adjustments: adjustments,
             to: destinationURL
         )

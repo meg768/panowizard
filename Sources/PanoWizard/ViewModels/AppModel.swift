@@ -610,10 +610,6 @@ final class AppModel {
             do {
                 try await exporter.exportHTML(
                     panoramaURL: panoramaURL,
-                    nadirOverlayURL: nil,
-                    zenithOverlayURL: nil,
-                    nadirRetouchURL: nil,
-                    zenithRetouchURL: nil,
                     adjustments: panoramaAdjustments,
                     title: project.title,
                     initialViewpoint: initialViewpoint,

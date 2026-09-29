@@ -6,10 +6,6 @@ struct PanoramaPreview: View {
     let panorama: PanoramaSet?
     let imageURL: URL?
     let isStitched: Bool
-    let nadirOverlayURL: URL?
-    let zenithOverlayURL: URL?
-    let nadirRetouchURL: URL?
-    let zenithRetouchURL: URL?
     let adjustments: PanoramaAdjustments
     let selectedSource: SourceImage?
     let maskData: Data?
@@ -29,10 +25,6 @@ struct PanoramaPreview: View {
                 if isStitched, let imageURL {
                     SphericalPanoramaView(
                         url: imageURL,
-                        overlayURL: nadirOverlayURL,
-                        zenithOverlayURL: zenithOverlayURL,
-                        nadirRetouchURL: nadirRetouchURL,
-                        zenithRetouchURL: zenithRetouchURL,
                         adjustments: adjustments,
                         initialViewpoint: initialViewpoint,
                         onViewpointChange: onViewpointChange
