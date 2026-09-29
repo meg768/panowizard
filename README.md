@@ -73,12 +73,21 @@ Patch is a modal export, external edit, import, and Apply workflow using a
 2048 × 2048 PNG named `patch.png` by default. The project stores only the
 finished manual patch and the projection needed to place it.
 
-Applied patches form a simple ordered list. Newer patches appear over older
-ones where they overlap, and each patch can be shown, hidden, or deleted. To
-change a patch, delete it and create a new one.
-The AI mask starts empty and is independent of panorama transparency and
-source-image masks. Only the explicitly painted mask is sent as editable;
-opaque black pixels remain ordinary image content.
+Applied patches form a simple ordered list that is displayed oldest first.
+Newer patches appear over older ones where they overlap. Each patch can be
+located in Preview, enabled or disabled with its switch, edited, or deleted.
+
+A new patch starts from the currently rendered panorama, including earlier
+enabled patches. Editing a patch keeps its position in the list and rebuilds
+its source from the panorama and the enabled patches below it, so a patch is
+never applied over itself. AI Edit restores the saved viewpoint, instruction,
+mask, and previous result. Manual Edit shows and exports the previous imported
+patch so it can be adjusted externally and imported again.
+
+A new AI mask starts empty and is independent of panorama transparency and
+source-image masks. An existing AI mask is restored during Edit. Only the
+explicitly painted mask is sent as editable; opaque black pixels remain
+ordinary image content.
 
 Little Planet export creates a stereographic PNG from the completed panorama.
 Rotation, horizon height, and background can be adjusted in a live preview.
