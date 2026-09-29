@@ -117,8 +117,9 @@ struct PanoProjectDocument: FileDocument, Equatable {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        let storageDirectory = directoryURL
-            ?? project.images.first?.url.deletingLastPathComponent()
+        let storageDirectory = directoryURL ?? project.images.first.flatMap {
+            $0.url.isFileURL ? $0.url.deletingLastPathComponent() : nil
+        }
         let storedProject = storageDirectory.map {
             projectWithRelativeSourcePaths(relativeTo: $0)
         } ?? project
@@ -203,15 +204,20 @@ struct PanoProjectDocument: FileDocument, Equatable {
                 ? storedURL.standardizedFileURL
                 : directoryURL.appending(path: storedURL.path)
                     .standardizedFileURL
-            var isDirectory: ObjCBool = false
-            guard FileManager.default.fileExists(
-                atPath: resolvedURL.path,
-                isDirectory: &isDirectory
-            ), !isDirectory.boolValue else {
+            let fallbackURL = directoryURL.appending(
+                path: storedURL.lastPathComponent
+            ).standardizedFileURL
+            guard let existingURL = [resolvedURL, fallbackURL].first(where: {
+                var isDirectory: ObjCBool = false
+                return FileManager.default.fileExists(
+                    atPath: $0.path,
+                    isDirectory: &isDirectory
+                ) && !isDirectory.boolValue
+            }) else {
                 project.removeImage(at: index)
                 continue
             }
-            project.images[index].url = resolvedURL
+            project.images[index].url = existingURL
         }
     }
 

@@ -12,6 +12,17 @@ struct RetouchPatchPresentation: Identifiable {
     let id = UUID()
     let kind: RetouchPatchDialogKind
     let viewpoint: PanoramaViewpoint
+    let replacingPatch: RetouchPatch?
+
+    init(
+        kind: RetouchPatchDialogKind,
+        viewpoint: PanoramaViewpoint,
+        replacingPatch: RetouchPatch? = nil
+    ) {
+        self.kind = kind
+        self.viewpoint = viewpoint
+        self.replacingPatch = replacingPatch
+    }
 }
 
 struct PanoramaRetouchView: View {
@@ -100,9 +111,7 @@ struct PanoramaRetouchView: View {
                             Text("No retouch patches")
                                 .foregroundStyle(.secondary)
                         } else {
-                            ForEach(
-                                Array(model.retouchPatches.reversed())
-                            ) { patch in
+                            ForEach(model.retouchPatches) { patch in
                                 retouchPatchRow(patch)
                                 Divider()
                             }
@@ -162,6 +171,21 @@ struct PanoramaRetouchView: View {
                 set: { _ in model.toggleRetouchPatch(patch.id) }
             ))
             .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .focusable(false)
+            .help(patch.isEnabled ? "Disable patch" : "Enable patch")
+
+            Button("Edit Patch", systemImage: "pencil") {
+                presentPatch(RetouchPatchPresentation(
+                    kind: patch.kind == .ai ? .ai : .manual,
+                    viewpoint: patch.viewpoint,
+                    replacingPatch: patch
+                ))
+            }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
+            .disabled(model.phase != .ready)
 
             Button("Delete Patch", systemImage: "trash", role: .destructive) {
                 model.removeRetouchPatch(patch.id)
@@ -178,6 +202,7 @@ struct ManualRetouchSheet: View {
     let onDismiss: () -> Void
 
     private let viewpoint: PanoramaViewpoint
+    private let replacingPatch: RetouchPatch?
     @State private var source: AIRetouchSource?
     @State private var importedURL: URL?
     @State private var errorMessage: String?
@@ -186,11 +211,13 @@ struct ManualRetouchSheet: View {
     init(
         model: AppModel,
         viewpoint: PanoramaViewpoint,
+        replacingPatch: RetouchPatch? = nil,
         projectDirectoryURL: URL?,
         onDismiss: @escaping () -> Void
     ) {
         self.model = model
         self.viewpoint = viewpoint
+        self.replacingPatch = replacingPatch
         self.projectDirectoryURL = projectDirectoryURL
         self.onDismiss = onDismiss
     }
@@ -235,9 +262,9 @@ struct ManualRetouchSheet: View {
                     title: "After",
                     footer: "Leave unchanged image content around edited areas."
                 ) {
-                    if let importedURL {
+                    if let afterURL {
                         AIRetouchImageViewport(
-                            url: importedURL,
+                            url: afterURL,
                             maskData: nil,
                             interaction: .pan,
                             isEnabled: true,
@@ -280,12 +307,23 @@ struct ManualRetouchSheet: View {
         }
     }
 
+    private var existingPatchURL: URL? {
+        replacingPatch.flatMap { model.retouchPatchURLs[$0.id] }
+    }
+
+    private var afterURL: URL? {
+        importedURL ?? existingPatchURL
+    }
+
     private func loadSource() async -> AIRetouchSource? {
         if let source { return source }
         isWorking = true
         defer { isWorking = false }
         do {
-            let loaded = try await model.createRetouchPatchSource(at: viewpoint)
+            let loaded = try await model.createRetouchPatchSource(
+                at: viewpoint,
+                replacing: replacingPatch
+            )
             guard !Task.isCancelled else {
                 model.discardRetouchPatchSource(loaded)
                 return nil
@@ -311,7 +349,8 @@ struct ManualRetouchSheet: View {
         panel.prompt = "Export"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            try Data(contentsOf: source.sourceURL).write(to: url, options: .atomic)
+            let exportURL = existingPatchURL ?? source.sourceURL
+            try Data(contentsOf: exportURL).write(to: url, options: .atomic)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -348,7 +387,8 @@ struct ManualRetouchSheet: View {
         do {
             try model.applyManualRetouchPatch(
                 from: importedURL,
-                viewpoint: source.viewpoint
+                viewpoint: source.viewpoint,
+                replacing: replacingPatch
             )
             onDismiss()
         } catch {
@@ -362,9 +402,11 @@ struct AIRetouchSheet: View {
     let onDismiss: () -> Void
 
     private let viewpoint: PanoramaViewpoint
+    private let replacingPatch: RetouchPatch?
     @State private var prompt: String
     @State private var source: AIRetouchSource?
     @State private var preview: AIRetouchPreview?
+    @State private var existingPreviewURL: URL?
     @State private var maskData: Data?
     @State private var maskHistory: [Data?] = []
     @State private var errorMessage: String?
@@ -380,12 +422,17 @@ struct AIRetouchSheet: View {
     init(
         model: AppModel,
         viewpoint: PanoramaViewpoint,
+        replacingPatch: RetouchPatch? = nil,
         onDismiss: @escaping () -> Void
     ) {
         self.model = model
         self.viewpoint = viewpoint
+        self.replacingPatch = replacingPatch
         self.onDismiss = onDismiss
-        _prompt = State(initialValue: Self.defaultPrompt)
+        _prompt = State(initialValue: replacingPatch?.prompt ?? Self.defaultPrompt)
+        _maskData = State(initialValue: replacingPatch.flatMap {
+            model.aiRetouchMaskDataByPatchID[$0.id]
+        })
     }
 
     var body: some View {
@@ -492,6 +539,10 @@ struct AIRetouchSheet: View {
                 }
                 .keyboardShortcut(.cancelAction)
                 Spacer()
+                Button("Usage…") {
+                    openUsageDashboard()
+                }
+                .help("View OpenAI API usage and costs")
                 Button(
                     storedAPIKey == nil
                         ? "Create API Key…"
@@ -511,7 +562,7 @@ struct AIRetouchSheet: View {
                     .keyboardShortcut(.defaultAction)
                     .disabled(isWorking)
                 } else {
-                    Button("AI Retouch") {
+                    Button(replacingPatch == nil ? "AI Retouch" : "Try Again") {
                         generate()
                     }
                     .keyboardShortcut(.defaultAction)
@@ -555,6 +606,37 @@ struct AIRetouchSheet: View {
         }
     }
 
+    private func openUsageDashboard() {
+        let calendar = Calendar.current
+        let endDate = Date()
+        guard let startDate = calendar.date(
+            byAdding: .day,
+            value: -14,
+            to: endDate
+        ) else { return }
+
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        var components = URLComponents(
+            string: "https://platform.openai.com/settings/organization/usage"
+        )
+        components?.queryItems = [
+            URLQueryItem(
+                name: "endDate",
+                value: formatter.string(from: endDate)
+            ),
+            URLQueryItem(
+                name: "startDate",
+                value: formatter.string(from: startDate)
+            ),
+        ]
+        guard let url = components?.url else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     private var canGenerate: Bool {
         source != nil
             && maskData != nil
@@ -562,7 +644,7 @@ struct AIRetouchSheet: View {
     }
 
     private var afterURL: URL? {
-        preview?.compositedURL
+        preview?.compositedURL ?? existingPreviewURL
     }
 
     private var canRestoreDefaultPrompt: Bool {
@@ -577,20 +659,27 @@ struct AIRetouchSheet: View {
         guard source == nil, !isPreparingSource else { return }
         isPreparingSource = true
         defer { isPreparingSource = false }
-        maskData = nil
         maskHistory = []
         errorMessage = nil
         invalidatePreview()
 
         do {
             let loadedSource = try await model.createRetouchPatchSource(
-                at: viewpoint
+                at: viewpoint,
+                replacing: replacingPatch
             )
             guard !Task.isCancelled else {
                 model.discardRetouchPatchSource(loadedSource)
                 return
             }
             source = loadedSource
+            if let replacingPatch {
+                existingPreviewURL = try await model
+                    .createExistingRetouchPatchPreview(
+                        source: loadedSource,
+                        patch: replacingPatch
+                    )
+            }
             errorMessage = nil
         } catch is CancellationError {
             return
@@ -647,7 +736,8 @@ struct AIRetouchSheet: View {
             try model.applyAIRetouchPreview(
                 preview,
                 prompt: prompt,
-                maskData: maskData
+                maskData: maskData,
+                replacing: replacingPatch
             )
             model.discardAIRetouchPreview(preview)
             self.preview = nil

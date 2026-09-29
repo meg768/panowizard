@@ -169,12 +169,14 @@ struct ContentView: View {
             AIRetouchSheet(
                 model: model,
                 viewpoint: presentation.viewpoint,
+                replacingPatch: presentation.replacingPatch,
                 onDismiss: { retouchPatchPresentation = nil }
             )
         case .manual:
             ManualRetouchSheet(
                 model: model,
                 viewpoint: presentation.viewpoint,
+                replacingPatch: presentation.replacingPatch,
                 projectDirectoryURL: projectDirectoryURL,
                 onDismiss: { retouchPatchPresentation = nil }
             )

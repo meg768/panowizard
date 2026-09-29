@@ -61,6 +61,57 @@ struct PanoProjectTests {
         }
     }
 
+    @Test("Relative source paths remain stable when macOS saves the package")
+    func relativeSourcePathsRemainStable() throws {
+        var image = sourceImage()
+        image.url = URL(string: "source.jpg")!
+        let document = PanoProjectDocument(
+            project: PanoProject(images: [image])
+        )
+
+        let wrapper = try document.packageFileWrapper()
+        let projectData = try #require(
+            wrapper.fileWrappers?["project.json"]?.regularFileContents
+        )
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let storedProject = try decoder.decode(PanoProject.self, from: projectData)
+
+        #expect(storedProject.images.first?.url.relativeString == "source.jpg")
+    }
+
+    @Test("Reader recovers a same-directory source with an extra parent component")
+    func recoversSameDirectorySourcePath() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizard-Source-Path-Test-\(UUID())",
+            directoryHint: .isDirectory
+        )
+        let projectURL = directory.appending(
+            path: "panowizard.pw",
+            directoryHint: .isDirectory
+        )
+        let sourceURL = directory.appending(path: "source.jpg")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(
+            at: projectURL,
+            withIntermediateDirectories: true
+        )
+        try Data().write(to: sourceURL)
+
+        var image = sourceImage()
+        image.url = URL(string: "../source.jpg")!
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(PanoProject(images: [image])).write(
+            to: projectURL.appending(path: "project.json")
+        )
+
+        let restored = try PanoProjectDocument(contentsOf: projectURL)
+
+        #expect(restored.project.images.count == 1)
+        #expect(restored.project.images[0].url == sourceURL)
+    }
+
     @Test("Removing a source remains safe")
     func removeSource() {
         let first = sourceImage()

@@ -430,22 +430,47 @@ final class AppModel {
     var retouchPatches: [RetouchPatch] { project.retouchPatches }
 
     func createRetouchPatchSource(
-        at viewpoint: PanoramaViewpoint
+        at viewpoint: PanoramaViewpoint,
+        replacing existingPatch: RetouchPatch? = nil
     ) async throws -> AIRetouchSource {
-        guard let panoramaURL = currentPanoramaURL else {
-            throw AIRetouchError.panoramaUnavailable
+        guard let stitchedResultURL else { throw AIRetouchError.panoramaUnavailable }
+        let basePanoramaURL: URL
+        let sourcePatches: [(RetouchPatch, URL)]
+        if let existingPatch {
+            guard let index = project.retouchPatches.firstIndex(where: {
+                $0.id == existingPatch.id
+            }) else { throw RetouchPatchError.patchUnavailable }
+            basePanoramaURL = stitchedResultURL
+            sourcePatches = project.retouchPatches[..<index].compactMap { patch in
+                retouchPatchURLs[patch.id].map { (patch, $0) }
+            }
+        } else {
+            basePanoramaURL = currentPanoramaURL ?? stitchedResultURL
+            sourcePatches = []
         }
         let directory = FileManager.default.temporaryDirectory.appending(
             path: "PanoWizard/RetouchPatch/\(project.id)/\(UUID())",
             directoryHint: .isDirectory
         )
         let sourceURL = directory.appending(path: "source.png")
+        let compositeURL = directory.appending(path: "source-panorama.png")
         try FileManager.default.createDirectory(
             at: directory,
             withIntermediateDirectories: true
         )
         do {
             try await Task.detached(priority: .userInitiated) {
+                let panoramaURL: URL
+                if sourcePatches.contains(where: { $0.0.isEnabled }) {
+                    try RetouchPatchService().render(
+                        panoramaURL: basePanoramaURL,
+                        patches: sourcePatches,
+                        to: compositeURL
+                    )
+                    panoramaURL = compositeURL
+                } else {
+                    panoramaURL = basePanoramaURL
+                }
                 try RetouchPatchService().exportPatch(
                     panoramaURL: panoramaURL,
                     viewpoint: viewpoint,
@@ -461,6 +486,26 @@ final class AppModel {
             try? FileManager.default.removeItem(at: directory)
             throw error
         }
+    }
+
+    func createExistingRetouchPatchPreview(
+        source: AIRetouchSource,
+        patch: RetouchPatch
+    ) async throws -> URL {
+        guard let patchURL = retouchPatchURLs[patch.id] else {
+            throw RetouchPatchError.patchUnavailable
+        }
+        let destination = source.directoryURL.appending(
+            path: "existing-preview.png"
+        )
+        try await Task.detached(priority: .userInitiated) {
+            try RetouchPatchService().compositePatch(
+                backgroundURL: source.sourceURL,
+                patchURL: patchURL,
+                to: destination
+            )
+        }.value
+        return destination
     }
 
     func createAIRetouchPreview(
@@ -524,32 +569,40 @@ final class AppModel {
     func applyAIRetouchPreview(
         _ preview: AIRetouchPreview,
         prompt: String,
-        maskData: Data
+        maskData: Data,
+        replacing existingPatch: RetouchPatch? = nil
     ) throws {
         let patch = RetouchPatch(
+            id: existingPatch?.id ?? UUID(),
             kind: .ai,
             viewpoint: preview.viewpoint,
+            isEnabled: existingPatch?.isEnabled ?? true,
             prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         )
-        try addRetouchPatch(
+        try storeRetouchPatch(
             patch,
             imageURL: preview.preparedURL,
-            maskData: maskData
+            maskData: maskData,
+            replacing: existingPatch?.id
         )
     }
 
     func applyManualRetouchPatch(
         from importedURL: URL,
-        viewpoint: PanoramaViewpoint
+        viewpoint: PanoramaViewpoint,
+        replacing existingPatch: RetouchPatch? = nil
     ) throws {
         let patch = RetouchPatch(
+            id: existingPatch?.id ?? UUID(),
             kind: .manual,
-            viewpoint: viewpoint
+            viewpoint: viewpoint,
+            isEnabled: existingPatch?.isEnabled ?? true
         )
-        try addRetouchPatch(
+        try storeRetouchPatch(
             patch,
             imageURL: importedURL,
-            maskData: nil
+            maskData: nil,
+            replacing: existingPatch?.id
         )
     }
 
@@ -627,13 +680,14 @@ final class AppModel {
         })
     }
 
-    private func addRetouchPatch(
+    private func storeRetouchPatch(
         _ patch: RetouchPatch,
         imageURL: URL,
-        maskData: Data?
+        maskData: Data?,
+        replacing patchID: RetouchPatch.ID?
     ) throws {
         let destination = retouchDirectory.appending(
-            path: "patch-\(patch.id).png"
+            path: "patch-\(patch.id)-\(UUID()).png"
         )
         try FileManager.default.createDirectory(
             at: retouchDirectory,
@@ -644,16 +698,34 @@ final class AppModel {
             to: destination
         )
         let oldPatches = project.retouchPatches
-        project.setRetouchPatches(oldPatches + [patch])
+        var updatedPatches = oldPatches
+        if let patchID {
+            guard let index = oldPatches.firstIndex(where: {
+                $0.id == patchID && $0.kind == patch.kind
+            }) else {
+                try? FileManager.default.removeItem(at: destination)
+                throw RetouchPatchError.patchUnavailable
+            }
+            updatedPatches[index] = patch
+        } else {
+            updatedPatches.append(patch)
+        }
+
+        let oldURL = retouchPatchURLs[patch.id]
+        let oldMaskData = aiRetouchMaskDataByPatchID[patch.id]
+        project.setRetouchPatches(updatedPatches)
         retouchPatchURLs[patch.id] = destination
-        if let maskData { aiRetouchMaskDataByPatchID[patch.id] = maskData }
+        aiRetouchMaskDataByPatchID[patch.id] = maskData
         do {
             try rebuildRetouchedPanorama()
+            if let oldURL, oldURL != destination {
+                try? FileManager.default.removeItem(at: oldURL)
+            }
             panoramaRevision += 1
         } catch {
             project.setRetouchPatches(oldPatches)
-            retouchPatchURLs[patch.id] = nil
-            aiRetouchMaskDataByPatchID[patch.id] = nil
+            retouchPatchURLs[patch.id] = oldURL
+            aiRetouchMaskDataByPatchID[patch.id] = oldMaskData
             try? FileManager.default.removeItem(at: destination)
             throw error
         }

@@ -7,6 +7,7 @@ enum RetouchPatchError: LocalizedError {
     case unreadableImage
     case emptyMask
     case invalidDimensions(expected: Int, width: Int, height: Int)
+    case patchUnavailable
     case writeFailed
 
     var errorDescription: String? {
@@ -17,6 +18,8 @@ enum RetouchPatchError: LocalizedError {
             "Paint the area to retouch."
         case let .invalidDimensions(expected, width, height):
             "The patch must be \(expected) × \(expected) px, but the image is \(width) × \(height) px."
+        case .patchUnavailable:
+            "The patch is no longer available."
         case .writeFailed:
             "The patch image could not be saved."
         }
@@ -364,6 +367,37 @@ struct RetouchPatchService: Sendable {
             )
         }
         try image.writePNG(to: destinationURL)
+    }
+
+    func compositePatch(
+        backgroundURL: URL,
+        patchURL: URL,
+        to destinationURL: URL,
+        expectedSize: Int = Self.patchSize
+    ) throws {
+        var background = try RGBAImage(contentsOf: backgroundURL)
+        let patch = try RGBAImage(contentsOf: patchURL)
+        for image in [background, patch]
+        where image.width != expectedSize || image.height != expectedSize {
+            throw RetouchPatchError.invalidDimensions(
+                expected: expectedSize,
+                width: image.width,
+                height: image.height
+            )
+        }
+        for y in 0..<background.height {
+            for x in 0..<background.width {
+                background.setPixel(
+                    Self.blend(
+                        patch.pixel(x: x, y: y),
+                        over: background.pixel(x: x, y: y)
+                    ),
+                    x: x,
+                    y: y
+                )
+            }
+        }
+        try background.writePNG(to: destinationURL)
     }
 
     func render(

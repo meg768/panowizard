@@ -114,6 +114,32 @@ struct RetouchPatchServiceTests {
     }
 
     @Test
+    func existingPatchPreviewIsCompositedOverItsSource() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let backgroundURL = directory.appending(path: "background.png")
+        let patchURL = directory.appending(path: "patch.png")
+        let previewURL = directory.appending(path: "preview.png")
+        try writeImage(width: 32, height: 32, to: backgroundURL) { _, _ in
+            (20, 40, 60, 255)
+        }
+        try writeImage(width: 32, height: 32, to: patchURL) { x, _ in
+            x < 16 ? (200, 100, 50, 255) : (0, 0, 0, 0)
+        }
+
+        try RetouchPatchService().compositePatch(
+            backgroundURL: backgroundURL,
+            patchURL: patchURL,
+            to: previewURL,
+            expectedSize: 32
+        )
+
+        let preview = try pixels(at: previewURL)
+        #expect(preview.pixel(x: 8, y: 16) == (200, 100, 50, 255))
+        #expect(preview.pixel(x: 24, y: 16) == (20, 40, 60, 255))
+    }
+
+    @Test
     func arbitraryPatchUsesTheSavedViewpoint() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
