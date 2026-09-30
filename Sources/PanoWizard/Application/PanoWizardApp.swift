@@ -489,7 +489,6 @@ private struct ProjectDocumentView: View {
             projectDirectoryURL: saveURL?.deletingLastPathComponent()
                 ?? model.sourceDirectoryURL
         )
-            .navigationSubtitle(isDirty ? "Edited" : "")
             .focusedSceneValue(
                 \.projectDocumentCommandActions,
                 ProjectDocumentCommandActions(
