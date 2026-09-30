@@ -67,9 +67,9 @@ Retouching uses one deliberately small, high-level model:
   image.
 - An AI patch uses an explicit editable mask and a saved prompt, like the
   current AI retouch workflow, but may target any panorama direction. There is
-  no separate Mask mode: Command-drag paints, Command-Option-drag erases, and
+  no separate Mask mode: Option-drag paints, Command-Option-drag erases, and
   `Clear Mask` discards the explicit mask and generated result. Plain drag and
-  scroll remain available for detailed navigation within the fixed image.
+  scroll pan within the fixed image; Command-scroll and pinch zoom.
 - A manual patch is a single modal export/edit/import/apply workflow. Its
   original image exists only temporarily while the dialog is open. On Apply,
   save only the imported edited image and the projection metadata needed to
@@ -195,6 +195,11 @@ separate from production code.
   future languages through an Apple String Catalog and the macOS language
   preference; do not add a parallel in-app language switch without an explicit
   product requirement.
+- Image surfaces share one navigation language: plain drag or scroll pans,
+  Command with vertical scroll and pinch zoom at the pointer, and Command-Plus,
+  Command-Minus, and Command-0 zoom or reset the active view. Option-drag paints
+  the selected mask type and Command-Option-drag erases; plain drag must never
+  edit a mask. Panoramas wrap horizontally, while flat images remain bounded.
 - Sidebar header actions must share the same visual trailing inset. In
   particular, the Panorama `Create` button must align with the Images
   `Add` button even though they live in different SwiftUI containers.

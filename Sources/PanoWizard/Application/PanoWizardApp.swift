@@ -241,6 +241,42 @@ struct PanoWizardApp: App {
             SourceMaskMenuCommands()
             ImagesMenuCommands()
             PanoramaMenuCommands()
+            ImageNavigationMenuCommands()
+        }
+    }
+}
+
+private struct ImageNavigationMenuCommands: Commands {
+    var body: some Commands {
+        CommandGroup(after: .toolbar) {
+            Divider()
+
+            Button("Zoom In") {
+                NSApp.sendAction(
+                    #selector(ImageNavigationResponder.zoomImageIn(_:)),
+                    to: nil,
+                    from: nil
+                )
+            }
+            .keyboardShortcut("+")
+
+            Button("Zoom Out") {
+                NSApp.sendAction(
+                    #selector(ImageNavigationResponder.zoomImageOut(_:)),
+                    to: nil,
+                    from: nil
+                )
+            }
+            .keyboardShortcut("-")
+
+            Button("Reset View") {
+                NSApp.sendAction(
+                    #selector(ImageNavigationResponder.resetImageView(_:)),
+                    to: nil,
+                    from: nil
+                )
+            }
+            .keyboardShortcut("0")
         }
     }
 }

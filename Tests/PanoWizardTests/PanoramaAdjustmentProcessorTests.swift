@@ -87,6 +87,11 @@ struct PanoramaAdjustmentProcessorTests {
         #expect(html.contains("program,\"brightness\"),-17.0"))
         #expect(!html.contains("vignette"))
         #expect(!html.contains("adjustments.exposure"))
+        #expect(html.contains("if(e.metaKey){if(Math.abs(e.deltaY)"))
+        #expect(html.contains("y-=e.deltaX*.005"))
+        #expect(html.contains("e.metaKey&&e.key===\"0\""))
+        #expect(html.contains("y=initialYaw;p=initialPitch;f=initialFOV"))
+        #expect(html.contains("e.key===\"ArrowLeft\""))
     }
 
     private func adjusted(

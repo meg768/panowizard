@@ -67,21 +67,18 @@ struct SourceImageRasterTests {
         let firstMask = Data([1, 2, 3])
         let secondMask = Data([4, 5, 6])
 
-        #expect(model.isSourceMaskEditing)
         model.setSourceMasks(red: firstMask, green: nil, for: first.id)
         model.setSourceMasks(red: secondMask, green: nil, for: first.id)
         model.undoMask()
         #expect(model.maskDataByImageID[first.id] == firstMask)
 
         model.selectSourceImage(second.id)
-        #expect(model.isSourceMaskEditing)
         #expect(!model.canUndoMask)
 
         model.selection = .panorama
-        #expect(!model.isSourceMaskEditing)
+        #expect(!model.canUndoMask)
 
         model.selectSourceImage(first.id)
-        #expect(model.isSourceMaskEditing)
         #expect(model.canUndoMask)
         model.undoMask()
         #expect(model.maskDataByImageID[first.id] == nil)

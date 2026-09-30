@@ -10,7 +10,6 @@ struct PanoramaPreview: View {
     let selectedSource: SourceImage?
     let maskData: Data?
     let protectedMaskData: Data?
-    let isMaskEditing: Bool
     let maskTool: SourceMaskTool
     let maskIntent: AppModel.SourceMaskIntent
     let initialViewpoint: PanoramaViewpoint
@@ -34,7 +33,6 @@ struct PanoramaPreview: View {
                         image: selectedSource,
                         maskData: maskData,
                         protectedMaskData: protectedMaskData,
-                        isMaskEditing: isMaskEditing,
                         maskTool: maskTool,
                         maskIntent: maskIntent,
                         viewport: sourceViewport(for: selectedSource.id),
@@ -91,7 +89,6 @@ private struct SourceMaskEditor: View {
     let image: SourceImage
     let maskData: Data?
     let protectedMaskData: Data?
-    let isMaskEditing: Bool
     let maskTool: SourceMaskTool
     let maskIntent: AppModel.SourceMaskIntent
     @Binding var viewport: SourceViewport
@@ -109,6 +106,7 @@ private struct SourceMaskEditor: View {
     @State private var isSystemCursorHidden = false
     @State private var magnificationStartZoom: Double?
     @State private var scrollPosition = ScrollPosition()
+    @State private var scrollGeometry: ScrollGeometry?
     @State private var pendingViewportCenter: UnitPoint?
     @State private var pointerGesture: PointerGesture?
     @State private var modifierInteraction = ImageSurfaceInteraction.navigate
@@ -153,7 +151,7 @@ private struct SourceMaskEditor: View {
                                 .frame(width: displaySize.width, height: displaySize.height)
                                 .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
 
-                            if isMaskEditing, let maskImage {
+                            if let maskImage {
                                 Image(decorative: maskImage, scale: 1)
                                     .resizable()
                                     .frame(
@@ -164,7 +162,7 @@ private struct SourceMaskEditor: View {
                                     .allowsHitTesting(false)
                             }
 
-                            if isMaskEditing, let protectedMaskImage {
+                            if let protectedMaskImage {
                                 Image(decorative: protectedMaskImage, scale: 1)
                                     .resizable()
                                     .frame(
@@ -248,7 +246,6 @@ private struct SourceMaskEditor: View {
                                     )
                                 }
                             }
-                            .opacity(isMaskEditing ? 1 : 0)
                             .allowsHitTesting(false)
 
                             Canvas { context, _ in
@@ -262,13 +259,12 @@ private struct SourceMaskEditor: View {
                                     crosshair.addLine(to: CGPoint(x: hoverPoint.x, y: hoverPoint.y + arm))
                                     context.stroke(crosshair, with: .color(.black), lineWidth: 3)
                                     context.stroke(crosshair, with: .color(.white), lineWidth: 1)
-                                    if previewIsErasing {
-                                        drawEraseIndicator(
-                                            in: context,
-                                            center: hoverPoint,
-                                            radius: 10
-                                        )
-                                    }
+                                    drawMaskOperationIndicator(
+                                        in: context,
+                                        center: hoverPoint,
+                                        radius: 6,
+                                        isRemoving: previewIsErasing
+                                    )
                                     return
                                 }
                                 let diameter = max(displayedBrushRadius * 2, 1)
@@ -288,25 +284,13 @@ private struct SourceMaskEditor: View {
                                     with: .color(.white),
                                     lineWidth: 1
                                 )
-                                let centerSize: CGFloat = 3
-                                context.fill(
-                                    Path(ellipseIn: CGRect(
-                                        x: hoverPoint.x - centerSize / 2,
-                                        y: hoverPoint.y - centerSize / 2,
-                                        width: centerSize,
-                                        height: centerSize
-                                    )),
-                                    with: .color(.white)
+                                drawMaskOperationIndicator(
+                                    in: context,
+                                    center: hoverPoint,
+                                    radius: displayedBrushRadius * 0.55,
+                                    isRemoving: previewIsErasing
                                 )
-                                if previewIsErasing {
-                                    drawEraseIndicator(
-                                        in: context,
-                                        center: hoverPoint,
-                                        radius: displayedBrushRadius * 0.7
-                                    )
-                                }
                             }
-                            .opacity(isMaskEditing ? 1 : 0)
                             .allowsHitTesting(false)
 
                             Color.clear
@@ -319,13 +303,50 @@ private struct SourceMaskEditor: View {
                         }
                         .frame(width: displaySize.width, height: displaySize.height)
                         .background {
-                            NativeImagePanMonitor()
+                            NativeImagePanMonitor(
+                                onCommandScroll: { delta, anchor, begins in
+                                    if begins {
+                                        prepareZoomAnchor(
+                                            anchor,
+                                            displaySize: displaySize
+                                        )
+                                    } else {
+                                        pendingZoomAnchor = anchor
+                                    }
+                                    setZoom(zoom * exp(-delta * 0.01))
+                                },
+                                onZoomIn: {
+                                    prepareZoomAnchor(
+                                        .center,
+                                        displaySize: displaySize
+                                    )
+                                    setZoom(zoom * 1.25)
+                                },
+                                onZoomOut: {
+                                    prepareZoomAnchor(
+                                        .center,
+                                        displaySize: displaySize
+                                    )
+                                    setZoom(zoom / 1.25)
+                                },
+                                onReset: {
+                                    zoomAnchor = .center
+                                    pendingZoomAnchor = .center
+                                    if zoom == 1 {
+                                        proxy.scrollTo(
+                                            zoomAnchorID,
+                                            anchor: .center
+                                        )
+                                    } else {
+                                        setZoom(1)
+                                    }
+                                }
+                            )
                         }
                         .contentShape(Rectangle())
                         .simultaneousGesture(
                             DragGesture(minimumDistance: 0)
                                 .onChanged { value in
-                                    guard isMaskEditing else { return }
                                     if pointerGesture == nil {
                                         let interaction = ImageSurfaceInteraction(
                                             modifierFlags: NSEvent.modifierFlags
@@ -371,12 +392,6 @@ private struct SourceMaskEditor: View {
                                 }
                         )
                         .onContinuousHover { phase in
-                            guard isMaskEditing else {
-                                lastHoverPoint = nil
-                                hoverPoint = nil
-                                showSystemCursor()
-                                return
-                            }
                             switch phase {
                             case .active(let location):
                                 modifierInteraction = ImageSurfaceInteraction(
@@ -397,14 +412,13 @@ private struct SourceMaskEditor: View {
                     }
                     .scrollIndicators(.visible)
                     .scrollDisabled(
-                        isMaskEditing
-                            && (modifierInteraction != .navigate
-                                || pointerGesture != nil)
+                        modifierInteraction != .navigate || pointerGesture != nil
                     )
                     .scrollPosition($scrollPosition)
                     .onScrollGeometryChange(for: ScrollGeometry.self) { geometry in
                         geometry
                     } action: { _, geometry in
+                        scrollGeometry = geometry
                         updateViewport(using: geometry)
                     }
                     .simultaneousGesture(
@@ -413,7 +427,12 @@ private struct SourceMaskEditor: View {
                                 let start = magnificationStartZoom ?? zoom
                                 if magnificationStartZoom == nil {
                                     magnificationStartZoom = zoom
+                                    prepareZoomAnchor(
+                                        value.startAnchor,
+                                        displaySize: displaySize
+                                    )
                                 }
+                                pendingZoomAnchor = value.startAnchor
                                 setZoom(start * value.magnification)
                             }
                             .onEnded { _ in
@@ -432,21 +451,9 @@ private struct SourceMaskEditor: View {
         }
         .background(.background)
         .background {
-            ZStack {
-                ScrollWheelZoomMonitor { delta, anchor in
-                    zoomAnchor = anchor
-                    pendingZoomAnchor = anchor
-                    setZoom(zoom * exp(-delta * 0.01))
-                }
-                ImageSurfaceModifierMonitor { interaction in
-                    guard isMaskEditing else {
-                        modifierInteraction = .navigate
-                        showSystemCursor()
-                        return
-                    }
-                    modifierInteraction = interaction
-                    updateCursorFeedback()
-                }
+            ImageSurfaceModifierMonitor { interaction in
+                modifierInteraction = interaction
+                updateCursorFeedback()
             }
         }
         .task(id: image) {
@@ -474,19 +481,6 @@ private struct SourceMaskEditor: View {
             circleStart = nil
             circleEnd = nil
             updateCursorFeedback()
-        }
-        .onChange(of: isMaskEditing) {
-            activeStroke = []
-            circleStart = nil
-            circleEnd = nil
-            pointerGesture = nil
-            activeGestureErases = false
-            if !isMaskEditing {
-                modifierInteraction = .navigate
-                lastHoverPoint = nil
-                hoverPoint = nil
-                showSystemCursor()
-            }
         }
         .onDisappear {
             showSystemCursor()
@@ -533,7 +527,6 @@ private struct SourceMaskEditor: View {
     private var previewIsErasing: Bool {
         activeGestureErases
             || modifierInteraction == .remove
-            || maskIntent == .erase
     }
 
     private var strokeColor: Color {
@@ -541,7 +534,6 @@ private struct SourceMaskEditor: View {
         switch maskIntent {
         case .exclude: return .red
         case .protect: return .green
-        case .erase: return .white
         }
     }
 
@@ -559,7 +551,7 @@ private struct SourceMaskEditor: View {
             )
         }
         applyToAllMasks(
-            erasing: activeGestureErases || maskIntent == .erase,
+            erasing: activeGestureErases,
             apply: apply
         )
         activeStroke = []
@@ -588,7 +580,7 @@ private struct SourceMaskEditor: View {
             )
         }
         applyToAllMasks(
-            erasing: activeGestureErases || maskIntent == .erase,
+            erasing: activeGestureErases,
             apply: apply
         )
     }
@@ -629,16 +621,53 @@ private struct SourceMaskEditor: View {
         }
     }
 
-    private func drawEraseIndicator(
+    private func drawMaskOperationIndicator(
         in context: GraphicsContext,
         center: CGPoint,
-        radius: CGFloat
+        radius: CGFloat,
+        isRemoving: Bool
     ) {
-        var slash = Path()
-        slash.move(to: CGPoint(x: center.x - radius, y: center.y - radius))
-        slash.addLine(to: CGPoint(x: center.x + radius, y: center.y + radius))
-        context.stroke(slash, with: .color(.black.opacity(0.85)), lineWidth: 3)
-        context.stroke(slash, with: .color(.white), lineWidth: 1)
+        var symbol = Path()
+        symbol.move(to: CGPoint(x: center.x - radius, y: center.y))
+        symbol.addLine(to: CGPoint(x: center.x + radius, y: center.y))
+        if !isRemoving {
+            symbol.move(to: CGPoint(x: center.x, y: center.y - radius))
+            symbol.addLine(to: CGPoint(x: center.x, y: center.y + radius))
+        }
+        context.stroke(symbol, with: .color(.black.opacity(0.85)), lineWidth: 3)
+        context.stroke(symbol, with: .color(.white), lineWidth: 1)
+    }
+
+    private func prepareZoomAnchor(
+        _ viewportAnchor: UnitPoint,
+        displaySize: CGSize
+    ) {
+        guard let geometry = scrollGeometry else {
+            zoomAnchor = viewportAnchor
+            pendingZoomAnchor = viewportAnchor
+            return
+        }
+        let imageOrigin = CGPoint(
+            x: max((geometry.contentSize.width - displaySize.width) / 2, 0),
+            y: max((geometry.contentSize.height - displaySize.height) / 2, 0)
+        )
+        let contentPoint = CGPoint(
+            x: geometry.visibleRect.minX
+                + viewportAnchor.x * geometry.containerSize.width,
+            y: geometry.visibleRect.minY
+                + viewportAnchor.y * geometry.containerSize.height
+        )
+        zoomAnchor = UnitPoint(
+            x: min(max(
+                (contentPoint.x - imageOrigin.x) / max(displaySize.width, 1),
+                0
+            ), 1),
+            y: min(max(
+                (contentPoint.y - imageOrigin.y) / max(displaySize.height, 1),
+                0
+            ), 1)
+        )
+        pendingZoomAnchor = viewportAnchor
     }
 
     private func aspectFitSize(
@@ -666,72 +695,6 @@ private struct SourceMaskEditor: View {
             return nil
         }
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
-    }
-}
-
-private struct ScrollWheelZoomMonitor: NSViewRepresentable {
-    let onScroll: (Double, UnitPoint) -> Void
-
-    func makeCoordinator() -> Coordinator { Coordinator(onScroll: onScroll) }
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        context.coordinator.install(for: view)
-        return view
-    }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        context.coordinator.onScroll = onScroll
-        context.coordinator.windowNumber = view.window?.windowNumber
-        context.coordinator.hitRectInWindow = view.convert(view.bounds, to: nil)
-    }
-
-    static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
-        coordinator.uninstall()
-    }
-
-    final class Coordinator {
-        var onScroll: (Double, UnitPoint) -> Void
-        private weak var view: NSView?
-        private var monitor: Any?
-        var windowNumber: Int?
-        var hitRectInWindow = CGRect.zero
-
-        init(onScroll: @escaping (Double, UnitPoint) -> Void) {
-            self.onScroll = onScroll
-        }
-
-        func install(for view: NSView) {
-            self.view = view
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) {
-                [weak self] event in
-                guard let self,
-                      self.windowNumber == event.windowNumber,
-                      self.hitRectInWindow.contains(event.locationInWindow)
-                else { return event }
-                let physicalDelta = ImageSurfaceScroll.dominantDelta(for: event)
-                let anchor = UnitPoint(
-                    x: min(max(
-                        (event.locationInWindow.x - self.hitRectInWindow.minX)
-                            / max(self.hitRectInWindow.width, 1), 0
-                    ), 1),
-                    y: min(max(
-                        1 - (event.locationInWindow.y - self.hitRectInWindow.minY)
-                            / max(self.hitRectInWindow.height, 1), 0
-                    ), 1)
-                )
-                guard abs(physicalDelta) > 0.01 else { return nil }
-                self.onScroll(physicalDelta, anchor)
-                return nil
-            }
-        }
-
-        func uninstall() {
-            if let monitor { NSEvent.removeMonitor(monitor) }
-            monitor = nil
-        }
-
-        deinit { uninstall() }
     }
 }
 
@@ -792,23 +755,38 @@ private struct ImageSurfaceModifierMonitor: NSViewRepresentable {
 }
 
 private struct NativeImagePanMonitor: NSViewRepresentable {
+    let onCommandScroll: (CGFloat, UnitPoint, Bool) -> Void
+    let onZoomIn: () -> Void
+    let onZoomOut: () -> Void
+    let onReset: () -> Void
+
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
 
     func makeNSView(context: Context) -> AttachmentView {
         let view = AttachmentView()
+        view.onZoomIn = onZoomIn
+        view.onZoomOut = onZoomOut
+        view.onReset = onReset
         view.onHierarchyChange = { [weak coordinator = context.coordinator,
                                     weak view] in
             guard let coordinator, let view else { return }
             coordinator.scrollView = view.enclosingScrollView
         }
+        context.coordinator.commandView = view
+        context.coordinator.onCommandScroll = onCommandScroll
         context.coordinator.install()
         return view
     }
 
     func updateNSView(_ view: AttachmentView, context: Context) {
+        view.onZoomIn = onZoomIn
+        view.onZoomOut = onZoomOut
+        view.onReset = onReset
         context.coordinator.scrollView = view.enclosingScrollView
+        context.coordinator.commandView = view
+        context.coordinator.onCommandScroll = onCommandScroll
     }
 
     static func dismantleNSView(
@@ -818,8 +796,17 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         coordinator.uninstall()
     }
 
-    final class AttachmentView: NSView {
+    final class AttachmentView: NSView, ImageNavigationResponder {
         var onHierarchyChange: (() -> Void)?
+        var onZoomIn: () -> Void = {}
+        var onZoomOut: () -> Void = {}
+        var onReset: () -> Void = {}
+
+        override var acceptsFirstResponder: Bool { true }
+
+        @objc func zoomImageIn(_ sender: Any?) { onZoomIn() }
+        @objc func zoomImageOut(_ sender: Any?) { onZoomOut() }
+        @objc func resetImageView(_ sender: Any?) { onReset() }
 
         override func viewDidMoveToSuperview() {
             super.viewDidMoveToSuperview()
@@ -835,15 +822,25 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
     @MainActor
     final class Coordinator {
         weak var scrollView: NSScrollView?
+        weak var commandView: AttachmentView?
+        var onCommandScroll: (CGFloat, UnitPoint, Bool) -> Void = { _, _, _ in }
         private var monitor: Any?
         private var panOrigin: CGPoint?
         private var panStart: CGPoint?
         private var pushedCursor = false
+        private var scrollZoomGesture = ImageSurfaceScrollGesture()
+        private var scrollZoomAnchor: UnitPoint?
 
         func install() {
             guard monitor == nil else { return }
             monitor = NSEvent.addLocalMonitorForEvents(
-                matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+                matching: [
+                    .leftMouseDown,
+                    .leftMouseDragged,
+                    .leftMouseUp,
+                    .scrollWheel,
+                    .magnify
+                ]
             ) { [weak self] event in
                 self?.handle(event) ?? event
             }
@@ -865,18 +862,64 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             }
             guard let scrollView,
                   let window = scrollView.window else { return event }
+            let hitRect = scrollView.contentView.convert(
+                scrollView.contentView.bounds,
+                to: nil
+            )
+            if event.type == .scrollWheel || event.type == .magnify {
+                guard event.window === window,
+                      hitRect.contains(event.locationInWindow) else {
+                    return event
+                }
+                window.makeFirstResponder(commandView)
+                guard event.type == .scrollWheel else { return event }
+                switch ImageSurfaceScroll.intent(for: event) {
+                case .pan:
+                    scrollZoomGesture.reset()
+                    scrollZoomAnchor = nil
+                    return event
+                case .zoom(let delta):
+                    let begins = scrollZoomGesture.beginsZoom(
+                        phase: event.phase,
+                        momentumPhase: event.momentumPhase
+                    )
+                    let establishesAnchor = begins || scrollZoomAnchor == nil
+                    if establishesAnchor {
+                        scrollZoomAnchor = UnitPoint(
+                            x: min(max(
+                                (event.locationInWindow.x - hitRect.minX)
+                                    / max(hitRect.width, 1),
+                                0
+                            ), 1),
+                            y: min(max(
+                                1 - (event.locationInWindow.y - hitRect.minY)
+                                    / max(hitRect.height, 1),
+                                0
+                            ), 1)
+                        )
+                    }
+                    guard let scrollZoomAnchor else { return nil }
+                    onCommandScroll(delta, scrollZoomAnchor, establishesAnchor)
+                    return nil
+                case .ignore:
+                    if event.phase.contains(.began)
+                        || (event.phase.isEmpty && event.momentumPhase.isEmpty) {
+                        scrollZoomGesture.reset()
+                        scrollZoomAnchor = nil
+                    }
+                    return nil
+                }
+            }
             switch event.type {
             case .leftMouseDown:
                 guard event.window === window,
-                      ImageSurfaceInteraction(
-                        modifierFlags: event.modifierFlags
-                      ) == .navigate,
-                      scrollView.contentView.convert(
-                        scrollView.contentView.bounds,
-                        to: nil
-                      ).contains(event.locationInWindow) else {
+                      hitRect.contains(event.locationInWindow) else {
                     return event
                 }
+                window.makeFirstResponder(commandView)
+                guard ImageSurfaceInteraction(
+                    modifierFlags: event.modifierFlags
+                ) == .navigate else { return event }
                 panOrigin = scrollView.contentView.bounds.origin
                 panStart = event.locationInWindow
                 NSCursor.closedHand.push()

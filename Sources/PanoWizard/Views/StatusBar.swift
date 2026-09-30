@@ -113,20 +113,15 @@ struct StatusBar: View {
               !model.isShowingStitchedPanorama else {
             return model.phase.message
         }
-        guard model.isSourceMaskEditing else {
-            return "Drag to pan · scroll to zoom"
-        }
         let action: String
         if model.sourceMaskTool == .rectangle {
             action = "selects a rectangular area"
-        } else if model.sourceMaskIntent == .erase {
-            action = "erases the mask"
         } else if model.sourceMaskIntent == .protect {
             action = "paints a green inclusion mask"
         } else {
             action = "paints a red exclusion mask"
         }
-        return "Drag to pan · scroll to zoom · ⌘-drag \(action) · "
-            + "⌘⌥-drag erases"
+        return "Drag or scroll to pan · ⌘-scroll or pinch to zoom · "
+            + "⌥-drag \(action) · ⌘⌥-drag erases"
     }
 }

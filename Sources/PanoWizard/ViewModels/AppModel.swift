@@ -11,7 +11,7 @@ enum ProjectSelection: Hashable {
 @MainActor
 @Observable
 final class AppModel {
-    enum SourceMaskIntent: Hashable { case exclude, protect, erase }
+    enum SourceMaskIntent: Hashable { case exclude, protect }
     enum MaskKind: Hashable { case panorama, protected }
 
     private struct MaskSnapshot {
@@ -49,11 +49,7 @@ final class AppModel {
     private var maskUndoHistory: [UUID: [MaskSnapshot]] = [:]
 
     var project: PanoProject
-    var selection: ProjectSelection? {
-        didSet {
-            isSourceMaskEditing = selectedSourceImage != nil
-        }
-    }
+    var selection: ProjectSelection?
     var phase: Phase = .ready
     var isImporterPresented = false
     var skippedFileCount = 0
@@ -69,7 +65,6 @@ final class AppModel {
     var aiRetouchMaskRevision = 0
     var sourceMaskIntent = SourceMaskIntent.exclude
     var sourceMaskTool = SourceMaskTool.brush
-    var isSourceMaskEditing = false
     var stitchProgress = 0.0
     var stitchStage = ""
     var lastStitchCoverage: Double?
@@ -103,7 +98,6 @@ final class AppModel {
         selection = stitchedResultURL != nil
             ? .panorama
             : project.images.first.map { .source($0.id) }
-        isSourceMaskEditing = selectedSourceImage != nil
         retouchPatchURLs = Dictionary(uniqueKeysWithValues:
             retouchPatchData.compactMap { id, data in
                 Self.restoreData(
@@ -408,14 +402,12 @@ final class AppModel {
     }
 
     var canUndoMask: Bool {
-        guard isSourceMaskEditing,
-              let id = selectedSourceImage?.id else { return false }
+        guard let id = selectedSourceImage?.id else { return false }
         return maskUndoHistory[id]?.isEmpty == false
     }
 
     func undoMask() {
-        guard isSourceMaskEditing,
-              let id = selectedSourceImage?.id,
+        guard let id = selectedSourceImage?.id,
               let snapshot = maskUndoHistory[id]?.popLast() else { return }
         maskDataByImageID[id] = snapshot.red
         protectedMaskDataByImageID[id] = snapshot.green

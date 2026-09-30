@@ -197,7 +197,6 @@ struct ContentView: View {
                 protectedMaskData: model.selectedSourceImage.flatMap {
                     model.protectedMaskDataByImageID[$0.id]
                 },
-                isMaskEditing: model.isSourceMaskEditing,
                 maskTool: model.sourceMaskTool,
                 maskIntent: model.sourceMaskIntent,
                 initialViewpoint: model.panoramaViewpoint,
@@ -371,7 +370,7 @@ struct ContentView: View {
 
     private var showsWorkspaceToolRow: Bool {
         model.isShowingStitchedPanorama
-            || (model.selectedSourceImage != nil && model.isSourceMaskEditing)
+            || model.selectedSourceImage != nil
     }
 
     private var previewAdjustments: PanoramaAdjustments {

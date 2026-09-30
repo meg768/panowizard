@@ -65,7 +65,7 @@ struct PanoramaRetouchView: View {
                     .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
                     .frame(maxWidth: .infinity)
 
-                    Text("Drag to pan · scroll or pinch to zoom")
+                    Text("Drag or scroll to pan · ⌘-scroll or pinch to zoom")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
@@ -237,7 +237,7 @@ struct ManualRetouchSheet: View {
             HStack(alignment: .top, spacing: 16) {
                 AIRetouchImagePane(
                     title: "Before",
-                    footer: "Drag to pan · scroll or pinch to zoom"
+                    footer: "Drag or scroll to pan · ⌘-scroll or pinch to zoom"
                 ) {
                     if let source {
                         AIRetouchImageViewport(
@@ -450,8 +450,8 @@ struct AIRetouchSheet: View {
             HStack(alignment: .top, spacing: 16) {
                 AIRetouchImagePane(
                     title: "Before",
-                    footer: "Drag to pan · scroll or pinch to zoom · "
-                        + "⌘-drag to paint · ⌘⌥-drag to erase · ⌘Z to undo"
+                    footer: "Drag or scroll to pan · ⌘-scroll or pinch to zoom · "
+                        + "⌥-drag to paint · ⌘⌥-drag to erase · ⌘Z to undo"
                 ) {
                     if let source {
                         AIRetouchImageViewport(
@@ -483,7 +483,7 @@ struct AIRetouchSheet: View {
 
                 AIRetouchImagePane(
                     title: "After",
-                    footer: "Drag to pan · scroll or pinch to zoom"
+                    footer: "Drag or scroll to pan · ⌘-scroll or pinch to zoom"
                 ) {
                     if let afterURL {
                         AIRetouchImageViewport(
@@ -942,14 +942,22 @@ private struct AIRetouchImageViewport: NSViewRepresentable {
 }
 
 private final class AIRetouchScrollView: NSScrollView {
+    private struct ScrollZoomAnchor {
+        let documentPoint: CGPoint
+        let windowPoint: CGPoint
+    }
+
     private let imageView = AIRetouchImageDocumentView()
     private var imageURL: URL?
     private var displayedMaskData: Data?
     private var needsInitialFit = false
     private var hasCompletedInitialFit = false
     private var fitGeneration = 0
+    private var fitMagnification: CGFloat?
     private var hasUserAdjustedViewport = false
     private var isUpdatingFit = false
+    private var scrollZoomGesture = ImageSurfaceScrollGesture()
+    private var scrollZoomAnchor: ScrollZoomAnchor?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -990,20 +998,67 @@ private final class AIRetouchScrollView: NSScrollView {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        let zoomDelta = ImageSurfaceScroll.dominantDelta(for: event)
-        guard abs(zoomDelta) > 0.01, let documentView else { return }
-        hasUserAdjustedViewport = true
-        let anchor = documentView.convert(event.locationInWindow, from: nil)
-        let target = min(max(
-            magnification * exp(-zoomDelta * 0.008),
-            minMagnification
-        ), maxMagnification)
-        guard abs(target - magnification) > 0.000_001 else { return }
-        setMagnification(target, centeredAt: anchor)
-        imageView.needsDisplay = true
+        window?.makeFirstResponder(imageView)
+        switch ImageSurfaceScroll.intent(for: event) {
+        case .pan:
+            endScrollZoom()
+            hasUserAdjustedViewport = true
+            super.scrollWheel(with: event)
+        case .zoom(let zoomDelta):
+            guard let documentView else { return }
+            hasUserAdjustedViewport = true
+            let begins = scrollZoomGesture.beginsZoom(
+                phase: event.phase,
+                momentumPhase: event.momentumPhase
+            )
+            if begins || scrollZoomAnchor == nil {
+                scrollZoomAnchor = ScrollZoomAnchor(
+                    documentPoint: documentView.convert(
+                        event.locationInWindow,
+                        from: nil
+                    ),
+                    windowPoint: event.locationInWindow
+                )
+            }
+            guard let scrollZoomAnchor else { return }
+            let target = min(max(
+                magnification * exp(-zoomDelta * 0.008),
+                minMagnification
+            ), maxMagnification)
+            guard abs(target - magnification) > 0.000_001 else { return }
+            setMagnification(
+                target,
+                centeredAt: scrollZoomAnchor.documentPoint
+            )
+            let pointAtViewport = documentView.convert(
+                scrollZoomAnchor.windowPoint,
+                from: nil
+            )
+            let proposed = CGRect(
+                origin: CGPoint(
+                    x: contentView.bounds.origin.x
+                        + scrollZoomAnchor.documentPoint.x - pointAtViewport.x,
+                    y: contentView.bounds.origin.y
+                        + scrollZoomAnchor.documentPoint.y - pointAtViewport.y
+                ),
+                size: contentView.bounds.size
+            )
+            let constrained = contentView.constrainBoundsRect(proposed)
+            contentView.scroll(to: constrained.origin)
+            reflectScrolledClipView(contentView)
+            imageView.needsDisplay = true
+        case .ignore:
+            if event.phase.contains(.began)
+                || (event.phase.isEmpty && event.momentumPhase.isEmpty) {
+                endScrollZoom()
+            }
+            break
+        }
     }
 
     override func magnify(with event: NSEvent) {
+        endScrollZoom()
+        window?.makeFirstResponder(imageView)
         hasUserAdjustedViewport = true
         super.magnify(with: event)
         imageView.needsDisplay = true
@@ -1020,6 +1075,7 @@ private final class AIRetouchScrollView: NSScrollView {
         let isFirstImage = imageURL == nil
         let imageChanged = imageURL != url
         if imageChanged {
+            endScrollZoom()
             imageURL = url
             imageView.image = Self.loadImage(url: url)
             if let image = imageView.image {
@@ -1047,10 +1103,38 @@ private final class AIRetouchScrollView: NSScrollView {
     }
 
     func beginUserNavigation() {
+        endScrollZoom()
         hasUserAdjustedViewport = true
     }
 
+    func keyboardZoom(inward: Bool) {
+        endScrollZoom()
+        hasUserAdjustedViewport = true
+        let factor: CGFloat = inward ? 1.25 : 0.8
+        let target = min(max(
+            magnification * factor,
+            minMagnification
+        ), maxMagnification)
+        setMagnification(target, centeredAt: CGPoint(
+            x: contentView.bounds.midX,
+            y: contentView.bounds.midY
+        ))
+        imageView.needsDisplay = true
+    }
+
+    func resetToFit() {
+        endScrollZoom()
+        guard let fitMagnification else { return }
+        hasUserAdjustedViewport = false
+        setMagnification(
+            fitMagnification,
+            centeredAt: CGPoint(x: imageView.bounds.midX, y: imageView.bounds.midY)
+        )
+        imageView.needsDisplay = true
+    }
+
     private func requestFit() {
+        endScrollZoom()
         fitGeneration += 1
         hasUserAdjustedViewport = false
         needsInitialFit = true
@@ -1098,6 +1182,7 @@ private final class AIRetouchScrollView: NSScrollView {
             contentView.frame.height / imageView.bounds.height
         )
         guard newFit.isFinite, newFit > 0 else { return false }
+        fitMagnification = newFit
         let center = CGPoint(x: imageView.bounds.midX, y: imageView.bounds.midY)
         let newMaximum = newFit * 8
         if newFit > maxMagnification {
@@ -1110,6 +1195,11 @@ private final class AIRetouchScrollView: NSScrollView {
         setMagnification(newFit, centeredAt: center)
         imageView.needsDisplay = true
         return abs(magnification - newFit) < 0.000_001
+    }
+
+    private func endScrollZoom() {
+        scrollZoomGesture.reset()
+        scrollZoomAnchor = nil
     }
 
     private static func loadImage(url: URL) -> CGImage? {
@@ -1205,7 +1295,7 @@ private final class AIRetouchCenteredClipView: NSClipView {
     }
 }
 
-private final class AIRetouchImageDocumentView: NSView {
+private final class AIRetouchImageDocumentView: NSView, ImageNavigationResponder {
     private static let screenBrushDiameter: CGFloat = 48
     private static let transparentCursor = NSCursor(
         image: NSImage(size: CGSize(width: 1, height: 1)),
@@ -1237,7 +1327,7 @@ private final class AIRetouchImageDocumentView: NSView {
     }
 
     override var isFlipped: Bool { true }
-    override var acceptsFirstResponder: Bool { interaction == .mask }
+    override var acceptsFirstResponder: Bool { true }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -1297,6 +1387,7 @@ private final class AIRetouchImageDocumentView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         window?.acceptsMouseMovedEvents = true
+        window?.makeFirstResponder(self)
         updateModifierInteraction(event.modifierFlags)
         if interaction == .mask,
            modifierInteraction != .navigate,
@@ -1383,6 +1474,18 @@ private final class AIRetouchImageDocumentView: NSView {
             return
         }
         super.keyDown(with: event)
+    }
+
+    @objc func zoomImageIn(_ sender: Any?) {
+        viewport?.keyboardZoom(inward: true)
+    }
+
+    @objc func zoomImageOut(_ sender: Any?) {
+        viewport?.keyboardZoom(inward: false)
+    }
+
+    @objc func resetImageView(_ sender: Any?) {
+        viewport?.resetToFit()
     }
 
     private func pan(to location: CGPoint) {
@@ -1504,29 +1607,38 @@ private final class AIRetouchImageDocumentView: NSView {
         cursor.lineWidth = 1 / max(viewport?.magnification ?? 1, 0.000_001)
         NSColor.white.setStroke()
         cursor.stroke()
-        guard modifierInteraction == .remove else { return }
-        let slash = NSBezierPath()
+        let symbol = NSBezierPath()
         let offset = radius * 0.7
-        slash.move(to: CGPoint(
+        symbol.move(to: CGPoint(
             x: hoverPoint.x - offset,
-            y: hoverPoint.y - offset
+            y: hoverPoint.y
         ))
-        slash.line(to: CGPoint(
+        symbol.line(to: CGPoint(
             x: hoverPoint.x + offset,
-            y: hoverPoint.y + offset
+            y: hoverPoint.y
         ))
-        slash.lineWidth = 3 / max(
+        if modifierInteraction == .edit {
+            symbol.move(to: CGPoint(
+                x: hoverPoint.x,
+                y: hoverPoint.y - offset
+            ))
+            symbol.line(to: CGPoint(
+                x: hoverPoint.x,
+                y: hoverPoint.y + offset
+            ))
+        }
+        symbol.lineWidth = 3 / max(
             viewport?.magnification ?? 1,
             0.000_001
         )
         NSColor.black.withAlphaComponent(0.85).setStroke()
-        slash.stroke()
-        slash.lineWidth = 1 / max(
+        symbol.stroke()
+        symbol.lineWidth = 1 / max(
             viewport?.magnification ?? 1,
             0.000_001
         )
         NSColor.white.setStroke()
-        slash.stroke()
+        symbol.stroke()
     }
 
     private var sourceBrushDiameter: CGFloat {

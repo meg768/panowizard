@@ -152,7 +152,6 @@ struct PanoProjectTests {
 
         #expect(model.stitchedResultURL != nil)
         #expect(model.selection == .panorama)
-        #expect(!model.isSourceMaskEditing)
     }
 
     @Test("Project package keeps patch images and AI masks separate")

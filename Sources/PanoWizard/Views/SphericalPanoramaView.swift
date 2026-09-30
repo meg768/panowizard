@@ -1,5 +1,6 @@
 import Foundation
 import MetalKit
+import simd
 import SwiftUI
 
 struct SphericalPanoramaView: View {
@@ -102,9 +103,13 @@ private struct SphericalMetalView: NSViewRepresentable {
     }
 }
 
-private final class PanoramaMTKView: MTKView {
+private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
     weak var panoramaRenderer: SphericalPanoramaRenderer?
     private var previousDragLocation: CGPoint?
+    private var pushedDragCursor = false
+    private var scrollZoomGesture = ImageSurfaceScrollGesture()
+
+    override var acceptsFirstResponder: Bool { true }
 
     init() {
         super.init(frame: .zero, device: MTLCreateSystemDefaultDevice())
@@ -126,7 +131,10 @@ private final class PanoramaMTKView: MTKView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
         previousDragLocation = convert(event.locationInWindow, from: nil)
+        NSCursor.closedHand.push()
+        pushedDragCursor = true
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -144,26 +152,89 @@ private final class PanoramaMTKView: MTKView {
 
     override func mouseUp(with event: NSEvent) {
         previousDragLocation = nil
+        if pushedDragCursor { NSCursor.pop() }
+        pushedDragCursor = false
     }
 
     override func scrollWheel(with event: NSEvent) {
-        panoramaRenderer?.zoom(by: Float(
-            ImageSurfaceScroll.dominantDelta(for: event)
-        ))
+        window?.makeFirstResponder(self)
+        switch ImageSurfaceScroll.intent(for: event) {
+        case .pan(let horizontal, let vertical):
+            scrollZoomGesture.reset()
+            panoramaRenderer?.endScrollZoom()
+            panoramaRenderer?.rotate(
+                horizontal: Float(horizontal),
+                vertical: Float(vertical)
+            )
+        case .zoom(let delta):
+            if scrollZoomGesture.beginsZoom(
+                phase: event.phase,
+                momentumPhase: event.momentumPhase
+            ) {
+                panoramaRenderer?.beginScrollZoom(
+                    anchor: normalizedAnchor(for: event)
+                )
+            }
+            panoramaRenderer?.zoom(by: Float(delta))
+        case .ignore:
+            if event.phase.contains(.began)
+                || (event.phase.isEmpty && event.momentumPhase.isEmpty) {
+                scrollZoomGesture.reset()
+                panoramaRenderer?.endScrollZoom()
+            }
+            break
+        }
     }
 
     override func magnify(with event: NSEvent) {
-        panoramaRenderer?.magnify(by: Float(event.magnification))
+        scrollZoomGesture.reset()
+        panoramaRenderer?.endScrollZoom()
+        window?.makeFirstResponder(self)
+        panoramaRenderer?.magnify(
+            by: Float(event.magnification),
+            anchor: normalizedAnchor(for: event)
+        )
     }
 
     func resetViewpoint() {
+        scrollZoomGesture.reset()
+        panoramaRenderer?.endScrollZoom()
         panoramaRenderer?.resetViewpoint()
+    }
+
+    @objc func zoomImageIn(_ sender: Any?) {
+        scrollZoomGesture.reset()
+        panoramaRenderer?.endScrollZoom()
+        panoramaRenderer?.keyboardZoom(inward: true)
+    }
+
+    @objc func zoomImageOut(_ sender: Any?) {
+        scrollZoomGesture.reset()
+        panoramaRenderer?.endScrollZoom()
+        panoramaRenderer?.keyboardZoom(inward: false)
+    }
+
+    @objc func resetImageView(_ sender: Any?) {
+        resetViewpoint()
+    }
+
+    private func normalizedAnchor(for event: NSEvent) -> SIMD2<Float> {
+        let location = convert(event.locationInWindow, from: nil)
+        return SIMD2(
+            Float(min(max(location.x / max(bounds.width, 1), 0), 1)),
+            Float(min(max(location.y / max(bounds.height, 1), 0), 1))
+        )
     }
 
 }
 
 @MainActor
 private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
+    private struct ScrollZoomAnchor {
+        let viewportPosition: SIMD2<Float>
+        let worldDirection: SIMD3<Float>
+    }
+
     private struct Uniforms {
         var yaw: Float
         var pitch: Float
@@ -182,7 +253,9 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     private var yaw: Float = 0
     private var pitch: Float = 0
     private var verticalFieldOfView: Float = 75 * .pi / 180
+    private var scrollZoomAnchor: ScrollZoomAnchor?
     private var adjustments: PanoramaAdjustments
+    private let initialViewpoint: PanoramaViewpoint
     private let onViewpointChange: (PanoramaViewpoint) -> Void
 
     init(
@@ -204,6 +277,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         self.view = view
         self.onViewpointChange = onViewpointChange
         self.adjustments = adjustments.sanitized
+        self.initialViewpoint = initialViewpoint
         yaw = Float(initialViewpoint.yawRadians)
         pitch = Float(initialViewpoint.pitchRadians)
         verticalFieldOfView = Float(
@@ -235,6 +309,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     }
 
     func setViewpoint(_ viewpoint: PanoramaViewpoint) {
+        scrollZoomAnchor = nil
         yaw = Float(viewpoint.yawRadians)
         pitch = Float(viewpoint.pitchRadians)
         verticalFieldOfView = Float(
@@ -250,30 +325,142 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         view?.setNeedsDisplay(view?.bounds ?? .zero)
     }
 
-    func zoom(by delta: Float) {
-        verticalFieldOfView = min(
-            max(verticalFieldOfView + delta * 0.006, 30 * .pi / 180),
-            150 * .pi / 180
+    func beginScrollZoom(anchor: SIMD2<Float>) {
+        let aspect = Float(view?.drawableSize.width ?? 1)
+            / max(Float(view?.drawableSize.height ?? 1), 1)
+        scrollZoomAnchor = ScrollZoomAnchor(
+            viewportPosition: anchor,
+            worldDirection: direction(
+                at: anchor,
+                fieldOfView: verticalFieldOfView,
+                aspectRatio: aspect
+            )
         )
-        reportViewpoint()
-        view?.setNeedsDisplay(view?.bounds ?? .zero)
     }
 
-    func magnify(by amount: Float) {
-        verticalFieldOfView = min(
-            max(verticalFieldOfView * (1 - amount), 30 * .pi / 180),
+    func endScrollZoom() {
+        scrollZoomAnchor = nil
+    }
+
+    func zoom(by delta: Float) {
+        if scrollZoomAnchor == nil {
+            beginScrollZoom(anchor: SIMD2(0.5, 0.5))
+        }
+        guard let scrollZoomAnchor else { return }
+        setVerticalFieldOfView(
+            verticalFieldOfView + delta * 0.006,
+            anchoredAt: scrollZoomAnchor.viewportPosition,
+            preserving: scrollZoomAnchor.worldDirection
+        )
+    }
+
+    func magnify(by amount: Float, anchor: SIMD2<Float>) {
+        setVerticalFieldOfView(
+            verticalFieldOfView * (1 - amount),
+            anchoredAt: anchor
+        )
+    }
+
+    func keyboardZoom(inward: Bool) {
+        let step = 10 * Float.pi / 180
+        setVerticalFieldOfView(
+            verticalFieldOfView + (inward ? -step : step),
+            anchoredAt: SIMD2(0.5, 0.5)
+        )
+    }
+
+    private func setVerticalFieldOfView(
+        _ proposed: Float,
+        anchoredAt anchor: SIMD2<Float>,
+        preserving fixedDirection: SIMD3<Float>? = nil
+    ) {
+        let target = min(
+            max(proposed, 30 * .pi / 180),
             150 * .pi / 180
+        )
+        guard abs(target - verticalFieldOfView) > 0.000_001 else { return }
+        let aspect = Float(view?.drawableSize.width ?? 1)
+            / max(Float(view?.drawableSize.height ?? 1), 1)
+        let fixedDirection = fixedDirection ?? direction(
+            at: anchor,
+            fieldOfView: verticalFieldOfView,
+            aspectRatio: aspect
+        )
+        verticalFieldOfView = target
+        preserve(
+            fixedDirection,
+            at: anchor,
+            fieldOfView: target,
+            aspectRatio: aspect
         )
         reportViewpoint()
         view?.setNeedsDisplay(view?.bounds ?? .zero)
     }
 
     func resetViewpoint() {
-        yaw = 0
-        pitch = 0
-        verticalFieldOfView = 75 * .pi / 180
+        scrollZoomAnchor = nil
+        yaw = Float(initialViewpoint.yawRadians)
+        pitch = Float(initialViewpoint.pitchRadians)
+        verticalFieldOfView = Float(
+            initialViewpoint.verticalFieldOfViewDegrees * .pi / 180
+        )
         reportViewpoint()
         view?.setNeedsDisplay(view?.bounds ?? .zero)
+    }
+
+    private func direction(
+        at anchor: SIMD2<Float>,
+        fieldOfView: Float,
+        aspectRatio: Float
+    ) -> SIMD3<Float> {
+        let tangent = tan(fieldOfView * 0.5)
+        var direction = simd_normalize(SIMD3<Float>(
+            (anchor.x * 2 - 1) * aspectRatio * tangent,
+            (anchor.y * 2 - 1) * tangent,
+            1
+        ))
+        let cosinePitch = cos(pitch)
+        let sinePitch = sin(pitch)
+        direction = SIMD3(
+            direction.x,
+            direction.y * cosinePitch - direction.z * sinePitch,
+            direction.y * sinePitch + direction.z * cosinePitch
+        )
+        let cosineYaw = cos(yaw)
+        let sineYaw = sin(yaw)
+        return SIMD3(
+            direction.x * cosineYaw + direction.z * sineYaw,
+            direction.y,
+            -direction.x * sineYaw + direction.z * cosineYaw
+        )
+    }
+
+    private func preserve(
+        _ fixedDirection: SIMD3<Float>,
+        at anchor: SIMD2<Float>,
+        fieldOfView: Float,
+        aspectRatio: Float
+    ) {
+        let fixedLongitude = atan2(fixedDirection.x, fixedDirection.z)
+        let fixedLatitude = asin(min(max(fixedDirection.y, -1), 1))
+        for _ in 0..<4 {
+            let current = direction(
+                at: anchor,
+                fieldOfView: fieldOfView,
+                aspectRatio: aspectRatio
+            )
+            let currentLongitude = atan2(current.x, current.z)
+            let currentLatitude = asin(min(max(current.y, -1), 1))
+            yaw += wrappedAngle(fixedLongitude - currentLongitude)
+            pitch = min(
+                max(pitch + fixedLatitude - currentLatitude, -.pi / 2),
+                .pi / 2
+            )
+        }
+    }
+
+    private func wrappedAngle(_ angle: Float) -> Float {
+        atan2(sin(angle), cos(angle))
     }
 
     private func reportViewpoint() {
