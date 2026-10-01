@@ -3,6 +3,22 @@ import MetalKit
 import simd
 import SwiftUI
 
+enum SphericalPanoramaMath {
+    static func correctedPitch(
+        _ pitch: Float,
+        fixedLatitude: Float,
+        currentLatitude: Float
+    ) -> Float {
+        min(
+            max(
+                pitch - (fixedLatitude - currentLatitude),
+                -.pi / 2
+            ),
+            .pi / 2
+        )
+    }
+}
+
 struct SphericalPanoramaView: View {
     let url: URL
     let adjustments: PanoramaAdjustments
@@ -107,7 +123,8 @@ private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
     weak var panoramaRenderer: SphericalPanoramaRenderer?
     private var previousDragLocation: CGPoint?
     private var pushedDragCursor = false
-    private var scrollZoomGesture = ImageSurfaceScrollGesture()
+    private var commandIsPressed = false
+    private var modifierMonitor: Any?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -123,6 +140,15 @@ private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
 
     required init(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            removeModifierMonitor()
+        } else {
+            installModifierMonitor()
+        }
     }
 
     override func resetCursorRects() {
@@ -160,35 +186,19 @@ private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
         window?.makeFirstResponder(self)
         switch ImageSurfaceScroll.intent(for: event) {
         case .pan(let horizontal, let vertical):
-            scrollZoomGesture.reset()
-            panoramaRenderer?.endScrollZoom()
             panoramaRenderer?.rotate(
                 horizontal: Float(horizontal),
-                vertical: Float(vertical)
+                vertical: Float(-vertical)
             )
         case .zoom(let delta):
-            if scrollZoomGesture.beginsZoom(
-                phase: event.phase,
-                momentumPhase: event.momentumPhase
-            ) {
-                panoramaRenderer?.beginScrollZoom(
-                    anchor: normalizedAnchor(for: event)
-                )
-            }
+            guard commandIsPressed else { return }
             panoramaRenderer?.zoom(by: Float(delta))
         case .ignore:
-            if event.phase.contains(.began)
-                || (event.phase.isEmpty && event.momentumPhase.isEmpty) {
-                scrollZoomGesture.reset()
-                panoramaRenderer?.endScrollZoom()
-            }
             break
         }
     }
 
     override func magnify(with event: NSEvent) {
-        scrollZoomGesture.reset()
-        panoramaRenderer?.endScrollZoom()
         window?.makeFirstResponder(self)
         panoramaRenderer?.magnify(
             by: Float(event.magnification),
@@ -197,20 +207,14 @@ private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
     }
 
     func resetViewpoint() {
-        scrollZoomGesture.reset()
-        panoramaRenderer?.endScrollZoom()
         panoramaRenderer?.resetViewpoint()
     }
 
     @objc func zoomImageIn(_ sender: Any?) {
-        scrollZoomGesture.reset()
-        panoramaRenderer?.endScrollZoom()
         panoramaRenderer?.keyboardZoom(inward: true)
     }
 
     @objc func zoomImageOut(_ sender: Any?) {
-        scrollZoomGesture.reset()
-        panoramaRenderer?.endScrollZoom()
         panoramaRenderer?.keyboardZoom(inward: false)
     }
 
@@ -218,11 +222,54 @@ private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
         resetViewpoint()
     }
 
-    private func normalizedAnchor(for event: NSEvent) -> SIMD2<Float> {
-        let location = convert(event.locationInWindow, from: nil)
+    private func normalizedAnchor(for location: CGPoint) -> SIMD2<Float> {
         return SIMD2(
             Float(min(max(location.x / max(bounds.width, 1), 0), 1)),
             Float(min(max(location.y / max(bounds.height, 1), 0), 1))
+        )
+    }
+
+    private func normalizedAnchor(for event: NSEvent) -> SIMD2<Float> {
+        normalizedAnchor(for: convert(event.locationInWindow, from: nil))
+    }
+
+    private func installModifierMonitor() {
+        guard modifierMonitor == nil else { return }
+        modifierMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: .flagsChanged
+        ) { [weak self] event in
+            self?.updateCommandAnchor(event: event)
+            return event
+        }
+    }
+
+    private func removeModifierMonitor() {
+        if let modifierMonitor { NSEvent.removeMonitor(modifierMonitor) }
+        modifierMonitor = nil
+        commandIsPressed = false
+        panoramaRenderer?.endCommandZoom()
+    }
+
+    private func updateCommandAnchor(event: NSEvent) {
+        let isPressed = event.modifierFlags.contains(.command)
+        guard isPressed != commandIsPressed else { return }
+        commandIsPressed = isPressed
+
+        guard isPressed,
+              let window,
+              event.window == nil || event.window === window else {
+            panoramaRenderer?.endCommandZoom()
+            return
+        }
+        let mouseInWindow = window.convertPoint(fromScreen: NSEvent.mouseLocation)
+        let location = convert(mouseInWindow, from: nil)
+        guard bounds.contains(location) else {
+            panoramaRenderer?.endCommandZoom()
+            return
+        }
+        window.makeFirstResponder(self)
+        panoramaRenderer?.beginCommandZoom(
+            anchor: normalizedAnchor(for: location)
         )
     }
 
@@ -230,7 +277,7 @@ private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
 
 @MainActor
 private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
-    private struct ScrollZoomAnchor {
+    private struct CommandZoomAnchor {
         let viewportPosition: SIMD2<Float>
         let worldDirection: SIMD3<Float>
     }
@@ -253,7 +300,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     private var yaw: Float = 0
     private var pitch: Float = 0
     private var verticalFieldOfView: Float = 75 * .pi / 180
-    private var scrollZoomAnchor: ScrollZoomAnchor?
+    private var commandZoomAnchor: CommandZoomAnchor?
     private var adjustments: PanoramaAdjustments
     private let initialViewpoint: PanoramaViewpoint
     private let onViewpointChange: (PanoramaViewpoint) -> Void
@@ -309,7 +356,6 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     }
 
     func setViewpoint(_ viewpoint: PanoramaViewpoint) {
-        scrollZoomAnchor = nil
         yaw = Float(viewpoint.yawRadians)
         pitch = Float(viewpoint.pitchRadians)
         verticalFieldOfView = Float(
@@ -325,10 +371,10 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         view?.setNeedsDisplay(view?.bounds ?? .zero)
     }
 
-    func beginScrollZoom(anchor: SIMD2<Float>) {
+    func beginCommandZoom(anchor: SIMD2<Float>) {
         let aspect = Float(view?.drawableSize.width ?? 1)
             / max(Float(view?.drawableSize.height ?? 1), 1)
-        scrollZoomAnchor = ScrollZoomAnchor(
+        commandZoomAnchor = CommandZoomAnchor(
             viewportPosition: anchor,
             worldDirection: direction(
                 at: anchor,
@@ -338,19 +384,16 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         )
     }
 
-    func endScrollZoom() {
-        scrollZoomAnchor = nil
+    func endCommandZoom() {
+        commandZoomAnchor = nil
     }
 
     func zoom(by delta: Float) {
-        if scrollZoomAnchor == nil {
-            beginScrollZoom(anchor: SIMD2(0.5, 0.5))
-        }
-        guard let scrollZoomAnchor else { return }
+        guard let commandZoomAnchor else { return }
         setVerticalFieldOfView(
             verticalFieldOfView + delta * 0.006,
-            anchoredAt: scrollZoomAnchor.viewportPosition,
-            preserving: scrollZoomAnchor.worldDirection
+            anchoredAt: commandZoomAnchor.viewportPosition,
+            preserving: commandZoomAnchor.worldDirection
         )
     }
 
@@ -398,7 +441,6 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     }
 
     func resetViewpoint() {
-        scrollZoomAnchor = nil
         yaw = Float(initialViewpoint.yawRadians)
         pitch = Float(initialViewpoint.pitchRadians)
         verticalFieldOfView = Float(
@@ -452,9 +494,10 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
             let currentLongitude = atan2(current.x, current.z)
             let currentLatitude = asin(min(max(current.y, -1), 1))
             yaw += wrappedAngle(fixedLongitude - currentLongitude)
-            pitch = min(
-                max(pitch + fixedLatitude - currentLatitude, -.pi / 2),
-                .pi / 2
+            pitch = SphericalPanoramaMath.correctedPitch(
+                pitch,
+                fixedLatitude: fixedLatitude,
+                currentLatitude: currentLatitude
             )
         }
     }

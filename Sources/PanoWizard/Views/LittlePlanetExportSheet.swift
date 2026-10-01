@@ -38,20 +38,19 @@ final class LittlePlanetExportController {
         }
     }
 
-    func save(projectName: String?, projectTitle: String, directoryURL: URL?) {
+    func save(
+        directoryURL: URL?,
+        onSuccess: @escaping () -> Void
+    ) {
         guard let source else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
         panel.directoryURL = directoryURL
-        let trimmedName = projectName?.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-        let name = trimmedName.flatMap { $0.isEmpty ? nil : $0 } ?? projectTitle
-        panel.nameFieldStringValue = "\(name)-little-planet.png"
-        panel.title = "Save Little Planet"
-        panel.prompt = "Save"
+        panel.nameFieldStringValue = "little-planet.png"
+        panel.title = "Export Little Planet"
+        panel.prompt = "Export"
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         let settings = settings
@@ -66,10 +65,12 @@ final class LittlePlanetExportController {
                     )
                     try LittlePlanetRenderer.writePNG(image, to: url)
                 }.value
+                isSaving = false
+                onSuccess()
             } catch {
                 errorMessage = error.localizedDescription
+                isSaving = false
             }
-            isSaving = false
         }
     }
 
@@ -107,12 +108,12 @@ final class LittlePlanetExportController {
 struct LittlePlanetExportSheet: View {
     let panoramaURL: URL
     let adjustments: PanoramaAdjustments
-    let projectName: String?
-    let projectTitle: String
     let projectDirectoryURL: URL?
 
     @Environment(\.dismiss) private var dismiss
     @State private var controller = LittlePlanetExportController()
+    @State private var rotationHoverPoint: CGPoint?
+    @State private var isRotationCursorHidden = false
 
     var body: some View {
         @Bindable var controller = controller
@@ -133,25 +134,18 @@ struct LittlePlanetExportSheet: View {
 
                 Form {
                     valueSlider(
-                        "Rotation",
-                        value: $controller.settings.rotationDegrees,
-                        range: -180...180,
-                        suffix: "°"
-                    )
-
-                    valueSlider(
                         "Horizon Height",
                         value: $controller.settings.horizonPercent,
                         range: 25...75,
                         suffix: "%"
                     )
 
-                    Picker("Background", selection: $controller.settings.background) {
-                        ForEach(LittlePlanetBackground.allCases, id: \.self) {
-                            Text($0.rawValue).tag($0)
-                        }
-                    }
-                    .pickerStyle(.menu)
+                    valueSlider(
+                        "Edge Feather",
+                        value: $controller.settings.edgeFeatherPercent,
+                        range: 0...20,
+                        suffix: "%"
+                    )
                 }
                 .formStyle(.grouped)
                 .frame(width: 310)
@@ -165,11 +159,11 @@ struct LittlePlanetExportSheet: View {
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Save…") {
+                Button("Export…") {
+                    showRotationCursor()
                     controller.save(
-                        projectName: projectName,
-                        projectTitle: projectTitle,
-                        directoryURL: projectDirectoryURL
+                        directoryURL: projectDirectoryURL,
+                        onSuccess: dismiss.callAsFunction
                     )
                 }
                 .keyboardShortcut(.defaultAction)
@@ -182,6 +176,7 @@ struct LittlePlanetExportSheet: View {
             .padding(16)
         }
         .frame(minWidth: 900, idealWidth: 980, minHeight: 580, idealHeight: 640)
+        .onDisappear { showRotationCursor() }
         .task {
             controller.load(
                 sourceURL: panoramaURL,
@@ -218,6 +213,81 @@ struct LittlePlanetExportSheet: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(.separator, lineWidth: 1)
         }
+        .overlay { rotationPicker }
+    }
+
+    private var rotationPicker: some View {
+        GeometryReader { geometry in
+            let imageSide = max(
+                min(geometry.size.width, geometry.size.height) - 24,
+                1
+            )
+            let radius = imageSide / 2
+            let center = CGPoint(
+                x: geometry.size.width / 2,
+                y: geometry.size.height / 2
+            )
+
+            ZStack {
+                if let rotationHoverPoint {
+                    Circle()
+                        .fill(Color.accentColor)
+                        .stroke(.white.opacity(0.9), lineWidth: 1)
+                        .frame(width: 10, height: 10)
+                        .position(rotationHoverPoint)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let location):
+                    let distance = hypot(
+                        location.x - center.x,
+                        location.y - center.y
+                    )
+                    if distance <= radius {
+                        rotationHoverPoint = location
+                        hideRotationCursor()
+                    } else {
+                        rotationHoverPoint = nil
+                        showRotationCursor()
+                    }
+                case .ended:
+                    rotationHoverPoint = nil
+                    showRotationCursor()
+                }
+            }
+            .gesture(
+                SpatialTapGesture()
+                    .onEnded { value in
+                        let dx = value.location.x - center.x
+                        let dy = value.location.y - center.y
+                        let distance = hypot(dx, dy)
+                        guard distance >= 12, distance <= radius else { return }
+                        let clickedAngle = atan2(dx, -dy)
+                        let rotation = controller.settings.rotationDegrees
+                            * .pi / 180 + clickedAngle
+                        controller.settings.rotationDegrees = atan2(
+                            sin(rotation),
+                            cos(rotation)
+                        ) * 180 / .pi
+                    }
+            )
+            .allowsHitTesting(!controller.isLoading && !controller.isSaving)
+        }
+    }
+
+    private func hideRotationCursor() {
+        guard !isRotationCursorHidden else { return }
+        NSCursor.hide()
+        isRotationCursorHidden = true
+    }
+
+    private func showRotationCursor() {
+        guard isRotationCursorHidden else { return }
+        NSCursor.unhide()
+        isRotationCursorHidden = false
     }
 
     private func valueSlider(

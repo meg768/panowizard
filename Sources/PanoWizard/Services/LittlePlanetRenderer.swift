@@ -3,16 +3,10 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-enum LittlePlanetBackground: String, CaseIterable, Sendable {
-    case transparent = "Transparent"
-    case black = "Black"
-    case white = "White"
-}
-
 struct LittlePlanetSettings: Equatable, Sendable {
     var rotationDegrees = 0.0
     var horizonPercent = 50.0
-    var background = LittlePlanetBackground.transparent
+    var edgeFeatherPercent = 0.0
 }
 
 struct LittlePlanetSource: Sendable {
@@ -80,11 +74,8 @@ enum LittlePlanetRenderer {
         let radius = max(Double(side) / 2.0 - 2.0, 1.0)
         let horizon = min(max(settings.horizonPercent / 100.0, 0.01), 0.99)
         let rotation = settings.rotationDegrees * .pi / 180.0
-        let background: (Double, Double, Double, Double) = switch settings.background {
-        case .transparent: (0, 0, 0, 0)
-        case .black: (0, 0, 0, 255)
-        case .white: (255, 255, 255, 255)
-        }
+        let featherWidth = radius
+            * min(max(settings.edgeFeatherPercent / 100.0, 0.0), 0.2)
 
         for y in 0..<side {
             if Task.isCancelled { throw CancellationError() }
@@ -94,7 +85,6 @@ enum LittlePlanetRenderer {
                 let normalizedRadius = hypot(dx, dy)
                 let destinationOffset = (y * side + x) * 4
                 guard normalizedRadius <= 1.0 else {
-                    write(background, to: &output, at: destinationOffset)
                     continue
                 }
 
@@ -113,23 +103,17 @@ enum LittlePlanetRenderer {
                     max(0.5 + latitude / .pi, 0.0), 1.0
                 ) * Double(source.height - 1)
                 let sampled = sample(source, x: sourceX, y: sourceY)
-                let edgeCoverage = min(max((1.0 - normalizedRadius) * radius + 0.5, 0), 1)
-                let pixel: (Double, Double, Double, Double)
-                if settings.background == .transparent {
-                    pixel = (
-                        sampled.0 * edgeCoverage,
-                        sampled.1 * edgeCoverage,
-                        sampled.2 * edgeCoverage,
-                        sampled.3 * edgeCoverage
-                    )
-                } else {
-                    pixel = (
-                        sampled.0 * edgeCoverage + background.0 * (1 - edgeCoverage),
-                        sampled.1 * edgeCoverage + background.1 * (1 - edgeCoverage),
-                        sampled.2 * edgeCoverage + background.2 * (1 - edgeCoverage),
-                        255
-                    )
-                }
+                let edgeDistance = (1.0 - normalizedRadius) * radius + 0.5
+                let edgeCoverage = min(max(
+                    featherWidth > 0 ? edgeDistance / featherWidth : edgeDistance,
+                    0
+                ), 1)
+                let pixel = (
+                    sampled.0 * edgeCoverage,
+                    sampled.1 * edgeCoverage,
+                    sampled.2 * edgeCoverage,
+                    sampled.3 * edgeCoverage
+                )
                 write(pixel, to: &output, at: destinationOffset)
             }
         }

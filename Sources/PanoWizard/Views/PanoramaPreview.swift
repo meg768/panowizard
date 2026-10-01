@@ -304,16 +304,19 @@ private struct SourceMaskEditor: View {
                         .frame(width: displaySize.width, height: displaySize.height)
                         .background {
                             NativeImagePanMonitor(
-                                onCommandScroll: { delta, anchor, begins in
-                                    if begins {
+                                onCommandAnchorChange: { anchor in
+                                    if let anchor {
                                         prepareZoomAnchor(
                                             anchor,
                                             displaySize: displaySize
                                         )
                                     } else {
-                                        pendingZoomAnchor = anchor
+                                        pendingZoomAnchor = nil
                                     }
-                                    setZoom(zoom * exp(-delta * 0.01))
+                                },
+                                onCommandScroll: { delta, anchor in
+                                    pendingZoomAnchor = anchor
+                                    setZoom(zoom * exp(-delta * 0.006))
                                 },
                                 onZoomIn: {
                                     prepareZoomAnchor(
@@ -755,7 +758,8 @@ private struct ImageSurfaceModifierMonitor: NSViewRepresentable {
 }
 
 private struct NativeImagePanMonitor: NSViewRepresentable {
-    let onCommandScroll: (CGFloat, UnitPoint, Bool) -> Void
+    let onCommandAnchorChange: (UnitPoint?) -> Void
+    let onCommandScroll: (CGFloat, UnitPoint) -> Void
     let onZoomIn: () -> Void
     let onZoomOut: () -> Void
     let onReset: () -> Void
@@ -775,6 +779,7 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             coordinator.scrollView = view.enclosingScrollView
         }
         context.coordinator.commandView = view
+        context.coordinator.onCommandAnchorChange = onCommandAnchorChange
         context.coordinator.onCommandScroll = onCommandScroll
         context.coordinator.install()
         return view
@@ -786,6 +791,7 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         view.onReset = onReset
         context.coordinator.scrollView = view.enclosingScrollView
         context.coordinator.commandView = view
+        context.coordinator.onCommandAnchorChange = onCommandAnchorChange
         context.coordinator.onCommandScroll = onCommandScroll
     }
 
@@ -823,12 +829,13 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
     final class Coordinator {
         weak var scrollView: NSScrollView?
         weak var commandView: AttachmentView?
-        var onCommandScroll: (CGFloat, UnitPoint, Bool) -> Void = { _, _, _ in }
+        var onCommandAnchorChange: (UnitPoint?) -> Void = { _ in }
+        var onCommandScroll: (CGFloat, UnitPoint) -> Void = { _, _ in }
         private var monitor: Any?
         private var panOrigin: CGPoint?
         private var panStart: CGPoint?
         private var pushedCursor = false
-        private var scrollZoomGesture = ImageSurfaceScrollGesture()
+        private var commandIsPressed = false
         private var scrollZoomAnchor: UnitPoint?
 
         func install() {
@@ -839,7 +846,8 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
                     .leftMouseDragged,
                     .leftMouseUp,
                     .scrollWheel,
-                    .magnify
+                    .magnify,
+                    .flagsChanged
                 ]
             ) { [weak self] event in
                 self?.handle(event) ?? event
@@ -853,6 +861,10 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         }
 
         private func handle(_ event: NSEvent) -> NSEvent? {
+            if event.type == .flagsChanged {
+                updateCommandAnchor(event: event)
+                return event
+            }
             if event.type == .leftMouseUp, panOrigin != nil {
                 finishPan()
                 return nil
@@ -875,38 +887,13 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
                 guard event.type == .scrollWheel else { return event }
                 switch ImageSurfaceScroll.intent(for: event) {
                 case .pan:
-                    scrollZoomGesture.reset()
-                    scrollZoomAnchor = nil
                     return event
                 case .zoom(let delta):
-                    let begins = scrollZoomGesture.beginsZoom(
-                        phase: event.phase,
-                        momentumPhase: event.momentumPhase
-                    )
-                    let establishesAnchor = begins || scrollZoomAnchor == nil
-                    if establishesAnchor {
-                        scrollZoomAnchor = UnitPoint(
-                            x: min(max(
-                                (event.locationInWindow.x - hitRect.minX)
-                                    / max(hitRect.width, 1),
-                                0
-                            ), 1),
-                            y: min(max(
-                                1 - (event.locationInWindow.y - hitRect.minY)
-                                    / max(hitRect.height, 1),
-                                0
-                            ), 1)
-                        )
-                    }
-                    guard let scrollZoomAnchor else { return nil }
-                    onCommandScroll(delta, scrollZoomAnchor, establishesAnchor)
+                    guard commandIsPressed,
+                          let scrollZoomAnchor else { return nil }
+                    onCommandScroll(delta, scrollZoomAnchor)
                     return nil
                 case .ignore:
-                    if event.phase.contains(.began)
-                        || (event.phase.isEmpty && event.momentumPhase.isEmpty) {
-                        scrollZoomGesture.reset()
-                        scrollZoomAnchor = nil
-                    }
                     return nil
                 }
             }
@@ -949,6 +936,46 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             default:
                 return event
             }
+        }
+
+        private func updateCommandAnchor(event: NSEvent) {
+            let isPressed = event.modifierFlags.contains(.command)
+            guard isPressed != commandIsPressed else { return }
+            commandIsPressed = isPressed
+
+            guard isPressed,
+                  let scrollView,
+                  let window = scrollView.window,
+                  event.window == nil || event.window === window else {
+                scrollZoomAnchor = nil
+                onCommandAnchorChange(nil)
+                return
+            }
+            let hitRect = scrollView.contentView.convert(
+                scrollView.contentView.bounds,
+                to: nil
+            )
+            let mouseInWindow = window.convertPoint(
+                fromScreen: NSEvent.mouseLocation
+            )
+            guard hitRect.contains(mouseInWindow) else {
+                scrollZoomAnchor = nil
+                onCommandAnchorChange(nil)
+                return
+            }
+            let anchor = UnitPoint(
+                x: min(max(
+                    (mouseInWindow.x - hitRect.minX) / max(hitRect.width, 1),
+                    0
+                ), 1),
+                y: min(max(
+                    1 - (mouseInWindow.y - hitRect.minY)
+                        / max(hitRect.height, 1),
+                    0
+                ), 1)
+            )
+            scrollZoomAnchor = anchor
+            onCommandAnchorChange(anchor)
         }
 
         private func finishPan() {

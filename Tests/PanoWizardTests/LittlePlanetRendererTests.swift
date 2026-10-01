@@ -74,6 +74,19 @@ struct LittlePlanetRendererTests {
         #expect(bytes[outsideHorizon + 2] > 180)
         #expect(bytes[nearEdge + 3] >= 248)
         #expect(bytes[3] == 0)
+
+        var featheredSettings = LittlePlanetSettings()
+        featheredSettings.edgeFeatherPercent = 10
+        let feathered = try LittlePlanetRenderer.render(
+            source: source,
+            side: 100,
+            settings: featheredSettings
+        )
+        let featheredData = try #require(feathered.dataProvider?.data)
+        let featheredBytes = try #require(CFDataGetBytePtr(featheredData))
+        #expect(featheredBytes[nearEdge + 3] > 0)
+        #expect(featheredBytes[nearEdge + 3] < 128)
+
     }
 
 }

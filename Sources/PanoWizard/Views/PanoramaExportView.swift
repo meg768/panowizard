@@ -123,8 +123,6 @@ struct PanoramaExportView: View {
                 LittlePlanetExportSheet(
                     panoramaURL: panoramaURL,
                     adjustments: model.panoramaAdjustments,
-                    projectName: projectName,
-                    projectTitle: model.project.title,
                     projectDirectoryURL: projectDirectoryURL
                 )
             }

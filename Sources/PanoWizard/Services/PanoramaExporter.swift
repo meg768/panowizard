@@ -123,6 +123,7 @@ struct FilePanoramaExporter: PanoramaExporting {
         const PI=Math.PI,initialYaw=\(initialViewpoint.yawRadians),
         initialPitch=\(initialViewpoint.pitchRadians),
         initialFOV=\(initialViewpoint.verticalFieldOfViewDegrees)*PI/180;
+        const supportsGestureZoom="ongesturestart" in window;
         let y=initialYaw,p=initialPitch,f=initialFOV,last=null,gestureFOV=f,
         wheelZoom=null,wheelZoomTimer=null;
         function resize(){const d=devicePixelRatio||1,w=innerWidth*d,h=innerHeight*d;
@@ -137,12 +138,9 @@ struct FilePanoramaExporter: PanoramaExporting {
         d=[d[0],d[1]*cp-d[2]*sp,d[1]*sp+d[2]*cp];const cy=Math.cos(y),sy=Math.sin(y);
         return[d[0]*cy+d[2]*sy,d[1],-d[0]*sy+d[2]*cy]}
         function wrapAngle(a){return Math.atan2(Math.sin(a),Math.cos(a))}
-        function setFOV(degrees,ax=.5,ay=.5,fixed=null){fixed=fixed||directionAt(ax,ay,f);
+        function setFOV(degrees){
         const target=Math.max(30,Math.min(105,degrees))*PI/180;if(Math.abs(target-f)<1e-9)return;
-        f=target;const lon=Math.atan2(fixed[0],fixed[2]),lat=Math.asin(Math.max(-1,Math.min(1,fixed[1])));
-        for(let i=0;i<4;i++){const current=directionAt(ax,ay,f);
-        y+=wrapAngle(lon-Math.atan2(current[0],current[2]));p=Math.max(-PI/2+.001,
-        Math.min(PI/2-.001,p+lat-Math.asin(Math.max(-1,Math.min(1,current[1])))))}draw()}
+        f=target;draw()}
         function eventAnchor(e){const r=canvas.getBoundingClientRect();return[
         Math.max(0,Math.min(1,(e.clientX-r.left)/Math.max(r.width,1))),
         Math.max(0,Math.min(1,(e.clientY-r.top)/Math.max(r.height,1)))]}
@@ -154,13 +152,12 @@ struct FilePanoramaExporter: PanoramaExporting {
         canvas.addEventListener("pointercancel",()=>last=null);
         function endWheelZoom(){wheelZoom=null;if(wheelZoomTimer)clearTimeout(wheelZoomTimer);wheelZoomTimer=null}
         canvas.addEventListener("wheel",e=>{e.preventDefault();const a=eventAnchor(e);
-        if(e.metaKey){if(Math.abs(e.deltaY)>=Math.abs(e.deltaX)){if(!wheelZoom)wheelZoom={a:a,
+        if(e.ctrlKey){if(supportsGestureZoom)return;endWheelZoom();
+        setFOV(f*180/PI*Math.exp(e.deltaY*.01),a[0],a[1]);return}
+        if(Math.abs(e.deltaY)>=Math.abs(e.deltaX)){if(!wheelZoom)wheelZoom={a:a,
         fixed:directionAt(a[0],a[1],f)};setFOV(f*180/PI+e.deltaY*.04,wheelZoom.a[0],
         wheelZoom.a[1],wheelZoom.fixed);if(wheelZoomTimer)clearTimeout(wheelZoomTimer);
-        wheelZoomTimer=setTimeout(endWheelZoom,120)}return}
-        endWheelZoom();
-        if(e.ctrlKey){setFOV(f*180/PI*Math.exp(e.deltaY*.01),a[0],a[1]);return}
-        y-=e.deltaX*.005;p=Math.max(-PI/2+.001,Math.min(PI/2-.001,p-e.deltaY*.005));draw()
+        wheelZoomTimer=setTimeout(endWheelZoom,120)}
         },{passive:false});
         canvas.addEventListener("gesturestart",e=>{e.preventDefault();gestureFOV=f},{passive:false});
         canvas.addEventListener("gesturechange",e=>{e.preventDefault();

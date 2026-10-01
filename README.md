@@ -53,10 +53,12 @@ no valid source coverage remain empty until they are repaired or retouched.
 
 ### Navigation
 
-Image and panorama views use the same controls. Drag or two-finger scroll to
-pan, use Command with vertical scroll or pinch to zoom at the pointer, and use
-Command-Plus, Command-Minus, or Command-0 to zoom in, zoom out, or reset the
-view. A panorama wraps horizontally; ordinary images stop at their edges.
+Source-image and panorama views use the same controls. Drag or two-finger
+scroll to pan. Pressing Command captures the point under the pointer as the
+zoom anchor until Command is released; vertical scroll while holding Command
+zooms around that fixed point. Pinch zooms at the pointer, and Command-Plus,
+Command-Minus, or Command-0 zooms in, zooms out, or resets the view. A panorama
+wraps horizontally; ordinary images stop at their edges.
 
 In a mask-editable image, Option-drag paints the selected Include or Exclude
 mask and Command-Option-drag erases. A plain drag never changes a mask. The
@@ -101,9 +103,11 @@ source-image masks. An existing AI mask is restored during Edit. Only the
 explicitly painted mask is sent as editable; opaque black pixels remain
 ordinary image content.
 
-Little Planet export creates a stereographic PNG from the completed panorama.
-Rotation, horizon height, and background can be adjusted in a live preview.
-The planet is rendered as large as possible with a two-pixel safety margin.
+Little Planet export creates a stereographic PNG with a transparent background
+from the completed panorama. Rotation, horizon height, and edge feather can be
+adjusted in a live preview. Clicking a visible part of the planet moves that
+direction to the 12 o'clock position. The planet uses the largest circle that
+fits with a two-pixel safety margin.
 
 Global adjustments are saved as project settings and applied after local
 retouching. They appear in the spherical preview and in JPEG, PNG, interactive

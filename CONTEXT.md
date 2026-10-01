@@ -130,6 +130,17 @@ approved for implementation now and must not be inferred as current behavior:
 - `RetouchPatchService` exports and reprojects a square rectilinear view at a
   saved Preview orientation. Applied patches are cached as one equirectangular
   working image so existing preview and export paths remain unchanged.
+- The exported HTML panorama is a standalone viewer with its own conventional
+  controls: drag pans, vertical wheel/scroll and trackpad pinch change only the
+  field of view, Command-Plus and Command-Minus zoom, Command-0 resets, and the
+  arrow keys pan. Its zoom is deliberately centered; do not reuse the native
+  editor's Command-held anchor model or let a zoom event alter yaw or pitch.
+- Little Planet export always produces a maximum-size transparent PNG. The
+  adjustable controls are horizon height and edge feather. Rotation is chosen
+  directly in the preview by clicking the direction that should move to the
+  12 o'clock position; the accent hover point replaces the system pointer over
+  the planet. A successful export dismisses the sheet, while cancel or failure
+  leaves it open.
 - `Sources/PanoWizard/ViewModels/AppModel.swift` connects the document, engine,
   preview, retouching, and export behavior to the UI lifecycle.
 - The `Images` application menu mirrors source-image order in the sidebar. Its
@@ -200,6 +211,10 @@ separate from production code.
   Command-Minus, and Command-0 zoom or reset the active view. Option-drag paints
   the selected mask type and Command-Option-drag erases; plain drag must never
   edit a mask. Panoramas wrap horizontally, while flat images remain bounded.
+- In native source-image and spherical panorama surfaces, Command key-down
+  captures both the content/world point under the pointer and its viewport
+  position. That exact anchor remains until Command key-up; pointer movement
+  and scroll or momentum phases must never replace it.
 - Sidebar header actions must share the same visual trailing inset. In
   particular, the Panorama `Create` button must align with the Images
   `Add` button even though they live in different SwiftUI containers.
