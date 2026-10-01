@@ -98,16 +98,17 @@ never applied over itself. AI Edit restores the saved viewpoint, instruction,
 mask, and previous result. Manual Edit shows and exports the previous imported
 patch so it can be adjusted externally and imported again.
 
-A new AI mask starts empty and is independent of panorama transparency and
-source-image masks. An existing AI mask is restored during Edit. Only the
-explicitly painted mask is sent as editable; opaque black pixels remain
-ordinary image content.
+A new AI mask starts with every transparent pixel in the captured panorama
+view selected and remains independent of source-image masks. The initial mask
+can be painted, erased, or cleared like any other mask. An existing AI mask is
+restored during Edit. Opaque black pixels remain ordinary image content.
 
-Little Planet export creates a stereographic PNG with a transparent background
-from the completed panorama. Rotation, horizon height, and edge feather can be
-adjusted in a live preview. Clicking a visible part of the planet moves that
-direction to the 12 o'clock position. The planet uses the largest circle that
-fits with a two-pixel safety margin.
+Little Planet export creates a stereographic PNG from the completed panorama.
+Rotation, horizon height, edge feather, and a transparent, white, or black
+background can be adjusted in a live preview. Transparent is the default.
+Clicking a visible part of the planet moves that direction to the 12 o'clock
+position. The planet uses the largest circle that fits with a two-pixel safety
+margin.
 
 Global adjustments are saved as project settings and applied after local
 retouching. They appear in the spherical preview and in JPEG, PNG, interactive

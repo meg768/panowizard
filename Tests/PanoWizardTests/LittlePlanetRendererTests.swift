@@ -87,6 +87,34 @@ struct LittlePlanetRendererTests {
         #expect(featheredBytes[nearEdge + 3] > 0)
         #expect(featheredBytes[nearEdge + 3] < 128)
 
+        var whiteSettings = LittlePlanetSettings()
+        whiteSettings.background = .white
+        let white = try LittlePlanetRenderer.render(
+            source: source,
+            side: 100,
+            settings: whiteSettings
+        )
+        let whiteData = try #require(white.dataProvider?.data)
+        let whiteBytes = try #require(CFDataGetBytePtr(whiteData))
+        #expect(whiteBytes[0] == 255)
+        #expect(whiteBytes[1] == 255)
+        #expect(whiteBytes[2] == 255)
+        #expect(whiteBytes[3] == 255)
+
+        var blackSettings = LittlePlanetSettings()
+        blackSettings.background = .black
+        let black = try LittlePlanetRenderer.render(
+            source: source,
+            side: 100,
+            settings: blackSettings
+        )
+        let blackData = try #require(black.dataProvider?.data)
+        let blackBytes = try #require(CFDataGetBytePtr(blackData))
+        #expect(blackBytes[0] == 0)
+        #expect(blackBytes[1] == 0)
+        #expect(blackBytes[2] == 0)
+        #expect(blackBytes[3] == 255)
+
     }
 
 }

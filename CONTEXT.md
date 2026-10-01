@@ -43,11 +43,11 @@ instructions belong in `README.md`.
 - Global adjustments live in a trailing panel embedded in Preview. They are
   not a separate sidebar destination. The Preview toolbar toggles the panel,
   and that choice is remembered only for the current app session.
-- The AI mask starts empty and remains independent of panorama transparency
-  and source-image masks. Only the explicitly painted mask becomes transparent
-  in the OpenAI input; existing transparent coverage outside it is submitted
-  as opaque black. The panorama itself remains alpha-preserving, and opaque
-  black is always ordinary image content.
+- A new AI mask starts with every non-opaque pixel in the captured panorama
+  view selected. This alpha-derived mask is an ordinary editable starting mask:
+  it can be painted, erased, or cleared, and remains independent of source-image
+  masks. The panorama itself remains alpha-preserving, and opaque black is
+  always ordinary image content.
 
 ## Retouch patches
 
@@ -99,9 +99,9 @@ approved for implementation now and must not be inferred as current behavior:
 - The patch dialog would edit the captured flat image rather than provide a
   second spherical navigator. Retouch would remain the place for managing
   completed patches.
-- An AI mask in this workflow would start empty and remain independent of
-  source-image exclusion masks and panorama transparency. Existing transparent
-  coverage must not silently become an AI selection.
+- An AI mask in this workflow would use the same editable alpha-derived
+  starting mask as the current Retouch workflow and remain independent of
+  source-image exclusion masks.
 - Patch capture must use the unadjusted retouch layer because global
   adjustments are applied after retouch. Capturing already adjusted pixels
   would apply those adjustments twice.
@@ -135,12 +135,12 @@ approved for implementation now and must not be inferred as current behavior:
   field of view, Command-Plus and Command-Minus zoom, Command-0 resets, and the
   arrow keys pan. Its zoom is deliberately centered; do not reuse the native
   editor's Command-held anchor model or let a zoom event alter yaw or pitch.
-- Little Planet export always produces a maximum-size transparent PNG. The
-  adjustable controls are horizon height and edge feather. Rotation is chosen
-  directly in the preview by clicking the direction that should move to the
-  12 o'clock position; the accent hover point replaces the system pointer over
-  the planet. A successful export dismisses the sheet, while cancel or failure
-  leaves it open.
+- Little Planet export always produces a maximum-size PNG. Its background can
+  be transparent (the default), white, or black. The adjustable controls are
+  horizon height and edge feather. Rotation is chosen directly in the preview
+  by clicking the direction that should move to the 12 o'clock position; the
+  accent hover point replaces the system pointer over the planet. A successful
+  export dismisses the sheet, while cancel or failure leaves it open.
 - `Sources/PanoWizard/ViewModels/AppModel.swift` connects the document, engine,
   preview, retouching, and export behavior to the UI lifecycle.
 - The `Images` application menu mirrors source-image order in the sidebar. Its

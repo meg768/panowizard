@@ -32,6 +32,32 @@ struct RetouchPatchService: Sendable {
     private static let radiometricBandOuterFeatherMultiple = 4.0
     private static let radiometricClipMargin = 8.0 / 255.0
 
+    func maskForTransparentPixels(
+        in sourceURL: URL,
+        expectedSize: Int = Self.patchSize
+    ) throws -> Data? {
+        let source = try RGBAImage(contentsOf: sourceURL)
+        guard source.width == expectedSize, source.height == expectedSize else {
+            throw RetouchPatchError.invalidDimensions(
+                expected: expectedSize,
+                width: source.width,
+                height: source.height
+            )
+        }
+
+        var mask = RGBAImage(width: source.width, height: source.height)
+        var containsTransparentPixels = false
+        let maskPixel = Pixel(r: 1, g: 0.12, b: 0.08, a: 1)
+        for y in 0..<source.height {
+            if Task.isCancelled { throw CancellationError() }
+            for x in 0..<source.width where source.pixel(x: x, y: y).a < 1 {
+                mask.setPixel(maskPixel, x: x, y: y)
+                containsTransparentPixels = true
+            }
+        }
+        return containsTransparentPixels ? try mask.pngData() : nil
+    }
+
     func prepareAIRetouchInput(
         from sourceURL: URL,
         maskData: Data,

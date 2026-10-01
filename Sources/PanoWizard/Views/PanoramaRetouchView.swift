@@ -672,6 +672,22 @@ struct AIRetouchSheet: View {
                 model.discardRetouchPatchSource(loadedSource)
                 return
             }
+            if replacingPatch == nil {
+                do {
+                    maskData = try await Task.detached(priority: .userInitiated) {
+                        try RetouchPatchService().maskForTransparentPixels(
+                            in: loadedSource.sourceURL
+                        )
+                    }.value
+                } catch {
+                    model.discardRetouchPatchSource(loadedSource)
+                    throw error
+                }
+            }
+            guard !Task.isCancelled else {
+                model.discardRetouchPatchSource(loadedSource)
+                return
+            }
             source = loadedSource
             if let replacingPatch {
                 existingPreviewURL = try await model

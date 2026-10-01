@@ -146,6 +146,13 @@ struct LittlePlanetExportSheet: View {
                         range: 0...20,
                         suffix: "%"
                     )
+
+                    Picker("Background", selection: $controller.settings.background) {
+                        ForEach(LittlePlanetBackground.allCases, id: \.self) {
+                            Text($0.rawValue).tag($0)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
                 .formStyle(.grouped)
                 .frame(width: 310)

@@ -3,10 +3,17 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
+enum LittlePlanetBackground: String, CaseIterable, Sendable {
+    case transparent = "Transparent"
+    case white = "White"
+    case black = "Black"
+}
+
 struct LittlePlanetSettings: Equatable, Sendable {
     var rotationDegrees = 0.0
     var horizonPercent = 50.0
     var edgeFeatherPercent = 0.0
+    var background = LittlePlanetBackground.transparent
 }
 
 struct LittlePlanetSource: Sendable {
@@ -76,6 +83,11 @@ enum LittlePlanetRenderer {
         let rotation = settings.rotationDegrees * .pi / 180.0
         let featherWidth = radius
             * min(max(settings.edgeFeatherPercent / 100.0, 0.0), 0.2)
+        let background: (Double, Double, Double, Double) = switch settings.background {
+        case .transparent: (0, 0, 0, 0)
+        case .white: (255, 255, 255, 255)
+        case .black: (0, 0, 0, 255)
+        }
 
         for y in 0..<side {
             if Task.isCancelled { throw CancellationError() }
@@ -85,6 +97,7 @@ enum LittlePlanetRenderer {
                 let normalizedRadius = hypot(dx, dy)
                 let destinationOffset = (y * side + x) * 4
                 guard normalizedRadius <= 1.0 else {
+                    write(background, to: &output, at: destinationOffset)
                     continue
                 }
 
@@ -108,12 +121,26 @@ enum LittlePlanetRenderer {
                     featherWidth > 0 ? edgeDistance / featherWidth : edgeDistance,
                     0
                 ), 1)
-                let pixel = (
-                    sampled.0 * edgeCoverage,
-                    sampled.1 * edgeCoverage,
-                    sampled.2 * edgeCoverage,
-                    sampled.3 * edgeCoverage
-                )
+                let pixel: (Double, Double, Double, Double)
+                if settings.background == .transparent {
+                    pixel = (
+                        sampled.0 * edgeCoverage,
+                        sampled.1 * edgeCoverage,
+                        sampled.2 * edgeCoverage,
+                        sampled.3 * edgeCoverage
+                    )
+                } else {
+                    let sourceAlpha = sampled.3 / 255.0 * edgeCoverage
+                    pixel = (
+                        sampled.0 * edgeCoverage
+                            + background.0 * (1 - sourceAlpha),
+                        sampled.1 * edgeCoverage
+                            + background.1 * (1 - sourceAlpha),
+                        sampled.2 * edgeCoverage
+                            + background.2 * (1 - sourceAlpha),
+                        255
+                    )
+                }
                 write(pixel, to: &output, at: destinationOffset)
             }
         }

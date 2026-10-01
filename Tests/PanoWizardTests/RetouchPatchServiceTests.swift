@@ -8,6 +8,52 @@ import UniformTypeIdentifiers
 struct RetouchPatchServiceTests {
 
     @Test
+    func transparentPixelsBecomeInitialAIRetouchMask() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceURL = directory.appending(path: "source.png")
+        try writeImage(width: 64, height: 64, to: sourceURL) { x, y in
+            if x == 20 && y == 20 {
+                return (0, 0, 0, 0)
+            }
+            if x == 21 && y == 20 {
+                return (60, 40, 20, 254)
+            }
+            if x == 10 && y == 10 {
+                return (0, 0, 0, 255)
+            }
+            return (120, 80, 40, 255)
+        }
+
+        let service = RetouchPatchService()
+        let generatedMask = try service.maskForTransparentPixels(
+            in: sourceURL,
+            expectedSize: 64
+        )
+        let maskData = try #require(generatedMask)
+        let maskURL = directory.appending(path: "mask.png")
+        try maskData.write(to: maskURL)
+        let mask = try pixels(at: maskURL)
+
+        #expect(mask.pixel(x: 20, y: 20).0 == 255)
+        #expect(mask.pixel(x: 20, y: 20).1 == 31)
+        #expect(mask.pixel(x: 20, y: 20).2 == 20)
+        #expect(mask.pixel(x: 20, y: 20).3 == 255)
+        #expect(mask.pixel(x: 21, y: 20).3 == 255)
+        #expect(mask.pixel(x: 10, y: 10).3 == 0)
+        #expect(mask.pixel(x: 30, y: 30).3 == 0)
+
+        let opaqueURL = directory.appending(path: "opaque.png")
+        try writeImage(width: 64, height: 64, to: opaqueURL) { _, _ in
+            (0, 0, 0, 255)
+        }
+        #expect(try service.maskForTransparentPixels(
+            in: opaqueURL,
+            expectedSize: 64
+        ) == nil)
+    }
+
+    @Test
     func aiRetouchInputUsesOnlyExplicitMask() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
