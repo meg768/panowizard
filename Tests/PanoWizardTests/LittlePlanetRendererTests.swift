@@ -7,8 +7,8 @@ import UniformTypeIdentifiers
 
 @Suite("Little Planet renderer")
 struct LittlePlanetRendererTests {
-    @Test("Places nadir at the center, sky outside the horizon, and preserves transparency")
-    func nadirAndTransparency() throws {
+    @Test("Places nadir at the center and continues through the square corners")
+    func squareProjection() throws {
         let width = 64
         let height = 32
         var pixels = [UInt8](repeating: 255, count: width * height * 4)
@@ -66,54 +66,14 @@ struct LittlePlanetRendererTests {
         let bytes = try #require(CFDataGetBytePtr(resultData))
         let center = (50 * 100 + 50) * 4
         let outsideHorizon = (50 * 100 + 85) * 4
-        let nearEdge = (50 * 100 + 2) * 4
 
         #expect(bytes[center + 1] > 180)
         #expect(bytes[center + 2] < 80)
         #expect(bytes[outsideHorizon] < 80)
         #expect(bytes[outsideHorizon + 2] > 180)
-        #expect(bytes[nearEdge + 3] >= 248)
-        #expect(bytes[3] == 0)
-
-        var featheredSettings = LittlePlanetSettings()
-        featheredSettings.edgeFeatherPercent = 10
-        let feathered = try LittlePlanetRenderer.render(
-            source: source,
-            side: 100,
-            settings: featheredSettings
-        )
-        let featheredData = try #require(feathered.dataProvider?.data)
-        let featheredBytes = try #require(CFDataGetBytePtr(featheredData))
-        #expect(featheredBytes[nearEdge + 3] > 0)
-        #expect(featheredBytes[nearEdge + 3] < 128)
-
-        var whiteSettings = LittlePlanetSettings()
-        whiteSettings.background = .white
-        let white = try LittlePlanetRenderer.render(
-            source: source,
-            side: 100,
-            settings: whiteSettings
-        )
-        let whiteData = try #require(white.dataProvider?.data)
-        let whiteBytes = try #require(CFDataGetBytePtr(whiteData))
-        #expect(whiteBytes[0] == 255)
-        #expect(whiteBytes[1] == 255)
-        #expect(whiteBytes[2] == 255)
-        #expect(whiteBytes[3] == 255)
-
-        var blackSettings = LittlePlanetSettings()
-        blackSettings.background = .black
-        let black = try LittlePlanetRenderer.render(
-            source: source,
-            side: 100,
-            settings: blackSettings
-        )
-        let blackData = try #require(black.dataProvider?.data)
-        let blackBytes = try #require(CFDataGetBytePtr(blackData))
-        #expect(blackBytes[0] == 0)
-        #expect(blackBytes[1] == 0)
-        #expect(blackBytes[2] == 0)
-        #expect(blackBytes[3] == 255)
+        #expect(bytes[0] < 80)
+        #expect(bytes[2] > 180)
+        #expect(bytes[3] == 255)
 
     }
 

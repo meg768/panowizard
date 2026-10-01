@@ -128,37 +128,35 @@ struct LittlePlanetExportSheet: View {
 
             Divider()
 
-            HStack(alignment: .top, spacing: 20) {
-                preview
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            GeometryReader { geometry in
+                let spacing: CGFloat = 8
+                let sliderHeight: CGFloat = 20
+                let helpHeight: CGFloat = 16
+                let side = max(min(
+                    geometry.size.width,
+                    geometry.size.height
+                        - spacing * 2 - sliderHeight - helpHeight
+                ), 1)
 
-                Form {
-                    valueSlider(
-                        "Horizon Height",
+                VStack(spacing: spacing) {
+                    preview
+                        .frame(width: side, height: side)
+
+                    Slider(
                         value: $controller.settings.horizonPercent,
-                        range: 25...75,
-                        suffix: "%"
+                        in: 25...75
                     )
+                    .frame(width: side)
+                    .disabled(controller.isLoading || controller.isSaving)
 
-                    valueSlider(
-                        "Edge Feather",
-                        value: $controller.settings.edgeFeatherPercent,
-                        range: 0...20,
-                        suffix: "%"
-                    )
-
-                    Picker("Background", selection: $controller.settings.background) {
-                        ForEach(LittlePlanetBackground.allCases, id: \.self) {
-                            Text($0.rawValue).tag($0)
-                        }
-                    }
-                    .pickerStyle(.menu)
+                    Text("Slide to resize · Click a point to move it to 12 o’clock")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: side, height: helpHeight)
                 }
-                .formStyle(.grouped)
-                .frame(width: 310)
-                .disabled(controller.isLoading || controller.isSaving)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(20)
+                .padding(20)
 
             Divider()
 
@@ -182,7 +180,7 @@ struct LittlePlanetExportSheet: View {
             }
             .padding(16)
         }
-        .frame(minWidth: 900, idealWidth: 980, minHeight: 580, idealHeight: 640)
+        .frame(width: 620, height: 640)
         .onDisappear { showRotationCursor() }
         .task {
             controller.load(
@@ -297,53 +295,4 @@ struct LittlePlanetExportSheet: View {
         isRotationCursorHidden = false
     }
 
-    private func valueSlider(
-        _ title: String,
-        value: Binding<Double>,
-        range: ClosedRange<Double>,
-        suffix: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(title)
-                    .lineLimit(1)
-                Spacer()
-                TextField(
-                    "",
-                    value: Binding(
-                        get: { value.wrappedValue },
-                        set: {
-                            value.wrappedValue = min(
-                                max($0, range.lowerBound),
-                                range.upperBound
-                            )
-                        }
-                    ),
-                    format: .number.precision(.fractionLength(0))
-                )
-                    .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .frame(width: 68)
-                    .onKeyPress(.upArrow) {
-                        value.wrappedValue = min(
-                            value.wrappedValue + 1,
-                            range.upperBound
-                        )
-                        return .handled
-                    }
-                    .onKeyPress(.downArrow) {
-                        value.wrappedValue = max(
-                            value.wrappedValue - 1,
-                            range.lowerBound
-                        )
-                        return .handled
-                    }
-                Text(suffix)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Slider(value: value, in: range)
-        }
-    }
 }

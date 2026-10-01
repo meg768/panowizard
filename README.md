@@ -104,11 +104,9 @@ can be painted, erased, or cleared like any other mask. An existing AI mask is
 restored during Edit. Opaque black pixels remain ordinary image content.
 
 Little Planet export creates a stereographic PNG from the completed panorama.
-Rotation, horizon height, edge feather, and a transparent, white, or black
-background can be adjusted in a live preview. Transparent is the default.
-Clicking a visible part of the planet moves that direction to the 12 o'clock
-position. The planet uses the largest circle that fits with a two-pixel safety
-margin.
+The projection always fills the square output. The unlabeled slider below the
+preview adjusts horizon height, and clicking a visible part of the planet moves
+that direction to the 12 o'clock position.
 
 Global adjustments are saved as project settings and applied after local
 retouching. They appear in the spherical preview and in JPEG, PNG, interactive

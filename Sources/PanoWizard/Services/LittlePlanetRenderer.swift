@@ -3,17 +3,9 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-enum LittlePlanetBackground: String, CaseIterable, Sendable {
-    case transparent = "Transparent"
-    case white = "White"
-    case black = "Black"
-}
-
 struct LittlePlanetSettings: Equatable, Sendable {
     var rotationDegrees = 0.0
     var horizonPercent = 50.0
-    var edgeFeatherPercent = 0.0
-    var background = LittlePlanetBackground.transparent
 }
 
 struct LittlePlanetSource: Sendable {
@@ -76,18 +68,11 @@ enum LittlePlanetRenderer {
         guard side > 0 else { throw CocoaError(.fileWriteUnknown) }
         var output = [UInt8](repeating: 0, count: side * side * 4)
         let center = Double(side) / 2.0
-        // Leave a two-pixel safety margin around the largest circle that fits
-        // in the square output.
+        // Preserve the established two-pixel circular scale reference while
+        // continuing the projection through every corner of the square.
         let radius = max(Double(side) / 2.0 - 2.0, 1.0)
         let horizon = min(max(settings.horizonPercent / 100.0, 0.01), 0.99)
         let rotation = settings.rotationDegrees * .pi / 180.0
-        let featherWidth = radius
-            * min(max(settings.edgeFeatherPercent / 100.0, 0.0), 0.2)
-        let background: (Double, Double, Double, Double) = switch settings.background {
-        case .transparent: (0, 0, 0, 0)
-        case .white: (255, 255, 255, 255)
-        case .black: (0, 0, 0, 255)
-        }
 
         for y in 0..<side {
             if Task.isCancelled { throw CancellationError() }
@@ -96,10 +81,6 @@ enum LittlePlanetRenderer {
                 let dy = (Double(y) + 0.5 - center) / radius
                 let normalizedRadius = hypot(dx, dy)
                 let destinationOffset = (y * side + x) * 4
-                guard normalizedRadius <= 1.0 else {
-                    write(background, to: &output, at: destinationOffset)
-                    continue
-                }
 
                 // In a stereographic little-planet projection the nadir is at
                 // the center, the horizon is a ring inside the image, and the
@@ -116,32 +97,7 @@ enum LittlePlanetRenderer {
                     max(0.5 + latitude / .pi, 0.0), 1.0
                 ) * Double(source.height - 1)
                 let sampled = sample(source, x: sourceX, y: sourceY)
-                let edgeDistance = (1.0 - normalizedRadius) * radius + 0.5
-                let edgeCoverage = min(max(
-                    featherWidth > 0 ? edgeDistance / featherWidth : edgeDistance,
-                    0
-                ), 1)
-                let pixel: (Double, Double, Double, Double)
-                if settings.background == .transparent {
-                    pixel = (
-                        sampled.0 * edgeCoverage,
-                        sampled.1 * edgeCoverage,
-                        sampled.2 * edgeCoverage,
-                        sampled.3 * edgeCoverage
-                    )
-                } else {
-                    let sourceAlpha = sampled.3 / 255.0 * edgeCoverage
-                    pixel = (
-                        sampled.0 * edgeCoverage
-                            + background.0 * (1 - sourceAlpha),
-                        sampled.1 * edgeCoverage
-                            + background.1 * (1 - sourceAlpha),
-                        sampled.2 * edgeCoverage
-                            + background.2 * (1 - sourceAlpha),
-                        255
-                    )
-                }
-                write(pixel, to: &output, at: destinationOffset)
+                write(sampled, to: &output, at: destinationOffset)
             }
         }
 

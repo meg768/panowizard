@@ -135,12 +135,13 @@ approved for implementation now and must not be inferred as current behavior:
   field of view, Command-Plus and Command-Minus zoom, Command-0 resets, and the
   arrow keys pan. Its zoom is deliberately centered; do not reuse the native
   editor's Command-held anchor model or let a zoom event alter yaw or pitch.
-- Little Planet export always produces a maximum-size PNG. Its background can
-  be transparent (the default), white, or black. The adjustable controls are
-  horizon height and edge feather. Rotation is chosen directly in the preview
-  by clicking the direction that should move to the 12 o'clock position; the
-  accent hover point replaces the system pointer over the planet. A successful
-  export dismisses the sheet, while cancel or failure leaves it open.
+- Little Planet export always continues the stereographic projection across the
+  square output. The compact 620 × 640 sheet contains a square preview, an
+  unlabeled horizon-height slider directly below it constrained to 25–75%, and
+  one short interaction hint. Rotation is chosen by clicking the direction
+  that should move to the 12 o'clock position, and the accent hover point
+  replaces the system pointer over the planet. A successful export dismisses
+  the sheet, while cancel or failure leaves it open.
 - `Sources/PanoWizard/ViewModels/AppModel.swift` connects the document, engine,
   preview, retouching, and export behavior to the UI lifecycle.
 - The `Images` application menu mirrors source-image order in the sidebar. Its
