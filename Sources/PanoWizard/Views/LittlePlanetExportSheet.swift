@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 @MainActor
 @Observable
 final class LittlePlanetExportController {
+    static let previewSide = 640
+
     var settings = LittlePlanetSettings() {
         didSet { schedulePreview() }
     }
@@ -78,6 +80,7 @@ final class LittlePlanetExportController {
         previewTask?.cancel()
         guard let source else { return }
         let settings = settings
+        let previewSide = Self.previewSide
         previewTask = Task {
             try? await Task.sleep(for: .milliseconds(60))
             guard !Task.isCancelled else { return }
@@ -85,7 +88,7 @@ final class LittlePlanetExportController {
                 let rendering = Task.detached(priority: .userInitiated) {
                     try LittlePlanetRenderer.render(
                         source: source,
-                        side: 640,
+                        side: previewSide,
                         settings: settings
                     )
                 }
@@ -149,7 +152,7 @@ struct LittlePlanetExportSheet: View {
                     .frame(width: side)
                     .disabled(controller.isLoading || controller.isSaving)
 
-                    Text("Slide to resize · Click a point to move it to 12 o’clock")
+                    Text("Slide to resize · Click for 12 o’clock · ⌥-click to center")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(width: side, height: helpHeight)
@@ -269,6 +272,28 @@ struct LittlePlanetExportSheet: View {
                         let dx = value.location.x - center.x
                         let dy = value.location.y - center.y
                         let distance = hypot(dx, dy)
+                        if NSEvent.modifierFlags.contains(.option) {
+                            guard abs(dx) <= radius, abs(dy) <= radius else {
+                                return
+                            }
+                            let previewSide = LittlePlanetExportController.previewSide
+                            let side = Double(previewSide)
+                            let projection = LittlePlanetProjection(
+                                side: previewSide,
+                                settings: controller.settings
+                            )
+                            let direction = projection.sourceDirection(
+                                outputX: (dx / imageSide + 0.5) * side,
+                                outputY: (dy / imageSide + 0.5) * side
+                            )
+                            var settings = controller.settings
+                            settings.centerLongitudeDegrees = direction.longitude
+                                * 180 / .pi
+                            settings.centerLatitudeDegrees = direction.latitude
+                                * 180 / .pi
+                            controller.settings = settings
+                            return
+                        }
                         guard distance >= 12, distance <= radius else { return }
                         let clickedAngle = atan2(dx, -dy)
                         let rotation = controller.settings.rotationDegrees

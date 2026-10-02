@@ -6,6 +6,72 @@ import UniformTypeIdentifiers
 struct LittlePlanetSettings: Equatable, Sendable {
     var rotationDegrees = 0.0
     var horizonPercent = 50.0
+    var centerLongitudeDegrees = 0.0
+    var centerLatitudeDegrees = -90.0
+}
+
+struct LittlePlanetProjection: Sendable {
+    private let center: Double
+    private let radius: Double
+    private let horizon: Double
+    private let rotation: Double
+    private let usesDefaultCenter: Bool
+    private let centerLongitudeSin: Double
+    private let centerLongitudeCos: Double
+    private let centerTiltSin: Double
+    private let centerTiltCos: Double
+
+    init(side: Int, settings: LittlePlanetSettings) {
+        center = Double(side) / 2.0
+        radius = max(Double(side) / 2.0 - 2.0, 1.0)
+        horizon = min(max(settings.horizonPercent / 100.0, 0.01), 0.99)
+        rotation = settings.rotationDegrees * .pi / 180.0
+        usesDefaultCenter = settings.centerLongitudeDegrees == 0.0
+            && settings.centerLatitudeDegrees == -90.0
+
+        let centerLongitude = settings.centerLongitudeDegrees * .pi / 180.0
+        let centerLatitude = min(
+            max(settings.centerLatitudeDegrees, -90.0),
+            90.0
+        ) * .pi / 180.0
+        let centerTilt = -(centerLatitude + .pi / 2.0)
+        centerLongitudeSin = sin(centerLongitude)
+        centerLongitudeCos = cos(centerLongitude)
+        centerTiltSin = sin(centerTilt)
+        centerTiltCos = cos(centerTilt)
+    }
+
+    func sourceDirection(
+        outputX: Double,
+        outputY: Double
+    ) -> (longitude: Double, latitude: Double) {
+        let dx = (outputX - center) / radius
+        let dy = (outputY - center) / radius
+        let normalizedRadius = hypot(dx, dy)
+        let stereographicRadius = normalizedRadius / horizon
+        let latitude = 2.0 * atan(stereographicRadius) - .pi / 2.0
+        let longitude = atan2(dx, -dy) + rotation
+
+        // Keep the established path exact for the default center.
+        guard !usesDefaultCenter else { return (longitude, latitude) }
+
+        let latitudeCos = cos(latitude)
+        let localX = latitudeCos * cos(longitude)
+        let localY = latitudeCos * sin(longitude)
+        let localZ = sin(latitude)
+
+        let tiltedX = centerTiltCos * localX + centerTiltSin * localZ
+        let tiltedZ = -centerTiltSin * localX + centerTiltCos * localZ
+        let worldX = centerLongitudeCos * tiltedX
+            - centerLongitudeSin * localY
+        let worldY = centerLongitudeSin * tiltedX
+            + centerLongitudeCos * localY
+
+        return (
+            atan2(worldY, worldX),
+            asin(min(max(tiltedZ, -1.0), 1.0))
+        )
+    }
 }
 
 struct LittlePlanetSource: Sendable {
@@ -67,34 +133,23 @@ enum LittlePlanetRenderer {
     ) throws -> CGImage {
         guard side > 0 else { throw CocoaError(.fileWriteUnknown) }
         var output = [UInt8](repeating: 0, count: side * side * 4)
-        let center = Double(side) / 2.0
-        // Preserve the established two-pixel circular scale reference while
-        // continuing the projection through every corner of the square.
-        let radius = max(Double(side) / 2.0 - 2.0, 1.0)
-        let horizon = min(max(settings.horizonPercent / 100.0, 0.01), 0.99)
-        let rotation = settings.rotationDegrees * .pi / 180.0
+        let projection = LittlePlanetProjection(side: side, settings: settings)
 
         for y in 0..<side {
             if Task.isCancelled { throw CancellationError() }
             for x in 0..<side {
-                let dx = (Double(x) + 0.5 - center) / radius
-                let dy = (Double(y) + 0.5 - center) / radius
-                let normalizedRadius = hypot(dx, dy)
                 let destinationOffset = (y * side + x) * 4
-
-                // In a stereographic little-planet projection the nadir is at
-                // the center, the horizon is a ring inside the image, and the
-                // sky continues outward from that ring. `horizon` specifies
-                // the ring's relative radius within the circular crop.
-                let stereographicRadius = normalizedRadius / horizon
-                let latitude = 2.0 * atan(stereographicRadius) - .pi / 2.0
-                let longitude = atan2(dx, -dy) + rotation
-                let wrappedLongitude = longitude - floor(longitude / (2.0 * .pi))
+                let direction = projection.sourceDirection(
+                    outputX: Double(x) + 0.5,
+                    outputY: Double(y) + 0.5
+                )
+                let wrappedLongitude = direction.longitude
+                    - floor(direction.longitude / (2.0 * .pi))
                     * 2.0 * .pi
                 let sourceX = wrappedLongitude / (2.0 * .pi)
                     * Double(source.width)
                 let sourceY = min(
-                    max(0.5 + latitude / .pi, 0.0), 1.0
+                    max(0.5 + direction.latitude / .pi, 0.0), 1.0
                 ) * Double(source.height - 1)
                 let sampled = sample(source, x: sourceX, y: sourceY)
                 write(sampled, to: &output, at: destinationOffset)

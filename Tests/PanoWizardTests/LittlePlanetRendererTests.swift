@@ -7,6 +7,52 @@ import UniformTypeIdentifiers
 
 @Suite("Little Planet renderer")
 struct LittlePlanetRendererTests {
+    @Test("Default center preserves the established projection coordinates")
+    func defaultCenterCoordinates() {
+        let side = 100
+        let settings = LittlePlanetSettings()
+        let projection = LittlePlanetProjection(side: side, settings: settings)
+
+        for (x, y) in [(0.5, 0.5), (50.5, 50.5), (99.5, 71.5)] {
+            let radius = Double(side) / 2.0 - 2.0
+            let dx = (x - Double(side) / 2.0) / radius
+            let dy = (y - Double(side) / 2.0) / radius
+            let expectedLatitude = 2.0 * atan(
+                hypot(dx, dy) / (settings.horizonPercent / 100.0)
+            ) - .pi / 2.0
+            let expectedLongitude = atan2(dx, -dy)
+                + settings.rotationDegrees * .pi / 180.0
+            let direction = projection.sourceDirection(outputX: x, outputY: y)
+
+            #expect(direction.latitude == expectedLatitude)
+            #expect(direction.longitude == expectedLongitude)
+        }
+    }
+
+    @Test("A selected sphere direction becomes the new geometric center")
+    func recenteredDirection() {
+        let side = 100
+        var settings = LittlePlanetSettings()
+        settings.rotationDegrees = 31
+        settings.centerLongitudeDegrees = 47
+        settings.centerLatitudeDegrees = -24
+
+        let original = LittlePlanetProjection(side: side, settings: settings)
+        let selected = original.sourceDirection(outputX: 78, outputY: 36)
+        settings.centerLongitudeDegrees = selected.longitude * 180 / .pi
+        settings.centerLatitudeDegrees = selected.latitude * 180 / .pi
+
+        let recentered = LittlePlanetProjection(side: side, settings: settings)
+            .sourceDirection(outputX: 50, outputY: 50)
+        let longitudeDifference = atan2(
+            sin(recentered.longitude - selected.longitude),
+            cos(recentered.longitude - selected.longitude)
+        )
+
+        #expect(abs(recentered.latitude - selected.latitude) < 1e-12)
+        #expect(abs(longitudeDifference) < 1e-12)
+    }
+
     @Test("Places nadir at the center and continues through the square corners")
     func squareProjection() throws {
         let width = 64

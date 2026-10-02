@@ -139,9 +139,12 @@ approved for implementation now and must not be inferred as current behavior:
   square output. The compact 620 × 640 sheet contains a square preview, an
   unlabeled horizon-height slider directly below it constrained to 25–75%, and
   one short interaction hint. Rotation is chosen by clicking the direction
-  that should move to the 12 o'clock position, and the accent hover point
-  replaces the system pointer over the planet. A successful export dismisses
-  the sheet, while cancel or failure leaves it open.
+  that should move to the 12 o'clock position. Option-clicking maps the selected
+  preview point back through the current spherical transform and makes that
+  direction the new geometric center. Centering is a 3D sphere rotation between
+  inverse stereographic projection and equirectangular sampling. The accent
+  hover point replaces the system pointer over the planet. A successful export
+  dismisses the sheet, while cancel or failure leaves it open.
 - `Sources/PanoWizard/ViewModels/AppModel.swift` connects the document, engine,
   preview, retouching, and export behavior to the UI lifecycle.
 - The `Images` application menu mirrors source-image order in the sidebar. Its

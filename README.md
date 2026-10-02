@@ -106,7 +106,8 @@ restored during Edit. Opaque black pixels remain ordinary image content.
 Little Planet export creates a stereographic PNG from the completed panorama.
 The projection always fills the square output. The unlabeled slider below the
 preview adjusts horizon height, and clicking a visible part of the planet moves
-that direction to the 12 o'clock position.
+that direction to the 12 o'clock position. Option-clicking a preview point makes
+that panorama direction the planet's geometric center.
 
 Global adjustments are saved as project settings and applied after local
 retouching. They appear in the spherical preview and in JPEG, PNG, interactive
