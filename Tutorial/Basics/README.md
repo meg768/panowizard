@@ -8,7 +8,7 @@ Create a new panorama, then click **Add** and select the full image sequence. Th
 
 Select any image in the sidebar to inspect it. Most sequences can be stitched as they are. When necessary, the **Exclude** and **Include** brushes let you tell PanoWizard which source-image areas to avoid or prefer.
 
-![A complete source-image sequence loaded in PanoWizard](Basics/Images/01-source-images.png)
+![A complete source-image sequence loaded in PanoWizard](Images/01-source-images.png)
 
 ## 2. Create the panorama
 
@@ -20,7 +20,7 @@ PanoWizard opens **Preview** when stitching is complete. Move around the panoram
 
 Use **Adjustments** for final global image corrections when needed.
 
-![The stitched panorama in the interactive Preview](Basics/Images/02-panorama-preview.png)
+![The stitched panorama in the interactive Preview](Images/02-panorama-preview.png)
 
 ## 4. Correct only what needs correction
 
@@ -28,7 +28,7 @@ If a stitching seam uses the wrong source pixels, return to that source image, p
 
 For a localized blemish in an otherwise good panorama, open **Retouch**, position the square view over the area, and add a manual or AI patch. Patches are stored separately and do not change the source images or panorama geometry.
 
-![The optional Retouch workspace](Basics/Images/03-retouch.png)
+![The optional Retouch workspace](Images/03-retouch.png)
 
 ## 5. Export the finished panorama
 
@@ -40,12 +40,8 @@ Open **Export** and choose the result you need:
 
 Keep **Size: Original** when you want the full stitched resolution. The standard image export is equirectangular at a 2:1 aspect ratio.
 
-![PanoWizard export options](Basics/Images/04-export.png)
+![PanoWizard export options](Images/04-export.png)
 
 That is the complete basic workflow: **add → create → inspect → correct if needed → export**.
 
 As a bonus, **Create Little Planet…** turns the same finished panorama into a square Little Planet projection.
-
-## How Do I?
-
-- [Mask source images](HowTo/Masking/README.md) — exclude unwanted pixels and prioritize the best overlapping content.
