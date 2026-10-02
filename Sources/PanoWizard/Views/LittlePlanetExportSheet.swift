@@ -302,6 +302,9 @@ struct LittlePlanetExportSheet: View {
                         controller.settings.centerLongitudeDegrees = sourceX * 360
                         controller.settings.centerLatitudeDegrees = (sourceY - 0.5)
                             * 180
+                        controller.settings.rotationDegrees = rotationDegrees(
+                            forPanTurns: displayedPanTurns
+                        )
                         controller.renderPreview()
                     }
             )
@@ -354,8 +357,18 @@ struct LittlePlanetExportSheet: View {
             panoramaPanTurns + Double(translation / panoramaWidth)
         )
         panoramaPanTurns = finalTurns
-        controller.settings.rotationDegrees = -finalTurns * 360
+        controller.settings.rotationDegrees = rotationDegrees(
+            forPanTurns: finalTurns
+        )
         controller.renderPreview()
+    }
+
+    private func rotationDegrees(forPanTurns panTurns: Double) -> Double {
+        LittlePlanetProjection.rotationDegrees(
+            placingSourceLongitudeAtTop: -panTurns * 360,
+            centerLongitudeDegrees: controller.settings.centerLongitudeDegrees,
+            centerLatitudeDegrees: controller.settings.centerLatitudeDegrees
+        )
     }
 
 }

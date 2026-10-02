@@ -20,12 +20,59 @@ struct LittlePlanetRendererTests {
             let expectedLatitude = 2.0 * atan(
                 hypot(dx, dy) / (settings.horizonPercent / 100.0)
             ) - .pi / 2.0
-            let expectedLongitude = atan2(dx, -dy)
+            let expectedLongitude = atan2(dx, dy)
                 + settings.rotationDegrees * .pi / 180.0
             let direction = projection.sourceDirection(outputX: x, outputY: y)
 
             #expect(direction.latitude == expectedLatitude)
             #expect(direction.longitude == expectedLongitude)
+        }
+    }
+
+    @Test("Places the source viewport center direction at twelve o'clock")
+    func sourceViewportCenterIsAtTop() {
+        let side = 200
+        let radius = Double(side) / 2.0 - 2.0
+        let horizon = 0.5
+        let cases = [
+            (sourceLongitude: 73.0, centerLongitude: 0.0, centerLatitude: -90.0),
+            (sourceLongitude: 130.0, centerLongitude: 47.0, centerLatitude: -24.0),
+            (sourceLongitude: -20.0, centerLongitude: -115.0, centerLatitude: 35.0),
+        ]
+
+        for testCase in cases {
+            var settings = LittlePlanetSettings()
+            settings.centerLongitudeDegrees = testCase.centerLongitude
+            settings.centerLatitudeDegrees = testCase.centerLatitude
+            settings.rotationDegrees = LittlePlanetProjection.rotationDegrees(
+                placingSourceLongitudeAtTop: testCase.sourceLongitude,
+                centerLongitudeDegrees: testCase.centerLongitude,
+                centerLatitudeDegrees: testCase.centerLatitude
+            )
+
+            let sourceLongitude = testCase.sourceLongitude * .pi / 180.0
+            let centerLongitude = testCase.centerLongitude * .pi / 180.0
+            let centerLatitude = testCase.centerLatitude * .pi / 180.0
+            let centerTilt = -(centerLatitude + .pi / 2.0)
+            let longitudeDifference = sourceLongitude - centerLongitude
+            let localZ = sin(centerTilt) * cos(longitudeDifference)
+            let localLatitude = asin(min(max(localZ, -1.0), 1.0))
+            let stereographicRadius = tan((localLatitude + .pi / 2.0) / 2.0)
+            let outputY = Double(side) / 2.0
+                + stereographicRadius * horizon * radius
+
+            let direction = LittlePlanetProjection(side: side, settings: settings)
+                .sourceDirection(
+                    outputX: Double(side) / 2.0,
+                    outputY: outputY
+                )
+            let longitudeDifferenceAtTop = atan2(
+                sin(direction.longitude - sourceLongitude),
+                cos(direction.longitude - sourceLongitude)
+            )
+
+            #expect(abs(direction.latitude) < 1e-12)
+            #expect(abs(longitudeDifferenceAtTop) < 1e-12)
         }
     }
 
@@ -119,7 +166,7 @@ struct LittlePlanetRendererTests {
         #expect(bytes[outsideHorizon + 2] > 180)
         #expect(bytes[2] > 180)
         #expect(bytes[3] == 255)
-        #expect(Int(bytes[top]) > Int(bytes[bottom]) + 60)
+        #expect(Int(bytes[bottom]) > Int(bytes[top]) + 60)
 
     }
 

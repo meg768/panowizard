@@ -140,8 +140,10 @@ approved for implementation now and must not be inferred as current behavior:
   the 2:1 source panorama beside an equally sized rendered Little Planet. An
   unlabeled horizontal resize slider below both previews is constrained to
   10–75%. Horizontal drag or scroll sets rotation around the planet's center;
-  clicking selects the source direction used as the geometric center. The
-  marker is anchored to that source direction and wraps with the panorama.
+  the equatorial direction at the source viewport's horizontal center maps to
+  12 o'clock, including after recentering. Clicking selects the source
+  direction used as the geometric center. The marker is anchored to that
+  source direction and wraps with the panorama.
   Centering is a 3D sphere rotation between inverse stereographic projection and
   equirectangular sampling. Pan and resize update the rendered preview only on
   release; a center click renders once immediately. A successful export

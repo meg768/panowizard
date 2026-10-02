@@ -41,6 +41,28 @@ struct LittlePlanetProjection: Sendable {
         centerTiltCos = cos(centerTilt)
     }
 
+    static func rotationDegrees(
+        placingSourceLongitudeAtTop sourceLongitudeDegrees: Double,
+        centerLongitudeDegrees: Double,
+        centerLatitudeDegrees: Double
+    ) -> Double {
+        let sourceLongitude = sourceLongitudeDegrees * .pi / 180.0
+        let centerLongitude = centerLongitudeDegrees * .pi / 180.0
+        let centerLatitude = min(
+            max(centerLatitudeDegrees, -90.0),
+            90.0
+        ) * .pi / 180.0
+        let centerTilt = -(centerLatitude + .pi / 2.0)
+        let longitudeDifference = sourceLongitude - centerLongitude
+
+        // The source viewport's center is the equatorial direction at the
+        // displayed longitude. Convert that world direction back into the
+        // selected center's local frame so its azimuth becomes screen-up.
+        let localX = cos(centerTilt) * cos(longitudeDifference)
+        let localY = sin(longitudeDifference)
+        return atan2(localY, localX) * 180.0 / .pi
+    }
+
     func sourceDirection(
         outputX: Double,
         outputY: Double
@@ -50,7 +72,9 @@ struct LittlePlanetProjection: Sendable {
         let normalizedRadius = hypot(dx, dy)
         let stereographicRadius = normalizedRadius / horizon
         let latitude = 2.0 * atan(stereographicRadius) - .pi / 2.0
-        let longitude = atan2(dx, -dy) + rotation
+        // Render writes projection rows in reverse order below, so positive
+        // local Y is the visible top of the finished image.
+        let longitude = atan2(dx, dy) + rotation
 
         // Keep the established path exact for the default center.
         guard !usesDefaultCenter else { return (longitude, latitude) }
