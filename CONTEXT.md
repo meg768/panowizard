@@ -136,14 +136,15 @@ approved for implementation now and must not be inferred as current behavior:
   arrow keys pan. Its zoom is deliberately centered; do not reuse the native
   editor's Command-held anchor model or let a zoom event alter yaw or pitch.
 - Little Planet export always continues the stereographic projection across the
-  square output. The compact 620 × 640 sheet contains a square preview, an
-  unlabeled horizon-height slider directly below it constrained to 25–75%, and
-  one short interaction hint. Rotation is chosen by clicking the direction
-  that should move to the 12 o'clock position. Option-clicking maps the selected
-  preview point back through the current spherical transform and makes that
-  direction the new geometric center. Centering is a 3D sphere rotation between
-  inverse stereographic projection and equirectangular sampling. The accent
-  hover point replaces the system pointer over the planet. A successful export
+  square output. Its sheet places a square, horizontally wrapping viewport into
+  the 2:1 source panorama beside an equally sized rendered Little Planet. An
+  unlabeled horizontal resize slider below both previews is constrained to
+  10–75%. Horizontal drag or scroll sets rotation around the planet's center;
+  clicking selects the source direction used as the geometric center. The
+  marker is anchored to that source direction and wraps with the panorama.
+  Centering is a 3D sphere rotation between inverse stereographic projection and
+  equirectangular sampling. Pan and resize update the rendered preview only on
+  release; a center click renders once immediately. A successful export
   dismisses the sheet, while cancel or failure leaves it open.
 - `Sources/PanoWizard/ViewModels/AppModel.swift` connects the document, engine,
   preview, retouching, and export behavior to the UI lifecycle.

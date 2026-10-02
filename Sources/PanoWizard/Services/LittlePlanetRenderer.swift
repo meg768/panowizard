@@ -123,6 +123,29 @@ struct LittlePlanetSource: Sendable {
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
         self.pixels = pixels
     }
+
+    func makeImage() throws -> CGImage {
+        let data = Data(pixels)
+        guard let provider = CGDataProvider(data: data as CFData),
+              let image = CGImage(
+                  width: width,
+                  height: height,
+                  bitsPerComponent: 8,
+                  bitsPerPixel: 32,
+                  bytesPerRow: width * 4,
+                  space: CGColorSpaceCreateDeviceRGB(),
+                  bitmapInfo: CGBitmapInfo(
+                      rawValue: CGImageAlphaInfo.premultipliedLast.rawValue
+                          | CGBitmapInfo.byteOrder32Big.rawValue
+                  ),
+                  provider: provider,
+                  decode: nil,
+                  shouldInterpolate: true,
+                  intent: .defaultIntent
+              )
+        else { throw CocoaError(.fileReadCorruptFile) }
+        return image
+    }
 }
 
 enum LittlePlanetRenderer {
@@ -138,7 +161,7 @@ enum LittlePlanetRenderer {
         for y in 0..<side {
             if Task.isCancelled { throw CancellationError() }
             for x in 0..<side {
-                let destinationOffset = (y * side + x) * 4
+                let destinationOffset = ((side - 1 - y) * side + x) * 4
                 let direction = projection.sourceDirection(
                     outputX: Double(x) + 0.5,
                     outputY: Double(y) + 0.5

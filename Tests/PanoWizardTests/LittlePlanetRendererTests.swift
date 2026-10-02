@@ -53,7 +53,7 @@ struct LittlePlanetRendererTests {
         #expect(abs(longitudeDifference) < 1e-12)
     }
 
-    @Test("Places nadir at the center and continues through the square corners")
+    @Test("Places nadir at the center with the correct output orientation")
     func squareProjection() throws {
         let width = 64
         let height = 32
@@ -61,12 +61,11 @@ struct LittlePlanetRendererTests {
         for y in 0..<height {
             for x in 0..<width {
                 let offset = (y * width + x) * 4
+                pixels[offset] = UInt8(x * 4)
                 if y < height / 2 {
-                    pixels[offset] = 20
                     pixels[offset + 1] = 60
                     pixels[offset + 2] = 220
                 } else {
-                    pixels[offset] = 30
                     pixels[offset + 1] = 210
                     pixels[offset + 2] = 40
                 }
@@ -112,14 +111,15 @@ struct LittlePlanetRendererTests {
         let bytes = try #require(CFDataGetBytePtr(resultData))
         let center = (50 * 100 + 50) * 4
         let outsideHorizon = (50 * 100 + 85) * 4
+        let top = (10 * 100 + 60) * 4
+        let bottom = (89 * 100 + 60) * 4
 
         #expect(bytes[center + 1] > 180)
         #expect(bytes[center + 2] < 80)
-        #expect(bytes[outsideHorizon] < 80)
         #expect(bytes[outsideHorizon + 2] > 180)
-        #expect(bytes[0] < 80)
         #expect(bytes[2] > 180)
         #expect(bytes[3] == 255)
+        #expect(Int(bytes[top]) > Int(bytes[bottom]) + 60)
 
     }
 

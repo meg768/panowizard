@@ -7,9 +7,8 @@ import UniformTypeIdentifiers
 final class LittlePlanetExportController {
     static let previewSide = 640
 
-    var settings = LittlePlanetSettings() {
-        didSet { schedulePreview() }
-    }
+    var settings = LittlePlanetSettings()
+    var panoramaImage: NSImage?
     var previewImage: NSImage?
     var errorMessage: String?
     var isLoading = true
@@ -25,14 +24,17 @@ final class LittlePlanetExportController {
         guard source == nil else { return }
         Task {
             do {
-                source = try await Task.detached(priority: .userInitiated) {
-                    try LittlePlanetSource(
+                let loaded = try await Task.detached(priority: .userInitiated) {
+                    let source = try LittlePlanetSource(
                         panoramaURL: sourceURL,
                         adjustments: adjustments
                     )
+                    return (source, try source.makeImage())
                 }.value
+                source = loaded.0
+                panoramaImage = NSImage(cgImage: loaded.1, size: .zero)
                 isLoading = false
-                schedulePreview()
+                renderPreview()
             } catch {
                 isLoading = false
                 errorMessage = error.localizedDescription
@@ -76,14 +78,12 @@ final class LittlePlanetExportController {
         }
     }
 
-    private func schedulePreview() {
+    func renderPreview() {
         previewTask?.cancel()
         guard let source else { return }
         let settings = settings
         let previewSide = Self.previewSide
         previewTask = Task {
-            try? await Task.sleep(for: .milliseconds(60))
-            guard !Task.isCancelled else { return }
             do {
                 let rendering = Task.detached(priority: .userInitiated) {
                     try LittlePlanetRenderer.render(
@@ -115,47 +115,63 @@ struct LittlePlanetExportSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var controller = LittlePlanetExportController()
-    @State private var rotationHoverPoint: CGPoint?
-    @State private var isRotationCursorHidden = false
+    @State private var panoramaPanTurns = 0.0
+    @State private var panoramaDragTranslation: CGFloat = 0
+    @State private var panoramaScrollTranslation: CGFloat = 0
 
     var body: some View {
         @Bindable var controller = controller
         VStack(spacing: 0) {
-            HStack {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("Create Little Planet")
                     .font(.headline)
-                Spacer()
+                Text("Turn your 360° panorama into a Little Planet projection.")
+                    .foregroundStyle(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
 
             Divider()
 
             GeometryReader { geometry in
-                let spacing: CGFloat = 8
+                let viewSpacing: CGFloat = 16
+                let sliderSpacing: CGFloat = 10
                 let sliderHeight: CGFloat = 20
+                let helpSpacing: CGFloat = 10
                 let helpHeight: CGFloat = 16
                 let side = max(min(
-                    geometry.size.width,
+                    (geometry.size.width - viewSpacing) / 2,
                     geometry.size.height
-                        - spacing * 2 - sliderHeight - helpHeight
+                        - sliderSpacing - sliderHeight - helpSpacing - helpHeight
                 ), 1)
+                let rowWidth = side * 2 + viewSpacing
 
-                VStack(spacing: spacing) {
-                    preview
-                        .frame(width: side, height: side)
+                VStack(spacing: 0) {
+                    HStack(spacing: viewSpacing) {
+                        panoramaPicker
+                            .frame(width: side, height: side)
+
+                        planetPreview
+                            .frame(width: side, height: side)
+                    }
 
                     Slider(
                         value: $controller.settings.horizonPercent,
-                        in: 25...75
+                        in: 10...75,
+                        onEditingChanged: { isEditing in
+                            if !isEditing { controller.renderPreview() }
+                        }
                     )
-                    .frame(width: side)
+                    .frame(width: rowWidth, height: sliderHeight)
+                    .padding(.top, sliderSpacing)
                     .disabled(controller.isLoading || controller.isSaving)
 
-                    Text("Slide to resize · Click for 12 o’clock · ⌥-click to center")
+                    Text("Pan to rotate · Click to center · Slide to resize")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .frame(width: side, height: helpHeight)
+                        .frame(width: rowWidth, height: helpHeight)
+                        .padding(.top, helpSpacing)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -168,7 +184,6 @@ struct LittlePlanetExportSheet: View {
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Button("Export…") {
-                    showRotationCursor()
                     controller.save(
                         directoryURL: projectDirectoryURL,
                         onSuccess: dismiss.callAsFunction
@@ -183,8 +198,7 @@ struct LittlePlanetExportSheet: View {
             }
             .padding(16)
         }
-        .frame(width: 620, height: 640)
-        .onDisappear { showRotationCursor() }
+        .frame(width: 1_040, height: 650)
         .task {
             controller.load(
                 sourceURL: panoramaURL,
@@ -201,123 +215,283 @@ struct LittlePlanetExportSheet: View {
         }
     }
 
-    @ViewBuilder
-    private var preview: some View {
-        ZStack {
-            Color(nsColor: .controlBackgroundColor)
-            if let image = controller.previewImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .padding(12)
-            } else {
-                ProgressView()
-                    .controlSize(.large)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(.separator, lineWidth: 1)
-        }
-        .overlay { rotationPicker }
-    }
-
-    private var rotationPicker: some View {
+    private var panoramaPicker: some View {
         GeometryReader { geometry in
-            let imageSide = max(
-                min(geometry.size.width, geometry.size.height) - 24,
-                1
+            let width = max(geometry.size.width, 1)
+            let height = max(geometry.size.height, 1)
+            let panoramaWidth = height * 2
+            let manipulationTranslation = panoramaDragTranslation
+                + panoramaScrollTranslation
+            let manipulationTurns = Double(
+                manipulationTranslation / panoramaWidth
             )
-            let radius = imageSide / 2
-            let center = CGPoint(
-                x: geometry.size.width / 2,
-                y: geometry.size.height / 2
+            let displayedPanTurns = panoramaPanTurns + manipulationTurns
+            let viewportCenterTurns = Double(width / 2 / panoramaWidth)
+            let imageOriginX = CGFloat(
+                wrappedUnit(viewportCenterTurns + displayedPanTurns)
+            ) * panoramaWidth
+            let centerLongitude = wrappedUnit(
+                controller.settings.centerLongitudeDegrees / 360.0
             )
+            let markerX = CGFloat(wrappedUnit(
+                viewportCenterTurns + displayedPanTurns + centerLongitude
+            )) * panoramaWidth
+            let markerY = CGFloat(min(max(
+                0.5 - controller.settings.centerLatitudeDegrees / 180.0,
+                0.0
+            ), 1.0)) * height
 
-            ZStack {
-                if let rotationHoverPoint {
-                    Circle()
-                        .fill(Color.accentColor)
-                        .stroke(.white.opacity(0.9), lineWidth: 1)
-                        .frame(width: 10, height: 10)
-                        .position(rotationHoverPoint)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(Rectangle())
-            .onContinuousHover { phase in
-                switch phase {
-                case .active(let location):
-                    let distance = hypot(
-                        location.x - center.x,
-                        location.y - center.y
-                    )
-                    if distance <= radius {
-                        rotationHoverPoint = location
-                        hideRotationCursor()
-                    } else {
-                        rotationHoverPoint = nil
-                        showRotationCursor()
+            ZStack(alignment: .topLeading) {
+                if let image = controller.panoramaImage {
+                    ForEach(-1...1, id: \.self) { copy in
+                        Image(nsImage: image)
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: panoramaWidth, height: height)
+                            .scaleEffect(y: -1)
+                            .position(
+                                x: imageOriginX
+                                    + CGFloat(copy) * panoramaWidth
+                                    + panoramaWidth / 2,
+                                y: height / 2
+                            )
                     }
-                case .ended:
-                    rotationHoverPoint = nil
-                    showRotationCursor()
+                    ForEach(-1...1, id: \.self) { copy in
+                        Circle()
+                            .fill(Color.accentColor)
+                            .stroke(.white.opacity(0.9), lineWidth: 1)
+                            .frame(width: 10, height: 10)
+                            .position(
+                                x: markerX + CGFloat(copy) * panoramaWidth,
+                                y: markerY
+                            )
+                    }
+                } else {
+                    ProgressView()
+                        .controlSize(.large)
+                        .frame(width: width, height: height)
                 }
             }
+            .frame(width: width, height: height)
+            .clipped()
+            .contentShape(Rectangle())
             .gesture(
-                SpatialTapGesture()
+                DragGesture(minimumDistance: 4, coordinateSpace: .local)
+                    .onChanged { value in
+                        panoramaDragTranslation = value.translation.width
+                    }
                     .onEnded { value in
-                        let dx = value.location.x - center.x
-                        let dy = value.location.y - center.y
-                        let distance = hypot(dx, dy)
-                        if NSEvent.modifierFlags.contains(.option) {
-                            guard abs(dx) <= radius, abs(dy) <= radius else {
-                                return
-                            }
-                            let previewSide = LittlePlanetExportController.previewSide
-                            let side = Double(previewSide)
-                            let projection = LittlePlanetProjection(
-                                side: previewSide,
-                                settings: controller.settings
-                            )
-                            let direction = projection.sourceDirection(
-                                outputX: (dx / imageSide + 0.5) * side,
-                                outputY: (dy / imageSide + 0.5) * side
-                            )
-                            var settings = controller.settings
-                            settings.centerLongitudeDegrees = direction.longitude
-                                * 180 / .pi
-                            settings.centerLatitudeDegrees = direction.latitude
-                                * 180 / .pi
-                            controller.settings = settings
-                            return
-                        }
-                        guard distance >= 12, distance <= radius else { return }
-                        let clickedAngle = atan2(dx, -dy)
-                        let rotation = controller.settings.rotationDegrees
-                            * .pi / 180 + clickedAngle
-                        controller.settings.rotationDegrees = atan2(
-                            sin(rotation),
-                            cos(rotation)
-                        ) * 180 / .pi
+                        panoramaDragTranslation = 0
+                        completePan(
+                            translation: value.translation.width,
+                            panoramaWidth: panoramaWidth
+                        )
                     }
             )
+            .simultaneousGesture(
+                SpatialTapGesture(coordinateSpace: .local)
+                    .onEnded { value in
+                        let sourceX = wrappedUnit(
+                            Double((value.location.x - width / 2) / panoramaWidth)
+                                - displayedPanTurns
+                        )
+                        let sourceY = min(max(
+                            1.0 - Double(value.location.y / height),
+                            0.0
+                        ), 1.0)
+                        controller.settings.centerLongitudeDegrees = sourceX * 360
+                        controller.settings.centerLatitudeDegrees = (sourceY - 0.5)
+                            * 180
+                        controller.renderPreview()
+                    }
+            )
+            .background {
+                LittlePlanetHorizontalScrollMonitor(
+                    isEnabled: !controller.isLoading && !controller.isSaving,
+                    onChange: { translation in
+                        panoramaScrollTranslation = translation
+                    },
+                    onEnd: { translation in
+                        panoramaScrollTranslation = 0
+                        completePan(
+                            translation: translation,
+                            panoramaWidth: panoramaWidth
+                        )
+                    }
+                )
+            }
             .allowsHitTesting(!controller.isLoading && !controller.isSaving)
         }
     }
 
-    private func hideRotationCursor() {
-        guard !isRotationCursorHidden else { return }
-        NSCursor.hide()
-        isRotationCursorHidden = true
+    @ViewBuilder
+    private var planetPreview: some View {
+        if let image = controller.previewImage {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+        } else {
+            ProgressView()
+                .controlSize(.large)
+        }
     }
 
-    private func showRotationCursor() {
-        guard isRotationCursorHidden else { return }
-        NSCursor.unhide()
-        isRotationCursorHidden = false
+    private func wrappedUnit(_ value: Double) -> Double {
+        value - floor(value)
     }
 
+    private func wrappedTurn(_ value: Double) -> Double {
+        value - floor(value + 0.5)
+    }
+
+    private func completePan(
+        translation: CGFloat,
+        panoramaWidth: CGFloat
+    ) {
+        guard panoramaWidth > 0, abs(translation) > 0.01 else { return }
+        let finalTurns = wrappedTurn(
+            panoramaPanTurns + Double(translation / panoramaWidth)
+        )
+        panoramaPanTurns = finalTurns
+        controller.settings.rotationDegrees = -finalTurns * 360
+        controller.renderPreview()
+    }
+
+}
+
+private struct LittlePlanetHorizontalScrollMonitor: NSViewRepresentable {
+    let isEnabled: Bool
+    let onChange: (CGFloat) -> Void
+    let onEnd: (CGFloat) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onChange: onChange, onEnd: onEnd)
+    }
+
+    func makeNSView(context: Context) -> AttachmentView {
+        let view = AttachmentView()
+        context.coordinator.view = view
+        context.coordinator.install()
+        return view
+    }
+
+    func updateNSView(_ view: AttachmentView, context: Context) {
+        context.coordinator.view = view
+        context.coordinator.isEnabled = isEnabled
+        context.coordinator.onChange = onChange
+        context.coordinator.onEnd = onEnd
+    }
+
+    static func dismantleNSView(
+        _ view: AttachmentView,
+        coordinator: Coordinator
+    ) {
+        coordinator.uninstall()
+    }
+
+    final class AttachmentView: NSView {
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+
+    @MainActor
+    final class Coordinator {
+        weak var view: AttachmentView?
+        var isEnabled = true
+        var onChange: (CGFloat) -> Void
+        var onEnd: (CGFloat) -> Void
+
+        private var monitor: Any?
+        private var accumulatedDelta: CGFloat = 0
+        private var isDirectScroll = false
+        private var ignoresMomentum = false
+
+        init(
+            onChange: @escaping (CGFloat) -> Void,
+            onEnd: @escaping (CGFloat) -> Void
+        ) {
+            self.onChange = onChange
+            self.onEnd = onEnd
+        }
+
+        func install() {
+            monitor = NSEvent.addLocalMonitorForEvents(
+                matching: .scrollWheel
+            ) { [weak self] event in
+                self?.handle(event) ?? event
+            }
+        }
+
+        func uninstall() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+
+        private func handle(_ event: NSEvent) -> NSEvent? {
+            guard isEnabled,
+                  let view,
+                  let window = view.window,
+                  event.window === window,
+                  view.bounds.contains(view.convert(
+                      event.locationInWindow,
+                      from: nil
+                  )) else { return event }
+
+            if !event.momentumPhase.isEmpty {
+                guard ignoresMomentum else { return event }
+                if event.momentumPhase.contains(.ended)
+                    || event.momentumPhase.contains(.cancelled) {
+                    ignoresMomentum = false
+                }
+                return nil
+            }
+
+            let horizontal = event.scrollingDeltaX
+            let isHorizontal = abs(horizontal) > 0.01
+                && abs(horizontal) >= abs(event.scrollingDeltaY)
+
+            if event.phase.isEmpty {
+                guard isHorizontal else { return event }
+                ignoresMomentum = false
+                onChange(horizontal)
+                onEnd(horizontal)
+                return nil
+            }
+
+            if event.phase.contains(.began)
+                || event.phase.contains(.mayBegin) {
+                ignoresMomentum = false
+                guard isHorizontal else { return event }
+                accumulatedDelta = horizontal
+                isDirectScroll = true
+                onChange(accumulatedDelta)
+                return nil
+            }
+
+            if event.phase.contains(.changed) {
+                if !isDirectScroll {
+                    guard isHorizontal else { return event }
+                    accumulatedDelta = 0
+                    isDirectScroll = true
+                }
+                accumulatedDelta += horizontal
+                onChange(accumulatedDelta)
+                return nil
+            }
+
+            if event.phase.contains(.ended)
+                || event.phase.contains(.cancelled) {
+                guard isDirectScroll else { return event }
+                accumulatedDelta += horizontal
+                let completedDelta = accumulatedDelta
+                accumulatedDelta = 0
+                isDirectScroll = false
+                ignoresMomentum = true
+                onEnd(completedDelta)
+                return nil
+            }
+
+            return event
+        }
+    }
 }
