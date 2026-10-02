@@ -49,3 +49,4 @@ As a bonus, **Create Little Planet…** turns the same finished panorama into a 
 ## How Do I?
 
 - [Mask source images](HowTo/Masking/README.md) — exclude unwanted pixels and prioritize the best overlapping content.
+- [Create a Little Planet](HowTo/LittlePlanet/README.md) — turn the finished panorama into a square Little Planet image.
