@@ -50,3 +50,5 @@ As a bonus, **Create Little Planet…** turns the same finished panorama into a 
 
 - [Mask source images](HowTo/Masking/README.md) — exclude unwanted pixels and prioritize the best overlapping content.
 - [Create a Little Planet](HowTo/LittlePlanet/README.md) — turn the finished panorama into a square Little Planet image.
+- [Create a manual patch](HowTo/ManualPatch/README.md) — repair a local area in an external image editor.
+- [Create an AI patch](HowTo/AIPatch/README.md) — mask an unwanted object and let AI reconstruct the missing area.
