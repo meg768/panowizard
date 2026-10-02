@@ -1,8 +1,16 @@
-# PanoWizard 101 — From source images to a finished panorama
+# PanoWizard — Create Complete 360° Panoramas
 
-PanoWizard turns one horizontal ring of overlapping fisheye photos into a complete 360° × 180° equirectangular panorama. This short guide follows one real image sequence through the normal workflow.
+PanoWizard turns a single ring of overlapping source photos into a complete 360° × 180° panorama. The basic workflow is simple: add the photos, create the panorama, inspect and correct only if needed, then export the finished result.
 
-## 1. Add the source images
+![A finished 360-degree panorama created with PanoWizard](Images/00-finished-panorama.jpg)
+
+*A finished panorama created from one sequence of source images.*
+
+**Source images → Create → Inspect and correct if needed → Export**
+
+## Getting started
+
+### 1. Add the source images
 
 Create a new panorama, then click **Add** and select the full image sequence. The photographs should cover one complete turn around the camera with enough overlap between neighboring images.
 
@@ -10,11 +18,11 @@ Select any image in the sidebar to inspect it. Most sequences can be stitched as
 
 ![A complete source-image sequence loaded in PanoWizard](Images/01-source-images.png)
 
-## 2. Create the panorama
+### 2. Create the panorama
 
-Click **Create** beside **Panorama**. PanoWizard detects image features, matches the overlaps, calculates the panorama geometry, and blends the original pixels. This can take a few minutes for a full-resolution sequence.
+Click **Create** beside **Panorama**. PanoWizard assembles the overlapping photographs into a complete panorama. This can take a few minutes for a full-resolution sequence.
 
-## 3. Inspect the result
+### 3. Inspect the result
 
 PanoWizard opens **Preview** when stitching is complete. Move around the panorama and inspect the horizon, seams, moving subjects, and the top and bottom of the sphere. The status line confirms the coverage of the finished panorama.
 
@@ -22,7 +30,7 @@ Use **Adjustments** for final global image corrections when needed.
 
 ![The stitched panorama in the interactive Preview](Images/02-panorama-preview.png)
 
-## 4. Correct only what needs correction
+### 4. Correct only what needs correction
 
 If a stitching seam uses the wrong source pixels, return to that source image, paint a small **Exclude** or **Include** mask, and create the panorama again.
 
@@ -30,7 +38,7 @@ For a localized blemish in an otherwise good panorama, open **Retouch**, positio
 
 ![The optional Retouch workspace](Images/03-retouch.png)
 
-## 5. Export the finished panorama
+### 5. Export the finished panorama
 
 Open **Export** and choose the result you need:
 
@@ -41,10 +49,6 @@ Open **Export** and choose the result you need:
 Keep **Size: Original** when you want the full stitched resolution. The standard image export is equirectangular at a 2:1 aspect ratio.
 
 ![PanoWizard export options](Images/04-export.png)
-
-That is the complete basic workflow: **add → create → inspect → correct if needed → export**.
-
-As a bonus, **Create Little Planet…** turns the same finished panorama into a square Little Planet projection.
 
 ## How Do I?
 
