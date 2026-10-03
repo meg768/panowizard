@@ -8,6 +8,7 @@ struct ContentView: View {
     let projectDirectoryURL: URL?
     @State private var exportController = PanoramaExportController()
     @State private var retouchPatchPresentation: RetouchPatchPresentation?
+    @State private var isLittlePlanetPresented = false
     @State private var showsAdjustmentInspectorInPreview = false
     @State private var showsOriginalAdjustments = false
     @AppStorage("PanoWizard.ProjectWindow.sidebarWidth")
@@ -44,22 +45,28 @@ struct ContentView: View {
                     .toolbar(removing: .sidebarToggle)
                 }
             }
-            .disabled(retouchPatchPresentation != nil)
+            .disabled(
+                retouchPatchPresentation != nil || isLittlePlanetPresented
+            )
 
             if let presentation = retouchPatchPresentation {
                 Color.black.opacity(0.48)
                     .ignoresSafeArea()
                 retouchPatchDialog(presentation)
-                    .background(
-                        .ultraThickMaterial,
-                        in: RoundedRectangle(cornerRadius: 24)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 24)
-                            .strokeBorder(.primary.opacity(0.22))
-                    }
-                    .shadow(color: .black.opacity(0.45), radius: 28, y: 12)
+                    .panoWizardDialogSurface()
                     .padding(18)
+            } else if isLittlePlanetPresented,
+                      let panoramaURL = model.currentPanoramaURL {
+                Color.black.opacity(0.48)
+                    .ignoresSafeArea()
+                LittlePlanetExportSheet(
+                    panoramaURL: panoramaURL,
+                    adjustments: model.panoramaAdjustments,
+                    projectDirectoryURL: projectDirectoryURL,
+                    onDismiss: { isLittlePlanetPresented = false }
+                )
+                .panoWizardDialogSurface()
+                .padding(18)
             }
         }
         .frame(
@@ -143,7 +150,10 @@ struct ContentView: View {
                         model: model,
                         controller: exportController,
                         projectName: projectName,
-                        projectDirectoryURL: projectDirectoryURL
+                        projectDirectoryURL: projectDirectoryURL,
+                        presentLittlePlanet: {
+                            isLittlePlanetPresented = true
+                        }
                     )
                 } else if model.selection == .retouch {
                     PanoramaRetouchView(

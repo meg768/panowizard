@@ -2,6 +2,48 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum LittlePlanetPanoramaDragMode: Equatable {
+    case pan
+    case center
+
+    init(modifierFlags: NSEvent.ModifierFlags) {
+        self = modifierFlags.contains(.option) ? .center : .pan
+    }
+}
+
+struct LittlePlanetPanoramaSelection {
+    static func clampedLocation(
+        _ location: CGPoint,
+        in size: CGSize
+    ) -> CGPoint {
+        CGPoint(
+            x: min(max(location.x, 0), size.width),
+            y: min(max(location.y, 0), size.height)
+        )
+    }
+
+    static func sourceCoordinates(
+        at location: CGPoint,
+        viewportSize: CGSize,
+        panoramaWidth: CGFloat,
+        panTurns: Double
+    ) -> (longitudeDegrees: Double, latitudeDegrees: Double) {
+        let sourceX = wrappedUnit(
+            Double((location.x - viewportSize.width / 2) / panoramaWidth)
+                - panTurns
+        )
+        let sourceY = min(max(
+            1.0 - Double(location.y / viewportSize.height),
+            0.0
+        ), 1.0)
+        return (sourceX * 360, (sourceY - 0.5) * 180)
+    }
+
+    private static func wrappedUnit(_ value: Double) -> Double {
+        value - floor(value)
+    }
+}
+
 @MainActor
 @Observable
 final class LittlePlanetExportController {
@@ -112,81 +154,71 @@ struct LittlePlanetExportSheet: View {
     let panoramaURL: URL
     let adjustments: PanoramaAdjustments
     let projectDirectoryURL: URL?
+    let onDismiss: () -> Void
 
-    @Environment(\.dismiss) private var dismiss
     @State private var controller = LittlePlanetExportController()
     @State private var panoramaPanTurns = 0.0
     @State private var panoramaDragTranslation: CGFloat = 0
     @State private var panoramaScrollTranslation: CGFloat = 0
+    @State private var panoramaDragMode: LittlePlanetPanoramaDragMode?
+    @State private var pendingCenterLocation: CGPoint?
 
     var body: some View {
         @Bindable var controller = controller
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Create Little Planet")
-                    .font(.headline)
+                    .font(.title2.bold())
                 Text("Turn your 360° panorama into a Little Planet projection.")
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
 
-            Divider()
-
-            GeometryReader { geometry in
-                let viewSpacing: CGFloat = 16
-                let sliderSpacing: CGFloat = 10
-                let sliderHeight: CGFloat = 20
-                let helpSpacing: CGFloat = 10
-                let helpHeight: CGFloat = 16
-                let side = max(min(
-                    (geometry.size.width - viewSpacing) / 2,
-                    geometry.size.height
-                        - sliderSpacing - sliderHeight - helpSpacing - helpHeight
-                ), 1)
-                let rowWidth = side * 2 + viewSpacing
-
-                VStack(spacing: 0) {
-                    HStack(spacing: viewSpacing) {
-                        panoramaPicker
-                            .frame(width: side, height: side)
-
-                        planetPreview
-                            .frame(width: side, height: side)
-                    }
-
-                    Slider(
-                        value: $controller.settings.horizonPercent,
-                        in: 10...75,
-                        onEditingChanged: { isEditing in
-                            if !isEditing { controller.renderPreview() }
-                        }
-                    )
-                    .frame(width: rowWidth, height: sliderHeight)
-                    .padding(.top, sliderSpacing)
-                    .disabled(controller.isLoading || controller.isSaving)
-
-                    Text("Pan to rotate · Click to center · Slide to resize")
+            HStack(alignment: .top, spacing: 16) {
+                littlePlanetPane(
+                    title: "Panorama",
+                    content: panoramaPicker
+                ) {
+                    Text("Drag to rotate · ⌥-drag to center")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .frame(width: rowWidth, height: helpHeight)
-                        .padding(.top, helpSpacing)
+                        .frame(
+                            maxWidth: .infinity,
+                            minHeight: 44,
+                            alignment: .topLeading
+                        )
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-                .padding(20)
 
-            Divider()
+                littlePlanetPane(
+                    title: "Little Planet",
+                    content: planetPreview
+                ) {
+                    VStack(spacing: 2) {
+                        Slider(
+                            value: $controller.settings.horizonPercent,
+                            in: 10...75,
+                            onEditingChanged: { isEditing in
+                                if !isEditing { controller.renderPreview() }
+                            }
+                        )
+                        .frame(width: 260, height: 24)
+                        .disabled(controller.isLoading || controller.isSaving)
+
+                        Text("Slide to resize")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .top)
+                }
+            }
 
             HStack {
-                Spacer()
-                Button("Cancel") { dismiss() }
+                Button("Cancel") { onDismiss() }
                     .keyboardShortcut(.cancelAction)
+                Spacer()
                 Button("Export…") {
                     controller.save(
                         directoryURL: projectDirectoryURL,
-                        onSuccess: dismiss.callAsFunction
+                        onSuccess: onDismiss
                     )
                 }
                 .keyboardShortcut(.defaultAction)
@@ -196,9 +228,9 @@ struct LittlePlanetExportSheet: View {
                         || controller.isSaving
                 )
             }
-            .padding(16)
         }
-        .frame(width: 1_040, height: 650)
+        .padding(22)
+        .frame(width: 780)
         .task {
             controller.load(
                 sourceURL: panoramaURL,
@@ -256,15 +288,17 @@ struct LittlePlanetExportSheet: View {
                                 y: height / 2
                             )
                     }
-                    ForEach(-1...1, id: \.self) { copy in
-                        Circle()
-                            .fill(Color.accentColor)
-                            .stroke(.white.opacity(0.9), lineWidth: 1)
-                            .frame(width: 10, height: 10)
-                            .position(
-                                x: markerX + CGFloat(copy) * panoramaWidth,
-                                y: markerY
-                            )
+                    if let pendingCenterLocation {
+                        centerMarker
+                            .position(pendingCenterLocation)
+                    } else {
+                        ForEach(-1...1, id: \.self) { copy in
+                            centerMarker
+                                .position(
+                                    x: markerX + CGFloat(copy) * panoramaWidth,
+                                    y: markerY
+                                )
+                        }
                     }
                 } else {
                     ProgressView()
@@ -276,36 +310,51 @@ struct LittlePlanetExportSheet: View {
             .clipped()
             .contentShape(Rectangle())
             .gesture(
-                DragGesture(minimumDistance: 4, coordinateSpace: .local)
+                DragGesture(minimumDistance: 0, coordinateSpace: .local)
                     .onChanged { value in
-                        panoramaDragTranslation = value.translation.width
+                        let mode = panoramaDragMode
+                            ?? LittlePlanetPanoramaDragMode(
+                                modifierFlags: NSEvent.modifierFlags
+                            )
+                        panoramaDragMode = mode
+                        switch mode {
+                        case .pan:
+                            panoramaDragTranslation = value.translation.width
+                        case .center:
+                            pendingCenterLocation = LittlePlanetPanoramaSelection
+                                .clampedLocation(
+                                    value.location,
+                                    in: geometry.size
+                                )
+                        }
                     }
                     .onEnded { value in
-                        panoramaDragTranslation = 0
-                        completePan(
-                            translation: value.translation.width,
-                            panoramaWidth: panoramaWidth
-                        )
-                    }
-            )
-            .simultaneousGesture(
-                SpatialTapGesture(coordinateSpace: .local)
-                    .onEnded { value in
-                        let sourceX = wrappedUnit(
-                            Double((value.location.x - width / 2) / panoramaWidth)
-                                - displayedPanTurns
-                        )
-                        let sourceY = min(max(
-                            1.0 - Double(value.location.y / height),
-                            0.0
-                        ), 1.0)
-                        controller.settings.centerLongitudeDegrees = sourceX * 360
-                        controller.settings.centerLatitudeDegrees = (sourceY - 0.5)
-                            * 180
-                        controller.settings.rotationDegrees = rotationDegrees(
-                            forPanTurns: displayedPanTurns
-                        )
-                        controller.renderPreview()
+                        let mode = panoramaDragMode
+                            ?? LittlePlanetPanoramaDragMode(
+                                modifierFlags: NSEvent.modifierFlags
+                            )
+                        panoramaDragMode = nil
+                        switch mode {
+                        case .pan:
+                            panoramaDragTranslation = 0
+                            completePan(
+                                translation: value.translation.width,
+                                panoramaWidth: panoramaWidth
+                            )
+                        case .center:
+                            let location = pendingCenterLocation
+                                ?? LittlePlanetPanoramaSelection.clampedLocation(
+                                    value.location,
+                                    in: geometry.size
+                                )
+                            pendingCenterLocation = nil
+                            commitCenter(
+                                at: location,
+                                viewportSize: geometry.size,
+                                panoramaWidth: panoramaWidth,
+                                panTurns: displayedPanTurns
+                            )
+                        }
                     }
             )
             .background {
@@ -325,6 +374,35 @@ struct LittlePlanetExportSheet: View {
             }
             .allowsHitTesting(!controller.isLoading && !controller.isSaving)
         }
+    }
+
+    private var centerMarker: some View {
+        Circle()
+            .fill(Color.accentColor)
+            .stroke(.white.opacity(0.9), lineWidth: 1)
+            .frame(width: 10, height: 10)
+    }
+
+    private func littlePlanetPane<Content: View, Footer: View>(
+        title: String,
+        content: Content,
+        @ViewBuilder footer: () -> Footer
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.headline)
+                .frame(height: 24)
+
+            content
+                .frame(width: 360, height: 360)
+                .background(
+                    .black.opacity(0.07),
+                    in: RoundedRectangle(cornerRadius: 8)
+                )
+
+            footer()
+        }
+        .frame(width: 360)
     }
 
     @ViewBuilder
@@ -359,6 +437,26 @@ struct LittlePlanetExportSheet: View {
         panoramaPanTurns = finalTurns
         controller.settings.rotationDegrees = rotationDegrees(
             forPanTurns: finalTurns
+        )
+        controller.renderPreview()
+    }
+
+    private func commitCenter(
+        at location: CGPoint,
+        viewportSize: CGSize,
+        panoramaWidth: CGFloat,
+        panTurns: Double
+    ) {
+        let coordinates = LittlePlanetPanoramaSelection.sourceCoordinates(
+            at: location,
+            viewportSize: viewportSize,
+            panoramaWidth: panoramaWidth,
+            panTurns: panTurns
+        )
+        controller.settings.centerLongitudeDegrees = coordinates.longitudeDegrees
+        controller.settings.centerLatitudeDegrees = coordinates.latitudeDegrees
+        controller.settings.rotationDegrees = rotationDegrees(
+            forPanTurns: panTurns
         )
         controller.renderPreview()
     }

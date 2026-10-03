@@ -35,7 +35,7 @@ struct PanoramaExportView: View {
     @Bindable var controller: PanoramaExportController
     let projectName: String?
     let projectDirectoryURL: URL?
-    @State private var isLittlePlanetPresented = false
+    let presentLittlePlanet: () -> Void
 
     var body: some View {
         if let panoramaURL = model.currentPanoramaURL {
@@ -107,7 +107,7 @@ struct PanoramaExportView: View {
                         .foregroundStyle(.secondary)
 
                     Button {
-                        isLittlePlanetPresented = true
+                        presentLittlePlanet()
                     } label: {
                         Label(
                             "Create Little Planet…",
@@ -119,13 +119,6 @@ struct PanoramaExportView: View {
 
             }
             .formStyle(.grouped)
-            .sheet(isPresented: $isLittlePlanetPresented) {
-                LittlePlanetExportSheet(
-                    panoramaURL: panoramaURL,
-                    adjustments: model.panoramaAdjustments,
-                    projectDirectoryURL: projectDirectoryURL
-                )
-            }
             .alert("Export Failed", isPresented: Binding(
                 get: { controller.errorMessage != nil },
                 set: { if !$0 { controller.errorMessage = nil } }

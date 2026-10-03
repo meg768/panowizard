@@ -136,18 +136,21 @@ approved for implementation now and must not be inferred as current behavior:
   arrow keys pan. Its zoom is deliberately centered; do not reuse the native
   editor's Command-held anchor model or let a zoom event alter yaw or pitch.
 - Little Planet export always continues the stereographic projection across the
-  square output. Its sheet places a square, horizontally wrapping viewport into
-  the 2:1 source panorama beside an equally sized rendered Little Planet. An
-  unlabeled horizontal resize slider below both previews is constrained to
+  square output. Its dialog places a square, horizontally wrapping viewport into
+  the 2:1 source panorama beside an equally sized rendered Little Planet. The
+  two labeled 360-point panes follow the Retouch dialog layout. An unlabeled
+  horizontal resize slider below the Little Planet preview is constrained to
   10–75%. Horizontal drag or scroll sets rotation around the planet's center;
   the equatorial direction at the source viewport's horizontal center maps to
-  12 o'clock, including after recentering. Clicking selects the source
-  direction used as the geometric center. The marker is anchored to that
-  source direction and wraps with the panorama.
+  12 o'clock, including after recentering. Option-drag moves a center marker
+  clamped to the visible source square and commits the corresponding source
+  direction as the geometric center on release. The committed marker is
+  anchored to that source direction and wraps with the panorama.
   Centering is a 3D sphere rotation between inverse stereographic projection and
-  equirectangular sampling. Pan and resize update the rendered preview only on
-  release; a center click renders once immediately. A successful export
-  dismisses the sheet, while cancel or failure leaves it open.
+  equirectangular sampling. Pan, center, and resize update the rendered preview
+  only on release. The dialog uses the same root overlay, dimming layer, and
+  shared material surface as the Retouch dialogs. A successful export
+  dismisses the dialog, while cancel or failure leaves it open.
 - `Sources/PanoWizard/ViewModels/AppModel.swift` connects the document, engine,
   preview, retouching, and export behavior to the UI lifecycle.
 - The `Images` application menu mirrors source-image order in the sidebar. Its
