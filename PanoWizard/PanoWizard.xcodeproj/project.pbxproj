@@ -1,338 +1,999 @@
 // !$*UTF8*$!
 {
-	archiveVersion = 1;
 	classes = {
 	};
 	objectVersion = 77;
+	archiveVersion = 1;
 	objects = {
+		A15500000000000000000001 = {
+            isa = PBXShellScriptBuildPhase;
+            name = "Generate Build Metadata";
+            alwaysOutOfDate = 1;
+            buildActionMask = 2147483647;
+            files = ();
+            inputPaths = ();
+            outputPaths = ("$(DERIVED_FILE_DIR)/PanoWizardBuildMetadata.h",);
+            runOnlyForDeploymentPostprocessing = 0;
+            shellPath = /bin/sh;
+            shellScript = "set -eu\nstamp=$(/bin/date '+%Y%m%d%H%M|%Y-%m-%d %H:%M')\nnumber=${stamp%%|*}\nreadable=${stamp#*|}\n/bin/mkdir -p \"${DERIVED_FILE_DIR}\"\n/usr/bin/printf '#define PW_BUILD_NUMBER %s\\n#define PW_BUILD_TIMESTAMP %s\\n' \"$number\" \"$readable\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+        };
 
-/* Begin PBXFileReference section */
-		F7349881307406FD00FD790F /* PanoWizard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PanoWizard.app; sourceTree = BUILT_PRODUCTS_DIR; };
-/* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		F7349883307406FD00FD790F /* PanoWizard */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = PanoWizard;
+		ECA2B3E490174BDE9116BCF6 = {
+			isa = PBXBuildFile;
+			fileRef = 946CB43764E7415A9D210836;
+		};
+		E2DE47DF8743472286CEEECA = {
+			path = Resources/ThirdPartyLicenses;
+			isa = PBXFileReference;
+			lastKnownFileType = folder;
 			sourceTree = "<group>";
 		};
-/* End PBXFileSystemSynchronizedRootGroup section */
-
-/* Begin PBXFrameworksBuildPhase section */
-		F734987E307406FD00FD790F /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
-
-/* Begin PBXGroup section */
-		F7349878307406FD00FD790F = {
-			isa = PBXGroup;
-			children = (
-				F7349883307406FD00FD790F /* PanoWizard */,
-				F7349882307406FD00FD790F /* Products */,
-			);
+		B7BA168F3C5E402A9D5A71F7 = {
+			path = Vendor/OpenCV/lib/libopencv_geometry.500.dylib;
+			isa = PBXFileReference;
+			lastKnownFileType = "compiled.mach-o.dylib";
 			sourceTree = "<group>";
 		};
-		F7349882307406FD00FD790F /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				F7349881307406FD00FD790F /* PanoWizard.app */,
+		EE94D97B643B4019B0A86B9E = {
+			isa = XCConfigurationList;
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+			buildConfigurations = (
+				3E2B7A81B6C2435FBE1EF6A6,
+				6ADABD15324645E5A7BF8741,
 			);
-			name = Products;
-			sourceTree = "<group>";
 		};
-/* End PBXGroup section */
-
-/* Begin PBXNativeTarget section */
-		F7349880307406FD00FD790F /* PanoWizard */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = F734988C307406FE00FD790F /* Build configuration list for PBXNativeTarget "PanoWizard" */;
-			buildPhases = (
-				F734987D307406FD00FD790F /* Sources */,
-				F734987E307406FD00FD790F /* Frameworks */,
-				F734987F307406FD00FD790F /* Resources */,
-			);
+		C728B782F90E4705BDB7376F = {
 			buildRules = (
+			);
+			productType = "com.apple.product-type.bundle.unit-test";
+			productReference = 422A7CD70127452DBB703E00;
+			buildConfigurationList = 3DEA4D16FF8146F89FC0E7DF;
+			productName = PanoWizardTests;
+			isa = PBXNativeTarget;
+			fileSystemSynchronizedGroups = (
+				F2DED49479F643068C844E6A,
+			);
+			dependencies = (
+				ED37A3B94D7F4D6A951B2E14,
+			);
+			buildPhases = (
+				0F6677926210471BB9C8392E,
+				EF7EFCE0338F460999B89781,
+				56E9D4838AC84EC8B53B4E45,
+			);
+			name = PanoWizardTests;
+		};
+		83C05ED0EC444AF8B237BDE8 = {
+			isa = PBXBuildFile;
+			fileRef = 132D85E40BD345DA90E6A0EA;
+		};
+		3E2B7A81B6C2435FBE1EF6A6 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SKIP_INSTALL = YES;
+				SYSTEM_HEADER_SEARCH_PATHS = "$(SRCROOT)/Vendor/OpenCV/include/opencv5";
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/OpenCVBridge/include",
+				);
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		43549ED170DE43AD969C90FE = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				PanoWizard.entitlements,
+			);
+			target = F7349880307406FD00FD790F;
+		};
+		36185C0CE2D94464B7F78BD3 = {
+			path = libOpenCVBridge.a;
+			isa = PBXFileReference;
+			includeInIndex = 0;
+			explicitFileType = archive.ar;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		1F6F12E988F840FA8612E14B = {
+			path = Vendor/OpenCV/lib/libopencv_calib.500.dylib;
+			isa = PBXFileReference;
+			lastKnownFileType = "compiled.mach-o.dylib";
+			sourceTree = "<group>";
+		};
+		EFC36D212D4D4942B46B4FEA = {
+			isa = PBXBuildFile;
+			fileRef = 212737ACE4E24D8086B2C43F;
+			settings = {
+				ATTRIBUTES = (
+					CodeSignOnCopy,
+				);
+			};
+		};
+		8F10565F499443988394295E = {
+			path = Vendor/OpenCV/lib/libopencv_flann.500.dylib;
+			isa = PBXFileReference;
+			lastKnownFileType = "compiled.mach-o.dylib";
+			sourceTree = "<group>";
+		};
+		212737ACE4E24D8086B2C43F = {
+			path = Vendor/OpenCV/lib/libopencv_imgcodecs.500.dylib;
+			isa = PBXFileReference;
+			lastKnownFileType = "compiled.mach-o.dylib";
+			sourceTree = "<group>";
+		};
+		F1BFCD7E88C44B3BA9FB5F92 = {
+			path = Vendor/OpenCV/lib/libopencv_objdetect.500.dylib;
+			isa = PBXFileReference;
+			lastKnownFileType = "compiled.mach-o.dylib";
+			sourceTree = "<group>";
+		};
+		F2813E8409DF4A7B936DF617 = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F7349879307406FD00FD790F;
+			remoteGlobalIDString = 01645290C09E470CA42404D5;
+			remoteInfo = OpenCVBridge;
+			proxyType = 1;
+		};
+		5776F527F84D449E9E4C1CFA = {
+			isa = PBXBuildFile;
+			fileRef = 6B870E14BE1946EEAD33859D;
+		};
+		CD5DB05841F040108A9A91C7 = {
+			isa = PBXBuildFile;
+			fileRef = 36185C0CE2D94464B7F78BD3;
+		};
+		E8E9635CB97443A69B898BA0 = {
+			isa = PBXBuildFile;
+			fileRef = 79B471AFDE2A4851B4419EEE;
+		};
+		ED37A3B94D7F4D6A951B2E14 = {
+			isa = PBXTargetDependency;
+			target = F7349880307406FD00FD790F;
+			targetProxy = 13440D6DE5734FEC9A153491;
+		};
+		16919530370546FB8F78EBB3 = {
+			isa = PBXBuildFile;
+			fileRef = 1F6F12E988F840FA8612E14B;
+		};
+		840BBFAC001141668690085B = {
+			isa = PBXBuildFile;
+			fileRef = 6B870E14BE1946EEAD33859D;
+			settings = {
+				ATTRIBUTES = (
+					CodeSignOnCopy,
+				);
+			};
+		};
+		6ADABD15324645E5A7BF8741 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SKIP_INSTALL = YES;
+				SYSTEM_HEADER_SEARCH_PATHS = "$(SRCROOT)/Vendor/OpenCV/include/opencv5";
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/OpenCVBridge/include",
+				);
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		000C85383CCB4E229F728A14 = {
+			isa = PBXBuildFile;
+			fileRef = 02DCFC88F83045958E37BA70;
+		};
+		5FBF01F7AE7647B88D4357D2 = {
+			isa = PBXBuildFile;
+			fileRef = 8F10565F499443988394295E;
+		};
+		504007EEC2174E9BBCA64673 = {
+			isa = PBXBuildFile;
+			fileRef = B7BA168F3C5E402A9D5A71F7;
+		};
+		37BD371D5C4D4D71A0739AFC = {
+			isa = PBXBuildFile;
+			fileRef = BEC8C974AC0A4A8198FB6210;
+		};
+		6731A87306C945E188F7CCBE = {
+			isa = PBXBuildFile;
+			fileRef = F1BFCD7E88C44B3BA9FB5F92;
+		};
+		AA45EE91EEED442A8909C60B = {
+			path = Vendor/OpenCV/lib/libopencv_stereo.500.dylib;
+			isa = PBXFileReference;
+			lastKnownFileType = "compiled.mach-o.dylib";
+			sourceTree = "<group>";
+		};
+		01645290C09E470CA42404D5 = {
+			productType = "com.apple.product-type.library.static";
+			productReference = 36185C0CE2D94464B7F78BD3;
+			buildConfigurationList = EE94D97B643B4019B0A86B9E;
+			productName = OpenCVBridge;
+			isa = PBXNativeTarget;
+			buildPhases = (
+				BA2F83672F9D4262BC00333A,
+				508F98B5B8684E68A9AC954A,
 			);
 			dependencies = (
 			);
-			fileSystemSynchronizedGroups = (
-				F7349883307406FD00FD790F /* PanoWizard */,
+			name = OpenCVBridge;
+			buildRules = (
 			);
-			name = PanoWizard;
-			packageProductDependencies = (
-			);
-			productName = PanoWizard;
-			productReference = F7349881307406FD00FD790F /* PanoWizard.app */;
-			productType = "com.apple.product-type.application";
 		};
-/* End PBXNativeTarget section */
-
-/* Begin PBXProject section */
-		F7349879307406FD00FD790F /* Project object */ = {
-			isa = PBXProject;
-			attributes = {
-				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2650;
-				LastUpgradeCheck = 2650;
-				TargetAttributes = {
-					F7349880307406FD00FD790F = {
-						CreatedOnToolsVersion = 26.5;
-					};
-				};
+		669AB917EFAA4048932447B8 = {
+			isa = PBXBuildFile;
+			fileRef = 02DCFC88F83045958E37BA70;
+		};
+		57299B3D16B94A8C84183341 = {
+			path = Resources/PanoWizardProject.icns;
+			isa = PBXFileReference;
+			lastKnownFileType = image.icns;
+			sourceTree = "<group>";
+		};
+		33E519C48C8246A8BE91824F = {
+			isa = PBXBuildFile;
+			fileRef = 79B471AFDE2A4851B4419EEE;
+			settings = {
+				ATTRIBUTES = (
+					CodeSignOnCopy,
+				);
 			};
-			buildConfigurationList = F734987C307406FD00FD790F /* Build configuration list for PBXProject "PanoWizard" */;
-			developmentRegion = en;
-			hasScannedForEncodings = 0;
-			knownRegions = (
-				en,
-				Base,
-			);
-			mainGroup = F7349878307406FD00FD790F;
-			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
-			productRefGroup = F7349882307406FD00FD790F /* Products */;
-			projectDirPath = "";
-			projectRoot = "";
-			targets = (
-				F7349880307406FD00FD790F /* PanoWizard */,
-			);
 		};
-/* End PBXProject section */
-
-/* Begin PBXResourcesBuildPhase section */
-		F734987F307406FD00FD790F /* Resources */ = {
+		AA5AA1A9822741F4A955797C = {
+			isa = PBXGroup;
+			name = Resources;
+			children = (
+				BEC8C974AC0A4A8198FB6210,
+				57299B3D16B94A8C84183341,
+				E2DE47DF8743472286CEEECA,
+			);
+			sourceTree = "<group>";
+		};
+		1FEA5C8D7F664111A12E3C96 = {
+			isa = PBXBuildFile;
+			fileRef = 36185C0CE2D94464B7F78BD3;
+		};
+		9FD6C139E5D7455DB53E9801 = {
+			isa = PBXBuildFile;
+			fileRef = AA45EE91EEED442A8909C60B;
+			settings = {
+				ATTRIBUTES = (
+					CodeSignOnCopy,
+				);
+			};
+		};
+		9BE3DA9456E849F887F562E0 = {
+			isa = PBXBuildFile;
+			fileRef = E2DE47DF8743472286CEEECA;
+		};
+		CD0C4BA72F004F539D320878 = {
+			isa = PBXBuildFile;
+			fileRef = 6B870E14BE1946EEAD33859D;
+		};
+		B68675E66C9C483993AB546B = {
+			isa = PBXBuildFile;
+			fileRef = F1BFCD7E88C44B3BA9FB5F92;
+			settings = {
+				ATTRIBUTES = (
+					CodeSignOnCopy,
+				);
+			};
+		};
+		13440D6DE5734FEC9A153491 = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F7349879307406FD00FD790F;
+			remoteGlobalIDString = F7349880307406FD00FD790F;
+			remoteInfo = PanoWizard;
+			proxyType = 1;
+		};
+		8D88BD01519746539379B431 = {
+			isa = PBXBuildFile;
+			fileRef = 8F10565F499443988394295E;
+		};
+		BBCFB8FA33224A2F8DF63657 = {
+			isa = PBXBuildFile;
+			fileRef = 946CB43764E7415A9D210836;
+		};
+		04AFA0F23D824FF89563E91D = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 52A6FA9VB5;
+				SKIP_INSTALL = YES;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PanoWizard.app/Contents/MacOS/PanoWizard";
+				GENERATE_INFOPLIST_FILE = YES;
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Vendor/OpenCV/lib",
+				);
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/OpenCVBridge/include";
+				PRODUCT_BUNDLE_IDENTIFIER = se.egelberg.panowizard.tests;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lc++",
+				);
+			};
+			name = Release;
+		};
+		7EBA11082D8143A5B2CFCCBE = {
+			isa = PBXGroup;
+			name = OpenCVBridge;
+			children = (
+				D05B189BDA6245E0BB67CE60,
+				7D7F9F6E0018453485F81394,
+				A8C6EFB5825944BEB7C2999E,
+			);
+			sourceTree = "<group>";
+		};
+		56E9D4838AC84EC8B53B4E45 = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXResourcesBuildPhase section */
-
-/* Begin PBXSourcesBuildPhase section */
-		F734987D307406FD00FD790F /* Sources */ = {
+		7D7F9F6E0018453485F81394 = {
+			path = OpenCVBridge/include/OpenCVBridge.h;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			sourceTree = "<group>";
+		};
+		20D73B780CAC4E01AA557F48 = {
+			isa = PBXTargetDependency;
+			target = 01645290C09E470CA42404D5;
+			targetProxy = F2813E8409DF4A7B936DF617;
+		};
+		946CB43764E7415A9D210836 = {
+			path = Vendor/OpenCV/lib/libopencv_imgproc.500.dylib;
+			isa = PBXFileReference;
+			lastKnownFileType = "compiled.mach-o.dylib";
+			sourceTree = "<group>";
+		};
+		D160F01E98C040B99302F411 = {
+			isa = PBXBuildFile;
+			fileRef = AA45EE91EEED442A8909C60B;
+		};
+		EB8DDF2B69E34709800E8D75 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 52A6FA9VB5;
+				SKIP_INSTALL = YES;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PanoWizard.app/Contents/MacOS/PanoWizard";
+				GENERATE_INFOPLIST_FILE = YES;
+				CODE_SIGN_STYLE = Automatic;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Vendor/OpenCV/lib",
+				);
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/OpenCVBridge/include";
+				PRODUCT_BUNDLE_IDENTIFIER = se.egelberg.panowizard.tests;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lc++",
+				);
+			};
+			name = Debug;
+		};
+		F734988E307406FE00FD790F = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = PanoWizard/PanoWizard.entitlements;
+				MARKETING_VERSION = 1.0;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/OpenCVBridge/include";
+				DEVELOPMENT_TEAM = 52A6FA9VB5;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
+				PRODUCT_BUNDLE_IDENTIFIER = se.egelberg.panowizard;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				REGISTER_APP_GROUPS = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Vendor/OpenCV/lib",
+				);
+				CODE_SIGN_STYLE = Automatic;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				SWIFT_VERSION = 6.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				ENABLE_PREVIEWS = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				INFOPLIST_FILE = PanoWizard/Info.plist;
+                INFOPLIST_PREPROCESS = YES;
+                INFOPLIST_PREFIX_HEADER = "$(DERIVED_FILE_DIR)/PanoWizardBuildMetadata.h";
+				GENERATE_INFOPLIST_FILE = NO;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lc++",
+				);
+			};
+			name = Release;
+		};
+		00454D872C7A4E998B2FA4D7 = {
+			isa = PBXBuildFile;
+			fileRef = 946CB43764E7415A9D210836;
+			settings = {
+				ATTRIBUTES = (
+					CodeSignOnCopy,
+				);
+			};
+		};
+		F734988D307406FE00FD790F = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = PanoWizard/PanoWizard.entitlements;
+				MARKETING_VERSION = 1.0;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/OpenCVBridge/include";
+				DEVELOPMENT_TEAM = 52A6FA9VB5;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
+				PRODUCT_BUNDLE_IDENTIFIER = se.egelberg.panowizard;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				REGISTER_APP_GROUPS = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Vendor/OpenCV/lib",
+				);
+				CODE_SIGN_STYLE = Automatic;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				SWIFT_VERSION = 6.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				ENABLE_PREVIEWS = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				INFOPLIST_FILE = PanoWizard/Info.plist;
+                INFOPLIST_PREPROCESS = YES;
+                INFOPLIST_PREFIX_HEADER = "$(DERIVED_FILE_DIR)/PanoWizardBuildMetadata.h";
+				GENERATE_INFOPLIST_FILE = NO;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lc++",
+				);
+			};
+			name = Debug;
+		};
+		BEC8C974AC0A4A8198FB6210 = {
+			path = Resources/Backgrounds;
+			isa = PBXFileReference;
+			lastKnownFileType = folder;
+			sourceTree = "<group>";
+		};
+		F7349882307406FD00FD790F = {
+			isa = PBXGroup;
+			name = Products;
+			children = (
+				F7349881307406FD00FD790F,
+				36185C0CE2D94464B7F78BD3,
+				422A7CD70127452DBB703E00,
+			);
+			sourceTree = "<group>";
+		};
+		F7349883307406FD00FD790F = {
+			path = PanoWizard;
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				43549ED170DE43AD969C90FE,
+			);
+			sourceTree = "<group>";
+		};
+		28C2DAC0A75049F28DDECE8E = {
+			isa = PBXBuildFile;
+			fileRef = B7BA168F3C5E402A9D5A71F7;
+		};
+		A8C6EFB5825944BEB7C2999E = {
+			path = OpenCVBridge/include/module.modulemap;
+			isa = PBXFileReference;
+			lastKnownFileType = "sourcecode.module-map";
+			sourceTree = "<group>";
+		};
+		FF3095F6D4A04560971DD579 = {
+			isa = PBXBuildFile;
+			fileRef = 132D85E40BD345DA90E6A0EA;
+			settings = {
+				ATTRIBUTES = (
+					CodeSignOnCopy,
+				);
+			};
+		};
+		F7349878307406FD00FD790F = {
+			isa = PBXGroup;
+			sourceTree = "<group>";
+			children = (
+				F7349883307406FD00FD790F,
+				F7349882307406FD00FD790F,
+				AA5AA1A9822741F4A955797C,
+				7EBA11082D8143A5B2CFCCBE,
+				30A06FB50E13440EACDACBF4,
+				F2DED49479F643068C844E6A,
+			);
+		};
+		F7349879307406FD00FD790F = {
+			buildConfigurationList = F734987C307406FD00FD790F;
+			targets = (
+				F7349880307406FD00FD790F,
+				01645290C09E470CA42404D5,
+				C728B782F90E4705BDB7376F,
+			);
+			minimizedProjectReferenceProxies = 1;
+			developmentRegion = en;
+			knownRegions = (
+				en,
+				Base,
+			);
+			isa = PBXProject;
+			productRefGroup = F7349882307406FD00FD790F;
+			projectDirPath = "";
+			attributes = {
+				LastSwiftUpdateCheck = 2650;
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 2650;
+				TargetAttributes = {
+					F7349880307406FD00FD790F = {
+						CreatedOnToolsVersion = 26.5;
+					};
+					C728B782F90E4705BDB7376F = {
+						TestTargetID = F7349880307406FD00FD790F;
+						CreatedOnToolsVersion = 26.5;
+					};
+				};
+			};
+			hasScannedForEncodings = 0;
+			projectRoot = "";
+			preferredProjectObjectVersion = 77;
+			mainGroup = F7349878307406FD00FD790F;
+		};
+		1E935D406F994503A1C89422 = {
+			isa = PBXBuildFile;
+			fileRef = 79B471AFDE2A4851B4419EEE;
+		};
+		784280F4C5634915B974A6BF = {
+			buildActionMask = 2147483647;
+			dstSubfolderSpec = 10;
+			isa = PBXCopyFilesBuildPhase;
+			runOnlyForDeploymentPostprocessing = 0;
+			dstPath = "";
+			name = "Embed OpenCV Libraries";
+			files = (
+				7D56DB51C00C401BA34232AD,
+				FF3095F6D4A04560971DD579,
+				33E519C48C8246A8BE91824F,
+				D37D1FB5F66C462D801C6958,
+				D97210E3DC84437D96E05CF0,
+				EFC36D212D4D4942B46B4FEA,
+				00454D872C7A4E998B2FA4D7,
+				B68675E66C9C483993AB546B,
+				150F2F691544410E99D5BD5D,
+				9FD6C139E5D7455DB53E9801,
+				840BBFAC001141668690085B,
+			);
+		};
+		73A209E26EBE40B8B5283188 = {
+			isa = PBXBuildFile;
+			fileRef = 212737ACE4E24D8086B2C43F;
+		};
+		508F98B5B8684E68A9AC954A = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F734988B307406FE00FD790F = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CONFIGURATION_BUILD_DIR = "$(HOME)/Library/Developer/Xcode/PanoWizardBuilds/$(CONFIGURATION)";
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				ENABLE_NS_ASSERTIONS = NO;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DWARF_DSYM_FOLDER_PATH = "$(BUILD_DIR)/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)";
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				SDKROOT = macosx;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				ARCHS = arm64;
+				SWIFT_VERSION = 6.0;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_COMMA = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				COPY_PHASE_STRIP = NO;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				MTL_FAST_MATH = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				DEVELOPMENT_TEAM = 52A6FA9VB5;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+			};
+			name = Release;
+		};
+		F734988C307406FE00FD790F = {
+			isa = XCConfigurationList;
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+			buildConfigurations = (
+				F734988D307406FE00FD790F,
+				F734988E307406FE00FD790F,
+			);
+		};
+		02DCFC88F83045958E37BA70 = {
+			path = Vendor/OpenCV/lib/libopencv_photo.500.dylib;
+			isa = PBXFileReference;
+			lastKnownFileType = "compiled.mach-o.dylib";
+			sourceTree = "<group>";
+		};
+		F7349880307406FD00FD790F = {
+			name = PanoWizard;
+			buildConfigurationList = F734988C307406FE00FD790F;
+			productReference = F7349881307406FD00FD790F;
+			productType = "com.apple.product-type.application";
+			packageProductDependencies = (
+			);
+			productName = PanoWizard;
+			isa = PBXNativeTarget;
+			fileSystemSynchronizedGroups = (
+				F7349883307406FD00FD790F,
+			);
+			dependencies = (
+				20D73B780CAC4E01AA557F48,
+			);
+			buildPhases = (
+				A15500000000000000000001,
+				F734987D307406FD00FD790F,
+				F734987E307406FD00FD790F,
+				F734987F307406FD00FD790F,
+				784280F4C5634915B974A6BF,
+			);
+			buildRules = (
+			);
+		};
+		79B471AFDE2A4851B4419EEE = {
+			path = Vendor/OpenCV/lib/libopencv_features.500.dylib;
+			isa = PBXFileReference;
+			lastKnownFileType = "compiled.mach-o.dylib";
+			sourceTree = "<group>";
+		};
+		150F2F691544410E99D5BD5D = {
+			isa = PBXBuildFile;
+			fileRef = 02DCFC88F83045958E37BA70;
+			settings = {
+				ATTRIBUTES = (
+					CodeSignOnCopy,
+				);
+			};
+		};
+		7D56DB51C00C401BA34232AD = {
+			isa = PBXBuildFile;
+			fileRef = 1F6F12E988F840FA8612E14B;
+			settings = {
+				ATTRIBUTES = (
+					CodeSignOnCopy,
+				);
+			};
+		};
+		F7349881307406FD00FD790F = {
+			path = PanoWizard.app;
+			isa = PBXFileReference;
+			includeInIndex = 0;
+			explicitFileType = wrapper.application;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		17F60989BDD348D58D4A4FE7 = {
+			isa = PBXBuildFile;
+			fileRef = 57299B3D16B94A8C84183341;
+		};
+		3DEA4D16FF8146F89FC0E7DF = {
+			isa = XCConfigurationList;
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+			buildConfigurations = (
+				EB8DDF2B69E34709800E8D75,
+				04AFA0F23D824FF89563E91D,
+			);
+		};
+		6B870E14BE1946EEAD33859D = {
+			path = Vendor/OpenCV/lib/libopencv_stitching.500.dylib;
+			isa = PBXFileReference;
+			lastKnownFileType = "compiled.mach-o.dylib";
+			sourceTree = "<group>";
+		};
+		D05B189BDA6245E0BB67CE60 = {
+			path = OpenCVBridge/PanoramaBridge.cpp;
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.cpp.cpp;
+			sourceTree = "<group>";
+		};
+		D37D1FB5F66C462D801C6958 = {
+			isa = PBXBuildFile;
+			fileRef = 8F10565F499443988394295E;
+			settings = {
+				ATTRIBUTES = (
+					CodeSignOnCopy,
+				);
+			};
+		};
+		F2DED49479F643068C844E6A = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PanoWizardTests;
+			sourceTree = "<group>";
+		};
+		EF7EFCE0338F460999B89781 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1FEA5C8D7F664111A12E3C96,
+				16919530370546FB8F78EBB3,
+				83C05ED0EC444AF8B237BDE8,
+				1E935D406F994503A1C89422,
+				5FBF01F7AE7647B88D4357D2,
+				28C2DAC0A75049F28DDECE8E,
+				73A209E26EBE40B8B5283188,
+				ECA2B3E490174BDE9116BCF6,
+				6731A87306C945E188F7CCBE,
+				000C85383CCB4E229F728A14,
+				2D86BEBE293A4C708A8C3EC0,
+				CD0C4BA72F004F539D320878,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F734988A307406FE00FD790F = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CONFIGURATION_BUILD_DIR = "$(HOME)/Library/Developer/Xcode/PanoWizardBuilds/$(CONFIGURATION)";
+				DEVELOPMENT_TEAM = 52A6FA9VB5;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				ARCHS = arm64;
+				ONLY_ACTIVE_ARCH = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				COPY_PHASE_STRIP = NO;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_COMMA = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				SWIFT_VERSION = 6.0;
+				CLANG_WARN_INT_CONVERSION = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				SDKROOT = macosx;
+				CLANG_WARN_EMPTY_BODY = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				CLANG_ENABLE_MODULES = YES;
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ENABLE_TESTABILITY = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+			};
+			name = Debug;
+		};
+		24665B846CF64BB99FF705D1 = {
+			isa = PBXBuildFile;
+			fileRef = 1F6F12E988F840FA8612E14B;
+		};
+		F734987F307406FD00FD790F = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				37BD371D5C4D4D71A0739AFC,
+				17F60989BDD348D58D4A4FE7,
+				9BE3DA9456E849F887F562E0,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F734987E307406FD00FD790F = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CD5DB05841F040108A9A91C7,
+				24665B846CF64BB99FF705D1,
+				453E2BA59F684FFFA2701D81,
+				E8E9635CB97443A69B898BA0,
+				8D88BD01519746539379B431,
+				504007EEC2174E9BBCA64673,
+				7B8FD3F07E4148DFAFB707BF,
+				BBCFB8FA33224A2F8DF63657,
+				0166FB5A9702487781550106,
+				669AB917EFAA4048932447B8,
+				D160F01E98C040B99302F411,
+				5776F527F84D449E9E4C1CFA,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D97210E3DC84437D96E05CF0 = {
+			isa = PBXBuildFile;
+			fileRef = B7BA168F3C5E402A9D5A71F7;
+			settings = {
+				ATTRIBUTES = (
+					CodeSignOnCopy,
+				);
+			};
+		};
+		7B8FD3F07E4148DFAFB707BF = {
+			isa = PBXBuildFile;
+			fileRef = 212737ACE4E24D8086B2C43F;
+		};
+		30A06FB50E13440EACDACBF4 = {
+			isa = PBXGroup;
+			name = OpenCV;
+			children = (
+				1F6F12E988F840FA8612E14B,
+				132D85E40BD345DA90E6A0EA,
+				79B471AFDE2A4851B4419EEE,
+				8F10565F499443988394295E,
+				B7BA168F3C5E402A9D5A71F7,
+				212737ACE4E24D8086B2C43F,
+				946CB43764E7415A9D210836,
+				F1BFCD7E88C44B3BA9FB5F92,
+				02DCFC88F83045958E37BA70,
+				AA45EE91EEED442A8909C60B,
+				6B870E14BE1946EEAD33859D,
+			);
+			sourceTree = "<group>";
+		};
+		0166FB5A9702487781550106 = {
+			isa = PBXBuildFile;
+			fileRef = F1BFCD7E88C44B3BA9FB5F92;
+		};
+		453E2BA59F684FFFA2701D81 = {
+			isa = PBXBuildFile;
+			fileRef = 132D85E40BD345DA90E6A0EA;
+		};
+		132D85E40BD345DA90E6A0EA = {
+			path = Vendor/OpenCV/lib/libopencv_core.500.dylib;
+			isa = PBXFileReference;
+			lastKnownFileType = "compiled.mach-o.dylib";
+			sourceTree = "<group>";
+		};
+		BA2F83672F9D4262BC00333A = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				95F2F371C958435B95A80622,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2D86BEBE293A4C708A8C3EC0 = {
+			isa = PBXBuildFile;
+			fileRef = AA45EE91EEED442A8909C60B;
+		};
+		422A7CD70127452DBB703E00 = {
+			path = PanoWizardTests.xctest;
+			isa = PBXFileReference;
+			includeInIndex = 0;
+			explicitFileType = wrapper.cfbundle;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		0F6677926210471BB9C8392E = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXSourcesBuildPhase section */
-
-/* Begin XCBuildConfiguration section */
-		F734988A307406FE00FD790F /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 52A6FA9VB5;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
-					"$(inherited)",
-				);
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.5;
-				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
-				MTL_FAST_MATH = YES;
-				ONLY_ACTIVE_ARCH = YES;
-				SDKROOT = macosx;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-			};
-			name = Debug;
-		};
-		F734988B307406FE00FD790F /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 52A6FA9VB5;
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.5;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
-				SDKROOT = macosx;
-				SWIFT_COMPILATION_MODE = wholemodule;
-			};
-			name = Release;
-		};
-		F734988D307406FE00FD790F /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 52A6FA9VB5;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = se.egelberg.panowizard;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
-		};
-		F734988E307406FE00FD790F /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 52A6FA9VB5;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = se.egelberg.panowizard;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
-/* End XCBuildConfiguration section */
-
-/* Begin XCConfigurationList section */
-		F734987C307406FD00FD790F /* Build configuration list for PBXProject "PanoWizard" */ = {
+		F734987C307406FD00FD790F = {
 			isa = XCConfigurationList;
-			buildConfigurations = (
-				F734988A307406FE00FD790F /* Debug */,
-				F734988B307406FE00FD790F /* Release */,
-			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
-		};
-		F734988C307406FE00FD790F /* Build configuration list for PBXNativeTarget "PanoWizard" */ = {
-			isa = XCConfigurationList;
 			buildConfigurations = (
-				F734988D307406FE00FD790F /* Debug */,
-				F734988E307406FE00FD790F /* Release */,
+				F734988A307406FE00FD790F,
+				F734988B307406FE00FD790F,
 			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
 		};
-/* End XCConfigurationList section */
+		F734987D307406FD00FD790F = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		95F2F371C958435B95A80622 = {
+			isa = PBXBuildFile;
+			fileRef = D05B189BDA6245E0BB67CE60;
+		};
 	};
-	rootObject = F7349879307406FD00FD790F /* Project object */;
+	rootObject = F7349879307406FD00FD790F;
 }
