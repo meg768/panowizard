@@ -1067,3 +1067,17 @@ arbetsrutin för uttryckligen begärd commit+push, inte en build-hook eller
 automatisk commit. Skapa inga commits/pushar när användaren förbjuder dem.
 Commit ce238af med tom projektarbetsyta och enkel tab-inställning är pushad.
 Runtime-verifiering av tab-inställningen efter omstart återstår enligt ovan.
+
+## Sparad kontext — 2026-10-07
+
+Användarens avsikt med datumtaggar är att varje uttryckligen begärd "check in"
+(c+p) ska ge en lättidentifierad version att återgå till på GitHub. Commit är
+själva versionen; push skickar commit och tagg till origin. Behåll det enkla
+formatet YYYY-MM-DD-hh-mm; användaren önskar ingen extra precision eller
+speciallösning för flera commits inom samma minut. Flytta inte befintliga
+publicerade taggar om en namnkonflikt uppstår.
+Senast pushade kodändring är ce238af. Efterföljande commits 3975097 och e91ddea
+ändrar bara kontext/taggrutin. Befintliga taggar: pre-migration,
+2026-10-06_23-15-44 och 2026-10-06-23-18. Ingen ytterligare appkod har ändrats.
+Debug/Release lyckades för tab-inställningen; runtime-verifiering efter omstart
+med två dokument återstår fortfarande. Osparade ändringar fick inte kastas.
