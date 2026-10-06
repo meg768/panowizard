@@ -940,3 +940,15 @@ verifieras innan push/deployment. Ingen commit/push utförd.
 
 Användaren begärde därefter commit+push av inställningen som döljer repo-rubriken
 till origin/main. Ingen taggning begärd.
+
+## Korrigering av repo-rubrik — 2026-10-06
+
+Efter push verifierades att Pages deploy av 5f957c5 lyckats och publicerad HTML
+ändå innehåller repo-rubriken; title:false räckte inte (metadata återfyller titel).
+Ersatt med site title PanoWizard Help och minimal docs/_includes/head-custom.html
+CSS: .markdown-body > h1:first-child:not([id]) { display: none; }. Primer inkluderar
+head-custom i head. Selektorn träffar endast automatiska h1 utan id, inte Markdown-
+rubriker som har id. Inget eget layout eller JavaScript. Lokalt verifierad mot
+publicerad HTML; publicerad effekt kräver ny commit/push. Ingen commit/push ännu.
+
+Användaren auktoriserade commit+push av korrigeringen (c+p) till origin/main.
