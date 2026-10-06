@@ -25,9 +25,8 @@ Inga kända applikationsfunktioner har avsiktligt utelämnats.
 Användaren har bekräftat lyckad App Store Connect validation av den migrerade
 appen. Endast de 11 precompiled OpenCV-bibliotekens symbolvarningar återstår.
 
-Aktuell instruktion (2026-10-06): **commit + push av det aktuella arbetet**.
-Tidigare commit/push-förbud i historikavsnitten är ersatta av denna instruktion.
-Ingen taggning begärd.
+Aktuell instruktion (2026-10-06): commit + push av den nya hjälpsidan i /docs
+och uppdaterad projektkontext. Tutorial/ ska förbli orörd; ingen appkod ändras.
 Filåtkomst ska vara projektspecifik: återställ optional metadata inuti `.pw`,
 kontrollera samtliga original och begär direkt native Grant Access-katalogåtkomst
 per otillgänglig plats om permission saknas, utan preliminär app-alert. Spara
@@ -833,3 +832,15 @@ sandbox/bookmark-recovery med optional projektmetadata, timestamp-identitet,
 native archive-dSYM-setting, UUID-typofix, enkel AppModel-konstruktion vid opening,
 tester, användarguide och kontext. Tidigare verifieringar beskrivs ovan; inga
 nya kodändringar eller OpenCV-rebuilds görs som del av checkpointen. Ingen taggning.
+
+## Minimal GitHub Pages-help för granskning — 2026-10-06
+
+/docs/index.md skapad från scratch med kort användarhjälp på engelska: syfte,
+create/open/save, externa sourcebilder och Grant Access, Add, Create-analys/
+stitching, navigation/adjustments, masks, manual/AI patches, Little Planet och
+JPEG/PNG/HTML-export. Faktaunderlag Tutorial/, README och aktuella UI-labels.
+Analyze är inte en separat användaroperation; help förklarar att Create gör
+analys och stitching. Inga assets duplicerades: initialversionen är text-only.
+Inget framework, theme, JS, custom design/config eller navigationssystem.
+Tutorial/ och appkod oförändrade. Användaren begärde därefter commit+push till
+origin/main. Ingen GitHub Pages-konfiguration eller deployment utfördes.
