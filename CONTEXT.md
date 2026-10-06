@@ -1029,3 +1029,31 @@ kvar; ingen commit/push.
 Användaren auktoriserade därefter commit+push (c+p) av dokumentikonändringen
 och uppdaterad kontext, inklusive beslut/verifiering att följa native tabs.
 Ingen tab-specialkod kvar i ändringarna; ingen taggning begärd.
+
+## Tomt projekt med samma arbetsyta — 2026-10-06
+
+Användaren auktoriserade första ändringen: tomt dokument ska se ut som vanligt
+projekt utan bilder. ContentView använder nu alltid NavigationSplitView och
+DetailWorkspace; den tidigare stora PanoramaWelcomeView i tomt dokument är
+borttagen. Sidebar visar alltid Images/Add och Panorama/Create/Retouch/Preview/
+Export; Create och navigationrows är disabled när underlag saknas. Sidebar-
+No Images-overlay borttagen för att inte skymma posterna. Preview har enkel
+No Source Images-text med Add/drop-instruktion. Ingen model/stitch/sandboxändring.
+Debug/Release build succeeded. Release-UI verifierad via File New och native
+flikradens +: båda visar samma sidebar/arbetsyta utan bildbakgrund. Add öppnar
+native image importer, avbruten efter kontroll. Separata appstartens welcome-
+scene/maximering lämnad kvar i detta första steg; bara tomma projektdokument
+ändrade. Ingen commit/push.
+
+## Enkel avstängning av automatisk tabbing — 2026-10-06
+
+På användarens uttryckliga begäran sätts endast
+`NSWindow.allowsAutomaticWindowTabbing = false` i befintliga appdelegatens
+`applicationWillFinishLaunching`. Ingen menyfiltrering, egen fönsterhantering
+eller annan tab-anpassning har lagts till. Debug och Release bygger utan fel
+(loggar /tmp/panowizard-simple-tabbing-debug.log och release.log).
+Runtime-verifieringen är ännu inte slutförd: den körande appens avslut visar
+osparade ändringar. Avslutet avbröts för att bevara dem; användaren har tillfrågats
+om att själv spara/stänga eller tillåta avslut utan att spara. En full omstart
+krävs innan den nya launch-inställningen kan verifieras med två dokument.
+Ingen commit/push.

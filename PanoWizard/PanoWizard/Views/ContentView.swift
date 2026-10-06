@@ -17,15 +17,6 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             Group {
-                if model.project.images.isEmpty {
-                    PanoramaWelcomeView(
-                        isImporting: model.phase == .importing,
-                        chooseImages: {
-                            model.isImporterPresented = true
-                        },
-                        openProject: nil
-                    )
-                } else {
                     NavigationSplitView(columnVisibility: .constant(.all)) {
                         PanoramaSidebar(model: model)
                             .onGeometryChange(for: CGFloat.self) { geometry in
@@ -43,7 +34,6 @@ struct ContentView: View {
                     }
                     .navigationSplitViewStyle(.balanced)
                     .toolbar(removing: .sidebarToggle)
-                }
             }
             .disabled(
                 retouchPatchPresentation != nil || isLittlePlanetPresented

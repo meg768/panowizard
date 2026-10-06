@@ -94,6 +94,10 @@ private final class PanoWizardApplicationDelegate: NSObject, NSApplicationDelega
         }
     }
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSWindow.allowsAutomaticWindowTabbing = false
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.helpMenu = spotlightHelpMenu
         installFileMenuCleanupWhenReady(attempt: 0)

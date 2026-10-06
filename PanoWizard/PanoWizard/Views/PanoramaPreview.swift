@@ -56,9 +56,9 @@ struct PanoramaPreview: View {
                 }
             } else {
                 ContentUnavailableView {
-                    Label("Drag In Your Images", systemImage: "photo.badge.plus")
+                    Label("No Source Images", systemImage: "photo.badge.plus")
                 } description: {
-                    Text("Drop a folder or several overlapping images here.")
+                    Text("Choose Add in the Images sidebar, or drop overlapping images here.")
                 } actions: {
                     Text("PanoWizard reads metadata and arranges the images automatically.")
                         .font(.caption)

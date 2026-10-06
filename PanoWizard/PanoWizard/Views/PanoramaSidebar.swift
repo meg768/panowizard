@@ -33,7 +33,6 @@ struct PanoramaSidebar: View {
                         }
                     }
 
-                    if !model.project.images.isEmpty {
                         Section {
                             navigationRow(
                                 "Retouch",
@@ -70,21 +69,13 @@ struct PanoramaSidebar: View {
                             .padding(.trailing, 20)
                             .padding(.vertical, 4)
                         }
-                    }
                 }
                 .contentMargins(.horizontal, 16, for: .scrollContent)
                 .contentMargins(.top, 8, for: .scrollContent)
                 .scrollContentBackground(.hidden)
                 .background(Color(nsColor: .windowBackgroundColor))
 
-                if model.project.images.isEmpty {
-                    ContentUnavailableView(
-                        "No Images",
-                        systemImage: "photo.on.rectangle.angled",
-                        description: Text("Drag in images to get started.")
-                    )
-                    .allowsHitTesting(false)
-                }
+
             }
         }
         .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
@@ -221,6 +212,7 @@ struct PanoramaSidebar: View {
             .contentShape(Rectangle())
         .padding(.vertical, 5)
         .tag(selection)
+        .disabled(model.project.images.isEmpty)
     }
 }
 
