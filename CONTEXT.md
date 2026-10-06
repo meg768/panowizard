@@ -879,3 +879,34 @@ Ingen commit, taggning eller push enligt användarens instruktion.
 
 Användaren auktoriserade därefter commit+push av Help-menyändringen till
 origin/main. Ingen taggning begärd.
+
+## Gemensam projektfönsterram utan efterföljande zoom — 2026-10-06
+
+Användaren valde app-level storlek/position för alla projektfönster. Den gamla
+WindowStateRestorer med två async-steg och explicit zoom(default true) ersatt
+med NSView.viewDidMoveToWindow som synkront återställer den gemensamma ramen
+PanoWizard.ProjectWindow via setFrameUsingName(force: true), och registrerar
+native setFrameAutosaveName. Tidigare sparad ram återanvänds. Separat isZoomed
+flagga används inte längre; defaultSize 1240x780 gäller utan sparad ram.
+Ingen ändring av projektdata, laddning eller välkomstfönstrets separata zoom.
+Debug/Release build succeeded. Release-verifiering: öppnade Opening.pw,
+ändrade storlek med native Window → Move & Resize → Left (901x923 punkter),
+quittade helt och återöppnade samma projekt; sparad mindre ram återkom.
+Stängde och öppnade H/panowizard.pw; samma gemensamma ram användes, bilder och
+preview laddade. Ingen efterföljande programmatisk projektzoom finns kvar.
+UI-snapshots verifierar slutlig storlek; ingen bildruta-för-bildruta-mätning av
+öppningsflimmer utförd. Ingen commit/tag/push.
+
+## Om-fönstrets versionstext — 2026-10-06
+
+På användarens begäran visar Om-fönstret nu endast Version 1.0 och Build med
+lokalt datum/tid; numeriskt CFBundleVersion inom parentes borttaget från UI.
+CFBundleVersion genereras fortfarande automatiskt och ingår oförändrat i
+bundlemetadata. Manuell semantic version styrs av app-targetets Version /
+MARKETING_VERSION (Debug och Release), för närvarande 1.0. Ingen commit/push.
+
+Användaren bekräftade att projektfönstrets återställning fungerar och begärde
+commit+push av aktuellt arbete. Xcode har även normaliserat project.pbxproj,
+lagt till INFOPLIST_KEY_CFBundleDisplayName=PanoWizard i Debug/Release och
+avlägsnat PanoWizard.entitlements från synchronized-group membershipExceptions.
+MARKETING_VERSION är fortsatt 1.0. Om-textens Release-build succeeded.

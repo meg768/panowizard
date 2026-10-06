@@ -247,10 +247,9 @@ struct PanoWizardApp: App {
                 Button("About PanoWizard") {
                     let info = Bundle.main.infoDictionary ?? [:]
                     let version = info["CFBundleShortVersionString"] as? String ?? "1.0"
-                    let number = info["CFBundleVersion"] as? String ?? ""
                     let timestamp = info["PanoWizardBuildTimestamp"] as? String ?? ""
                     NSApp.orderFrontStandardAboutPanel(options: [
-                        .applicationVersion: "Version \(version) (\(number))\nBuild \(timestamp)",
+                        .applicationVersion: "Version \(version)\nBuild \(timestamp)",
                         .version: "",
                     ])
                 }
@@ -433,87 +432,26 @@ private struct PanoramaMenuCommands: Commands {
 }
 
 private struct WindowStateRestorer: NSViewRepresentable {
-    @MainActor
-    final class Coordinator {
+    private final class WindowAttachmentView: NSView {
         private static let frameName = "PanoWizard.ProjectWindow"
-        private static let zoomedKey = "PanoWizard.ProjectWindow.isZoomed"
-        weak var window: NSWindow?
-        var observers: [NSObjectProtocol] = []
+        private weak var configuredWindow: NSWindow?
 
-        @MainActor
-        func attach(to window: NSWindow) {
-            guard self.window !== window else { return }
-            detach()
-            self.window = window
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window, configuredWindow !== window else { return }
+            configuredWindow = window
+            // Restore the shared app-level frame when attached, before presentation.
+            // Force restoration even when SwiftUI has supplied a document frame.
+            window.setFrameUsingName(Self.frameName, force: true)
             window.setFrameAutosaveName(Self.frameName)
-
-            let center = NotificationCenter.default
-            for name in [
-                NSWindow.didResizeNotification,
-                NSWindow.didEndLiveResizeNotification,
-                NSWindow.willCloseNotification
-            ] {
-                observers.append(center.addObserver(
-                    forName: name,
-                    object: window,
-                    queue: .main
-                ) { [weak window] _ in
-                    guard let window else { return }
-                    Task { @MainActor in
-                        UserDefaults.standard.set(
-                            window.isZoomed,
-                            forKey: Self.zoomedKey
-                        )
-                    }
-                })
-            }
-
-            let savedZoomState = UserDefaults.standard.object(
-                forKey: Self.zoomedKey
-            ) as? Bool
-            if savedZoomState ?? true {
-                DispatchQueue.main.async {
-                    guard !window.isZoomed else { return }
-                    window.zoom(nil)
-                }
-            }
         }
-
-        @MainActor
-        func detach() {
-            observers.forEach(NotificationCenter.default.removeObserver)
-            observers = []
-            window = nil
-        }
-
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
     }
 
     func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            guard let window = view.window else { return }
-            context.coordinator.attach(to: window)
-        }
-        return view
+        WindowAttachmentView()
     }
 
-    func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async {
-            guard let window = view.window else { return }
-            context.coordinator.attach(to: window)
-        }
-    }
-
-    static func dismantleNSView(
-        _ nsView: NSView,
-        coordinator: Coordinator
-    ) {
-        coordinator.detach()
-    }
+    func updateNSView(_ view: NSView, context: Context) {}
 }
 
 private struct ProjectDocumentView: View {
