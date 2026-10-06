@@ -928,3 +928,15 @@ verifierad (inget push/deployment). Ingen commit/push enligt instruktion.
 
 Användaren begärde därefter commit+push av den ämnesorienterade hjälpsajten
 till origin/main. Ingen taggning eller separat deployment begärd.
+
+## Dölj automatisk repo-rubrik i Help — 2026-10-06
+
+Användaren bad ta bort blå panowizard-next-gen-rubrik överst på alla sidor.
+Verifierade publicerad HTML och standardtemat Primer: repo-rubriken renderas
+bara om site.title är truthy och skiljer sig från page.title. docs/_config.yml
+sätter title: false för att stänga av denna rubrik globalt utan CSS, eget layout,
+JS eller ändring av sidornas Markdown-rubriker. Publicerad rendering kan inte
+verifieras innan push/deployment. Ingen commit/push utförd.
+
+Användaren begärde därefter commit+push av inställningen som döljer repo-rubriken
+till origin/main. Ingen taggning begärd.
