@@ -21,3 +21,5 @@ Return to PanoWizard, click **Import…**, and select the edited PNG. Compare **
 ![Comparing the original view and edited manual patch](Images/02-export-edit-import.png)
 
 The patch appears in the **Patches** list. You can temporarily hide it, edit it again, or delete it without changing the underlying panorama.
+
+[Back to PanoWizard Help](../../index.html)

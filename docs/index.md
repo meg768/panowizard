@@ -4,6 +4,8 @@ PanoWizard creates complete 360° × 180° panoramas from one horizontal ring of
 
 **Create a project → Add images → Create panorama → Preview → Correct if needed → Export**
 
+![A finished panorama created with PanoWizard](Images/00-finished-panorama.jpg)
+
 ## Create or open a project
 
 Choose **Create Your Panorama** on the welcome screen to start, or **Open Panorama…** to open an existing `.pw` project. Save your work with **File → Save** (Command-S).
@@ -64,3 +66,11 @@ Open **Export** and choose:
 - **Save HTML…** for a self-contained interactive 360° viewer.
 
 Choose **Size: Original** for the full stitched resolution. Standard panorama images use the 2:1 equirectangular format. Save the `.pw` project too if you want to continue editing later.
+
+## Illustrated guides
+
+- [Getting started, step by step](getting-started.html)
+- [Mask source images](HowTo/Masking/index.html)
+- [Create a manual patch](HowTo/ManualPatch/index.html)
+- [Create an AI patch](HowTo/AIPatch/index.html)
+- [Create a Little Planet](HowTo/LittlePlanet/index.html)

@@ -25,8 +25,9 @@ Inga kända applikationsfunktioner har avsiktligt utelämnats.
 Användaren har bekräftat lyckad App Store Connect validation av den migrerade
 appen. Endast de 11 precompiled OpenCV-bibliotekens symbolvarningar återstår.
 
-Aktuell instruktion (2026-10-06): commit + push av den nya hjälpsidan i /docs
-och uppdaterad projektkontext. Tutorial/ ska förbli orörd; ingen appkod ändras.
+Aktuell instruktion (2026-10-06): slutför Tutorial-migrering till självförsörjande
+/docs med lokala bilder. Tidigare förbud att röra Tutorial/ är ersatt av denna
+nya instruktion. Ingen appkod ändras. Användaren har därefter begärt commit+push till origin/main.
 Filåtkomst ska vara projektspecifik: återställ optional metadata inuti `.pw`,
 kontrollera samtliga original och begär direkt native Grant Access-katalogåtkomst
 per otillgänglig plats om permission saknas, utan preliminär app-alert. Spara
@@ -87,7 +88,7 @@ parametrar, maskvillkor, cacheidentiteter och bildbehandlingsordning ändrades i
 - `PanoWizard/Resources` — Backgrounds, dokumentikon och ThirdPartyLicenses.
 - `PanoWizard/Vendor/OpenCV` — originalets OpenCV 5-headers och dylibs.
 - `PanoWizard/PanoWizardTests` — samtliga 13 ursprungliga Swift Testing-filer.
-- `Tutorial` — oförändrad befintlig guide och bilder.
+- `docs` — självförsörjande GitHub Pages-help, illustrerade guider och bilder.
 - `README.md` — befintlig funktionsbeskrivning med nya Xcode-bygginstruktioner.
 
 `OpenCVBridge` är en native Xcode static-library-target med C++17. En liten
@@ -844,3 +845,20 @@ analys och stitching. Inga assets duplicerades: initialversionen är text-only.
 Inget framework, theme, JS, custom design/config eller navigationssystem.
 Tutorial/ och appkod oförändrade. Användaren begärde därefter commit+push till
 origin/main. Ingen GitHub Pages-konfiguration eller deployment utfördes.
+
+## Tutorial-migrering till självförsörjande docs — 2026-10-06
+
+Användaren stoppade den första flytten, bad om analys och auktoriserade sedan
+slutförandet. Tutorial/README.md är nu docs/getting-started.md. Images/ och
+HowTo/ flyttade till docs/; respektive guides README.md heter nu index.md.
+Befintlig docs/index.md behålls med en panoramaillustration och länkar till fem
+bildguider. Alla 17 bilder är byte-identiska med committat Tutorial-material;
+inga dubbletter eller bildberoenden utanför docs. Alla interna sid-/bildlänkar
+verifierade ligga inom docs och peka på befintligt innehåll. Publika sidlänkar
+använder .html; varje detaljguide länkar tillbaka till startsidan. Inga framework,
+theme, JS eller configändringar. Tutorial/ innehåller lokalt endast ignorerad
+.DS_Store; dess tracked material är flyttat. Appkod är oförändrad.
+README:s strukturuppgift uppdaterad. Inget commit/push eller deployment.
+
+Användaren begärde commit+push av docs-migreringen 2026-10-06. Ingen taggning
+eller separat deployment begärd.

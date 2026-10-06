@@ -25,3 +25,5 @@ The square preview on the right shows the rendered result.
 Click **Export…**, choose a location, and save the PNG. The default filename is `little-planet.png`.
 
 ![The exported Little Planet](Images/03-little-planet-result.png)
+
+[Back to PanoWizard Help](../../index.html)

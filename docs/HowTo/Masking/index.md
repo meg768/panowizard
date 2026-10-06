@@ -27,3 +27,5 @@ Click **Create** again, then inspect the same place in **Preview**. Here the unw
 ![The rebuilt panorama without the unwanted hand and level](Images/04-result-after-masking.png)
 
 Keep masks as small as practical. If an Exclude mask leaves a black or uncovered area, reduce it so PanoWizard still has valid source pixels to use. Command-Option-drag erases a mask.
+
+[Back to PanoWizard Help](../../index.html)

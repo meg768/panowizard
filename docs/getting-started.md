@@ -52,7 +52,9 @@ Keep **Size: Original** when you want the full stitched resolution. The standard
 
 ## How Do I?
 
-- [Mask source images](HowTo/Masking/README.md) — exclude unwanted pixels and prioritize the best overlapping content.
-- [Create a Little Planet](HowTo/LittlePlanet/README.md) — turn the finished panorama into a square Little Planet image.
-- [Create a manual patch](HowTo/ManualPatch/README.md) — repair a local area in an external image editor.
-- [Create an AI patch](HowTo/AIPatch/README.md) — mask an unwanted object and let AI reconstruct the missing area.
+- [Mask source images](HowTo/Masking/index.html) — exclude unwanted pixels and prioritize the best overlapping content.
+- [Create a Little Planet](HowTo/LittlePlanet/index.html) — turn the finished panorama into a square Little Planet image.
+- [Create a manual patch](HowTo/ManualPatch/index.html) — repair a local area in an external image editor.
+- [Create an AI patch](HowTo/AIPatch/index.html) — mask an unwanted object and let AI reconstruct the missing area.
+
+[Back to PanoWizard Help](index.html)

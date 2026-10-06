@@ -225,5 +225,5 @@ regressions remain separate from normal builds.
 - `PanoWizard/Resources` — welcome backgrounds, project icon and third-party licenses
 - `PanoWizard/PanoWizardTests` — original focused unit and engine tests
 - `PanoWizard/Vendor/OpenCV` — original pinned headers and dynamic libraries
-- `Tutorial` — existing user guide and images
+- `docs` — self-contained GitHub Pages help, illustrated guides and images
 - `CONTEXT.md` — current technical context and verification limits

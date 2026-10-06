@@ -23,3 +23,5 @@ Compare **Before** and **After**. Choose **Try Again** if the result is not conv
 ![The finished floor in Panorama Preview](Images/03-result-in-preview.png)
 
 The AI patch appears in the **Patches** list. You can hide it, edit it again, or delete it without changing the source images or panorama geometry.
+
+[Back to PanoWizard Help](../../index.html)
