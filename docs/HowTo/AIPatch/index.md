@@ -2,6 +2,8 @@
 
 An AI patch removes or repairs a small area of an otherwise finished panorama. The selected view is sent to OpenAI, but nothing is activated until you choose **Apply**.
 
+This feature requires your own OpenAI API key.
+
 ## Choose the area
 
 Open **Retouch**, then drag or scroll until the square view contains the problem. Command-scroll or pinch to zoom. Click **Add AI patch** when the area is framed correctly.

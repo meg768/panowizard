@@ -910,3 +910,21 @@ commit+push av aktuellt arbete. Xcode har även normaliserat project.pbxproj,
 lagt till INFOPLIST_KEY_CFBundleDisplayName=PanoWizard i Debug/Release och
 avlägsnat PanoWizard.entitlements från synchronized-group membershipExceptions.
 MARKETING_VERSION är fortsatt 1.0. Om-textens Release-build succeeded.
+
+## Topic-oriented GitHub Pages Help — 2026-10-06
+
+Användaren begärde enklare visuell startsida och separata ämnen; struktur
+föreslogs före implementation. docs/index.md har titel, befintlig 1800x900
+(2:1) panorama, kort intro och 11 ämneslänkar grupperade Start / Create and
+inspect / Correct / Export. Sex nya Markdown-sidor flyttar instruktioner från
+startsidan: projects.md, source-images.md, creating-panorama.md, preview.md,
+export.md, file-access.md. Befintlig getting-started.md och fyra HowTo-guider
+behållna på samma URL:er. Masks-guiden kompletterad med befintlig varning om
+recreate/retouch; AI-guiden med befintligt API-key-krav. Alla 17 bilder byte-
+identiska; nya sidor refererar befintliga bilder utan kopior. 58 interna länkar
+kontrollerade mot befintliga filer inom docs. Ordinary Markdown, ingen JS,
+CSS/theme/framework/generator eller appändring. Publicerad rendering inte
+verifierad (inget push/deployment). Ingen commit/push enligt instruktion.
+
+Användaren begärde därefter commit+push av den ämnesorienterade hjälpsajten
+till origin/main. Ingen taggning eller separat deployment begärd.
