@@ -2,7 +2,7 @@
 
 An AI patch removes or repairs a small area of an otherwise finished panorama. The selected view is sent to OpenAI, but nothing is activated until you choose **Apply**.
 
-This feature requires your own OpenAI API key.
+This feature requires your own OpenAI API key. Use **Create API Key…** in the patch dialog to enter it, or **Change API Key…** to replace a saved key.
 
 ## Choose the area
 

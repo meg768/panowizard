@@ -22,7 +22,7 @@ When another source has the content you want, select it, choose **Include**, and
 
 ## Rebuild and inspect
 
-**Recreating the panorama clears existing retouch results.** Make source-mask corrections before adding retouch patches when possible.
+**Changing source masks clears the current panorama, retouch patches, and global adjustments. Creating the panorama again also clears patches and resets adjustments.** Finish source-mask corrections before retouching or making final adjustments.
 
 Click **Create** again, then inspect the same place in **Preview**. Here the unwanted hand and level are gone and the cobblestones continue across the nadir.
 

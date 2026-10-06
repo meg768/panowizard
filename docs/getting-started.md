@@ -12,7 +12,7 @@ PanoWizard turns a single ring of overlapping source photos into a complete 360Â
 
 ### 1. Add the source images
 
-Create a new panorama, then click **Add** and select the full image sequence. The photographs should cover one complete turn around the camera with enough overlap between neighboring images.
+Choose **Create Your Panorama** on the welcome screen and select the full image sequence. To add more images to an open project, click **Add** in the sidebar. The photographs should cover one complete turn around the camera with enough overlap between neighboring images.
 
 Select any image in the sidebar to inspect it. Most sequences can be stitched as they are. When necessary, the **Exclude** and **Include** brushes let you tell PanoWizard which source-image areas to avoid or prefer.
 
@@ -33,6 +33,8 @@ Use **Adjustments** for final global image corrections when needed.
 ### 4. Correct only what needs correction
 
 If a stitching seam uses the wrong source pixels, return to that source image, paint a small **Exclude** or **Include** mask, and create the panorama again.
+
+**Changing source masks clears the panorama, retouch patches, and global adjustments.** Finish mask corrections before retouching or making final adjustments.
 
 For a localized blemish in an otherwise good panorama, open **Retouch**, position the square view over the area, and add a manual or AI patch. Patches are stored separately and do not change the source images or panorama geometry.
 

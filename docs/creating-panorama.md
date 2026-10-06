@@ -4,7 +4,7 @@ Click **Create** beside **Panorama**. PanoWizard analyzes the overlapping images
 
 A full-resolution sequence can take a few minutes. When complete, inspect the result in **Preview**. Areas without valid source coverage remain empty; stitching does not invent missing content.
 
-If a seam uses unwanted content, adjust the [source masks](HowTo/Masking/index.html) and create the panorama again. Make these corrections before adding retouch patches: **recreating the panorama clears existing retouch results**.
+If a seam uses unwanted content, adjust the [source masks](HowTo/Masking/index.html) and create the panorama again. **Changing source masks clears the current panorama, retouch patches, and global adjustments. Creating the panorama again also clears patches and resets adjustments.** Finish source-mask corrections before retouching or making final adjustments.
 
 Next: [Preview and Navigation](preview.html).
 

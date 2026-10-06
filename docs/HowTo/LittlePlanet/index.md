@@ -12,13 +12,15 @@ Finish the panorama, open **Export**, and click **Create Little Planet…**.
 
 Use the panorama on the left to choose the composition:
 
-- **Pan horizontally** to rotate the planet.
-- **Click** the point that should become the planet's center.
+- **Drag horizontally or scroll horizontally** to rotate the planet.
+- **Option-drag** to position the planet's center.
 - **Slide** to make the planet smaller or larger.
 
 The square preview on the right shows the rendered result.
 
 ![Choosing the center, rotation, and size](Images/02-shape-little-planet.png)
+
+*This screenshot shows an earlier layout. In the current app, use Option-drag to set the center; the size slider is below the Little Planet preview.*
 
 ## Export the image
 

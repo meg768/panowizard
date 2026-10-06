@@ -952,3 +952,26 @@ rubriker som har id. Inget eget layout eller JavaScript. Lokalt verifierad mot
 publicerad HTML; publicerad effekt kräver ny commit/push. Ingen commit/push ännu.
 
 Användaren auktoriserade commit+push av korrigeringen (c+p) till origin/main.
+
+## Help-granskning mot aktuell implementation — 2026-10-06
+
+Alla 12 Markdown-help-sidor lästa och jämförda med aktuella SwiftUI-viewlabels,
+AppModel, dokument/bookmark/import-kod, OpenCVBridge och export/retouch-services.
+Korrigerat startflöde: Create Your Panorama väljer källbilder direkt, Add gäller
+fler bilder i öppet projekt (också verifierat i körande UI och picker avbruten).
+Source Images förtydligar högerklick/Image Type och lika pixelmått efter rotation.
+Tidigare kategoriska påstående att multi-row är unsupported borttaget: ringmodell
+finns, men inget explicit multi-row-rejection eller verifiering av sådana dataset;
+rekommendationen om en överlappande ring behålls utan att lova multi-row-stöd.
+Little Planet har Option-drag till center, drag/horizontal scroll till rotation;
+befintlig shape-screenshot visar tidigare click-text/sliderlayout och märks tydligt
+som äldre. Mask/Create-varning rättad: maskändringar invalidaterar panorama direkt,
+clearar patches och neutraliserar adjustments; lyckad stitch gör samma reset.
+API-key entry-button förtydligad från aktuell AI-sheet. Övriga topics behållna.
+58 lokala länkar verifierade, alla 17 bilder oförändrade. Ingen full ny stitching/
+AI-anrop/export benchmark eller reproduktion av illustrationernas scenresultat;
+uppskattningar 'few minutes'/'most sequences' är inte styrkta av koden och har
+inte omtestats. Ingen appkod/struktur/designändring. Ingen commit/push.
+
+Användaren auktoriserade därefter commit+push (c+p) av Help-granskningens
+korrigeringar till origin/main. Ingen taggning begärd.
