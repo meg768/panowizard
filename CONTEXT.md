@@ -975,3 +975,57 @@ inte omtestats. Ingen appkod/struktur/designändring. Ingen commit/push.
 
 Användaren auktoriserade därefter commit+push (c+p) av Help-granskningens
 korrigeringar till origin/main. Ingen taggning begärd.
+
+## .pw-dokumentikon identisk med appikon — 2026-10-06
+
+Användaren begärde exakt appikon-artwork för .pw utan paper treatment.
+PanoWizard/Resources/PanoWizardProject.icns ersatt med den befintliga native
+actool-genererade AppIcon.icns från byggda appen. AppIcon-assets oförändrade.
+Befintlig CFBundleTypeIconFile=PanoWizardProject.icns och native resource-copy
+behållna. Debug/Release build succeeded; i båda byggda bundles verifierades att
+refererad dokumentikon är byte-identisk med deras AppIcon.icns och källresursen.
+Ingen script/buildpipelineändring, ingen redesign. Finder-iconcache för redan
+registrerade dokument verifierades inte; cache kan visa gammal ikon tills macOS
+uppdaterar appregistrering. Ingen commit/push.
+
+## Inga fönsterflikar och förenklad View-meny — 2026-10-06
+
+Användaren begärde inga tabs och endast Zoom In / Zoom Out / Reset View i View.
+NSWindow.allowsAutomaticWindowTabbing=false sätts före launch; appens fönster
+får tabbingMode=.disallowed vid update. View-menyn identifieras via Zoom In-
+titeln (SwiftUI använder intern menuAction, inte bildresponderns selector) och
+filtreras till de tre kommandona, även vid native menu-update/open/tracking för
+att undvika AppKit-injektion av fullscreen/tab-items. Native fullscreen-knappen
+ändras inte. Debug/Release build succeeded. Efter full omstart av Release
+verifierade native View-meny exakt tre poster, inga tab/fullscreen-menyposter.
+Tidigare lokal dokumentikonändring är fortsatt kvar. Ingen commit/push.
+
+## Återgå till standard för View/flikar — 2026-10-06
+
+Användaren avvisade specialkoden för att begränsa View och stänga av tabs och
+prioriterar SwiftUI/macOS-standard. Hela den nyss tillagda ViewMenuDelegateProxy,
+menu tracking-observern och tabbing-overrides borttagna; appfil återställd till
+committat läge. Befintliga Zoom In/Out/Reset commands och systemets standard-
+poster/flikar behålls. Föregående avsnitts View/tab-implementation är därmed
+ersatt. Dokumentikonändringen kvarstår. Ingen commit/push.
+
+## Verifiering av native projektflikar — 2026-10-06
+
+Användaren auktoriserade verifiering av tabs och befintlig Close/Save/quit,
+med anpassningar kvar om inga konkreta fel hittas. Testkopior Tab-A.pw och
+Tab-B.pw skapades i /tmp/PanoWizardTabVerification från Opening.pw; relativa
+source-paths rebased till befintliga externa testbilder (bara kopior ändrade).
+Native Merge All Windows fungerade, tabbar/new-tab/systemkommandon tillgängliga.
+A roterades/sparades med Cmd-S; B:s bildmått kvar oförändrade. B roterades och
+Cmd-W gav Save/Don't Save/Cancel; Cancel behöll fliken, Save sparade B och stängde
+bara B. On-disk JSON verifierade separat rotation=1 för A/B. A ändrades igen,
+annan flik aktiverades och Cmd-Q gav varning för osparat A. Cancel stoppade quit;
+Don't Save avslutade testappen och disk-A behöll tidigare sparad rotation=1.
+Original Opening.pw SHA256 oförändrad. Befintligt W-projekt ändrades inte.
+Inget konkret tab-fel påvisat; ingen appkod ändrad. Ej heltäckande verifiering
+av alla menyalternativ/Save As/många samtidiga dirty tabs. Tidigare ikonändring
+kvar; ingen commit/push.
+
+Användaren auktoriserade därefter commit+push (c+p) av dokumentikonändringen
+och uppdaterad kontext, inklusive beslut/verifiering att följa native tabs.
+Ingen tab-specialkod kvar i ändringarna; ingen taggning begärd.
