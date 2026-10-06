@@ -44,6 +44,8 @@ private final class PanoWizardApplicationDelegate: NSObject, NSApplicationDelega
     private weak var pendingTerminationWindow: NSWindow?
     private var discardedTerminationWindows: Set<ObjectIdentifier> = []
     private let fileMenuDelegateProxy = FileMenuDelegateProxy()
+    // An off-menu help menu suppresses AppKit's automatic Spotlight Search field.
+    private let spotlightHelpMenu = NSMenu()
 
     override init() {
         super.init()
@@ -93,11 +95,15 @@ private final class PanoWizardApplicationDelegate: NSObject, NSApplicationDelega
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.helpMenu = spotlightHelpMenu
         installFileMenuCleanupWhenReady(attempt: 0)
         openWelcomeWindowWhenReady(attempt: 0)
     }
 
     func applicationDidUpdate(_ notification: Notification) {
+        if NSApp.helpMenu !== spotlightHelpMenu {
+            NSApp.helpMenu = spotlightHelpMenu
+        }
         installFileMenuDelegateIfAvailable()
     }
 
@@ -250,6 +256,14 @@ struct PanoWizardApp: App {
                 }
             }
             ProjectDocumentMenuCommands()
+            CommandGroup(replacing: .help) {
+                Button("PanoWizard Help") {
+                    guard let configuredURL = Bundle.main.object(
+                        forInfoDictionaryKey: "PanoWizardHelpURL"
+                    ) as? String, let url = URL(string: configuredURL) else { return }
+                    NSWorkspace.shared.open(url)
+                }
+            }
             SourceMaskMenuCommands()
             ImagesMenuCommands()
             PanoramaMenuCommands()

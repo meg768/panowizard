@@ -862,3 +862,20 @@ README:s strukturuppgift uppdaterad. Inget commit/push eller deployment.
 
 Användaren begärde commit+push av docs-migreringen 2026-10-06. Ingen taggning
 eller separat deployment begärd.
+
+## Native Help-meny — 2026-10-06
+
+Help → PanoWizard Help läser PanoWizardHelpURL från appens Info.plist och öppnar
+https://meg768.github.io/panowizard-next-gen/ via NSWorkspace.shared.open i
+standardwebbläsaren. URL:ens dubbla slash är XML-entities i källplist eftersom
+befintlig Xcode-plistpreprocessing annars tolkar dem som en kommentar; byggda
+Debug/Release-plists innehåller den exakta normala URL:en. SwiftUI ersätter
+.help-commandgruppen. AppKit helpMenu pekar på en kvarhållen off-menu NSMenu,
+vilket enligt native API undertrycker den automatiska Spotlight Search-rutan.
+Ingen WebView eller custom help-window. Docs och övrig appfunktion oförändrade.
+Debug och Release build succeeded. Release kördes: Help innehåller enbart
+PanoWizard Help, utan Search; klick öppnade rätt publicerad hjälpsida i Safari.
+Ingen commit, taggning eller push enligt användarens instruktion.
+
+Användaren auktoriserade därefter commit+push av Help-menyändringen till
+origin/main. Ingen taggning begärd.

@@ -24,6 +24,8 @@
 	<string>PW_BUILD_NUMBER</string>
 	<key>PanoWizardBuildTimestamp</key>
 	<string>PW_BUILD_TIMESTAMP</string>
+	<key>PanoWizardHelpURL</key>
+	<string>https:&#47;&#47;meg768.github.io/panowizard-next-gen/</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
