@@ -1062,7 +1062,7 @@ Ingen commit/push.
 
 Användaren har beslutat att framtida `c+p` / `commit+push` i detta projekt även
 ska skapa och pusha en annoterad tagg på den slutliga commiten. Namnformat:
-`YYYY-MM-DD_HH-mm-ss`, med lokal tid i Europe/Stockholm. Detta är en
+`YYYY-MM-DD-hh-mm`, med lokal tid i Europe/Stockholm (24-timmarsklocka). Detta är en
 arbetsrutin för uttryckligen begärd commit+push, inte en build-hook eller
 automatisk commit. Skapa inga commits/pushar när användaren förbjuder dem.
 Commit ce238af med tom projektarbetsyta och enkel tab-inställning är pushad.
