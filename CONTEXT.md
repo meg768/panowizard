@@ -1057,3 +1057,13 @@ osparade ändringar. Avslutet avbröts för att bevara dem; användaren har till
 om att själv spara/stänga eller tillåta avslut utan att spara. En full omstart
 krävs innan den nya launch-inställningen kan verifieras med två dokument.
 Ingen commit/push.
+
+## Commit/push och datumtaggar — 2026-10-06
+
+Användaren har beslutat att framtida `c+p` / `commit+push` i detta projekt även
+ska skapa och pusha en annoterad tagg på den slutliga commiten. Namnformat:
+`YYYY-MM-DD_HH-mm-ss`, med lokal tid i Europe/Stockholm. Detta är en
+arbetsrutin för uttryckligen begärd commit+push, inte en build-hook eller
+automatisk commit. Skapa inga commits/pushar när användaren förbjuder dem.
+Commit ce238af med tom projektarbetsyta och enkel tab-inställning är pushad.
+Runtime-verifiering av tab-inställningen efter omstart återstår enligt ovan.
