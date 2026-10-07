@@ -86,6 +86,7 @@ struct ContentView: View {
                         isSelected: model.selectedSourceImage?.id == image.id
                     )
                 },
+                addImages: { model.isImporterPresented = true },
                 selectImage: model.selectSourceImage
             )
         )
@@ -201,6 +202,9 @@ struct ContentView: View {
                 maskIntent: model.sourceMaskIntent,
                 initialViewpoint: model.panoramaViewpoint,
                 onViewpointChange: model.setPanoramaViewpoint,
+                addImages: { model.isImporterPresented = true },
+                canCreate: model.canStitch,
+                createPanorama: model.stitch,
                 onMasksChange: { red, green in
                     guard let image = model.selectedSourceImage else { return }
                     model.setSourceMasks(red: red, green: green, for: image.id)
@@ -313,33 +317,12 @@ struct ContentView: View {
             maskToolbarDivider
 
             HStack(spacing: 2) {
-                Button {
-                    model.undoMask()
-                } label: {
-                    Label("Undo Mask Change", systemImage: "arrow.uturn.backward")
-                }
-                .buttonStyle(MaskToolbarButtonStyle())
-                .disabled(!model.canUndoMask)
-                .help("Undo mask change (⌘Z)")
-
-                Button {
-                    model.invertSelectedMask()
-                } label: {
-                    Label(
-                        "Invert Current Mask",
-                        systemImage: "circle.lefthalf.filled"
-                    )
-                }
-                .buttonStyle(MaskToolbarButtonStyle())
-                .disabled(selectedMaskData == nil)
-                .help("Invert current mask")
-
                 Button(role: .destructive) {
                     model.clearSelectedMask()
                 } label: {
-                    Label("Clear Current Mask", systemImage: "trash")
+                    Label("Clear", systemImage: "trash")
                 }
-                .buttonStyle(MaskToolbarButtonStyle())
+                .buttonStyle(MaskToolbarButtonStyle(showsTitle: true))
                 .disabled(selectedMaskData == nil)
                 .help("Clear current mask")
             }
@@ -350,9 +333,9 @@ struct ContentView: View {
                 guard let image = model.selectedSourceImage else { return }
                 model.rotateSourceImageLeft(image.id)
             } label: {
-                Label("Rotate Image Left", systemImage: "rotate.left")
+                Label("Rotate", systemImage: "rotate.left")
             }
-            .buttonStyle(MaskToolbarButtonStyle())
+            .buttonStyle(MaskToolbarButtonStyle(showsTitle: true))
             .help("Rotate the image 90° counterclockwise")
         }
     }

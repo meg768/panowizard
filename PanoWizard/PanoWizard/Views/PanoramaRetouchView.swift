@@ -133,12 +133,20 @@ struct PanoramaRetouchView: View {
             ContentUnavailableView {
                 Label("No Panorama to Retouch", systemImage: "paintbrush.pointed")
             } description: {
-                Text("Create the panorama before adding retouch patches.")
+                Text(model.project.images.isEmpty
+                    ? "To retouch, first add source images and create a panorama."
+                    : "Create the panorama before adding retouch patches.")
             } actions: {
-                Button("Create") { model.stitch() }
-                    .buttonStyle(WorkspaceToolbarPillStyle())
-                    .disabled(!model.canStitch)
+                if model.project.images.isEmpty {
+                    Button("Add") { model.isImporterPresented = true }
+                        .buttonStyle(WorkspaceToolbarPillStyle())
+                } else {
+                    Button("Create") { model.stitch() }
+                        .buttonStyle(WorkspaceToolbarPillStyle())
+                        .disabled(!model.canStitch)
+                }
             }
+            .opticalEmptyState()
         }
     }
 

@@ -14,6 +14,9 @@ struct PanoramaPreview: View {
     let maskIntent: AppModel.SourceMaskIntent
     let initialViewpoint: PanoramaViewpoint
     let onViewpointChange: (PanoramaViewpoint) -> Void
+    let addImages: () -> Void
+    let canCreate: Bool
+    let createPanorama: () -> Void
     let onMasksChange: (Data?, Data?) -> Void
 
     @State private var sourceViewports: [SourceImage.ID: SourceViewport] = [:]
@@ -52,18 +55,29 @@ struct PanoramaPreview: View {
                         Text(
                             "Create the panorama to preview it in 360°."
                         )
+                    } actions: {
+                        Button("Create", action: createPanorama)
+                            .buttonStyle(WorkspaceToolbarPillStyle())
+                            .disabled(!canCreate)
                     }
+                    .opticalEmptyState()
                 }
             } else {
                 ContentUnavailableView {
                     Label("No Source Images", systemImage: "photo.badge.plus")
                 } description: {
-                    Text("Choose Add in the Images sidebar, or drop overlapping images here.")
+                    Text("To preview, first add source images and create a panorama.")
                 } actions: {
-                    Text("PanoWizard reads metadata and arranges the images automatically.")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                    VStack(spacing: 12) {
+                        Button("Add", action: addImages)
+                            .buttonStyle(WorkspaceToolbarPillStyle())
+                        Text("PanoWizard reads metadata and arranges the images automatically.")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .multilineTextAlignment(.center)
+                    }
                 }
+                .opticalEmptyState()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -450,6 +464,7 @@ private struct SourceMaskEditor: View {
                 }
             } else {
                 ContentUnavailableView("The Image Could Not Be Read", systemImage: "photo")
+                .opticalEmptyState()
             }
         }
         .background(.background)
@@ -1032,6 +1047,7 @@ private struct ZoomableImageView: View {
             }
         } else {
             ContentUnavailableView("No Preview", systemImage: "photo")
+            .opticalEmptyState()
         }
     }
 

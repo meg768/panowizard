@@ -170,6 +170,7 @@ struct ImageCommandItem: Identifiable {
 
 struct ImagesCommandActions {
     let images: [ImageCommandItem]
+    let addImages: () -> Void
     let selectImage: (SourceImage.ID) -> Void
 }
 
@@ -331,6 +332,9 @@ private struct ImagesMenuCommands: Commands {
 
     var body: some Commands {
         CommandMenu("Images") {
+            Button("Add...") { actions?.addImages() }
+                .disabled(actions == nil)
+            if !(actions?.images.isEmpty ?? true) { Divider() }
             ForEach(
                 Array((actions?.images ?? []).enumerated()),
                 id: \.element.id
@@ -406,7 +410,7 @@ private struct PanoramaMenuCommands: Commands {
 
     var body: some Commands {
         CommandMenu("Panorama") {
-            Button("Create Panorama") {
+            Button("Create") {
                 actions?.createPanorama()
             }
             .keyboardShortcut("c", modifiers: .option)
@@ -435,9 +439,11 @@ private struct PanoramaMenuCommands: Commands {
     }
 }
 
-private struct WindowStateRestorer: NSViewRepresentable {
+struct WindowStateRestorer: NSViewRepresentable {
+    var frameName = "PanoWizard.ProjectWindow"
+
     private final class WindowAttachmentView: NSView {
-        private static let frameName = "PanoWizard.ProjectWindow"
+        var frameName = "PanoWizard.ProjectWindow"
         private weak var configuredWindow: NSWindow?
 
         override func viewDidMoveToWindow() {
@@ -446,13 +452,15 @@ private struct WindowStateRestorer: NSViewRepresentable {
             configuredWindow = window
             // Restore the shared app-level frame when attached, before presentation.
             // Force restoration even when SwiftUI has supplied a document frame.
-            window.setFrameUsingName(Self.frameName, force: true)
-            window.setFrameAutosaveName(Self.frameName)
+            window.setFrameUsingName(frameName, force: true)
+            window.setFrameAutosaveName(frameName)
         }
     }
 
     func makeNSView(context: Context) -> NSView {
-        WindowAttachmentView()
+        let view = WindowAttachmentView()
+        view.frameName = frameName
+        return view
     }
 
     func updateNSView(_ view: NSView, context: Context) {}

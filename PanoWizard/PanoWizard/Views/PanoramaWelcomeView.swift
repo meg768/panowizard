@@ -23,7 +23,7 @@ struct PanoramaLaunchView: View {
         } message: {
             Text(importError ?? "Unknown error")
         }
-        .background(WelcomeWindowZoomer())
+        .background(WindowStateRestorer(frameName: "PanoWizard.WelcomeWindow"))
     }
 
     private func chooseImages() {
@@ -86,25 +86,6 @@ struct PanoramaLaunchView: View {
             isImporting = false
             newDocument(document)
             dismissWindow(id: "welcome")
-        }
-    }
-}
-
-private struct WelcomeWindowZoomer: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        zoomWindow(for: view)
-        return view
-    }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        zoomWindow(for: view)
-    }
-
-    private func zoomWindow(for view: NSView) {
-        DispatchQueue.main.async {
-            guard let window = view.window, !window.isZoomed else { return }
-            window.zoom(nil)
         }
     }
 }

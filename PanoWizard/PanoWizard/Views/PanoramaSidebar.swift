@@ -66,7 +66,7 @@ struct PanoramaSidebar: View {
                             }
                             .textCase(nil)
                             .padding(.leading, 4)
-                            .padding(.trailing, 20)
+                            .padding(.trailing, 14)
                             .padding(.vertical, 4)
                         }
                 }

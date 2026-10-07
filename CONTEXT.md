@@ -1081,3 +1081,62 @@ Senast pushade kodändring är ce238af. Efterföljande commits 3975097 och e91dd
 2026-10-06_23-15-44 och 2026-10-06-23-18. Ingen ytterligare appkod har ändrats.
 Debug/Release lyckades för tab-inställningen; runtime-verifiering efter omstart
 med två dokument återstår fortfarande. Osparade ändringar fick inte kastas.
+
+## Buffrade UI-ändringar genomförda — 2026-10-07
+
+Användaren godkände sju punkter med "Kör": Images-menyn har alltid Add...
+(disabled utan aktiv projektmodell), separator och bildlista när bilder finns.
+Focused scene action använder befintlig image importer. Sidebar Create-knappens
+trailing padding korrigerad från 20 till 14 efter visuell kontroll mot Add.
+Panorama-menyn heter nu Create, samma action/kortkommando. Välkomstbilden kvar;
+WelcomeWindowZoomer borttagen, befintlig WindowStateRestorer återanvänd med
+separat app-level frameName PanoWizard.WelcomeWindow. Normal default 1080x680,
+projektframe oförändrad. Ingen ändring av start/reopen-flödet i övrigt.
+Källbildens masktoolbar visar Clear mask och Rotate med ikon/text; Undo och
+Invert-knapparna borttagna, Cmd+Z/underliggande maskfunktioner oförändrade.
+Preview-tomläget har samma Create-knapp som Retouch/Export (disabled enligt
+canStitch). Alla sex ContentUnavailableView använder nya gemensamma
+OpticalEmptyStateLayout, intrinsisk meddelandegrupp centrerad vid höjd/3 och
+klampad för små ytor; texter/typografi/interna avstånd oförändrade.
+Debug/Release bygger utan fel. Release UI kontrollerad: Add... med tomt projekt,
+import av befintlig docs JPG i ett osparat testdokument, maskknapparna, bildmenyn,
+Create i Preview/Retouch/Export, tomlägets visuella höjd. Högerpadding slutjusterad
+utifrån screenshot; slutlig justering ej verifierad i omstartad UI ännu.
+Välkomstfönstrets resize/quit/relaunch-persistens ej manuellt verifierad denna gång.
+Gamla Tab-A-fixturen saknar numera sina externa PNG och gav befintligt read-error;
+inte ändrat eller sparat. Användarens separat körande installerade app orörd.
+Ingen commit, tagg eller push.
+
+## Andra buffrade UI-listan — 2026-10-07
+
+Godkänd med "Kör": maskknappen heter nu Clear (samma ikon/action), JPEG-export
+startar med befintliga Maximum-värdet 0.98 i stället för High 0.92, och No Source
+Images-tomläget har Add-knapp. Add använder exakt samma importer-presentation
+som sidopanel/Images-meny, utan ny filhantering. Knapptext Add, menytext Add...
+Första UI-listans ännu ocommittade ändringar behållna. Ingen commit/tagg/push.
+Debug och Release BUILD SUCCEEDED efter denna lista, diff --check utan fel.
+Kodkopplingen till befintlig importer och Maximum-tag 0.98 verifierad; de tre
+ändringarna har inte manuellt provkörts i omstartad app denna gång.
+
+## Tredje buffrade UI-listan — 2026-10-07
+
+Godkänd med "Kör": No Source Images actions innehåller en explicit centrerad
+VStack med Add och hjälptext på egen rad (ContentUnavailableView actions lade
+annars ut dem horisontellt). Beskrivningen för Preview utan bilder är nu
+"To preview, first add source images and create a panorama." Retouch och Export
+använder motsvarande godkända text och Add när images.isEmpty. Med bilder men
+utan panorama behålls befintlig Create/text/canStitch. Alla Add-knappar använder
+befintliga model.isImporterPresented; inga nya sandbox-/import-/stitchflöden.
+Tidigare ocommittade UI-ändringar behållna. Ingen commit/tagg/push.
+Debug och Release BUILD SUCCEEDED. diff --check utan fel. Brancherna och Add-
+action kontrollerade i koden; slutlig visuell kontroll i omstartad app återstår.
+
+## Bakgrunder och samlad check-in — 2026-10-07
+
+Användaren ersatte/utökade välkomstbilderna: Backgrounds innehåller nu A.jpg–G.jpg,
+C.png ersatt med C.jpg. Hela folder reference kopieras normalt av Xcode. Debug
+ och Release byggda utan fel; exakt samma sju bildnamn och byte-identiska bilder
+verifierade i båda app-paketen. Inga bildtransformationer utförda av Codex.
+Användaren auktoriserade commit+push av samlade UI-listor och nya bakgrunder,
+med datumtagg enligt etablerad rutin. Manuella verifieringsbegränsningar ovan
+kvarstår; de har inte ersatts med påståenden om nya runtime-tester.

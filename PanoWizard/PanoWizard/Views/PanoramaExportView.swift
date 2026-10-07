@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 @MainActor
 @Observable
 final class PanoramaExportController {
-    var jpegQuality = 0.92
+    var jpegQuality = 0.98
     var maximumWidth = 0
     var errorMessage: String?
 }
@@ -134,17 +134,25 @@ struct PanoramaExportView: View {
                     systemImage: "square.and.arrow.up"
                 )
             } description: {
-                Text("Create the panorama to continue.")
+                Text(model.project.images.isEmpty
+                    ? "To export, first add source images and create a panorama."
+                    : "Create the panorama to continue.")
             } actions: {
-                Button {
-                    model.stitch()
-                } label: {
-                    Text("Create")
+                if model.project.images.isEmpty {
+                    Button("Add") { model.isImporterPresented = true }
+                        .buttonStyle(WorkspaceToolbarPillStyle())
+                } else {
+                    Button {
+                        model.stitch()
+                    } label: {
+                        Text("Create")
+                    }
+                    .buttonStyle(WorkspaceToolbarPillStyle())
+                    .disabled(!model.canStitch)
+                    .help("Create a panorama with the current images and masks")
                 }
-                .buttonStyle(WorkspaceToolbarPillStyle())
-                .disabled(!model.canStitch)
-                .help("Create a panorama with the current images and masks")
             }
+            .opticalEmptyState()
         }
     }
 
