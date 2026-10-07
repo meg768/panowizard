@@ -28,3 +28,8 @@ New to PanoWizard? Start with the [illustrated Getting Started guide](getting-st
 
 - **[Little Planet](HowTo/LittlePlanet/index.html)** — Shape a square planet image from the panorama.
 - **[Export](export.html)** — Save JPEG, PNG, or an interactive HTML viewer.
+
+## Support and privacy
+
+- **[Support](support.html)** — Ask a question or report a problem.
+- **[Privacy Policy](privacy.html)** — How PanoWizard handles images, projects, and optional AI retouching.

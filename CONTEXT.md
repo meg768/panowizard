@@ -1140,3 +1140,29 @@ verifierade i båda app-paketen. Inga bildtransformationer utförda av Codex.
 Användaren auktoriserade commit+push av samlade UI-listor och nya bakgrunder,
 med datumtagg enligt etablerad rutin. Manuella verifieringsbegränsningar ovan
 kvarstår; de har inte ersatts med påståenden om nya runtime-tester.
+
+
+## Repositorynamn och hjälp-URL — 2026-10-08
+
+Aktivt repository är nu /Users/magnus/Documents/GitHub/panowizard, origin
+https://github.com/meg768/panowizard.git. Tidigare next-gen-namn i historiken
+avser detta migrerade Xcode-projekt. PanoWizardHelpURL i Info.plist uppdaterad
+till https://meg768.github.io/panowizard/ efter namnbytet. Native Help-action
+läser fortfarande denna nyckel och öppnar standardwebbläsaren.
+
+## Support och integritetspolicy — 2026-10-08
+
+Inför App Store lade vi till docs/support.md och docs/privacy.md samt länkar
+från hjälpens startsida. Användaren valde uttryckligen GitHub Issues som
+supportkanal (aktiverat i meg768/panowizard). Ingen påhittad e-postadress.
+Policyn baserad på nuvarande kod: lokal bildbehandling, externa källbilder,
+projektmetadata/masks/panorama/patches och security bookmarks, frivillig
+OpenAI image-edit-request direkt via HTTPS med egen API-nyckel. Nyckeln ligger
+för närvarande i UserDefaults, inte Keychain och inte projektet. Inga påståenden
+om OpenAI-retention eller träning; länkar till leverantörens datapolicy.
+Support varnar för att GitHub Issues är offentliga och att .pw kan innehålla
+bilder/sökvägar. Lokala Markdown/HTML-länkar verifierade. Ingen appkod ändrad.
+Publicerade adresser efter nästa Pages-deploy: /panowizard/support.html och
+/panowizard/privacy.html. Sidorna är ännu inte pushade/publicerade. App Store
+Connect Privacy-formulär och appens AI-samtyckesflöde återstår separat; användaren
+sköt tidigare upp AI-granskningen. Ingen commit/tagg/push denna gång.
