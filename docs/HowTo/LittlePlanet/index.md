@@ -1,4 +1,4 @@
-# How Do I Create a Little Planet?
+# Create a Little Planet
 
 A Little Planet turns the full 360° panorama into a square stereographic projection.
 

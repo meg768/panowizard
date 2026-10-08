@@ -1,4 +1,4 @@
-# How Do I Create an AI Patch?
+# Create an AI patch
 
 An AI patch repairs a small area of an otherwise finished panorama. The selected image and instruction are sent to OpenAI. Nothing is activated until you choose **Apply**.
 

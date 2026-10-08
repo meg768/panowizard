@@ -30,7 +30,7 @@ Select **Export**, then **Save JPEG…** for an image or **Save HTML…** for an
 
 Save the editable project with **File → Save** (Command-S) if you want to return to it later. Exporting an image does not save the project.
 
-## How Do I?
+## Next steps
 
 - [Inspect and adjust the result](preview.html).
 - [Mask source images](HowTo/Masking/index.html).

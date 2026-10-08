@@ -1,4 +1,4 @@
-# How To: Mask source images
+# Mask source images
 
 Masks help when a seam selects unwanted content and another source photograph has a better view. This example removes a hand and level from the ground below the camera.
 

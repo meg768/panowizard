@@ -1,4 +1,4 @@
-# How Do I Create a Manual Patch?
+# Create a manual patch
 
 A manual patch repairs a small area of an otherwise finished panorama using an external image editor. It does not alter the source photographs or panorama geometry.
 
