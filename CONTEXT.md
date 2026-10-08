@@ -1,6 +1,24 @@
 # PanoWizard — projekt- och utvecklingskontext
 
-Senast uppdaterad: 2026-10-06.
+Senast uppdaterad: 2026-10-08.
+
+## Aktuellt publiceringsläge — läs först (2026-10-08)
+
+PanoWizard 1.0, build **202610080027**, är **inskickad till App Review**.
+Användarens screenshot visar "1 Item Submitted"; Apple anger upp till 48 timmar
+och e-post när granskningen är klar. Inget godkännande eller offentlig release
+har ännu observerats. Nästa steg är att invänta Apples besked och hantera eventuell
+feedback. Skicka inte in på nytt eller byt build utan användarens instruktion.
+
+**Publiceringsbeslut:** PanoWizard är projektet Magnus vill publicera.
+**LAN Scanner och Broker Explorer används endast privat/lokalt av Magnus.**
+De ska inte förberedas för App Store, GitHub Releases, DMG eller annan offentlig
+distribution utan en ny uttrycklig instruktion. Tidigare förslag om distribution
+av dessa två verktyg avvisades av användaren.
+
+Aktivt repository är /Users/magnus/Documents/GitHub/panowizard, origin
+https://github.com/meg768/panowizard.git. Äldre next-gen-namn och formuleringar
+om gamla ../panowizard längre ned är historik, inte aktuella sökvägsinstruktioner.
 
 Läs denna fil innan arbetet återupptas. Uppdatera den när projektets struktur,
 beteende, verifiering, distributionsgrund eller viktiga beslut ändras.
@@ -1166,3 +1184,71 @@ Publicerade adresser efter nästa Pages-deploy: /panowizard/support.html och
 /panowizard/privacy.html. Sidorna är ännu inte pushade/publicerade. App Store
 Connect Privacy-formulär och appens AI-samtyckesflöde återstår separat; användaren
 sköt tidigare upp AI-granskningen. Ingen commit/tagg/push denna gång.
+
+## App Store Connect och TestFlight — 2026-10-08
+
+Support-/policyändringarna ovan är därefter committade och pushade i e569164,
+med annoterad tagg 2026-10-08-00-24. Föregående UI-/bakgrundscommit är 5bcd215,
+tagg 2026-10-07-23-36. De äldre styckenas "inte pushade" gäller deras tidpunkt.
+
+- App Store Connect Apple ID: 6819353008; bundle se.egelberg.panowizard.
+- Archive/upload lyckades för 1.0 (202610080027). Bygget valdes också på
+  distributionsversionen. Appens ikon visas korrekt i Connect.
+- Internal TestFlight-gruppen "My Testing": en testare och ett build.
+  Magnus installerade via TestFlight och bekräftade grundflödet: skapa projekt,
+  lägga till bilder, skapa panorama, exportera, spara och återöppna. Detta är
+  användarverifiering, inte nya automatiserade tester. AI-liveanrop ej verifierat.
+- Gratis: Current Price-screenshot visar 0,00 kr i Sverige och nollpriser i
+  övriga synliga marknader. Tillgänglighet 175 länder/regioner.
+- Manuell release rekommenderades och användaren gick vidare efter instruktionen;
+  slutligt sparat val har inte verifierats i screenshot. Kontrollera detta före
+  framtida besked om automatisk/manuell publicering.
+- Primärt språk English (U.S.); kategori Photo & Video, ingen sekundär kategori.
+  Åldersformuläret gav 4+ (regionala undantag visas), Not Applicable som override.
+  Content Rights sparat som inget tredjepartsinnehåll, efter villkoret att
+  välkomstbilderna är Magnus egna. Apple's Standard License Agreement kvar.
+- App Privacy publicerades via användarens stegvisa arbete. Deklarerade typer:
+  Photos or Videos, Other User Content, User ID; App Functionality, linked to
+  identity, ingen tracking. API-nyckel som User ID och kopplingen till identitet
+  är vår bedömning, inte en uttrycklig Apple-klassificering av API-nycklar.
+  Bakgrund: frivillig OpenAI image-edit med egen nyckel och leverantörens
+  standardretention; lokal bildbehandling är i sig inte datainsamling.
+- Privacy Policy URL: https://meg768.github.io/panowizard/privacy.html
+  Support URL: https://meg768.github.io/panowizard/support.html
+  Marketing URL: https://meg768.github.io/panowizard/
+  Copyright: 2026 Magnus Egelberg. GitHub Issues är vald supportkanal.
+- Beskrivning och keywords ifyllda. Promotional Text och Subtitle lämnades tomma.
+- Sign-in required avmarkerat; Apple-kontaktuppgifter ifyllda av användaren.
+  **API-nyckeln anges i själva AI-retuschgränssnittet, inte i Settings.**
+  Användarens rättelse är styrande för framtida dokumentation/granskningsnoter.
+
+Granskningsnoter sparade av användaren:
+
+PanoWizard creates panoramas from overlapping source images. To test the main
+workflow, add overlapping photos, click Create, and export the result. Image
+stitching, masks, manual retouching, and previews run locally without signing in.
+
+Optional AI retouching requires an OpenAI API key entered in the AI retouch
+interface. It sends the selected panorama view and editing instructions directly
+to OpenAI.
+
+### Butiksskärmbild
+
+En skärmbild är uppladdad och sparad, med Lunds Domkyrka i Preview och appens
+sidopanel. Projektet var redan öppet från
+/Users/magnus/Desktop/Panorama/U/panowizard.pw i /Applications/PanoWizard.app.
+Native app-screenshot togs via CUA; inga kod- eller projektändringar gjordes.
+Efter uttryckligt godkännande skalades den proportionellt med ImageMagick och
+smala mörka sidomarginaler till exakt 2880 × 1800, utan beskärning/förvrängning.
+Original: /Users/magnus/Desktop/PanoWizard-AppStore/01-preview.png
+Uppladdad: /Users/magnus/Desktop/PanoWizard-AppStore/01-preview-2880x1800.png
+
+### Kända kvarstående frågor
+
+AI-disclosure/uttryckligt samtycke i appen sköts tidigare upp och har inte
+granskats eller ändrats i denna session. Hur Apple ska testa valfri AI-retusch
+utan egen API-nyckel diskuterades men löstes inte före användarens inskick.
+Inskicket är bekräftat; det betyder inte att dessa frågor är verifierade eller
+att Apple godkänt appen. Hantera konkret återkoppling när den kommer.
+
+Kontext sparad lokalt på uttrycklig begäran; ingen ny commit/tagg/push begärd.
