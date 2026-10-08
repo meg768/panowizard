@@ -1269,3 +1269,66 @@ Inskicket är bekräftat; det betyder inte att dessa frågor är verifierade ell
 att Apple godkänt appen. Hantera konkret återkoppling när den kommer.
 
 Kontext sparad lokalt på uttrycklig begäran; ingen ny commit/tagg/push begärd.
+
+## Lokal bygg- och installationsrutin — 2026-10-08
+
+Användaren har uttryckligen begärt: **Vid bygge → kopiera till Applications.**
+Efter ett lyckat appbygge ska den färdigbyggda PanoWizard.app kopieras till
+/Applications/PanoWizard.app, så att användaren alltid hittar senaste bygget där.
+Använd det bygge som just lyckades; för Release är nuvarande byggplats
+/Users/magnus/Library/Developer/Xcode/PanoWizardBuilds/Release/PanoWizard.app.
+Kopiera hela appbundlen (exempelvis med ditto) och kontrollera installerat
+versions-/byggnummer samt kodsignaturen. Kopiera inte ett äldre bygge när det
+aktuella bygget har misslyckats. Detta är en bestående arbetsrutin och kräver
+inte ny bekräftelse vid varje bygge.
+Senast kopierade Release: version 1.1, bygge 202610081849.
+
+## .pw-dokumentikon och ikoncache — 2026-10-08
+
+En uttrycklig dokumentikon med vikt hörn, appmärket och PW-text har lagts till
+som PanoWizard/PanoWizard/Resources/PWDocument.icns. Info.plist anger
+CFBundleTypeIconFile och UTTypeIconFile till PWDocument.icns samt
+LSTypeIsPackage=true. Release byggt, kopierat till /Applications/PanoWizard.app
+(version 1.1, bygge 202610081849); codesign --verify --deep --strict lyckades.
+Den aktiva Launch Services-registreringen pekade rätt, men NSWorkspace gav
+fortfarande den gamla appikonen. Omstart av Finder/ikonagent räckte inte.
+Efter användarens uppföljning flyttades användarens två cachemappar
+com.apple.iconservicesagent och com.apple.iconservices från DARWIN_USER_CACHE_DIR
+till /tmp/pw-icon-cache-backup-20261008185507 och Finder startades om.
+Därefter returnerade NSWorkspace.icon(forFile:) den nya dokumentikonen för
+/tmp/pw-icon-check.pw, visuellt verifierat. Användarens verkliga Finder-vy har
+inte kontrollerats. Inga projektdokument ändrades. Ingen commit/push.
+
+## macOS-genererad .pw-ikon verifierad — 2026-10-08
+
+Ersätter slutsatsen och implementationen i föregående ikonanteckning.
+På användarens begäran återställdes UTTypeIcons med UTTypeIconText=PW.
+CFBundleTypeIconFile och UTTypeIconFile togs bort; LSTypeIsPackage=true behölls.
+Efter Release-bygge, kopiering till Applications, registrering och återställning
+av användarens ikoncache returnerar NSWorkspace.icon(forFile:) nu macOS egen
+systemgenererade dokumentikon med vikt hörn, appmärket och PW-text. Resultatet
+är visuellt verifierat på testpaketet /tmp/pw-icon-check.pw. Den tidigare egna
+PWDocument.icns var alltså inte nödvändig och har tagits bort från källträdet.
+Cachebackup för detta test: /tmp/pw-system-icon-cache-backup-20261008190119.
+Ingen commit/push. Användarens verkliga projektfiler har inte ändrats.
+
+## Standardtext i macOS-genererad dokumentikon — 2026-10-08
+
+På användarens begäran togs UTTypeIconText=PW bort. UTTypeIcons är nu en
+tom dictionary; filändelsen är fortfarande pw. Release-bygget lyckades och
+kopierades till /Applications/PanoWizard.app: version 1.1, bygge 202610081904.
+Kodsignaturen verifierades. Efter registrering och cacheåterställning visar
+NSWorkspace.icon(forFile:) för /tmp/pw-icon-check.pw fortfarande PW i versaler,
+nu som macOS standardtext utan explicit textinställning. Visuellt verifierat.
+Cachebackup: /tmp/pw-default-label-cache-backup-20261008190459.
+Denna standardinställning har behållits. Ingen commit/push.
+
+## Checkpoint för dokumentikon och bygg-rutin — 2026-10-08
+
+Användaren begärde spara kontext + c+p. Checkpointen omfattar CONTEXT.md och
+Info.plist: macOS-genererad dokumentikon med standardtext och paketmarkering,
+samt den bestående rutinen att kopiera lyckade byggen till Applications.
+Senaste installerade och signaturverifierade Release är 1.1 (202610081904).
+Separata lokala ändringar i MARKETING_VERSION, Xcode-schemats formatering och
+docs-copy/ ingår inte i denna commit. Datumtagg skapas enligt sparad c+p-rutin.
+Tidigare "ingen commit/push"-anteckningar beskriver läget vid respektive test.

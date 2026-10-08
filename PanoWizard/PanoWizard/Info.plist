@@ -33,6 +33,8 @@
 			<array>
 				<string>pw</string>
 			</array>
+			<key>LSTypeIsPackage</key>
+			<true/>
 			<key>CFBundleTypeName</key>
 			<string>PanoWizard Project</string>
 			<key>CFBundleTypeRole</key>
@@ -58,8 +60,6 @@
 			<string>se.egelberg.panowizard.project</string>
 			<key>UTTypeIcons</key>
 			<dict>
-				<key>UTTypeIconText</key>
-				<string>PW</string>
 			</dict>
 			<key>UTTypeTagSpecification</key>
 			<dict>
