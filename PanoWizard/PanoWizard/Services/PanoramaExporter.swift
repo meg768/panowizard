@@ -16,6 +16,11 @@ protocol PanoramaExporting: Sendable {
     ) async throws
 }
 
+enum HTMLNavigationPreferences {
+    static let invertDragDirection = "PanoWizard.HTML.invertDragDirection"
+    static let invertScrollZoom = "PanoWizard.HTML.invertScrollZoom"
+}
+
 struct FilePanoramaExporter: PanoramaExporting {
     func exportHTML(
         panoramaURL: URL,
@@ -24,6 +29,12 @@ struct FilePanoramaExporter: PanoramaExporting {
         initialViewpoint: PanoramaViewpoint,
         to destinationURL: URL
     ) async throws {
+        let dragDirection = UserDefaults.standard.bool(
+            forKey: HTMLNavigationPreferences.invertDragDirection
+        ) ? -1 : 1
+        let scrollDirection = UserDefaults.standard.bool(
+            forKey: HTMLNavigationPreferences.invertScrollZoom
+        ) ? -1 : 1
         try await Task.detached(priority: .userInitiated) {
             let panorama = try Data(contentsOf: panoramaURL).base64EncodedString()
             let safeTitle = title
@@ -35,7 +46,9 @@ struct FilePanoramaExporter: PanoramaExporting {
                 title: safeTitle,
                 panoramaBase64: panorama,
                 adjustments: adjustments.sanitized,
-                initialViewpoint: initialViewpoint
+                initialViewpoint: initialViewpoint,
+                dragDirection: dragDirection,
+                scrollDirection: scrollDirection
             )
             try html.write(
                 to: destinationURL,
@@ -49,7 +62,9 @@ struct FilePanoramaExporter: PanoramaExporting {
         title: String,
         panoramaBase64: String,
         adjustments: PanoramaAdjustments,
-        initialViewpoint: PanoramaViewpoint
+        initialViewpoint: PanoramaViewpoint,
+        dragDirection: Int,
+        scrollDirection: Int
     ) -> String {
         return """
         <!doctype html>
@@ -123,6 +138,7 @@ struct FilePanoramaExporter: PanoramaExporting {
         const PI=Math.PI,initialYaw=\(initialViewpoint.yawRadians),
         initialPitch=\(initialViewpoint.pitchRadians),
         initialFOV=\(initialViewpoint.verticalFieldOfViewDegrees)*PI/180;
+        const dragDirection=\(dragDirection),scrollDirection=\(scrollDirection);
         const supportsGestureZoom="ongesturestart" in window;
         let y=initialYaw,p=initialPitch,f=initialFOV,last=null,gestureFOV=f,
         wheelZoom=null,wheelZoomTimer=null;
@@ -146,8 +162,8 @@ struct FilePanoramaExporter: PanoramaExporting {
         Math.max(0,Math.min(1,(e.clientY-r.top)/Math.max(r.height,1)))]}
         canvas.addEventListener("pointerdown",e=>{canvas.setPointerCapture(e.pointerId);last=e});
         canvas.addEventListener("pointermove",e=>{if(!last)return;
-        y-=(e.clientX-last.clientX)*.005;p=Math.max(-PI/2+.001,
-        Math.min(PI/2-.001,p-(e.clientY-last.clientY)*.005));last=e;draw()});
+        y-=(e.clientX-last.clientX)*.005*dragDirection;p=Math.max(-PI/2+.001,
+        Math.min(PI/2-.001,p-(e.clientY-last.clientY)*.005*dragDirection));last=e;draw()});
         canvas.addEventListener("pointerup",()=>last=null);
         canvas.addEventListener("pointercancel",()=>last=null);
         function endWheelZoom(){wheelZoom=null;if(wheelZoomTimer)clearTimeout(wheelZoomTimer);wheelZoomTimer=null}
@@ -155,7 +171,7 @@ struct FilePanoramaExporter: PanoramaExporting {
         if(e.ctrlKey){if(supportsGestureZoom)return;endWheelZoom();
         setFOV(f*180/PI*Math.exp(e.deltaY*.01),a[0],a[1]);return}
         if(Math.abs(e.deltaY)>=Math.abs(e.deltaX)){if(!wheelZoom)wheelZoom={a:a,
-        fixed:directionAt(a[0],a[1],f)};setFOV(f*180/PI+e.deltaY*.04,wheelZoom.a[0],
+        fixed:directionAt(a[0],a[1],f)};setFOV(f*180/PI+e.deltaY*.04*scrollDirection,wheelZoom.a[0],
         wheelZoom.a[1],wheelZoom.fixed);if(wheelZoomTimer)clearTimeout(wheelZoomTimer);
         wheelZoomTimer=setTimeout(endWheelZoom,120)}
         },{passive:false});

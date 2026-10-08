@@ -31,6 +31,11 @@ enum PanoramaImageFormat: String, CaseIterable {
 }
 
 struct PanoramaExportView: View {
+    @AppStorage(HTMLNavigationPreferences.invertDragDirection)
+    private var invertDragDirection = false
+    @AppStorage(HTMLNavigationPreferences.invertScrollZoom)
+    private var invertScrollZoom = false
+
     @Bindable var model: AppModel
     @Bindable var controller: PanoramaExportController
     let projectName: String?
@@ -84,6 +89,11 @@ struct PanoramaExportView: View {
                             + "web browser without any additional files."
                     )
                     .foregroundStyle(.secondary)
+
+                    Toggle("Drag to turn the camera", isOn: $invertDragDirection)
+                        .toggleStyle(.switch)
+                    Toggle("Scroll down to zoom in", isOn: $invertScrollZoom)
+                        .toggleStyle(.switch)
 
                     Button {
                         controller.exportHTML(

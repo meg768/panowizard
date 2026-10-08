@@ -1350,3 +1350,38 @@ Xcode-versions-/schemaändringar ingår inte i dokumentationscommiten.
 Användaren begärde därefter c+p och GitHub-publicering. Pages är konfigurerat
 för main:/docs och publiceras automatiskt efter push. Annoterad datumtagg
 skapas enligt den bestående c+p-rutinen.
+
+## Globala riktningar för HTML-export — 2026-10-08
+
+Två switchar ovanför Save HTML: Invert drag direction och Invert scroll zoom.
+Båda av som standard. @AppStorage/UserDefaults sparar globalt, inte i projekt.
+HTML-exporten läser valen och bäddar in fasta riktningsfaktorer. Drag inverteras
+på båda axlarna, vanlig scrollzoom inverteras separat; nypgest och tangentbord
+behåller sitt beteende. Ingen inställningspanel i den exporterade visaren.
+Alla fyra kombinationer kontrollerade genom exporterad JavaScript och simulerade
+pan-/scroll-/nyp-händelser. Fem befintliga PanoramaAdjustmentProcessorTests
+klarade. GUI och global lagring verifierade efter omstart och byte G → N.
+Release byggt och kopierat till /Applications/PanoWizard.app, build 202610082159;
+kodsignaturen godkänd. Exportguiden och exportbilden uppdaterade lokalt.
+Inför omstart hade användarens öppna G osparade ändringar. De bevarades genom
+Save As till /Users/magnus/Desktop/Panorama/G/panowizard-before-html-settings.pw;
+originalet skrevs inte över. Appen visar nu N:s Export med båda switchar av.
+Ingen commit/push begärd. Tidigare Xcode-version/schemaändringar behållna.
+
+## Beteendebeskrivande HTML-switchar — 2026-10-08
+
+Användaren valde Drag to turn the camera och Scroll up to zoom in som texter.
+Drag-switchens koppling är oförändrad. Scroll-switchens visning är negationen
+av invertScrollZoom, så på verkligen betyder uppåt = zooma in. Sparade val
+behålls. Standard utan sparade val: drag av, scroll på. Nypgest oförändrad.
+Release build 202610082218 lyckades, kopierades till Applications och
+kodsignaturen verifierades. Båda texter och befintliga val verifierade i GUI.
+Exportguide och screenshot uppdaterade lokalt. Ingen commit/push begärd.
+
+## Scroll down to zoom in — 2026-10-08
+
+På användarens begäran ersattes Scroll up to zoom in med Scroll down to zoom in.
+Switch är nu direkt bunden till invertScrollZoom igen: av = befintlig riktning,
+på = nedåt zoomar in. Båda switchar är av som standard. Global lagring behålls.
+Release 202610082227 byggt, kopierat till Applications och signaturverifierat.
+GUI verifierat i O: båda switchar av och den nya texten visas. Ingen commit/push.
