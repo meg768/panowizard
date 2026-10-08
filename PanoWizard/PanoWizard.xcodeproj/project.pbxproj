@@ -12,7 +12,6 @@
 		0166FB5A9702487781550106 /* Vendor/OpenCV/lib/libopencv_objdetect.500.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = F1BFCD7E88C44B3BA9FB5F92 /* Vendor/OpenCV/lib/libopencv_objdetect.500.dylib */; };
 		150F2F691544410E99D5BD5D /* Vendor/OpenCV/lib/libopencv_photo.500.dylib in Embed OpenCV Libraries */ = {isa = PBXBuildFile; fileRef = 02DCFC88F83045958E37BA70 /* Vendor/OpenCV/lib/libopencv_photo.500.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		16919530370546FB8F78EBB3 /* Vendor/OpenCV/lib/libopencv_calib.500.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F6F12E988F840FA8612E14B /* Vendor/OpenCV/lib/libopencv_calib.500.dylib */; };
-		17F60989BDD348D58D4A4FE7 /* Resources/PanoWizardProject.icns in Resources */ = {isa = PBXBuildFile; fileRef = 57299B3D16B94A8C84183341 /* Resources/PanoWizardProject.icns */; };
 		1E935D406F994503A1C89422 /* Vendor/OpenCV/lib/libopencv_features.500.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 79B471AFDE2A4851B4419EEE /* Vendor/OpenCV/lib/libopencv_features.500.dylib */; };
 		1FEA5C8D7F664111A12E3C96 /* libOpenCVBridge.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 36185C0CE2D94464B7F78BD3 /* libOpenCVBridge.a */; };
 		24665B846CF64BB99FF705D1 /* Vendor/OpenCV/lib/libopencv_calib.500.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F6F12E988F840FA8612E14B /* Vendor/OpenCV/lib/libopencv_calib.500.dylib */; };
@@ -96,7 +95,6 @@
 		212737ACE4E24D8086B2C43F /* Vendor/OpenCV/lib/libopencv_imgcodecs.500.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = Vendor/OpenCV/lib/libopencv_imgcodecs.500.dylib; sourceTree = "<group>"; };
 		36185C0CE2D94464B7F78BD3 /* libOpenCVBridge.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libOpenCVBridge.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		422A7CD70127452DBB703E00 /* PanoWizardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PanoWizardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		57299B3D16B94A8C84183341 /* Resources/PanoWizardProject.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Resources/PanoWizardProject.icns; sourceTree = "<group>"; };
 		6B870E14BE1946EEAD33859D /* Vendor/OpenCV/lib/libopencv_stitching.500.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = Vendor/OpenCV/lib/libopencv_stitching.500.dylib; sourceTree = "<group>"; };
 		79B471AFDE2A4851B4419EEE /* Vendor/OpenCV/lib/libopencv_features.500.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = Vendor/OpenCV/lib/libopencv_features.500.dylib; sourceTree = "<group>"; };
 		7D7F9F6E0018453485F81394 /* OpenCVBridge/include/OpenCVBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OpenCVBridge/include/OpenCVBridge.h; sourceTree = "<group>"; };
@@ -219,7 +217,6 @@
 			isa = PBXGroup;
 			children = (
 				BEC8C974AC0A4A8198FB6210 /* Resources/Backgrounds */,
-				57299B3D16B94A8C84183341 /* Resources/PanoWizardProject.icns */,
 				E2DE47DF8743472286CEEECA /* Resources/ThirdPartyLicenses */,
 			);
 			name = Resources;
@@ -365,7 +362,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				37BD371D5C4D4D71A0739AFC /* Resources/Backgrounds in Resources */,
-				17F60989BDD348D58D4A4FE7 /* Resources/PanoWizardProject.icns in Resources */,
 				9BE3DA9456E849F887F562E0 /* Resources/ThirdPartyLicenses in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

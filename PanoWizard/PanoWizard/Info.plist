@@ -33,8 +33,6 @@
 			<array>
 				<string>pw</string>
 			</array>
-			<key>CFBundleTypeIconFile</key>
-			<string>PanoWizardProject.icns</string>
 			<key>CFBundleTypeName</key>
 			<string>PanoWizard Project</string>
 			<key>CFBundleTypeRole</key>
@@ -58,6 +56,11 @@
 			<string>PanoWizard Project</string>
 			<key>UTTypeIdentifier</key>
 			<string>se.egelberg.panowizard.project</string>
+			<key>UTTypeIcons</key>
+			<dict>
+				<key>UTTypeIconText</key>
+				<string>PW</string>
+			</dict>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>

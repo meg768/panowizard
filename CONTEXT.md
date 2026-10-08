@@ -23,6 +23,23 @@ om gamla ../panowizard längre ned är historik, inte aktuella sökvägsinstrukt
 Läs denna fil innan arbetet återupptas. Uppdatera den när projektets struktur,
 beteende, verifiering, distributionsgrund eller viktiga beslut ändras.
 
+## App- och dokumentikoner — lokal ändring 2026-10-08
+
+På Magnus instruktion används den godkända fullkvadratiska prototypen som ny
+appikon. Alla tio AppIcon-PNG-storlekar är ogenomskinliga utan inritad ram eller
+hörnmask. Den separata PanoWizardProject.icns-resursen och CFBundleTypeIconFile
+har tagits bort. Dokumenttypens UTTypeIcons anger UTTypeIconText=PW och låter
+macOS använda appikonen som standardbadge på systemets dokumentform.
+Debug och ren Release-build lyckades; plist och ikonernas storlekar/opacitet
+verifierade. Finder-utseendet är ännu inte visuellt verifierat och kan påverkas
+av ikoncache eller andra installerade appversioner. Projektformatet är oförändrat.
+Release-bygget finns i
+/Users/magnus/Library/Developer/Xcode/PanoWizardBuilds/Release/PanoWizard.app.
+Magnus startar om och fortsätter i en ny konversation. Nästa steg: öppna detta
+bygge och kontrollera appikon samt befintliga och nya .pw-dokument i Finder.
+Ingen ny upload, submission eller ändring av inskickad build har gjorts.
+Ikonändringarna och denna kontext sparas med commit och push på Magnus begäran.
+
 ## Mål, facit och aktuell instruktion
 
 `panowizard-next-gen` är nästa generation av PanoWizard, byggd som en vanlig
