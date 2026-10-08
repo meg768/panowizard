@@ -233,8 +233,9 @@ struct PanoWizardApp: App {
         Window("PanoWizard", id: "welcome") {
             PanoramaLaunchView()
         }
-        .defaultSize(width: 1_080, height: 680)
-        .windowResizability(.contentMinSize)
+        .defaultSize(width: StartupDialogLayout.size.width, height: StartupDialogLayout.size.height)
+        .windowResizability(.contentSize)
+        .windowStyle(.hiddenTitleBar)
         .defaultLaunchBehavior(.presented)
         .restorationBehavior(.disabled)
 
@@ -244,9 +245,7 @@ struct PanoWizardApp: App {
                 documentURL: file.fileURL
             )
                 .frame(minWidth: 900, minHeight: 600)
-                .background(WindowStateRestorer())
         }
-        .defaultSize(width: 1_240, height: 780)
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("About PanoWizard") {
@@ -437,33 +436,6 @@ private struct PanoramaMenuCommands: Commands {
             .disabled(actions?.canShowPanorama != true)
         }
     }
-}
-
-struct WindowStateRestorer: NSViewRepresentable {
-    var frameName = "PanoWizard.ProjectWindow"
-
-    private final class WindowAttachmentView: NSView {
-        var frameName = "PanoWizard.ProjectWindow"
-        private weak var configuredWindow: NSWindow?
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            guard let window, configuredWindow !== window else { return }
-            configuredWindow = window
-            // Restore the shared app-level frame when attached, before presentation.
-            // Force restoration even when SwiftUI has supplied a document frame.
-            window.setFrameUsingName(frameName, force: true)
-            window.setFrameAutosaveName(frameName)
-        }
-    }
-
-    func makeNSView(context: Context) -> NSView {
-        let view = WindowAttachmentView()
-        view.frameName = frameName
-        return view
-    }
-
-    func updateNSView(_ view: NSView, context: Context) {}
 }
 
 private struct ProjectDocumentView: View {

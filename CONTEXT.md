@@ -1385,3 +1385,90 @@ Switch är nu direkt bunden till invertScrollZoom igen: av = befintlig riktning,
 på = nedåt zoomar in. Båda switchar är av som standard. Global lagring behålls.
 Release 202610082227 byggt, kopierat till Applications och signaturverifierat.
 GUI verifierat i O: båda switchar av och den nya texten visas. Ingen commit/push.
+
+
+## Modal startdialog — 2026-10-08
+
+På användarens begäran ersattes välkomstfönstret med en fast, centrerad
+startdialog. Create Your Panorama och Open Panorama… har samma vita knappstil.
+Quit är en vanlig SwiftUI-knapp längre ned. Inga fönsterknappar eller resize.
+AppKit runModal blockerar menykommandon tills användaren väljer ett projekt
+eller Quit. Avbrutet filval stannar i dialogen. Efter godkänt filval släpps
+modaliteten före den asynkrona importen/öppningen; vid fel återupptas dialogen.
+Projektfönstrens storlek och återställning är oförändrade.
+Release 202610082315 byggt, kopierat till /Applications/PanoWizard.app och
+signaturverifierat. GUI-prov: öppna befintliga N, importera en riktig N-bild
+till Untitled, avbryta filval, blockerat Cmd-N, oläsbar testbild med felmeddelande
+och återgång till modal dialog, samt Quit. Det tillfälliga projektet stängdes
+utan att sparas; originalprojekten skrevs inte över. Dokumentationens startbild
+och benämningen start dialog uppdaterade. Ingen commit/push begärd för ändringen.
+
+
+## Tre lika startknappar och heltäckande bakgrund — 2026-10-08
+
+Quit har nu samma vita kapsel, storlek och textstil som skapa/öppna, med
+power-symbol. Bakgrunden ligger separat bakom den fasta innehållsytan och
+fyller även dialogens safe-area; den tomma remsan längst ned är borta.
+Release byggt, kopierat till Applications och signaturverifierat. Aktuell GUI
+visuellt kontrollerad och dokumentationens startbild uppdaterad.
+
+
+## Större startdialog med transparenta knappar — 2026-10-08
+
+Open Existing Panorama… ersätter startknappens tidigare text. Samtliga vita
+knappbakgrunder har 82 % opacitet. Dialogens innehållsstorlek beräknas från
+aktuell skärms synliga yta: 62 % bredd och 68 % höjd, normalt minst 800×560
+och högst 1100×740 punkter; mindre skärmar begränsar storleken så den ryms.
+Release byggt, kopierat till Applications och signaturverifierat. GUI visuellt
+verifierat: större dialog, läsbara texter och heltäckande bakgrund. Startbild
+och projektguidens startknapp uppdaterade. Ingen commit/push begärd.
+
+
+## Startdialogens vertikala balans — 2026-10-08
+
+Knappbakgrunderna har nu 74 % opacitet (26 % transparens). Det fria vertikala
+utrymmet fördelas med en Spacer ovanför innehållet och två nedanför, för
+1/3–2/3-balans. Release byggt, kopierat till Applications och signaturverifierat.
+Visuellt kontrollerat och dokumentationens startbild uppdaterad.
+
+
+## Projektfönster hanteras av SwiftUI/macOS — 2026-10-08
+
+På användarens begäran togs WindowStateRestorer bort helt. Projektfönster
+läser inte längre PanoWizard.ProjectWindow och använder inte setFrameUsingName
+eller setFrameAutosaveName. SwiftUI/macOS sköter återställning. Deklarativ
+defaultSize och minimum för arbetsytan behålls; startdialogens tidigare
+överenskomna utformning är oförändrad. Release byggt och kopierat till
+Applications, kodsignatur och git diff --check godkända. GUI-verifierat genom
+öppning av N: normalt projektfönster, Ready 5 images. Ingen commit/push begärd.
+
+
+## SwiftUI väljer projektets startstorlek — 2026-10-08
+
+På användarens begäran togs även DocumentGroup.defaultSize(1240×780) bort.
+Ingen egen återställning eller angiven standardstorlek för projektfönster
+ återstår. Arbetsytans befintliga minimum 900×600 behålls. Startdialogens
+utformning är fortsatt separat. Release byggt, kopierat till Applications,
+signaturverifierat och GUI-kontrollerat genom öppning av N (Ready 5 images).
+
+
+## Startdialogen stängs efter projektval — 2026-10-08
+
+Användaren upptäckte att välkomstfönstret låg kvar bakom projektet. Tidigare
+GUI-kontroller verifierade projektöppning men missade bakgrundsfönstret.
+Efter lyckad öppning/import stängs nu den refererade NSWindow direkt med close()
+i stället för dismissWindow, eftersom dialogens closable-stil är borttagen.
+Avbrutet filval/fel behåller dialogen som tidigare. Release byggt, installerat
+i Applications och signaturverifierat. GUI-prov med N: öppnat projekt och
+ny appavläsning väljer projektfönstret, ingen kvarvarande startdialog.
+
+
+## Checkpoint: startdialog och systemets fönsterhantering — 2026-10-09
+
+Användaren godkände att SwiftUI/macOS hanterar projektfönstrets storlek och
+position; inga fönsterkoordinater ska lagras i .pw vid Save. Begäran tag+c+p
+omfattar startdialogens senaste utformning, korrigerad stängning efter
+projektval, borttagen egen fönsteråterställning/defaultSize och motsvarande
+dokumentation samt kontext. Release-byggen och GUI-prov beskrivs ovan.
+Separata befintliga Xcode-version/schemaändringar och docs-copy/ lämnas
+utanför denna commit. Annoterad datumtagg enligt Europe/Stockholm.

@@ -6,9 +6,9 @@ Start with one complete ring of overlapping fisheye photographs. See [Adding Sou
 
 ## 1. Import
 
-On the welcome screen, click **Create Your Panorama**, select the photographs together, and click **Choose Images**. This loads the images; it does not stitch them yet.
+On the start dialog, click **Create Your Panorama**, select the photographs together, and click **Choose Images**. This loads the images; it does not stitch them yet.
 
-![The current welcome screen with Create Your Panorama](Images/00-welcome.png)
+![The current start dialog with Create Your Panorama](Images/00-welcome.png)
 
 ## 2. Create
 

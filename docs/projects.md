@@ -1,6 +1,6 @@
 # Creating and Opening Projects
 
-Choose **Create Your Panorama** on the welcome screen and select your source images, or choose **File → New** for an empty project and click **Add**. Use **Open Panorama…** on the welcome screen or **File → Open…** to open an existing `.pw` project.
+Choose **Create Your Panorama** on the start dialog and select your source images, or choose **File → New** for an empty project and click **Add**. Use **Open Existing Panorama…** on the start dialog or **File → Open…** to open an existing `.pw` project.
 
 ## Save your work
 

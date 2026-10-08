@@ -5,15 +5,16 @@ import UniformTypeIdentifiers
 struct PanoramaLaunchView: View {
     @Environment(\.newDocument) private var newDocument
     @Environment(\.openDocument) private var openDocument
-    @Environment(\.dismissWindow) private var dismissWindow
     @State private var isImporting = false
     @State private var importError: String?
+    @State private var dialogWindow: NSWindow?
 
     var body: some View {
         PanoramaWelcomeView(
             isImporting: isImporting,
             chooseImages: chooseImages,
-            openProject: chooseProject
+            openProject: chooseProject,
+            quit: { NSApp.stopModal(); NSApp.terminate(nil) }
         )
         .alert("Could Not Open", isPresented: Binding(
             get: { importError != nil },
@@ -23,7 +24,7 @@ struct PanoramaLaunchView: View {
         } message: {
             Text(importError ?? "Unknown error")
         }
-        .background(WindowStateRestorer(frameName: "PanoWizard.WelcomeWindow"))
+        .background(StartupDialogWindow { dialogWindow = $0 })
     }
 
     private func chooseImages() {
@@ -47,19 +48,31 @@ struct PanoramaLaunchView: View {
         panel.prompt = "Open"
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
+        NSApp.stopModal()
         Task {
             do {
                 try await openDocument(at: url)
-                dismissWindow(id: "welcome")
+                NSApp.stopModal()
+                dialogWindow?.close()
             } catch {
                 importError = error.localizedDescription
+                resumeDialog()
             }
+        }
+    }
+
+    private func resumeDialog() {
+        guard let dialogWindow else { return }
+        DispatchQueue.main.async {
+            guard dialogWindow.isVisible, NSApp.modalWindow == nil else { return }
+            NSApp.runModal(for: dialogWindow)
         }
     }
 
     private func importImages(_ urls: [URL]) {
         guard !urls.isEmpty, !isImporting else { return }
         isImporting = true
+        NSApp.stopModal()
         Task {
             let accessedURLs = urls.filter {
                 $0.startAccessingSecurityScopedResource()
@@ -77,6 +90,7 @@ struct PanoramaLaunchView: View {
             guard !images.isEmpty else {
                 isImporting = false
                 importError = "None of the selected files could be read as an image."
+                resumeDialog()
                 return
             }
 
@@ -84,8 +98,9 @@ struct PanoramaLaunchView: View {
             project.replaceImages(images)
             let document = PanoProjectDocument(project: project)
             isImporting = false
+            NSApp.stopModal()
             newDocument(document)
-            dismissWindow(id: "welcome")
+            dialogWindow?.close()
         }
     }
 }
@@ -94,27 +109,13 @@ struct PanoramaWelcomeView: View {
     let isImporting: Bool
     let chooseImages: () -> Void
     let openProject: (() -> Void)?
+    let quit: () -> Void
     private let backgroundURL = WelcomeBackgroundPicker.currentURL
 
     var body: some View {
         GeometryReader { geometry in
-            ZStack {
-                welcomeImage
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .clipped()
-
-                LinearGradient(
-                    colors: [
-                        .black.opacity(0.18),
-                        .black.opacity(0.38),
-                        .black.opacity(0.68)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
                 VStack(spacing: 0) {
-                    Spacer(minLength: 80)
+                    Spacer(minLength: 24)
 
                     VStack(spacing: 18) {
                         Image(systemName: "panorama.fill")
@@ -149,8 +150,8 @@ struct PanoramaWelcomeView: View {
                             .font(.headline)
                             .foregroundStyle(.black.opacity(0.86))
                             .padding(.horizontal, 22)
-                            .frame(height: 44)
-                            .background(.white, in: Capsule())
+                            .frame(width: 300, height: 44)
+                            .background(.white.opacity(0.74), in: Capsule())
                             .shadow(color: .black.opacity(0.22), radius: 12, y: 5)
                         }
                         .buttonStyle(.plain)
@@ -158,19 +159,12 @@ struct PanoramaWelcomeView: View {
 
                         if let openProject {
                             Button(action: openProject) {
-                                Label("Open Panorama…", systemImage: "folder")
+                                Label("Open Existing Panorama…", systemImage: "folder")
                                     .font(.headline)
-                                    .foregroundStyle(.white.opacity(0.92))
-                                    .padding(.horizontal, 18)
-                                    .frame(height: 38)
-                                    .background(
-                                        .black.opacity(0.28),
-                                        in: Capsule()
-                                    )
-                                    .overlay {
-                                        Capsule()
-                                            .stroke(.white.opacity(0.32))
-                                    }
+                                    .foregroundStyle(.black.opacity(0.86))
+                                    .frame(width: 300, height: 44)
+                                    .background(.white.opacity(0.74), in: Capsule())
+                                    .shadow(color: .black.opacity(0.22), radius: 12, y: 5)
                             }
                             .buttonStyle(.plain)
                             .disabled(isImporting)
@@ -180,12 +174,40 @@ struct PanoramaWelcomeView: View {
                     .shadow(color: .black.opacity(0.45), radius: 12, y: 3)
                     .padding(.horizontal, 40)
 
-                    Spacer(minLength: 80)
+                    Button(action: quit) {
+                        Label("Quit", systemImage: "power")
+                            .font(.headline)
+                            .foregroundStyle(.black.opacity(0.86))
+                            .frame(width: 300, height: 44)
+                            .background(.white.opacity(0.74), in: Capsule())
+                            .shadow(color: .black.opacity(0.22), radius: 12, y: 5)
+                    }
+                        .buttonStyle(.plain)
+                        .padding(.top, 36)
+                        .padding(.bottom, 32)
+                        .disabled(isImporting)
+
+                    Spacer(minLength: 24)
+                    Spacer(minLength: 24)
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+        .frame(width: StartupDialogLayout.size.width, height: StartupDialogLayout.size.height)
+        .background {
+            GeometryReader { geometry in
+                ZStack {
+                    welcomeImage
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .clipped()
+                    LinearGradient(
+                        colors: [.black.opacity(0.18), .black.opacity(0.38), .black.opacity(0.68)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
                 }
             }
+            .ignoresSafeArea()
         }
-        .frame(minWidth: 700, minHeight: 480)
-        .ignoresSafeArea()
     }
 
     @ViewBuilder
@@ -233,5 +255,52 @@ private enum WelcomeBackgroundPicker {
         let url = candidates.randomElement() ?? urls[0]
         defaults.set(url.lastPathComponent, forKey: lastNameKey)
         return url
+    }
+}
+
+
+enum StartupDialogLayout {
+    static let size: NSSize = {
+        let screen = NSScreen.main?.visibleFrame.size ?? NSSize(width: 1_440, height: 900)
+        return NSSize(
+            width: min(screen.width * 0.9, min(1_100, max(800, screen.width * 0.62))),
+            height: min(screen.height * 0.88 - 32, min(740, max(560, screen.height * 0.68)))
+        )
+    }()
+}
+
+private struct StartupDialogWindow: NSViewRepresentable {
+    let attach: (NSWindow) -> Void
+
+    private final class AttachmentView: NSView {
+        var attach: ((NSWindow) -> Void)?
+        private weak var configuredWindow: NSWindow?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window, configuredWindow !== window else { return }
+            configuredWindow = window
+            window.styleMask.remove([.resizable, .miniaturizable, .closable])
+            window.collectionBehavior = [.fullScreenNone]
+            window.setContentSize(StartupDialogLayout.size)
+            window.center()
+            attach?(window)
+            DispatchQueue.main.async { [weak window] in
+                guard let window, window.isVisible else { return }
+                NSApp.runModal(for: window)
+            }
+        }
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = AttachmentView()
+        view.attach = attach
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: ()) {
+        if NSApp.modalWindow === nsView.window { NSApp.stopModal() }
     }
 }

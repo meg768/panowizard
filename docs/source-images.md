@@ -1,6 +1,6 @@
 # Adding Source Images
 
-For a new project, **Create Your Panorama** on the welcome screen opens **Choose Source Images**. Select the photographs together and click **Choose Images**. In an open project, click **Add** in the sidebar or choose **Images → Add...**.
+For a new project, **Create Your Panorama** on the start dialog opens **Choose Source Images**. Select the photographs together and click **Choose Images**. In an open project, click **Add** in the sidebar or choose **Images → Add...**.
 
 ![Selecting the five source photographs together](Images/00-choose-images.png)
 
