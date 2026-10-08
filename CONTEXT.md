@@ -1332,3 +1332,21 @@ Senaste installerade och signaturverifierade Release är 1.1 (202610081904).
 Separata lokala ändringar i MARKETING_VERSION, Xcode-schemats formatering och
 docs-copy/ ingår inte i denna commit. Datumtagg skapas enligt sparad c+p-rutin.
 Tidigare "ingen commit/push"-anteckningar beskriver läget vid respektive test.
+
+## Dokumentationsuppdatering och publicering — 2026-10-08
+
+Användaren godkände uppdatering av befintlig dokumentation utan ändring av appkod.
+Getting Started följer Import → Create → Preview → Export. Befintlig sidstruktur
+behållen; guiderna har aktuella kontroller, tekniska krav åtskilda från fotoråd,
+aktuella GUI-bilder och verkliga exempel från N, U, V, S och Z. Maskningens
+befintliga fotografiska före/efter-exempel behölls och beskars utan gammal GUI.
+AI-exemplet använder en redan sparad reparation; inga nya API-anrop gjordes.
+Retouch visar baspanoramat, medan Preview visar aktiva patchar; AI-jämförelsen
+är därför fångad i Preview med identisk riktning och zoom.
+Alla 14 sidor renderingskontrollerade lokalt, 22 refererade bilder verifierade,
+interna länkar och git diff --check godkända. Appfiler, originalprojekten och
+docs-copy/ verifierades oförändrade mot startens checksummor. Befintliga lokala
+Xcode-versions-/schemaändringar ingår inte i dokumentationscommiten.
+Användaren begärde därefter c+p och GitHub-publicering. Pages är konfigurerat
+för main:/docs och publiceras automatiskt efter push. Annoterad datumtagg
+skapas enligt den bestående c+p-rutinen.

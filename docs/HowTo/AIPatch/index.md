@@ -1,29 +1,37 @@
 # How Do I Create an AI Patch?
 
-An AI patch removes or repairs a small area of an otherwise finished panorama. The selected view is sent to OpenAI, but nothing is activated until you choose **Apply**.
+An AI patch repairs a small area of an otherwise finished panorama. The selected image and instruction are sent to OpenAI. Nothing is activated until you choose **Apply**.
 
-This feature requires your own OpenAI API key. Use **Create API Key…** in the patch dialog to enter it, or **Change API Key…** to replace a saved key.
+## Before you start
+
+AI retouch requires internet access and your own OpenAI API key. API usage is billed separately by OpenAI; it is not included in a ChatGPT or Codex subscription.
+
+Use **Create API Key…** in the patch dialog to open setup, then **Open OpenAI API Keys…** to obtain a key, or paste one you already have. **Change API Key…** replaces it. **Usage…** opens the usage dashboard. For data handling, see [Privacy Policy](../../privacy.html).
 
 ## Choose the area
 
-Open **Retouch**, then drag or scroll until the square view contains the problem. Command-scroll or pinch to zoom. Click **Add AI patch** when the area is framed correctly.
+Open **Retouch**, frame the problem in the square view, and click **Add AI patch**. Drag or scroll to pan; Command-scroll or pinch to zoom.
 
-![Positioning the square view before creating an AI patch](Images/01-position-the-patch.png)
+![Framing the floor before opening an AI patch](Images/01-position-the-patch.png)
 
-## Mask the problem
+The dialog contains a fixed capture. Its pan/zoom controls inspect that image; cancel and reposition in Retouch to capture a different area.
 
-In **Before**, Option-drag over the object or damaged area that should be reconstructed. Command-Option-drag erases the mask, and Command-Z undoes the last stroke.
+## Mask and generate
 
-Keep the mask close to the problem while leaving enough surrounding image for context. Add a short instruction when the replacement must follow a specific structure, pattern, or texture, then click **AI Retouch**.
+In **Before**, **Option-drag** over the problem. **Command-Option-drag** erases; **Command-Z** undoes a stroke. **Clear Mask** removes the mask. Transparent gaps are selected automatically in a new patch.
 
-![A red mask over a bucket and the generated replacement floor](Images/02-mask-and-generate.png)
+Keep the supplied **Instruction** unless you need to add a specific requirement. Click **AI Retouch**. A mask and a nonempty instruction are required; generation may take a while and can be cancelled.
+
+![The saved floor mask and AI result in the current patch dialog](Images/02-mask-and-generate.png)
 
 ## Review and apply
 
-Compare **Before** and **After**. Choose **Try Again** if the result is not convincing, or **Apply** to add it to the panorama.
+Inspect lines, textures, color, and the repair boundary in **After**. AI can invent plausible but incorrect details. Choose **Try Again** for another attempt, or **Apply** to keep the result.
 
-![The finished floor in Panorama Preview](Images/03-result-in-preview.png)
+![Matched floor views before and after the saved AI repair](Images/03-result-in-preview.png)
 
-The AI patch appears in the **Patches** list. You can hide it, edit it again, or delete it without changing the source images or panorama geometry.
+*Left: original. Right: the saved repair enabled. An AI repair is generated content, not recovered source pixels.*
+
+In **Patches**, use the switch to hide/show a repair, click its thumbnail to locate it, or use the pencil/trash button to edit/delete it. Finish source corrections first: changing sources or masks clears patches. Save the project to keep an accepted repair.
 
 [Back to PanoWizard Help](../../index.html)

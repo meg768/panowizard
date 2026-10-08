@@ -1,62 +1,41 @@
 # PanoWizard — Create Complete 360° Panoramas
 
-PanoWizard turns a single ring of overlapping source photos into a complete 360° × 180° panorama. The basic workflow is simple: add the photos, create the panorama, inspect and correct only if needed, then export the finished result.
+**Import → Create → Preview → Export**
 
-![A finished 360-degree panorama created with PanoWizard](Images/00-finished-panorama.jpg)
+Start with one complete ring of overlapping fisheye photographs. See [Adding Source Images](source-images.html) if you are unsure which photos to use.
 
-*A finished panorama created from one sequence of source images.*
+## 1. Import
 
-**Source images → Create → Inspect and correct if needed → Export**
+On the welcome screen, click **Create Your Panorama**, select the photographs together, and click **Choose Images**. This loads the images; it does not stitch them yet.
 
-## Getting started
+![The current welcome screen with Create Your Panorama](Images/00-welcome.png)
 
-### 1. Add the source images
+## 2. Create
 
-Choose **Create Your Panorama** on the welcome screen and select the full image sequence. To add more images to an open project, click **Add** in the sidebar. The photographs should cover one complete turn around the camera with enough overlap between neighboring images.
+Click **Create** beside **Panorama** in the sidebar. Wait while PanoWizard aligns and stitches the images.
 
-Select any image in the sidebar to inspect it. Most sequences can be stitched as they are. When necessary, the **Exclude** and **Include** brushes let you tell PanoWizard which source-image areas to avoid or prefer.
+![Five coastal photographs imported, with Create beside Panorama](Images/01-source-images.png)
 
-![A complete source-image sequence loaded in PanoWizard](Images/01-source-images.png)
+## 3. Preview
 
-### 2. Create the panorama
+**Preview** opens when creation finishes. Drag to look around. Hold Command while scrolling, or pinch, to zoom. Check the seams, horizon, sky, and ground.
 
-Click **Create** beside **Panorama**. PanoWizard assembles the overlapping photographs into a complete panorama. This can take a few minutes for a full-resolution sequence.
+![The freshly stitched coastal panorama in Preview](Images/02-panorama-preview.png)
 
-### 3. Inspect the result
+## 4. Export
 
-PanoWizard opens **Preview** when stitching is complete. Move around the panorama and inspect the horizon, seams, moving subjects, and the top and bottom of the sphere. The status line confirms the coverage of the finished panorama.
+Select **Export**, then **Save JPEG…** for an image or **Save HTML…** for an interactive panorama you can open in a browser. **Size: Original** keeps the panorama's existing dimensions.
 
-Use **Adjustments** for final global image corrections when needed.
+![Current JPEG, PNG, HTML, and Little Planet export options](Images/04-export.png)
 
-![The stitched panorama in the interactive Preview](Images/02-panorama-preview.png)
-
-### 4. Correct only what needs correction
-
-If a stitching seam uses the wrong source pixels, return to that source image, paint a small **Exclude** or **Include** mask, and create the panorama again.
-
-**Changing source masks clears the panorama, retouch patches, and global adjustments.** Finish mask corrections before retouching or making final adjustments.
-
-For a localized blemish in an otherwise good panorama, open **Retouch**, position the square view over the area, and add a manual or AI patch. Patches are stored separately and do not change the source images or panorama geometry.
-
-![The optional Retouch workspace](Images/03-retouch.png)
-
-### 5. Export the finished panorama
-
-Open **Export** and choose the result you need:
-
-- **Save JPEG…** for a compact finished image.
-- **Save PNG…** for a lossless panorama.
-- **Save HTML…** for a self-contained interactive 360° viewer.
-
-Keep **Size: Original** when you want the full stitched resolution. The standard image export is equirectangular at a 2:1 aspect ratio.
-
-![PanoWizard export options](Images/04-export.png)
+Save the editable project with **File → Save** (Command-S) if you want to return to it later. Exporting an image does not save the project.
 
 ## How Do I?
 
-- [Mask source images](HowTo/Masking/index.html) — exclude unwanted pixels and prioritize the best overlapping content.
-- [Create a Little Planet](HowTo/LittlePlanet/index.html) — turn the finished panorama into a square Little Planet image.
-- [Create a manual patch](HowTo/ManualPatch/index.html) — repair a local area in an external image editor.
-- [Create an AI patch](HowTo/AIPatch/index.html) — mask an unwanted object and let AI reconstruct the missing area.
+- [Inspect and adjust the result](preview.html).
+- [Mask source images](HowTo/Masking/index.html).
+- [Create a manual patch](HowTo/ManualPatch/index.html).
+- [Create an AI patch](HowTo/AIPatch/index.html).
+- [Create a Little Planet](HowTo/LittlePlanet/index.html).
 
 [Back to PanoWizard Help](index.html)

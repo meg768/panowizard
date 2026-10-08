@@ -6,26 +6,24 @@ A Little Planet turns the full 360° panorama into a square stereographic projec
 
 Finish the panorama, open **Export**, and click **Create Little Planet…**.
 
-![The Little Planet option in Export](Images/01-open-little-planet.png)
+![The Little Planet option in the current Export workspace](Images/01-open-little-planet.png)
 
 ## Shape the planet
 
-Use the panorama on the left to choose the composition:
+Use the panorama on the left:
 
 - **Drag horizontally or scroll horizontally** to rotate the planet.
-- **Option-drag** to position the planet's center.
-- **Slide** to make the planet smaller or larger.
+- **Option-drag** to position the center.
+- Use the slider **below the Little Planet preview** to make the planet smaller or larger.
 
-The square preview on the right shows the rendered result.
+![The current Little Planet dialog with rotation, centering, and size controls](Images/02-shape-little-planet.png)
 
-![Choosing the center, rotation, and size](Images/02-shape-little-planet.png)
-
-*This screenshot shows an earlier layout. In the current app, use Option-drag to set the center; the size slider is below the Little Planet preview.*
+The right preview shows the result. The slider changes composition, not image resolution.
 
 ## Export the image
 
-Click **Export…**, choose a location, and save the PNG. The default filename is `little-planet.png`.
+Click **Export…** and save the PNG. The default filename is `little-planet.png`. A new 4096 × 2048 panorama produces a **2048 × 2048** planet image.
 
-![The exported Little Planet](Images/03-little-planet-result.png)
+![A real Little Planet exported from the autumn park panorama](Images/03-little-planet-result.png)
 
 [Back to PanoWizard Help](../../index.html)

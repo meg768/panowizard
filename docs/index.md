@@ -15,7 +15,7 @@ New to PanoWizard? Start with the [illustrated Getting Started guide](getting-st
 
 ## Create and inspect
 
-- **[Creating the Panorama](creating-panorama.html)** — Analyze and stitch the image sequence.
+- **[Creating the Panorama](creating-panorama.html)** — Align and stitch the image sequence.
 - **[Preview and Navigation](preview.html)** — Explore the panorama and adjust its overall appearance.
 
 ## Correct

@@ -1,33 +1,43 @@
 # How To: Mask source images
 
-Masks help when an automatic seam selects the wrong content from overlapping source images. This example starts with the photographer's hand and level visible at the bottom of the panorama.
+Masks help when a seam selects unwanted content and another source photograph has a better view. This example removes a hand and level from the ground below the camera.
 
-![An unwanted hand and level visible in the panorama](Images/01-problem-before-masking.png)
+![The hand and level before source-mask corrections](Images/01-problem-before-masking.png)
 
 ## Exclude unwanted content
 
-Select the source image that contains the problem, choose **Exclude**, then Option-drag over only the unwanted area.
+Select the source image, choose **Exclude**, then **Option-drag** over the unwanted area.
 
-**Red / Exclude:** PanoWizard must not use these pixels.
+**Red / Exclude:** do not use these source pixels.
 
-![A red Exclude mask over the photographer and level](Images/02-exclude-mask.png)
+![A current Exclude mask over the hand and level](Images/02-exclude-mask.png)
 
 ## Prefer the best overlap
 
-When another source has the content you want, select it, choose **Include**, and Option-drag over that area.
+Select a source with the best overlapping content, choose **Include**, and Option-drag over that area. This separate example prefers one intact pole.
 
-**Green / Include:** PanoWizard prioritizes these pixels when choosing which overlapping image content to use.
+**Green / Include:** prefer these existing pixels when choosing overlapping content. It does not create missing content.
 
-![A green Include mask over clean source content](Images/03-include-mask.png)
+![A current Include mask preferring one intact pole](Images/03-include-mask.png)
 
 ## Rebuild and inspect
 
-**Changing source masks clears the current panorama, retouch patches, and global adjustments. Creating the panorama again also clears patches and resets adjustments.** Finish source-mask corrections before retouching or making final adjustments.
+Click **Create** again, then inspect the same place in **Preview**.
 
-Click **Create** again, then inspect the same place in **Preview**. Here the unwanted hand and level are gone and the cobblestones continue across the nadir.
+![The same ground view after source-mask corrections](Images/04-result-after-masking.png)
 
-![The rebuilt panorama without the unwanted hand and level](Images/04-result-after-masking.png)
+*Ground before and after exclusion masks and a new Create. These corrections use real source photographs.*
 
-Keep masks as small as practical. If an Exclude mask leaves a black or uncovered area, reduce it so PanoWizard still has valid source pixels to use. Command-Option-drag erases a mask.
+A small remaining camera-footprint gap can be repaired with a [manual patch](../ManualPatch/index.html).
+
+**Changing masks clears the panorama, patches, and adjustments. A successful new Create also clears patches and resets adjustments.** Finish masks before retouching. Save a separate project with **File → Save As…** before trying masks on a finished result.
+
+## Refine a mask
+
+- Plain drag or scroll moves the image; hold Command while scrolling to zoom in for finer painting.
+- **Command-Option-drag** erases. **Edit → Undo Mask Change** (Command-Z) undoes the last source-mask change for the selected image.
+- **Clear** removes the selected image's current mask type: Exclude or Include.
+
+Keep masks small. If exclusion leaves uncovered areas, reduce it or supply a source with replacement coverage.
 
 [Back to PanoWizard Help](../../index.html)

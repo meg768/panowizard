@@ -16,6 +16,10 @@ The saved project remembers the authorization, so reopening it should not ask ag
 
 Granting access does not copy, move, or embed any photographs. Keep the original files available; folder authorization cannot restore a missing file.
 
+## Permission or missing files?
+
+**Grant Access** authorizes a folder; it does not find photographs moved elsewhere. Keep the originals available, and download cloud-only images before opening the project. Check the sidebar against the expected source count: unavailable files may be omitted when a project opens.
+
 See [Creating and Opening Projects](projects.html).
 
 [Back to PanoWizard Help](index.html)
