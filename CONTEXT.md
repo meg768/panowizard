@@ -1601,3 +1601,15 @@ committa aktuellt godkänt arbete/kontext, skapa annoterad lokal datumtagg
 på den nya commiten och pusha commit och tagg. Denna checkpoint sparar
 benämningen; inga nya appändringar sedan d615674. Separata Xcode-ändringar
 och docs-copy/ lämnas fortsatt utanför.
+
+
+## Dokumentationsbilder och commit/push — 2026-10-09
+
+På begäran raderades den ospårade säkerhetskopian docs-copy/. Senaste GUI
+fångat från Applications-appen för välkomstvy, källbilder, Preview, Retouch,
+Export och Adjustments; docs/Images uppdaterad med sex riktiga skärmbilder.
+Little Planet-guidens öppningssteg återanvänder aktuell Export-bild.
+Maskningsguidens knappnamn och navigation/starttext förtydligade. Ingen
+appkod ändrad och inga automatiska regressionstester körda. Commit/push
+inkluderar även de tidigare lokala Xcode-ändringarna (version 1.1 och
+Xcodes schemaformatering), enligt begäran om att committa kvarvarande arbete.

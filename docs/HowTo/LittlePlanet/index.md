@@ -6,7 +6,7 @@ A Little Planet turns the full 360° panorama into a square stereographic projec
 
 Finish the panorama, open **Export**, and click **Create Little Planet…**.
 
-![The Little Planet option in the current Export workspace](Images/01-open-little-planet.png)
+![The Little Planet option in the current Export workspace](../../Images/04-export.png)
 
 ## Shape the planet
 

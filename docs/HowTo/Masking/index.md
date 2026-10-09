@@ -22,7 +22,7 @@ Select a source with the best overlapping content, choose **Include**, and Optio
 
 ## Rebuild and inspect
 
-Click **Create** again, then inspect the same place in **Preview**.
+Click **Create Panorama** in the sidebar again, then inspect the same place in **Preview**.
 
 ![The same ground view after source-mask corrections](Images/04-result-after-masking.png)
 

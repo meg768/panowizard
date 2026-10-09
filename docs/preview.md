@@ -4,6 +4,8 @@ Drag or scroll to pan. Hold Command while scrolling, or pinch, to zoom. **View â
 
 ![The panorama in the current Preview workspace](Images/02-panorama-preview.png)
 
+Use the sidebar button in the toolbar to hide or show the sidebar. Zoom commands are available when the current workspace has an image to navigate.
+
 Look all the way around, then up at the sky or ceiling (**zenith**) and down at the ground (**nadir**). Check seams, straight lines, moving subjects, and missing coverage. A stretched flat export is normal; Preview shows the image as a sphere.
 
 ## Choose the right correction

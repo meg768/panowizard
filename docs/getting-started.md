@@ -6,7 +6,7 @@ Start with one complete ring of overlapping fisheye photographs. See [Adding Sou
 
 ## 1. Import
 
-When you launch PanoWizard without a project, the project window shows the welcome view below.
+When you launch PanoWizard without a project, the project window shows the welcome view below. The sidebar and menus remain available. Use **Open Existing Panorama…** to continue a saved project.
 
 Click **Add Images…** in the welcome view or sidebar, select the photographs together, and click **Open**. This loads the images; it does not stitch them yet.
 
