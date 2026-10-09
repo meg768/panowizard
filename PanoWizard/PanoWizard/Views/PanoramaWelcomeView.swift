@@ -4,7 +4,7 @@ import SwiftUI
 /// A project without sources is ready to begin, regardless of its selected workspace.
 struct EmptyProjectWelcomeView: View {
     let addImages: () -> Void
-    private static let backgroundImage: NSImage? = {
+    @State private var backgroundImage: NSImage? = {
         guard let directory = Bundle.main.resourceURL?.appendingPathComponent("Backgrounds"),
               let files = try? FileManager.default.contentsOfDirectory(
                 at: directory, includingPropertiesForKeys: nil
@@ -42,7 +42,7 @@ struct EmptyProjectWelcomeView: View {
         .background {
             GeometryReader { geometry in
                 ZStack {
-                    if let image = Self.backgroundImage {
+                    if let image = backgroundImage {
                         Image(nsImage: image)
                             .resizable()
                             .scaledToFill()

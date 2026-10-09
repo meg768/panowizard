@@ -1613,3 +1613,40 @@ Maskningsguidens knappnamn och navigation/starttext förtydligade. Ingen
 appkod ändrad och inga automatiska regressionstester körda. Commit/push
 inkluderar även de tidigare lokala Xcode-ändringarna (version 1.1 och
 Xcodes schemaformatering), enligt begäran om att committa kvarvarande arbete.
+
+
+## Extra tomt projekt vid filstart — 2026-10-09
+
+Uppstartens documents.isEmpty kunde kontrolleras medan en .pw-fil fortfarande
+öppnades. Minimal fix: applicationDidFinishLaunching kräver nu macOS
+NSApplication.launchIsDefaultUserInfoKey == true innan ett tomt projekt
+skapas. Befintlig suppressed-strategi och uppskjuten skapelse behålls;
+SwiftUI äger filöppningen. Native untitled-delegateförsök gav inget
+projekt respektive filväljare och ingår inte i slutändringen.
+Release byggt, installerat i Applications och signaturverifierat. Manuell
+kontroll: normal appstart visar Untitled/välkomstvy; efter avslut öppnas
+N/panowizard.pw direkt från Finder, och Window-menyn listar endast
+panowizard.pw, inget extra Untitled. Originalprojektet ändrades inte.
+Inga automatiska regressionstester, ingen commit/push begärd.
+
+
+## Slumpbakgrund per nytt projekt — 2026-10-09
+
+EmptyProjectWelcomeView.backgroundImage ändrad från static let till lokal
+@State. Varje ny välkomstvy väljer bland befintliga jpg-bakgrunder, och
+SwiftUI behåller valet vid omritning. Ingen global sessioncache eller ny
+lagring. Release byggt, installerat och signaturverifierat; manuellt
+verifierat att normal start visade stadsbild och File > New (Command-N)
+visade annan torgbild i Untitled 2. Slumpen tillåter samma bild igen.
+Inga automatiska regressionstester och ingen commit/push begärd.
+
+
+## Orört nytt projekt är inte ändrat — 2026-10-09
+
+isDirty jämför nu endast workingDocument != savedDocument. Det tidigare
+saveURL == nil gjorde även ett helt orört nytt projekt dirty. Ändringen
+är en rad. Release byggt, installerat och signaturverifierat. Manuell
+kontroll: File > New följt av Close stänger utan sparfråga; import av
+en källbild ger fortsatt sparfråga. Tillfälligt importprojekt stängt
+utan att sparas, originalet ändrades inte. Ren välkomstvy kvar. Inga
+automatiska regressionstester, ingen commit/push begärd.

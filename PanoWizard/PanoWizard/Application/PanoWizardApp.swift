@@ -101,6 +101,8 @@ private final class PanoWizardApplicationDelegate: NSObject, NSApplicationDelega
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.helpMenu = spotlightHelpMenu
         installFileMenuCleanupWhenReady(attempt: 0)
+        guard notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool == true
+        else { return }
         DispatchQueue.main.async {
             guard ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil,
                   NSDocumentController.shared.documents.isEmpty else { return }
@@ -661,7 +663,7 @@ private struct ProjectDocumentView: View {
     }
 
     private var isDirty: Bool {
-        saveURL == nil || workingDocument != savedDocument
+        workingDocument != savedDocument
     }
 
     @discardableResult
