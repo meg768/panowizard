@@ -28,6 +28,11 @@ private final class FileMenuDelegateProxy: NSObject, NSMenuDelegate {
     }
 
     func hideEmptyPlaceholder(in menu: NSMenu) {
+        if let exampleIndex = menu.items.firstIndex(where: { $0.title == "Open Example" }),
+           exampleIndex > 0,
+           menu.items[exampleIndex - 1].isSeparatorItem {
+            menu.items[exampleIndex - 1].isHidden = true
+        }
         for item in menu.items where
             item.title == "NSMenuItem"
                 && item.action == nil
@@ -360,11 +365,21 @@ private struct ImagesMenuCommands: Commands {
 }
 
 private struct ProjectDocumentMenuCommands: Commands {
+    @Environment(\.newDocument) private var newDocument
     @FocusedValue(\.projectDocumentCommandActions)
     private var actions
 
     var body: some Commands {
         CommandGroup(replacing: .saveItem) {
+            Button("Open Example") {
+                do {
+                    let example = try PanoProjectDocument.example()
+                    newDocument(example)
+                } catch {
+                    NSApp.presentError(error)
+                }
+            }
+
             Button("Close") {
                 (NSApp.keyWindow ?? NSApp.mainWindow)?.performClose(nil)
             }
@@ -724,7 +739,7 @@ private struct ProjectDocumentView: View {
         panel.nameFieldStringValue = saveURL?
             .deletingPathExtension()
             .lastPathComponent
-            ?? "Untitled"
+            ?? (savedDocument.project.title == "Untitled Panorama" ? "Untitled" : savedDocument.project.title)
         return panel
     }
 
@@ -791,6 +806,9 @@ private struct ProjectDocumentView: View {
 
     private func updateWindowState() {
         guard let projectWindow else { return }
+        if saveURL == nil, savedDocument.project.title != "Untitled Panorama" {
+            projectWindow.title = savedDocument.project.title
+        }
         let dirty = isDirty
         projectWindow.isDocumentEdited = dirty
     }

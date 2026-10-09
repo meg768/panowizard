@@ -1650,3 +1650,80 @@ kontroll: File > New följt av Close stänger utan sparfråga; import av
 en källbild ger fortsatt sparfråga. Tillfälligt importprojekt stängt
 utan att sparas, originalet ändrades inte. Ren välkomstvy kvar. Inga
 automatiska regressionstester, ingen commit/push begärd.
+
+## Open Example — 2026-10-09
+
+File > Open Example använder SwiftUI NewDocumentAction för en osparad
+Example-kopia av Panorama U. Användaren godkände att senaste U sparades
+före omstart; originalet sparades via appen innan resurserna kopierades.
+Bundlat material: nio originalbilder, röda/gröna masker, panorama och två
+manuella patchar (nadir/flaggstång), cirka 95 MB. Inga lokala bookmarks
+eller .DS_Store medföljer. Källbilder kopieras en gång till appens
+Application Support så egna sparade projekt inte beror på appens bundle.
+Nytt projekt-ID, titel Example och Save föreslår Example som filnamn.
+docs/projects.md dokumenterar funktionen. Manuell kontroll upptäckte
+att relativa källsökvägar via /tmp-symlänken blev fel; beräkning och
+inläsning använder nu resolvingSymlinksInPath för bas/ursprung.
+Release byggt, installerat och signaturverifierat. Manuellt verifierat
+exempelöppning, nio källbilder/maskmarkörer, båda aktiva patchar, eget
+filnamn i Save och lyckad återöppning av separat sparad kopia.
+Inga automatiska regressionstester. Ändringarna är ännu inte committade.
+
+
+## Open Example efter Open — 2026-10-09
+
+Open Example ligger först i CommandGroup(replacing: .saveItem), före Close.
+Native Open… behåller openDocument:. Tidigare NSMenu-flytt gav rätt visuell
+ordning men fel SwiftUI-action; den är borttagen. Release byggt, installerat
+och signaturverifierat. Verifierat menyordning och att Open öppnar filväljaren.
+
+## UX med JPEG-källbilder — 2026-10-09
+
+De nio PNG-källbilderna i /Users/magnus/Desktop/Panorama/UX konverterade
+med sips till JPEG kvalitet 95, oförändrad upplösning 2000 × 3008.
+project.json uppdaterad till relativa .jpg-URL:er; bild-ID och metadata kvar.
+Interna PNG-masker/panorama/patchar behållna enligt användarens val.
+Full backup: /Users/magnus/Desktop/Panorama/UX-backup-before-jpeg.
+Källbilder 75,5 MB → 18,2 MB. UX öppnat i installerad PanoWizard,
+UX-mappen auktoriserad i filväljaren. Verifierat nio JPEG-källbilder,
+fem maskmarkörer och två aktiva manuella patchar. Original U orört.
+
+
+## UX som inbyggt exempel och meny utan separator — 2026-10-09
+
+Bundlat Example ersatt med UX: nio JPEG-källbilder samt befintligt panorama,
+masker och två patchar. Relativa sökvägar, inga bookmarks eller .DS_Store.
+Installerade JPEG-filer hashverifierade mot UX; exempelresurser cirka 42 MB.
+Befintlig menydelegate döljer separatorn direkt före Open Example utan
+att flytta menyobjekt eller ändra åtgärder. Release byggt, installerat och
+signaturverifierat. Manuellt öppnat Example: nio .jpg, fem maskmarkörer,
+två aktiva patchar. Command-O verifierat med vanlig filväljare.
+Ingen commit/push.
+
+
+## Återställd patchhantering — 2026-10-09
+
+På användarens begäran återställdes senaste ändringen och dess regressionstest.
+Create Panorama rensar åter patcharna efter lyckad stitching.
+UX-exemplet och menyplaceringen behålls.
+
+
+## Varning före Create Panorama med retusch — 2026-10-09
+
+Alla UI-vägar använder AppModel.stitch som nu begär bekräftelse om det
+finns retuschpatchar (även disabled). ContentView visar Create Panorama?
+med Cancel och destruktiv Create Panorama-knapp; varnar att patcharna
+tas bort och att det inte kan ångras. Endast bekräftelse anropar
+stitchDiscardingRetouch. Utan patchar startar stitching direkt.
+Regressionstest verifierar att begäran inte startar stitching eller
+ändrar panorama/patchdata och att även disabled-patchar ger varning.
+Båda retuschtesterna godkända, Release byggt och signaturverifierat.
+Installerat utan att avsluta användarens öppna projekt/sparfråga.
+
+
+## Checkpoint 2026-10-10-00-00
+
+Användaren begärde t+p+c: aktuellt UX-exempel med nio JPEG-bilder,
+Open Example direkt under Open utan separator, och bekräftelse före
+Create Panorama om retuschpatchar finns. Senaste Release-build och
+båda retuschtesterna godkända. Commit och annoterad datumtagg till origin/main.

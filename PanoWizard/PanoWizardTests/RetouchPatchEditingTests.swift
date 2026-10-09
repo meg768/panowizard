@@ -70,6 +70,35 @@ struct RetouchPatchEditingTests {
         #expect(model.retouchPatchData.keys.contains(manualPatch.id))
     }
 
+    @Test("Creating a panorama requires confirmation for existing retouch")
+    @MainActor
+    func requiresConfirmationBeforeStitching() throws {
+        let document = try PanoProjectDocument.example()
+        let model = AppModel.live(
+            project: document.project,
+            panoramaData: document.panoramaData,
+            retouchPatchData: document.retouchPatchData
+        )
+        let originalURL = model.stitchedResultURL
+        let originalPatches = model.retouchPatches
+        model.stitch()
+        #expect(model.confirmsDiscardRetouchForStitch)
+        #expect(model.phase == .ready)
+        #expect(model.stitchedResultURL == originalURL)
+        #expect(model.retouchPatches == originalPatches)
+        #expect(model.retouchPatchData == document.retouchPatchData)
+
+        // Cancelling does not remove patches; disabled patches still need a warning.
+        model.confirmsDiscardRetouchForStitch = false
+        for index in model.project.retouchPatches.indices {
+            model.project.retouchPatches[index].isEnabled = false
+        }
+        model.stitch()
+        #expect(model.confirmsDiscardRetouchForStitch)
+        #expect(model.phase == .ready)
+        #expect(model.retouchPatches.count == originalPatches.count)
+    }
+
     private func patchPNGData() throws -> Data {
         guard let image = NSBitmapImageRep(
             bitmapDataPlanes: nil,

@@ -103,6 +103,14 @@ struct ContentView: View {
                 undo: model.undoMask
             )
         )
+        .alert("Create Panorama?", isPresented: $model.confirmsDiscardRetouchForStitch) {
+            Button("Cancel", role: .cancel) {}
+            Button("Create Panorama", role: .destructive) {
+                model.stitchDiscardingRetouch()
+            }
+        } message: {
+            Text("Creating a new panorama will remove all retouch patches, including disabled patches. This cannot be undone.")
+        }
         .alert("Remove All Images?", isPresented: $confirmsRemoveAllImages) {
             Button("Cancel", role: .cancel) {}
             Button("Remove All", role: .destructive) { model.removeAllSourceImages() }

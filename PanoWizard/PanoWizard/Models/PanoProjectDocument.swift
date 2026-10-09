@@ -56,6 +56,29 @@ struct PanoProjectDocument: FileDocument, Equatable {
         )
     }
 
+    static func example() throws -> PanoProjectDocument {
+        guard let url = Bundle.main.url(forResource: "Example", withExtension: "pw", subdirectory: "Example")
+        else { throw CocoaError(.fileNoSuchFile) }
+        var document = try PanoProjectDocument(contentsOf: url)
+        let files = FileManager.default
+        let sources = try files.url(
+            for: .applicationSupportDirectory, in: .userDomainMask,
+            appropriateFor: nil, create: true
+        ).appending(path: "PanoWizard/Example")
+        try files.createDirectory(at: sources, withIntermediateDirectories: true)
+        for index in document.project.images.indices {
+            let original = document.project.images[index].url
+            let copy = sources.appending(path: original.lastPathComponent)
+            if !files.fileExists(atPath: copy.path) {
+                try files.copyItem(at: original, to: copy)
+            }
+            document.project.images[index].url = copy
+        }
+        document.project.id = UUID()
+        document.project.title = "Example"
+        return document
+    }
+
     private init(fileWrapper: FileWrapper, projectURL: URL?) throws {
         guard fileWrapper.isDirectory,
               let wrappers = fileWrapper.fileWrappers,
@@ -227,7 +250,7 @@ struct PanoProjectDocument: FileDocument, Equatable {
             let storedURL = project.images[index].url
             let resolvedURL = storedURL.isFileURL
                 ? storedURL.standardizedFileURL
-                : directoryURL.appending(path: storedURL.path)
+                : directoryURL.resolvingSymlinksInPath().appending(path: storedURL.path)
                     .standardizedFileURL
             let fallbackURL = directoryURL.appending(
                 path: storedURL.lastPathComponent
@@ -282,8 +305,8 @@ struct PanoProjectDocument: FileDocument, Equatable {
 
     private static func relativePath(from directoryURL: URL, to fileURL: URL)
         -> String {
-        let base = directoryURL.standardizedFileURL.pathComponents
-        let target = fileURL.standardizedFileURL.pathComponents
+        let base = directoryURL.resolvingSymlinksInPath().pathComponents
+        let target = fileURL.resolvingSymlinksInPath().pathComponents
         var commonCount = 0
         while commonCount < min(base.count, target.count),
               base[commonCount] == target[commonCount] {

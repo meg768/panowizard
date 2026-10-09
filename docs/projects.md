@@ -16,4 +16,8 @@ If a project needs permission to read its photographs, follow [File Access / Gra
 
 Next: [Adding Source Images](source-images.html).
 
+## Open the example
+
+Choose **File → Open Example** to explore a handheld panorama from UX with nine JPEG source images, red exclusion and green inclusion masks, and two manual patches: at the nadir and along a flagpole. It opens as a new, unsaved project named **Example**. Experiment with masks, retouch, preview, and export; choose **File → Save** to keep your own project. Opening the example again starts from the supplied version.
+
 [Back to PanoWizard Help](index.html)

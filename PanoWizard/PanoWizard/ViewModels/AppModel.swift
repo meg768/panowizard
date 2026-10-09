@@ -66,6 +66,7 @@ final class AppModel {
     var sourceMaskIntent = SourceMaskIntent.exclude
     var sourceMaskTool = SourceMaskTool.brush
     var stitchProgress = 0.0
+    var confirmsDiscardRetouchForStitch = false
     var stitchStage = ""
     var lastStitchCoverage: Double?
     var lastStitchHoleCount: Int?
@@ -310,6 +311,16 @@ final class AppModel {
     }
 
     func stitch() {
+        guard canStitch else { return }
+        if !retouchPatches.isEmpty {
+            confirmsDiscardRetouchForStitch = true
+            return
+        }
+        stitchDiscardingRetouch()
+    }
+
+    func stitchDiscardingRetouch() {
+        confirmsDiscardRetouchForStitch = false
         guard let panorama, canStitch else { return }
         let operationID = UUID()
         stitchOperationID = operationID
