@@ -1592,3 +1592,12 @@ KISS och inga automatiska regressionstester på eget initiativ är bestående
 preferenser; tidigare tillagt remove-all-test från före testpreferensen ingår
 i checkpointen. Senaste ändringar byggda och manuellt verifierade enligt ovan.
 Befintliga separata Xcode-version/schemaändringar och docs-copy/ lämnas utanför.
+
+
+## Kortkommando tcp — 2026-10-09
+
+Magnus använder framöver tcp för tagg + commit + push. Praktisk ordning:
+committa aktuellt godkänt arbete/kontext, skapa annoterad lokal datumtagg
+på den nya commiten och pusha commit och tagg. Denna checkpoint sparar
+benämningen; inga nya appändringar sedan d615674. Separata Xcode-ändringar
+och docs-copy/ lämnas fortsatt utanför.
