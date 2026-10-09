@@ -114,3 +114,19 @@ struct ImageSurfaceScrollGesture {
     func zoomImageOut(_ sender: Any?)
     func resetImageView(_ sender: Any?)
 }
+
+@MainActor
+enum ImageNavigationCommands {
+    static func send(_ action: Selector) {
+        if NSApp.sendAction(action, to: nil, from: nil) { return }
+        guard let root = NSApp.keyWindow?.contentView,
+              let target = navigationView(in: root) else { return }
+        NSApp.sendAction(action, to: target, from: nil)
+    }
+
+    private static func navigationView(in view: NSView) -> NSView? {
+        guard !view.isHidden else { return nil }
+        if view is ImageNavigationResponder { return view }
+        return view.subviews.lazy.compactMap { navigationView(in: $0) }.first
+    }
+}

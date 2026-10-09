@@ -198,6 +198,31 @@ struct PanoProjectTests {
         #expect(project.images.map(\.id) == [second.id])
     }
 
+    @Test("Removing all sources clears derived state and preserves original files")
+    @MainActor
+    func removeAllSources() throws {
+        var first = sourceImage()
+        first.url = FileManager.default.temporaryDirectory.appending(path: "\(UUID()).jpg")
+        let second = sourceImage()
+        let original = Data([1, 2, 3, 4])
+        try original.write(to: first.url)
+        defer { try? FileManager.default.removeItem(at: first.url) }
+        let model = AppModel.live(
+            project: PanoProject(images: [first, second]),
+            panoramaData: Data([5, 6, 7])
+        )
+        model.selectSourceImage(first.id)
+        model.setSourceMasks(red: Data([8]), green: Data([9]), for: first.id)
+        model.removeAllSourceImages()
+        #expect(model.project.images.isEmpty)
+        #expect(model.selection == nil)
+        #expect(model.stitchedResultURL == nil)
+        #expect(model.maskDataByImageID.isEmpty)
+        #expect(model.protectedMaskDataByImageID.isEmpty)
+        #expect(!model.canUndoMask)
+        #expect(try Data(contentsOf: first.url) == original)
+    }
+
     @Test("Number control selects and toggles its source image")
     @MainActor
     func selectAndToggleSource() {

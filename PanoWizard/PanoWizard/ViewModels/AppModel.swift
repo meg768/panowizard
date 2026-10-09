@@ -220,6 +220,18 @@ final class AppModel {
         removeSourceImage(id)
     }
 
+    func removeAllSourceImages() {
+        guard !project.images.isEmpty else { return }
+        cancelStitch()
+        project.replaceImages([])
+        maskDataByImageID.removeAll()
+        protectedMaskDataByImageID.removeAll()
+        maskUndoHistory.removeAll()
+        maskRevision += 1
+        invalidatePanorama()
+        selection = nil
+    }
+
     func removeSourceImage(_ id: SourceImage.ID) {
         guard let index = project.images.firstIndex(where: { $0.id == id }) else {
             return

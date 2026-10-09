@@ -1,6 +1,6 @@
 # Creating and Opening Projects
 
-Choose **Create Your Panorama** on the start dialog and select your source images, or choose **File → New** for an empty project and click **Add**. Use **Open Existing Panorama…** on the start dialog or **File → Open…** to open an existing `.pw` project.
+PanoWizard starts in a normal project window with an empty project. The welcome view stays inside that window, so the menus remain available. Click **Add Images…** to choose your source images. Choose **File → New** for another empty project. Use **Open Existing Panorama…** in the welcome view or **File → Open…** to open an existing `.pw` project.
 
 ## Save your work
 

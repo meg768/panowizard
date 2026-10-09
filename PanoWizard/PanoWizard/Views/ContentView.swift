@@ -6,6 +6,8 @@ struct ContentView: View {
     @Bindable var model: AppModel
     let projectName: String?
     let projectDirectoryURL: URL?
+    @State private var columnVisibility = NavigationSplitViewVisibility.all
+    @State private var confirmsRemoveAllImages = false
     @State private var exportController = PanoramaExportController()
     @State private var retouchPatchPresentation: RetouchPatchPresentation?
     @State private var isLittlePlanetPresented = false
@@ -17,7 +19,7 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             Group {
-                    NavigationSplitView(columnVisibility: .constant(.all)) {
+                    NavigationSplitView(columnVisibility: $columnVisibility) {
                         PanoramaSidebar(model: model)
                             .onGeometryChange(for: CGFloat.self) { geometry in
                                 geometry.size.width
@@ -33,7 +35,6 @@ struct ContentView: View {
                         detailWorkspace
                     }
                     .navigationSplitViewStyle(.balanced)
-                    .toolbar(removing: .sidebarToggle)
             }
             .disabled(
                 retouchPatchPresentation != nil || isLittlePlanetPresented
@@ -79,6 +80,10 @@ struct ContentView: View {
         .focusedSceneValue(
             \.imagesCommandActions,
             ImagesCommandActions(
+                canNavigateImage: !model.project.images.isEmpty
+                    && (model.selection == .retouch
+                        ? model.currentPanoramaURL != nil
+                        : model.selectedPreviewURL != nil),
                 images: model.project.images.map { image in
                     ImageCommandItem(
                         id: image.id,
@@ -87,6 +92,7 @@ struct ContentView: View {
                     )
                 },
                 addImages: { model.isImporterPresented = true },
+                removeAllImages: { confirmsRemoveAllImages = true },
                 selectImage: model.selectSourceImage
             )
         )
@@ -97,6 +103,12 @@ struct ContentView: View {
                 undo: model.undoMask
             )
         )
+        .alert("Remove All Images?", isPresented: $confirmsRemoveAllImages) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove All", role: .destructive) { model.removeAllSourceImages() }
+        } message: {
+            Text("Remove all source images and the generated panorama from this project? Original files will remain on disk.")
+        }
         .fileImporter(
             isPresented: $model.isImporterPresented,
             allowedContentTypes: [.image],
@@ -136,7 +148,11 @@ struct ContentView: View {
             workspaceToolRow
         } content: {
             ZStack {
-                if model.selection == .export {
+                if model.project.images.isEmpty {
+                    EmptyProjectWelcomeView {
+                        model.isImporterPresented = true
+                    }
+                } else if model.selection == .export {
                     PanoramaExportView(
                         model: model,
                         controller: exportController,

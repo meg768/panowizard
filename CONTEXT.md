@@ -1472,3 +1472,123 @@ projektval, borttagen egen fönsteråterställning/defaultSize och motsvarande
 dokumentation samt kontext. Release-byggen och GUI-prov beskrivs ovan.
 Separata befintliga Xcode-version/schemaändringar och docs-copy/ lämnas
 utanför denna commit. Annoterad datumtagg enligt Europe/Stockholm.
+
+
+## Sju samlade GUI-ändringar — 2026-10-09
+
+Användaren godkände ett samlat genomförande efter gemensam lista:
+1. Zoom In/Out/Reset når aktuell synlig ImageNavigationResponder även från
+sidopanelen, med vanlig responderkedja först och fönstrets bildvy som fallback.
+2. Den låsta sidopanelens show/hide-knapp borttagen även på sidebar-kolumnen.
+3. Normal projektfönsterstorlek sparas globalt i UserDefaults efter manuell
+storleksändring (didEndLiveResize). Bara bredd/höjd, ingen position, inget
+.pw-innehåll och inget Save-krav. Inga frame-autosave-nycklar. Zoom/helskärm
+förblir macOS ansvar. Detta ersätter gårdagens beslut om helt native storlek.
+4. Images → Remove All… efter Add… med Cancel/Remove All-bekräftelse. Rensar
+källor, masker, panorama och patchar ur projektet, behåller originalfiler.
+Inaktivt utan bilder.
+5. Images-menyn visar endast filnamn, behåller markering/Option-siffergenvägar.
+6. Preview-tomvy: eye-symbol och No Panorama to Preview.
+7. Alla tre tomvyers Create använder pano-symbol och befintlig pill-stil.
+
+Release byggt och kopierat till Applications, signatur verifierad. 12
+PanoProjectTests passerar, inklusive nytt remove-all-test som verifierar att
+originalfilen behålls. Startmodalitet hoppas över i XCTest-värd så tester kan
+starta. GUI: zoom via meny med sidofokus, borttagen toggle, rena filnamn,
+Remove All Cancel/bekräftelse/inaktiv efteråt, Preview/Retouch/Export-tomvyer.
+Manuell resize gav 2222×1542 skärmbildspixlar och nästa nya projekt exakt samma
+storlek. Projekt N:s GUI-borttagning sparades inte; N öppnades igen oförändrat.
+Tillfälliga Untitled-projekt stängdes utan att sparas. N ligger öppet.
+Source images-guiden beskriver Remove All. Ingen commit/push begärd. Tidigare
+Xcode-version/schemaändringar och docs-copy/ har inte ändrats av detta arbete.
+
+
+## Enkel projektstart och renare sidopanel — 2026-10-09
+
+Ny lista godkänd för enkel samlad implementation:
+1. Den separata välkomstscenen och modal AppKit-loop borttagna helt.
+DocumentGroup har defaultLaunchBehavior(.suppressed) för att undvika automatisk
+filväljare; appdelegate skapar ett normalt tomt dokument efter start om inga
+dokument finns. XCTest-start hoppar över detta.
+2. Sidopanelens toggle återställd; NavigationSplitView får en riktig State-binding
+för columnVisibility i stället för constant(.all). GUI verifierat hide och show.
+3. project.images.isEmpty är gemensamt välkomsttillstånd i ContentView före
+arbetsvyernas grenar, både vid start och Remove All, oavsett vald arbetsvy.
+Create a Panorama / Add overlapping photos, then create your panorama.
+Knappar Add Images… och Open Existing Panorama… använder befintlig stil och
+import/öppning; ingen egen modalitet eller specialfönster.
+4. Images/Panorama-indata/resultatgrupper behållna. Bred Add Images… direkt
+under Images-rubriken. Create borttagen från Panorama-rubriken; meny och
+tomma panoramavyers Create behållna. Inget extra platshållarlöv.
+
+Release byggt, installerat i Applications och signaturverifierat. 12
+PanoProjectTests passerar. GUI: tom projektstart utan filväljare/dialog, toggle
+båda riktningar, välkomstvy från Retouch, import av N-bild, Remove All återgår
+till välkomstvyn, Open Existing Panorama öppnar N med fem bilder. Testprojektet
+är tillfälligt och ska inte sparas; originalen har inte ändrats. Startguidens
+texter/bilder och berörda guider uppdaterade till den nya layouten. Ingen
+commit/push begärd. Tidigare ändringar från sjupunktslistan bevarade.
+
+
+## Bestående arbetsprincip: KISS — 2026-10-09
+
+Magnus vill alltid hitta den enklaste lösningen för uppgiften och få så enkel
+kod som möjligt. Ledord: KISS — Keep It Simple Stupid. Prioritera befintliga
+plattformsmönster och standardbeteenden, återanvänd fungerande lösningar och
+undvik onödig specialhantering eller abstraktion. Var kritisk till ändringar
+som kräver stor mängd kod; förklara kostnaden och föreslå en enklare väg när
+det finns en sådan. Säg till om ett önskemål bryter mot tillämpliga standarder
+eller regelverk och förklara konkret vad som berörs. Enkelhet ska fortfarande
+uppfylla uppgiftens krav och ge korrekt beteende. Detta gäller fortsatt arbete.
+
+
+## Bestående testpreferens — 2026-10-09
+
+Magnus vill inte att agenten skapar eller kör automatiska regressionstester
+på eget initiativ. Sådana tester utförs endast på uttrycklig begäran.
+Byggkontroll och praktisk/manuell verifiering av efterfrågade ändringar
+kan fortsatt användas.
+
+
+## Bred Create Panorama och fotografisk välkomstvy — 2026-10-09
+
+Två godkända listpunkter genomförda enligt KISS. Create Panorama ligger brett
+under Panorama, med pano-symbol, befintlig WorkspaceToolbarPillStyle och
+model.stitch/canStitch; samma bredd som Add Images. Välkomstvyn återanvänder
+befintliga Backgrounds/*.jpg. En statisk slumpvald NSImage behålls under
+sessionen; ingen ny lagring, karusell, animation eller dialog. Bakgrunden
+fyller endast den tomma projektvyn och tonas med svart 58 %, med vit text
+och befintliga knappstilar. Inga automatiska regressionstester skapade/körda.
+Release byggt, kopierat till Applications och signaturverifierat. GUI:
+bakgrund/läsbarhet, knappbredd och inaktiv knapp i tomt projekt, öppning av N
+och aktiv knapp som startar stitch-progress (därefter avbruten).
+Startbild och Create-instruktioner uppdaterade. Ingen commit/push begärd.
+
+
+## Menyaktivering och startdokumentation — 2026-10-09
+
+Senaste trepunktslistan genomförd enligt KISS utan automatiska regressionstester.
+ImagesCommandActions får canNavigateImage utifrån aktuell bildvy; Zoom In/Out/
+Reset View är disabled utan bild, även i Export och tomma panoramavyer.
+Sidebar.onDeleteCommand får nil när ingen källbild är vald, så AppKit gråar
+Delete. Ingen ersättning av standard Edit-meny eller textfältens responderkedja.
+Manuellt GUI-verifierat: tomt projekt har inaktiva Zoom/Delete/Remove All och
+Panorama Create/Retouch/Preview/Export; Add fungerar. J öppnat och vald källbild
+ger aktiv Delete samt aktiva zoomkommandon. Originalprojekten ändrades inte.
+Övriga mask/skapande/exportkontroller behåller befintliga innehållsvillkor.
+Dokumentationen granskad: inga kvarvarande hänvisningar till modal startdialog.
+Getting Started och Projects förtydligar normal projektstart med tillgängliga
+menyer; aktuell fotografisk startbild uppdaterad. Release byggt, kopierat till
+Applications, signaturverifierat och diff-check godkänd. Ingen commit/push.
+
+
+## Samlat checkpoint — 2026-10-09
+
+Användaren begärde t+p+c, tolkat som commit, annoterad datumtagg och push
+till origin/main. Checkpointen omfattar dagens godkända ändringslistor, aktuell
+normal projektstart/fotografisk välkomstvy, sidopanel och innehållsberoende
+kommandon, global vanlig fönsterstorlek, Remove All och uppdaterad docs.
+KISS och inga automatiska regressionstester på eget initiativ är bestående
+preferenser; tidigare tillagt remove-all-test från före testpreferensen ingår
+i checkpointen. Senaste ändringar byggda och manuellt verifierade enligt ovan.
+Befintliga separata Xcode-version/schemaändringar och docs-copy/ lämnas utanför.

@@ -50,13 +50,13 @@ struct PanoramaPreview: View {
                     }
                 } else {
                     ContentUnavailableView {
-                        Label("No Panorama Created", systemImage: "panorama")
+                        Label("No Panorama to Preview", systemImage: "eye")
                     } description: {
                         Text(
                             "Create the panorama to preview it in 360°."
                         )
                     } actions: {
-                        Button("Create", action: createPanorama)
+                        Button(action: createPanorama) { Label("Create", systemImage: "pano") }
                             .buttonStyle(WorkspaceToolbarPillStyle())
                             .disabled(!canCreate)
                     }

@@ -1,6 +1,6 @@
 # Creating the Panorama
 
-Click **Create** beside **Panorama**, or choose **Panorama → Create**. PanoWizard analyzes the overlapping images, aligns them, and stitches the panorama in one operation. There is no separate Analyze step.
+Click **Create Panorama** in the sidebar or choose **Panorama → Create**. You can also click **Create** in an empty Retouch, Preview, or Export view. PanoWizard analyzes the overlapping images, aligns them, and stitches the panorama in one operation. There is no separate Analyze step.
 
 The progress dialog shows the current stage. Creation can take a few minutes; **Cancel** stops the operation. When complete, **Preview** opens. The current application creates a **4096 × 2048** panorama.
 

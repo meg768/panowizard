@@ -1,6 +1,6 @@
 # Adding Source Images
 
-For a new project, **Create Your Panorama** on the start dialog opens **Choose Source Images**. Select the photographs together and click **Choose Images**. In an open project, click **Add** in the sidebar or choose **Images → Add...**.
+Click **Add Images…** in the sidebar or welcome view, or choose **Images → Add...**. Select the photographs together and click **Open**. The welcome view appears whenever the project has no source images.
 
 ![Selecting the five source photographs together](Images/00-choose-images.png)
 
@@ -29,3 +29,5 @@ Leave **Image Type → Automatic** selected unless you need to override the role
 Next: [Creating the Panorama](creating-panorama.html).
 
 [Back to PanoWizard Help](index.html)
+
+Choose **Images → Remove All…** to remove every source image from the project. Confirm with **Remove All**, or choose **Cancel** to keep them. This also clears the generated panorama and retouch patches; original files remain on disk.

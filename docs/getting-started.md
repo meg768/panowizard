@@ -6,15 +6,17 @@ Start with one complete ring of overlapping fisheye photographs. See [Adding Sou
 
 ## 1. Import
 
-On the start dialog, click **Create Your Panorama**, select the photographs together, and click **Choose Images**. This loads the images; it does not stitch them yet.
+When you launch PanoWizard without a project, the project window shows the welcome view below.
 
-![The current start dialog with Create Your Panorama](Images/00-welcome.png)
+Click **Add Images…** in the welcome view or sidebar, select the photographs together, and click **Open**. This loads the images; it does not stitch them yet.
+
+![An empty project welcomes you with Add Images and Open Existing Panorama](Images/00-welcome.png)
 
 ## 2. Create
 
-Click **Create** beside **Panorama** in the sidebar. Wait while PanoWizard aligns and stitches the images.
+Click **Create Panorama** under **Panorama** in the sidebar, or choose **Panorama → Create**. Wait while PanoWizard aligns and stitches the images.
 
-![Five coastal photographs imported, with Create beside Panorama](Images/01-source-images.png)
+![Five coastal photographs imported in the Images sidebar](Images/01-source-images.png)
 
 ## 3. Preview
 

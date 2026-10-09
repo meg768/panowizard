@@ -7,20 +7,23 @@ struct PanoramaSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Text("Images").font(.headline)
-                Spacer(minLength: 12)
-                Button {
-                    model.isImporterPresented = true
-                } label: {
-                    Label("Add", systemImage: "plus")
-                }
-                .buttonStyle(WorkspaceToolbarPillStyle())
-                .help("Add source images")
+            Text("Images")
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .frame(height: 44)
+                .background(.bar)
+
+            Button {
+                model.isImporterPresented = true
+            } label: {
+                Label("Add Images…", systemImage: "plus")
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(WorkspaceToolbarPillStyle())
             .padding(.horizontal, 16)
-            .frame(height: 44)
-            .background(.bar)
+            .padding(.bottom, 8)
+            .help("Add source images")
 
             ZStack {
                 List(selection: $model.selection) {
@@ -34,6 +37,16 @@ struct PanoramaSidebar: View {
                     }
 
                         Section {
+                            Button {
+                                model.stitch()
+                            } label: {
+                                Label("Create Panorama", systemImage: "pano")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(WorkspaceToolbarPillStyle())
+                            .disabled(!model.canStitch)
+                            .listRowSeparator(.hidden)
+
                             navigationRow(
                                 "Retouch",
                                 systemImage: "paintbrush.pointed",
@@ -50,20 +63,9 @@ struct PanoramaSidebar: View {
                                 selection: .export
                             )
                         } header: {
-                            HStack(spacing: 12) {
-                                Text("Panorama")
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
-                                Spacer(minLength: 12)
-                                Button {
-                                    model.stitch()
-                                } label: {
-                                    Label("Create", systemImage: "pano")
-                                }
-                                .buttonStyle(WorkspaceToolbarPillStyle())
-                                .disabled(!model.canStitch)
-                                .help("Create a panorama with the current images and masks")
-                            }
+                            Text("Panorama")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
                             .textCase(nil)
                             .padding(.leading, 4)
                             .padding(.trailing, 14)
@@ -79,9 +81,9 @@ struct PanoramaSidebar: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
-        .onDeleteCommand {
+        .onDeleteCommand(perform: model.selectedSourceImage == nil ? nil : {
             pendingDeletion = model.selectedSourceImage
-        }
+        })
         .confirmationDialog(
             "Remove Source Image?",
             isPresented: Binding(

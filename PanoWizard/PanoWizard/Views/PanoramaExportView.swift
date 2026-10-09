@@ -155,7 +155,7 @@ struct PanoramaExportView: View {
                     Button {
                         model.stitch()
                     } label: {
-                        Text("Create")
+                        Label("Create", systemImage: "pano")
                     }
                     .buttonStyle(WorkspaceToolbarPillStyle())
                     .disabled(!model.canStitch)

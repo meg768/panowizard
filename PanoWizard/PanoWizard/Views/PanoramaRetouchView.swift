@@ -141,7 +141,7 @@ struct PanoramaRetouchView: View {
                     Button("Add") { model.isImporterPresented = true }
                         .buttonStyle(WorkspaceToolbarPillStyle())
                 } else {
-                    Button("Create") { model.stitch() }
+                    Button { model.stitch() } label: { Label("Create", systemImage: "pano") }
                         .buttonStyle(WorkspaceToolbarPillStyle())
                         .disabled(!model.canStitch)
                 }

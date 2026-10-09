@@ -101,7 +101,11 @@ private final class PanoWizardApplicationDelegate: NSObject, NSApplicationDelega
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.helpMenu = spotlightHelpMenu
         installFileMenuCleanupWhenReady(attempt: 0)
-        openWelcomeWindowWhenReady(attempt: 0)
+        DispatchQueue.main.async {
+            guard ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil,
+                  NSDocumentController.shared.documents.isEmpty else { return }
+            NSDocumentController.shared.newDocument(nil)
+        }
     }
 
     func applicationDidUpdate(_ notification: Notification) {
@@ -138,18 +142,7 @@ private final class PanoWizardApplicationDelegate: NSObject, NSApplicationDelega
         return true
     }
 
-    private func openWelcomeWindowWhenReady(attempt: Int) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            guard NSApp.windows.allSatisfy({ !$0.isVisible }) else { return }
-            if let item = NSApp.windowsMenu?.items.first(where: {
-                $0.title == "PanoWizard" && $0.action != nil
-            }), let action = item.action {
-                NSApp.sendAction(action, to: item.target, from: item)
-            } else if attempt < 20 {
-                self.openWelcomeWindowWhenReady(attempt: attempt + 1)
-            }
-        }
-    }
+
 }
 
 struct PanoramaCommandActions {
@@ -169,8 +162,10 @@ struct ImageCommandItem: Identifiable {
 }
 
 struct ImagesCommandActions {
+    let canNavigateImage: Bool
     let images: [ImageCommandItem]
     let addImages: () -> Void
+    let removeAllImages: () -> Void
     let selectImage: (SourceImage.ID) -> Void
 }
 
@@ -230,22 +225,15 @@ struct PanoWizardApp: App {
     private var applicationDelegate
 
     var body: some Scene {
-        Window("PanoWizard", id: "welcome") {
-            PanoramaLaunchView()
-        }
-        .defaultSize(width: StartupDialogLayout.size.width, height: StartupDialogLayout.size.height)
-        .windowResizability(.contentSize)
-        .windowStyle(.hiddenTitleBar)
-        .defaultLaunchBehavior(.presented)
-        .restorationBehavior(.disabled)
-
         DocumentGroup(newDocument: PanoProjectDocument()) { file in
             ProjectDocumentView(
                 document: file.$document,
                 documentURL: file.fileURL
             )
                 .frame(minWidth: 900, minHeight: 600)
+                .background(ProjectWindowSize())
         }
+        .defaultLaunchBehavior(.suppressed)
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("About PanoWizard") {
@@ -276,36 +264,35 @@ struct PanoWizardApp: App {
 }
 
 private struct ImageNavigationMenuCommands: Commands {
+    @FocusedValue(\.imagesCommandActions) private var actions
+
     var body: some Commands {
         CommandGroup(after: .toolbar) {
             Divider()
 
             Button("Zoom In") {
-                NSApp.sendAction(
-                    #selector(ImageNavigationResponder.zoomImageIn(_:)),
-                    to: nil,
-                    from: nil
+                ImageNavigationCommands.send(
+                    #selector(ImageNavigationResponder.zoomImageIn(_:))
                 )
             }
             .keyboardShortcut("+")
+            .disabled(actions?.canNavigateImage != true)
 
             Button("Zoom Out") {
-                NSApp.sendAction(
-                    #selector(ImageNavigationResponder.zoomImageOut(_:)),
-                    to: nil,
-                    from: nil
+                ImageNavigationCommands.send(
+                    #selector(ImageNavigationResponder.zoomImageOut(_:))
                 )
             }
             .keyboardShortcut("-")
+            .disabled(actions?.canNavigateImage != true)
 
             Button("Reset View") {
-                NSApp.sendAction(
-                    #selector(ImageNavigationResponder.resetImageView(_:)),
-                    to: nil,
-                    from: nil
+                ImageNavigationCommands.send(
+                    #selector(ImageNavigationResponder.resetImageView(_:))
                 )
             }
             .keyboardShortcut("0")
+            .disabled(actions?.canNavigateImage != true)
         }
     }
 }
@@ -333,6 +320,8 @@ private struct ImagesMenuCommands: Commands {
         CommandMenu("Images") {
             Button("Add...") { actions?.addImages() }
                 .disabled(actions == nil)
+            Button("Remove All…") { actions?.removeAllImages() }
+                .disabled(actions?.images.isEmpty != false)
             if !(actions?.images.isEmpty ?? true) { Divider() }
             ForEach(
                 Array((actions?.images ?? []).enumerated()),
@@ -358,7 +347,7 @@ private struct ImagesMenuCommands: Commands {
         Button {
             actions?.selectImage(image.id)
         } label: {
-            let title = "\(number). \(image.filename)"
+            let title = image.filename
             if image.isSelected {
                 Label(title, systemImage: "checkmark")
             } else {
@@ -439,7 +428,6 @@ private struct PanoramaMenuCommands: Commands {
 }
 
 private struct ProjectDocumentView: View {
-    @Environment(\.dismissWindow) private var dismissWindow
     @State private var model: AppModel?
     @State private var savedDocument: PanoProjectDocument
     @State private var saveURL: URL?
@@ -561,7 +549,6 @@ private struct ProjectDocumentView: View {
                 Text(saveError ?? "Unknown error")
             }
             .onAppear {
-                dismissWindow(id: "welcome")
                 updateWindowState()
             }
             .task {
@@ -825,5 +812,61 @@ private struct ProjectWindowAccessor: NSViewRepresentable {
             guard let window = view.window else { return }
             resolve(window)
         }
+    }
+}
+
+/// Shares only normal project content size. Position and screen state stay with macOS.
+private struct ProjectWindowSize: NSViewRepresentable {
+    private final class AttachmentView: NSView {
+        private weak var attachedWindow: NSWindow?
+        private var observer: NSObjectProtocol?
+        private static let widthKey = "PanoWizard.ProjectWindow.contentWidth"
+        private static let heightKey = "PanoWizard.ProjectWindow.contentHeight"
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard attachedWindow !== window else { return }
+            if let observer { NotificationCenter.default.removeObserver(observer) }
+            observer = nil
+            attachedWindow = window
+            guard let window else { return }
+            let defaults = UserDefaults.standard
+            let width = defaults.double(forKey: Self.widthKey)
+            let height = defaults.double(forKey: Self.heightKey)
+            if width > 0, height > 0, !window.styleMask.contains(.fullScreen) {
+                let available = window.screen?.visibleFrame.size ?? NSSize(width: width, height: height)
+                window.setContentSize(NSSize(
+                    width: min(max(width, 900), available.width),
+                    height: min(max(height, 600), available.height - 40)
+                ))
+            }
+            observer = NotificationCenter.default.addObserver(
+                forName: NSWindow.didEndLiveResizeNotification, object: window, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.saveNormalSize() }
+            }
+        }
+
+        private func saveNormalSize() {
+            guard let window = attachedWindow,
+                  !window.isZoomed, !window.styleMask.contains(.fullScreen) else { return }
+            let size = window.contentRect(forFrameRect: window.frame).size
+            if let screen = window.screen?.visibleFrame,
+               window.frame.width >= screen.width - 2,
+               window.frame.height >= screen.height - 2 { return }
+            UserDefaults.standard.set(size.width, forKey: Self.widthKey)
+            UserDefaults.standard.set(size.height, forKey: Self.heightKey)
+        }
+
+        func stopObserving() {
+            if let observer { NotificationCenter.default.removeObserver(observer) }
+            observer = nil
+        }
+    }
+
+    func makeNSView(context: Context) -> NSView { AttachmentView() }
+    func updateNSView(_ view: NSView, context: Context) {}
+    static func dismantleNSView(_ view: NSView, coordinator: ()) {
+        (view as? AttachmentView)?.stopObserving()
     }
 }
