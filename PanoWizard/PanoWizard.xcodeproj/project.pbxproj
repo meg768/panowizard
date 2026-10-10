@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A2A0CEF706E4471D8E156B11 /* Resources/Example in Resources */ = {isa = PBXBuildFile; fileRef = E02CDE87C9A44145AA458D51 /* Resources/Example */; };
 		000C85383CCB4E229F728A14 /* Vendor/OpenCV/lib/libopencv_photo.500.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 02DCFC88F83045958E37BA70 /* Vendor/OpenCV/lib/libopencv_photo.500.dylib */; };
 		00454D872C7A4E998B2FA4D7 /* Vendor/OpenCV/lib/libopencv_imgproc.500.dylib in Embed OpenCV Libraries */ = {isa = PBXBuildFile; fileRef = 946CB43764E7415A9D210836 /* Vendor/OpenCV/lib/libopencv_imgproc.500.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		0166FB5A9702487781550106 /* Vendor/OpenCV/lib/libopencv_objdetect.500.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = F1BFCD7E88C44B3BA9FB5F92 /* Vendor/OpenCV/lib/libopencv_objdetect.500.dylib */; };
@@ -90,7 +89,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		E02CDE87C9A44145AA458D51 /* Resources/Example */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/Example; sourceTree = "<group>"; };
 		02DCFC88F83045958E37BA70 /* Vendor/OpenCV/lib/libopencv_photo.500.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = Vendor/OpenCV/lib/libopencv_photo.500.dylib; sourceTree = "<group>"; };
 		132D85E40BD345DA90E6A0EA /* Vendor/OpenCV/lib/libopencv_core.500.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = Vendor/OpenCV/lib/libopencv_core.500.dylib; sourceTree = "<group>"; };
 		1F6F12E988F840FA8612E14B /* Vendor/OpenCV/lib/libopencv_calib.500.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = Vendor/OpenCV/lib/libopencv_calib.500.dylib; sourceTree = "<group>"; };
@@ -218,7 +216,6 @@
 		AA5AA1A9822741F4A955797C /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				E02CDE87C9A44145AA458D51 /* Resources/Example */,
 				BEC8C974AC0A4A8198FB6210 /* Resources/Backgrounds */,
 				E2DE47DF8743472286CEEECA /* Resources/ThirdPartyLicenses */,
 			);
@@ -364,7 +361,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A2A0CEF706E4471D8E156B11 /* Resources/Example in Resources */,
 				37BD371D5C4D4D71A0739AFC /* Resources/Backgrounds in Resources */,
 				9BE3DA9456E849F887F562E0 /* Resources/ThirdPartyLicenses in Resources */,
 			);

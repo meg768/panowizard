@@ -214,7 +214,9 @@ struct PanoramaSidebar: View {
             .contentShape(Rectangle())
         .padding(.vertical, 5)
         .tag(selection)
-        .disabled(model.project.images.isEmpty)
+        .opacity(model.stitchedResultURL == nil ? 0.45 : 1)
+        .disabled(model.stitchedResultURL == nil)
+        .selectionDisabled(model.stitchedResultURL == nil)
     }
 }
 

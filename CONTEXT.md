@@ -1727,3 +1727,34 @@ Användaren begärde t+p+c: aktuellt UX-exempel med nio JPEG-bilder,
 Open Example direkt under Open utan separator, och bekräftelse före
 Create Panorama om retuschpatchar finns. Senaste Release-build och
 båda retuschtesterna godkända. Commit och annoterad datumtagg till origin/main.
+
+
+## Open Example borttaget — 2026-10-10
+
+På användarens begäran borttaget: menypunkt, separatorhantering,
+newDocument-environment, exempel-loader, Xcode-resursreferenser, samtliga
+bundlade exempelbilder/projekt och hjälpdokumentation. Retuschvarningens
+test använder nu syntetiska data utan exempelberoende. Generisk relativ
+sökvägshantering behålls. Historiska kontextanteckningar bevaras.
+Båda retuschtesterna godkända; ren Release-build, installerad och
+signaturverifierad. Manuellt verifierat File-menyn utan Open Example.
+Användarens U/UX och redan kopierade källbilder i Application Support
+behålls så sparade projekt fortsatt kan öppnas. Ingen commit/push.
+
+
+## Sidopanelens panoramaval disabled — 2026-10-10
+
+Retouch/Preview/Export använder nu samma villkor som menyn:
+stitchedResultURL != nil. navigationRow har disabled, selectionDisabled
+och reducerad opacity för text och ikon när panorama saknas.
+Release byggt, installerat och signaturverifierat. Manuellt verifierat
+att klick på alla tre i tomt projekt inte ändrar vyn. Inga nya tester.
+Ingen commit/push.
+
+
+## Checkpoint 2026-10-10-17-35
+
+Användaren begärde t+c+p. Borttagning av Open Example och dess resurser,
+oberoende retuschvarningstest samt inaktiva sidopanelval innan panorama finns.
+Release byggt och installerat, retuschtesterna godkända och sidopanelens
+klickbeteende manuellt verifierat. Commit med annoterad datumtagg till origin/main.

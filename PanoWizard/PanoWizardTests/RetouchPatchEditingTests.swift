@@ -73,7 +73,19 @@ struct RetouchPatchEditingTests {
     @Test("Creating a panorama requires confirmation for existing retouch")
     @MainActor
     func requiresConfirmationBeforeStitching() throws {
-        let document = try PanoProjectDocument.example()
+        let patch = RetouchPatch(kind: .manual, viewpoint: PanoramaViewpoint(), isEnabled: true)
+        let images = (0..<2).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/tmp/confirmation-source-\(index).jpg"),
+                captureDate: nil, pixelWidth: 100, pixelHeight: 100,
+                cameraModel: nil,
+                lens: LensDescription(model: nil, focalLengthIn35mm: nil, kind: .unknown)
+            )
+        }
+        let document = PanoProjectDocument(
+            project: PanoProject(images: images, retouchPatches: [patch]),
+            panoramaData: Data([0]), retouchPatchData: [patch.id: Data([1])]
+        )
         let model = AppModel.live(
             project: document.project,
             panoramaData: document.panoramaData,
