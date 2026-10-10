@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 private final class FileMenuDelegateProxy: NSObject, NSMenuDelegate {
     weak var forwardedDelegate: (any NSMenuDelegate)?
+    private let recentMenuDelegate = RecentProjectMenuDelegate()
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         forwardedDelegate?.menuNeedsUpdate?(menu)
@@ -28,12 +29,76 @@ private final class FileMenuDelegateProxy: NSObject, NSMenuDelegate {
     }
 
     func hideEmptyPlaceholder(in menu: NSMenu) {
+        if let recentMenu = menu.items.first(where: { $0.title == "Open Recent" })?.submenu {
+            recentMenu.delegate = recentMenuDelegate
+        }
         for item in menu.items where
             item.title == "NSMenuItem"
                 && item.action == nil
                 && item.submenu == nil {
             item.isHidden = true
         }
+    }
+}
+
+enum RecentProjectNames {
+    static func titles(for urls: [URL]) -> [String] {
+        let paths = urls.map { $0.standardizedFileURL.pathComponents }
+        return paths.enumerated().map { index, components in
+            for depth in 1...components.count {
+                let suffix = Array(components.suffix(depth))
+                let unique = paths.enumerated().allSatisfy { otherIndex, other in
+                    otherIndex == index || Array(other.suffix(depth)) != suffix
+                }
+                if unique { return NSString.path(withComponents: suffix) }
+            }
+            return urls[index].path
+        }
+    }
+}
+
+private final class RecentProjectMenuDelegate: NSObject, NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) { rebuild(menu) }
+    func menuWillOpen(_ menu: NSMenu) { rebuild(menu) }
+
+    private func rebuild(_ menu: NSMenu) {
+        var seen = Set<URL>()
+        let urls = Array(NSDocumentController.shared.recentDocumentURLs.filter {
+            $0.pathExtension.lowercased() == "pw"
+                && seen.insert($0.standardizedFileURL).inserted
+        }.prefix(10))
+        let titles = RecentProjectNames.titles(for: urls)
+        menu.removeAllItems()
+        menu.autoenablesItems = false
+        if urls.isEmpty {
+            let item = NSMenuItem(title: "No Recent Documents", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        } else {
+            for (url, title) in zip(urls, titles) {
+                let item = NSMenuItem(title: title, action: #selector(openRecent(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = url
+                item.toolTip = url.path
+                menu.addItem(item)
+            }
+            menu.addItem(.separator())
+        }
+        let clear = NSMenuItem(title: "Clear Menu", action: #selector(clearRecent(_:)), keyEquivalent: "")
+        clear.target = self
+        clear.isEnabled = !urls.isEmpty
+        menu.addItem(clear)
+    }
+
+    @objc private func openRecent(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
+            if let error { NSApp.presentError(error) }
+        }
+    }
+
+    @objc private func clearRecent(_ sender: NSMenuItem) {
+        NSDocumentController.shared.clearRecentDocuments(nil)
     }
 }
 
@@ -365,6 +430,12 @@ private struct ProjectDocumentMenuCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .saveItem) {
+            Menu("Open Recent") {
+                Button("No Recent Documents") {}.disabled(true)
+            }
+
+            Divider()
+
             Button("Close") {
                 (NSApp.keyWindow ?? NSApp.mainWindow)?.performClose(nil)
             }
@@ -663,7 +734,10 @@ private struct ProjectDocumentView: View {
     }
 
     private var isDirty: Bool {
-        workingDocument != savedDocument
+        var document = workingDocument
+        // Preview navigation is saved on demand but does not require saving.
+        document.project.previewViewpoint = savedDocument.project.previewViewpoint
+        return document != savedDocument
     }
 
     @discardableResult

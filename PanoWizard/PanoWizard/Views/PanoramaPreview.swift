@@ -935,7 +935,8 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             )
             if event.type == .scrollWheel || event.type == .magnify {
                 guard event.window === window,
-                      hitRect.contains(event.locationInWindow) else {
+                      hitRect.contains(event.locationInWindow),
+                      eventIsInsideScrollView(event, window: window, scrollView: scrollView) else {
                     return event
                 }
                 window.makeFirstResponder(commandView)
@@ -978,7 +979,8 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             switch event.type {
             case .leftMouseDown:
                 guard event.window === window,
-                      hitRect.contains(event.locationInWindow) else {
+                      hitRect.contains(event.locationInWindow),
+                      eventIsInsideScrollView(event, window: window, scrollView: scrollView) else {
                     return event
                 }
                 window.makeFirstResponder(commandView)
@@ -1014,6 +1016,21 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             default:
                 return event
             }
+        }
+
+        private func eventIsInsideScrollView(
+            _ event: NSEvent,
+            window: NSWindow,
+            scrollView: NSScrollView
+        ) -> Bool {
+            guard let contentView = window.contentView else { return false }
+            let point = contentView.convert(event.locationInWindow, from: nil)
+            var hitView = contentView.hitTest(point)
+            while let view = hitView {
+                if view === scrollView { return true }
+                hitView = view.superview
+            }
+            return false
         }
 
         private func updateCommandAnchor(event: NSEvent) {

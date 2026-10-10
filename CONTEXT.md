@@ -1856,3 +1856,32 @@ i båda riktningar, stabil bildpunkt och att maxzoom inte övergår till pan.
 Vanliga bild-/scrollgränser accepterade. Release byggt och signaturverifierat;
 fem befintliga interaktionstester godkända tidigare i arbetet.
 Commit och annoterad datumtagg till origin/main.
+
+## Open Recent med unika menynamn — 2026-10-10
+
+File → Open Recent tillagt under Open. Använder NSDocumentControllers
+befintliga historik och vanliga dokumentöppning. Visar bara .pw-projekt,
+tar bort dubbla URL:er och bygger kortaste unika suffix av sökvägen för
+varje alternativ. Full sökväg som tooltip; Clear Menu rensar historiken.
+Tom lista har disabled No Recent Documents och Clear Menu.
+Implementerat i PanoWizardApp.swift med native submenu-delegate.
+Namnberäkning verifierad för tom lista, upprepade föräldramappar och
+rotliggande filer. Release byggt, installerat och signaturverifierat.
+Manuellt öppnat G från historiken och U via Open; menyn visar sedan
+U/panowizard.pw och G/panowizard.pw. Projekten inte ändrade eller sparade.
+docs/projects.md uppdaterad. Ingen commit/push begärd ännu.
+
+Användaren satte därefter max 10 projekt. Menyn begränsas efter filtrering
+och deduplicering, före beräkning av unika namn.
+
+## Preview-navigation utan osparat-status — 2026-10-10
+
+På användarens begäran ignorerar ProjectDocumentScene.isDirty enbart
+project.previewViewpoint vid jämförelsen med savedDocument. Fullständig
+workingDocument används fortfarande vid Save, även när isDirty är false.
+AppModel.setPanoramaViewpoint ändrar inte modifiedAt, så inga andra
+fält behöver undantas. Masker, retusch och justeringar påverkar fortfarande
+osparat-status och stängningsvarning. docs/projects.md uppdaterad.
+Release byggt, installerat och signaturverifierat; git diff --check godkänd.
+Appen inte omstartad; fysisk preview-scroll återstår för användaren att prova.
+Ingen commit/push begärd.
