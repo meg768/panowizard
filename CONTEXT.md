@@ -1775,3 +1775,84 @@ Inga nya tester; ingen commit/push.
 Användaren begärde tcp för Preview utan marginaler, rundade hörn och
 skugga. Release byggt och visuellt verifierat. Commit och annoterad
 datumtagg till origin/main.
+
+
+## Maskläge: zoomankare vid sekvensstart — 2026-10-10
+
+NativeImagePanMonitor låser nu musankaret vid första CMD-zoomrörelsen
+i en scrollsekvens, inte vid CMD-tangenttrycket. Befintlig
+ImageSurfaceScrollGesture behåller ankaret genom direkta gestfaser och
+momentum. Nya sekvenser tar nytt ankare även med CMD kvar. Zero-delta
+slutfaser uppdaterar sekvensstatus. Mushjul utan faser använder 0,25 s
+inaktivitet för ny sekvens, så inte varje hjulhändelse byter ankare.
+Preview oförändrat. Release byggt, installerat och signaturverifierat;
+fem befintliga ImageSurfaceInteractionTests godkända. Fysisk CMD-scroll
+med flyttad mus mellan sekvenser ej manuellt verifierad via UI-verktyget.
+Ingen commit/push.
+
+
+## Maskzoom: explicit scrollposition efter layout — 2026-10-10
+
+Användaren upplever fortfarande oklar zoompunkt. Zoom-onChange använde
+ScrollViewReader.scrollTo för flyttbar 1-pixelmarkör direkt när zoom ändrats.
+Ersatt zoompositioneringen med scrollPosition.scrollTo(x:y:) beräknat
+från låst bildpunkt och viewportankare. Väntar på nya contentSize innan
+positionering; hanterar centrerad bild och scrollgränser explicit.
+Ankaret låses fortsatt vid sekvensstart. Release byggt, installerat och
+signaturverifierat. Fysiskt musbeteende återstår att verifiera.
+Öppet projekt/sparfråga lämnat kvar. Ingen commit/push.
+
+
+## Extra flyttutrymme återställt — 2026-10-10
+
+Användaren bad att skippa senaste ändringen. Extra viewport-padding och
+den tillhörande contentSize-ändringen borttagna. Tidigare zoomankare vid
+sekvensstart och explicit scrollposition efter layout kvar.
+
+
+## Maskzoom med AppKit-ankare och placering — 2026-10-10
+
+Användaren godkände nytt försök efter analys: driver även kraftigt inzoomat.
+CMD-scroll läser nu bildpunkt via AttachmentView.convert(event.locationInWindow)
+och viewportpunkt via NSClipView vid sekvensstart. Ingen SwiftUI ScrollGeometry
+används för CMD-ankare. Efter uppdaterad bildstorlek korrigeras clip.bounds
+via faktisk bildpunktsposition minus låst viewportpunkt. NSView.layout och
+setFrameSize samt updateNSView schemalägger korrigering efter layout.
+Bildankaret behålls genom sekvensen i både zoom-in och zoom-out; vanliga
+scrollgränser kvar, inga extra canvas-marginaler. Preview oförändrat.
+SwiftUI-positioneringen kvar för tangentbordszoom/pinch/reset. Release byggt,
+installerat och signaturverifierat; fem befintliga interaktionstester godkända.
+Fysisk CMD-scroll ännu ej manuellt verifierad. Ingen commit/push.
+
+
+## Maskzoom: synkron korrigering i layout — 2026-10-10
+
+Användaren bekräftade rätt ankarprincip men skakig zoom och bad om litet
+försök, backa vid stor komplexitet. Async-korrigeringen borttagen.
+AttachmentView.layout korrigerar direkt efter super.layout; setFrameSize
+markerar needsLayout i stället för att korrigera i förtid. CMD-scroll
+markerar också needsLayout; ingen korrigering i updateNSView.
+Försöket minskar kodmängden. Release byggt, installerat och
+signaturverifierat. Öppet G-projekt lämnat kvar, omstart krävs.
+Mjukhet vid fysisk CMD-scroll återstår att verifiera. Ingen commit/push.
+
+
+## CMD-scroll förbrukas korrekt — 2026-10-10
+
+Användaren bekräftade bra zoom men rapporterade pan vid maxzoom.
+NativeImagePanMonitor.install använde self?.handle(event) ?? event,
+vilket återställde händelsen även när handle returnerade nil för att
+förbruka den. Ändrat till guard let self else return event; return
+self.handle(event). CMD-scroll når därmed inte den vanliga scrollvyn
+vid zoomgränserna. Även egna panhändelser förbrukas som avsett.
+Release byggt, installerat och signaturverifierat. Appen inte omstartad.
+Manuell kontroll av maxzoom återstår. Ingen commit/push.
+
+
+## Checkpoint 2026-10-10-20-28
+
+Användaren begärde tcp efter att ha verifierat mjuk och korrekt maskzoom
+i båda riktningar, stabil bildpunkt och att maxzoom inte övergår till pan.
+Vanliga bild-/scrollgränser accepterade. Release byggt och signaturverifierat;
+fem befintliga interaktionstester godkända tidigare i arbetet.
+Commit och annoterad datumtagg till origin/main.

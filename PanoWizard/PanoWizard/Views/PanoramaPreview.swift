@@ -320,18 +320,8 @@ private struct SourceMaskEditor: View {
                         .frame(width: displaySize.width, height: displaySize.height)
                         .background {
                             NativeImagePanMonitor(
-                                onCommandAnchorChange: { anchor in
-                                    if let anchor {
-                                        prepareZoomAnchor(
-                                            anchor,
-                                            displaySize: displaySize
-                                        )
-                                    } else {
-                                        pendingZoomAnchor = nil
-                                    }
-                                },
-                                onCommandScroll: { delta, anchor in
-                                    pendingZoomAnchor = anchor
+                                onCommandScroll: { delta, _ in
+                                    pendingZoomAnchor = nil
                                     setZoom(zoom * exp(-delta * 0.006))
                                 },
                                 onZoomIn: {
@@ -438,7 +428,9 @@ private struct SourceMaskEditor: View {
                         geometry
                     } action: { _, geometry in
                         scrollGeometry = geometry
-                        updateViewport(using: geometry)
+                        if !applyPendingZoomAnchor(using: geometry, displaySize: displaySize) {
+                            updateViewport(using: geometry)
+                        }
                     }
                     .simultaneousGesture(
                         MagnifyGesture()
@@ -459,9 +451,9 @@ private struct SourceMaskEditor: View {
                             }
                     )
                     .onChange(of: zoom) {
-                        guard let anchor = pendingZoomAnchor else { return }
-                        pendingZoomAnchor = nil
-                        proxy.scrollTo(zoomAnchorID, anchor: anchor)
+                        if let scrollGeometry {
+                            _ = applyPendingZoomAnchor(using: scrollGeometry, displaySize: displaySize)
+                        }
                     }
                 }
             } else {
@@ -658,6 +650,36 @@ private struct SourceMaskEditor: View {
         context.stroke(symbol, with: .color(.white), lineWidth: 1)
     }
 
+    @discardableResult
+    private func applyPendingZoomAnchor(
+        using geometry: ScrollGeometry,
+        displaySize: CGSize
+    ) -> Bool {
+        guard let anchor = pendingZoomAnchor else { return false }
+        let expectedSize = CGSize(
+            width: max(displaySize.width, geometry.containerSize.width),
+            height: max(displaySize.height, geometry.containerSize.height)
+        )
+        // Wait until the scroll content has the new scaled dimensions.
+        guard abs(geometry.contentSize.width - expectedSize.width) < 1,
+              abs(geometry.contentSize.height - expectedSize.height) < 1 else { return true }
+        pendingZoomAnchor = nil
+        pendingViewportCenter = nil
+        let imageOrigin = CGPoint(
+            x: max((geometry.contentSize.width - displaySize.width) / 2, 0),
+            y: max((geometry.contentSize.height - displaySize.height) / 2, 0)
+        )
+        scrollPosition.scrollTo(
+            x: min(max(imageOrigin.x + zoomAnchor.x * displaySize.width
+                - anchor.x * geometry.containerSize.width, 0),
+                max(geometry.contentSize.width - geometry.containerSize.width, 0)),
+            y: min(max(imageOrigin.y + zoomAnchor.y * displaySize.height
+                - anchor.y * geometry.containerSize.height, 0),
+                max(geometry.contentSize.height - geometry.containerSize.height, 0))
+        )
+        return true
+    }
+
     private func prepareZoomAnchor(
         _ viewportAnchor: UnitPoint,
         displaySize: CGSize
@@ -775,7 +797,6 @@ private struct ImageSurfaceModifierMonitor: NSViewRepresentable {
 }
 
 private struct NativeImagePanMonitor: NSViewRepresentable {
-    let onCommandAnchorChange: (UnitPoint?) -> Void
     let onCommandScroll: (CGFloat, UnitPoint) -> Void
     let onZoomIn: () -> Void
     let onZoomOut: () -> Void
@@ -795,8 +816,10 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             guard let coordinator, let view else { return }
             coordinator.scrollView = view.enclosingScrollView
         }
+        view.onLayoutChange = { [weak coordinator = context.coordinator] in
+            coordinator?.correctZoomPosition()
+        }
         context.coordinator.commandView = view
-        context.coordinator.onCommandAnchorChange = onCommandAnchorChange
         context.coordinator.onCommandScroll = onCommandScroll
         context.coordinator.install()
         return view
@@ -808,7 +831,6 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         view.onReset = onReset
         context.coordinator.scrollView = view.enclosingScrollView
         context.coordinator.commandView = view
-        context.coordinator.onCommandAnchorChange = onCommandAnchorChange
         context.coordinator.onCommandScroll = onCommandScroll
     }
 
@@ -821,6 +843,17 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
 
     final class AttachmentView: NSView, ImageNavigationResponder {
         var onHierarchyChange: (() -> Void)?
+        var onLayoutChange: (() -> Void)?
+
+        override func layout() {
+            super.layout()
+            onLayoutChange?()
+        }
+
+        override func setFrameSize(_ newSize: NSSize) {
+            super.setFrameSize(newSize)
+            needsLayout = true
+        }
         var onZoomIn: () -> Void = {}
         var onZoomOut: () -> Void = {}
         var onReset: () -> Void = {}
@@ -846,7 +879,6 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
     final class Coordinator {
         weak var scrollView: NSScrollView?
         weak var commandView: AttachmentView?
-        var onCommandAnchorChange: (UnitPoint?) -> Void = { _ in }
         var onCommandScroll: (CGFloat, UnitPoint) -> Void = { _, _ in }
         private var monitor: Any?
         private var panOrigin: CGPoint?
@@ -854,6 +886,11 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         private var pushedCursor = false
         private var commandIsPressed = false
         private var scrollZoomAnchor: UnitPoint?
+        private var imageZoomAnchor: UnitPoint?
+        private var lastZoomImageSize: CGSize?
+        private var needsZoomCorrection = false
+        private var scrollZoomGesture = ImageSurfaceScrollGesture()
+        private var lastPhaseLessZoomTime: TimeInterval?
 
         func install() {
             guard monitor == nil else { return }
@@ -867,7 +904,8 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
                     .flagsChanged
                 ]
             ) { [weak self] event in
-                self?.handle(event) ?? event
+                guard let self else { return event }
+                return self.handle(event)
             }
         }
 
@@ -904,13 +942,36 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
                 guard event.type == .scrollWheel else { return event }
                 switch ImageSurfaceScroll.intent(for: event) {
                 case .pan:
+                    imageZoomAnchor = nil
+                    needsZoomCorrection = false
                     return event
                 case .zoom(let delta):
-                    guard commandIsPressed,
-                          let scrollZoomAnchor else { return nil }
+                    guard event.modifierFlags.contains(.command) else { return nil }
+                    let begins: Bool
+                    if event.phase.isEmpty && event.momentumPhase.isEmpty {
+                        begins = lastPhaseLessZoomTime.map { event.timestamp - $0 > 0.25 } ?? true
+                        lastPhaseLessZoomTime = event.timestamp
+                    } else {
+                        begins = scrollZoomGesture.beginsZoom(
+                            phase: event.phase, momentumPhase: event.momentumPhase
+                        )
+                        lastPhaseLessZoomTime = nil
+                    }
+                    if begins || scrollZoomAnchor == nil {
+                        captureCommandAnchor(event: event)
+                    }
+                    guard let scrollZoomAnchor else { return nil }
+                    needsZoomCorrection = true
                     onCommandScroll(delta, scrollZoomAnchor)
+                    commandView?.needsLayout = true
                     return nil
                 case .ignore:
+                    if event.phase.contains(.ended) || event.phase.contains(.cancelled)
+                        || event.momentumPhase.contains(.ended) || event.momentumPhase.contains(.cancelled) {
+                        _ = scrollZoomGesture.beginsZoom(
+                            phase: event.phase, momentumPhase: event.momentumPhase
+                        )
+                    }
                     return nil
                 }
             }
@@ -960,39 +1021,62 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             guard isPressed != commandIsPressed else { return }
             commandIsPressed = isPressed
 
-            guard isPressed,
+            scrollZoomGesture.reset()
+            lastPhaseLessZoomTime = nil
+            scrollZoomAnchor = nil
+            imageZoomAnchor = nil
+            needsZoomCorrection = false
+        }
+
+        private func captureCommandAnchor(event: NSEvent) {
+            guard event.modifierFlags.contains(.command),
                   let scrollView,
                   let window = scrollView.window,
                   event.window == nil || event.window === window else {
                 scrollZoomAnchor = nil
-                onCommandAnchorChange(nil)
+                imageZoomAnchor = nil
+                needsZoomCorrection = false
                 return
             }
-            let hitRect = scrollView.contentView.convert(
-                scrollView.contentView.bounds,
-                to: nil
+            guard let commandView else { return }
+            let clip = scrollView.contentView
+            let mouse = event.locationInWindow
+            let viewportPoint = clip.convert(mouse, from: nil)
+            guard clip.bounds.contains(viewportPoint) else { return }
+            let imagePoint = commandView.convert(mouse, from: nil)
+            guard commandView.bounds.width > 0, commandView.bounds.height > 0 else { return }
+            scrollZoomAnchor = UnitPoint(
+                x: (viewportPoint.x - clip.bounds.minX) / clip.bounds.width,
+                y: (viewportPoint.y - clip.bounds.minY) / clip.bounds.height
             )
-            let mouseInWindow = window.convertPoint(
-                fromScreen: NSEvent.mouseLocation
+            imageZoomAnchor = UnitPoint(
+                x: min(max((imagePoint.x - commandView.bounds.minX) / commandView.bounds.width, 0), 1),
+                y: min(max((imagePoint.y - commandView.bounds.minY) / commandView.bounds.height, 0), 1)
             )
-            guard hitRect.contains(mouseInWindow) else {
-                scrollZoomAnchor = nil
-                onCommandAnchorChange(nil)
-                return
-            }
-            let anchor = UnitPoint(
-                x: min(max(
-                    (mouseInWindow.x - hitRect.minX) / max(hitRect.width, 1),
-                    0
-                ), 1),
-                y: min(max(
-                    1 - (mouseInWindow.y - hitRect.minY)
-                        / max(hitRect.height, 1),
-                    0
-                ), 1)
+            lastZoomImageSize = commandView.bounds.size
+        }
+
+        func correctZoomPosition() {
+            guard needsZoomCorrection, let commandView, let scrollView,
+                  let imageZoomAnchor, let scrollZoomAnchor,
+                  commandView.bounds.size != lastZoomImageSize else { return }
+            let clip = scrollView.contentView
+            let imagePoint = CGPoint(
+                x: commandView.bounds.minX + imageZoomAnchor.x * commandView.bounds.width,
+                y: commandView.bounds.minY + imageZoomAnchor.y * commandView.bounds.height
             )
-            scrollZoomAnchor = anchor
-            onCommandAnchorChange(anchor)
+            let actual = clip.convert(imagePoint, from: commandView)
+            let target = CGPoint(
+                x: clip.bounds.minX + scrollZoomAnchor.x * clip.bounds.width,
+                y: clip.bounds.minY + scrollZoomAnchor.y * clip.bounds.height
+            )
+            var bounds = clip.bounds
+            bounds.origin.x += actual.x - target.x
+            bounds.origin.y += actual.y - target.y
+            lastZoomImageSize = commandView.bounds.size
+            needsZoomCorrection = false
+            clip.scroll(to: clip.constrainBoundsRect(bounds).origin)
+            scrollView.reflectScrolledClipView(clip)
         }
 
         private func finishPan() {
