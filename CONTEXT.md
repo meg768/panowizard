@@ -1758,3 +1758,20 @@ Användaren begärde t+c+p. Borttagning av Open Example och dess resurser,
 oberoende retuschvarningstest samt inaktiva sidopanelval innan panorama finns.
 Release byggt och installerat, retuschtesterna godkända och sidopanelens
 klickbeteende manuellt verifierat. Commit med annoterad datumtagg till origin/main.
+
+
+## Preview fyller arbetsytan — 2026-10-10
+
+PanoramaPreview använder SphericalPanoramaView utan workspace-padding
+och med hörnradie 0. Retuschvyn behåller sina tidigare standardvärden.
+Release byggt, installerat och signaturverifierat. Manuellt verifierat
+med G/panowizard.pw att bilden når vänster/höger samt kanten under
+Adjustments och ovanför statusraden, utan rundade hörn. Projektet inte sparat.
+Inga nya tester; ingen commit/push.
+
+
+## Checkpoint 2026-10-10-17-59
+
+Användaren begärde tcp för Preview utan marginaler, rundade hörn och
+skugga. Release byggt och visuellt verifierat. Commit och annoterad
+datumtagg till origin/main.

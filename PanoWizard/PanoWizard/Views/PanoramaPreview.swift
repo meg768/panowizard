@@ -29,7 +29,9 @@ struct PanoramaPreview: View {
                         url: imageURL,
                         adjustments: adjustments,
                         initialViewpoint: initialViewpoint,
-                        onViewpointChange: onViewpointChange
+                        onViewpointChange: onViewpointChange,
+                        addsWorkspacePadding: false,
+                        cornerRadius: 0
                     )
                 } else if let selectedSource {
                     SourceMaskEditor(

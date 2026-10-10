@@ -25,19 +25,22 @@ struct SphericalPanoramaView: View {
     let initialViewpoint: PanoramaViewpoint
     let onViewpointChange: (PanoramaViewpoint) -> Void
     let addsWorkspacePadding: Bool
+    let cornerRadius: CGFloat
 
     init(
         url: URL,
         adjustments: PanoramaAdjustments,
         initialViewpoint: PanoramaViewpoint,
         onViewpointChange: @escaping (PanoramaViewpoint) -> Void,
-        addsWorkspacePadding: Bool = true
+        addsWorkspacePadding: Bool = true,
+        cornerRadius: CGFloat = 8
     ) {
         self.url = url
         self.adjustments = adjustments
         self.initialViewpoint = initialViewpoint
         self.onViewpointChange = onViewpointChange
         self.addsWorkspacePadding = addsWorkspacePadding
+        self.cornerRadius = cornerRadius
     }
 
     @ViewBuilder
@@ -59,7 +62,7 @@ struct SphericalPanoramaView: View {
             initialViewpoint: initialViewpoint,
             onViewpointChange: onViewpointChange
         )
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
 }
 
