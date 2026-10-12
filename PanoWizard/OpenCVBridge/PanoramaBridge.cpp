@@ -81,7 +81,6 @@ struct Warp {
     cv::Mat userExclusionMask;
     cv::Mat protectedMask;
     cv::Mat score;
-    bool fillOnly = false;
 };
 
 struct RadiometryLayers {
@@ -2383,9 +2382,6 @@ cv::Mat centerWeightedComposite(
             warp.image
         );
         weight = weight.mul(highlightReliability);
-        if (warp.fillOnly) {
-            weight.setTo(0, labels != index);
-        }
         cv::Mat floatImage;
         warp.image.convertTo(floatImage, CV_32FC3);
         std::vector<cv::Mat> weightChannels(3, weight);
@@ -3548,7 +3544,6 @@ std::vector<Warp> applySeamLocalRadiometry(
 
 std::pair<double, int> renderPanorama(
     const std::vector<Source> &sources,
-    const std::vector<unsigned char> &compositionRoles,
     const Alignment &alignment,
     const cv::Mat &detectedOpticalMask,
     const std::string &outputPath,
@@ -3560,13 +3555,6 @@ std::pair<double, int> renderPanorama(
     );
     cv::Mat opticalMask;
     cv::bitwise_and(detectedOpticalMask, fittedMask, opticalMask);
-    const int horizontalViews = int(std::count_if(
-        alignment.rotations.begin(), alignment.rotations.end(),
-        [](const cv::Matx33d &rotation) {
-            const cv::Vec3d axis = rotation * cv::Vec3d(0.0, 0.0, 1.0);
-            return std::abs(axis[1]) < 0.65;
-        }
-    ));
     std::vector<Warp> warps;
     std::vector<Warp> radiometryWarps;
     for (int index = 0; index < int(sources.size()); ++index) {
@@ -3580,11 +3568,6 @@ std::pair<double, int> renderPanorama(
         cv::Mat mapX;
         cv::Mat mapY;
         Warp warp;
-        const cv::Vec3d opticalAxis =
-            alignment.rotations[index] * cv::Vec3d(0.0, 0.0, 1.0);
-        const bool automaticNadirFill = compositionRoles[index] == 0
-            && horizontalViews >= 3 && opticalAxis[1] < -0.8;
-        warp.fillOnly = compositionRoles[index] == 2 || automaticNadirFill;
         buildPanoramaMapping(
             width, height, alignment.rotations[index], sources[index].image.size(),
             alignment.lens, opticalMask, mapX, mapY, warp.mask, warp.score
@@ -3648,12 +3631,6 @@ std::pair<double, int> renderPanorama(
     std::vector<cv::Mat> redundantMasks = suppressRedundantViews(
         alignment.rotations, compensatedLayers.compositing
     );
-    for (int index = 0; index < int(compensatedLayers.compositing.size()); ++index) {
-        if (compensatedLayers.compositing[index].fillOnly) {
-            redundantMasks[index] =
-                compensatedLayers.compositing[index].protectedMask.clone();
-        }
-    }
     const std::vector<cv::Mat> seamMasks = preferCentralCoverage(
         compensatedLayers.compositing, redundantMasks
     );
@@ -3864,7 +3841,6 @@ int PWStitchPanorama(
         }
 
         std::vector<Source> renderSources;
-        std::vector<unsigned char> renderRoles;
         Alignment renderAlignment = alignment;
         renderAlignment.rotations.clear();
         renderAlignment.gains = cv::Mat(0, 3, CV_64F);
@@ -3876,12 +3852,11 @@ int PWStitchPanorama(
         for (int index = 0; index < imageCount; ++index) {
             if (wasSkipped[index]) continue;
             renderSources.push_back(sources[index]);
-            renderRoles.push_back(resolvedRoles[index]);
             renderAlignment.rotations.push_back(alignment.rotations[index]);
             renderAlignment.gains.push_back(alignment.gains.row(index));
         }
         const auto [coverage, holes] = renderPanorama(
-            renderSources, renderRoles, renderAlignment, optical.mask,
+            renderSources, renderAlignment, optical.mask,
             outputPath, outputWidth
         );
         if (report != nullptr) {
