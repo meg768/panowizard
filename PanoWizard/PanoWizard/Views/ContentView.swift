@@ -126,7 +126,7 @@ struct ContentView: View {
                 model.importURLs(urls)
             }
         }
-        .fileDialogDefaultDirectory(model.sourceDirectoryURL)
+        .fileDialogDefaultDirectory(projectDirectoryURL ?? model.sourceDirectoryURL)
         .sheet(isPresented: stitchPresentation) {
             PanoramaStitchProgressSheet(model: model)
         }

@@ -253,7 +253,7 @@ struct PanoProjectTests {
         #expect(model.selection == .source(second.id))
         #expect(model.project.images[0].isEnabled)
         #expect(!model.project.images[1].isEnabled)
-        #expect(model.panoramaAdjustments.isNeutral)
+        #expect(model.panoramaAdjustments.exposure == 1)
     }
 
     @Test("A saved panorama opens directly in Preview")

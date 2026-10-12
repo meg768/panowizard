@@ -277,7 +277,6 @@ final class AppModel {
     func toggleSourceImageEnabled(_ id: SourceImage.ID) {
         cancelStitch()
         project.toggleImageEnabled(id)
-        invalidatePanorama()
     }
 
     func selectAndToggleSourceImageEnabled(_ id: SourceImage.ID) {

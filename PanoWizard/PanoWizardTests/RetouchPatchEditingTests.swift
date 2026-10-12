@@ -111,6 +111,107 @@ struct RetouchPatchEditingTests {
         #expect(model.retouchPatches.count == originalPatches.count)
     }
 
+    @Test("Changing image inclusion keeps the finished panorama and retouch patches")
+    @MainActor
+    func imageInclusionChangesPreservePanoramaAndPatches() {
+        let images = testSourceImages()
+        let manualPatch = RetouchPatch(
+            kind: .manual,
+            viewpoint: PanoramaViewpoint(yawRadians: 0.2)
+        )
+        let aiPatch = RetouchPatch(
+            kind: .ai,
+            viewpoint: PanoramaViewpoint(yawRadians: -0.4),
+            prompt: "Remove the lamp"
+        )
+        let manualData = Data([1, 2, 3])
+        let aiData = Data([4, 5, 6])
+        let aiMask = Data([7, 8, 9])
+        let model = AppModel.live(
+            project: PanoProject(
+                images: images,
+                retouchPatches: [manualPatch, aiPatch],
+                panoramaAdjustments: PanoramaAdjustments(exposure: 0.4)
+            ),
+            panoramaData: Data([10, 11, 12]),
+            retouchPatchData: [
+                manualPatch.id: manualData,
+                aiPatch.id: aiData
+            ],
+            aiRetouchMaskData: [aiPatch.id: aiMask]
+        )
+        let panoramaURL = model.stitchedResultURL
+
+        model.toggleSourceImageEnabled(images[1].id)
+        #expect(!model.project.images[1].isEnabled)
+        model.toggleSourceImageEnabled(images[1].id)
+
+        #expect(model.project.images[1].isEnabled)
+        #expect(model.stitchedResultURL == panoramaURL)
+        #expect(model.retouchPatches == [manualPatch, aiPatch])
+        #expect(model.retouchPatchData == [
+            manualPatch.id: manualData,
+            aiPatch.id: aiData
+        ])
+        #expect(model.aiRetouchMaskDataByPatchID == [aiPatch.id: aiMask])
+        #expect(model.project.panoramaAdjustments.exposure == 0.4)
+    }
+
+    @Test("A failed replacement stitch keeps the old panorama and retouch patches")
+    @MainActor
+    func failedReplacementKeepsPanoramaAndPatches() async throws {
+        let images = testSourceImages()
+        let patch = RetouchPatch(
+            kind: .ai,
+            viewpoint: PanoramaViewpoint(),
+            prompt: "Remove the lamp"
+        )
+        let patchData = Data([1, 3, 5])
+        let maskData = Data([2, 4, 6])
+        let model = AppModel(
+            project: PanoProject(images: images, retouchPatches: [patch]),
+            importer: ImageImportService(metadataReader: ImageMetadataReader()),
+            grouper: PanoramaGroupingService(),
+            panoramaEngine: FailingPanoramaEngine(),
+            exporter: FilePanoramaExporter(),
+            panoramaData: Data([7, 8, 9]),
+            retouchPatchData: [patch.id: patchData],
+            aiRetouchMaskData: [patch.id: maskData]
+        )
+        let originalPanoramaURL = model.stitchedResultURL
+        model.stitch()
+        #expect(model.confirmsDiscardRetouchForStitch)
+
+        model.stitchDiscardingRetouch()
+        for _ in 0..<100 {
+            if model.phase == .stitchFailed("Simulated stitch failure") { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(model.phase == .stitchFailed("Simulated stitch failure"))
+        #expect(model.stitchedResultURL == originalPanoramaURL)
+        #expect(model.retouchPatches == [patch])
+        #expect(model.retouchPatchData == [patch.id: patchData])
+        #expect(model.aiRetouchMaskDataByPatchID == [patch.id: maskData])
+    }
+
+    private func testSourceImages() -> [SourceImage] {
+        (0..<2).map { index in
+            SourceImage(
+                url: URL(fileURLWithPath: "/tmp/retouch-preservation-\(index).jpg"),
+                captureDate: nil,
+                pixelWidth: 100,
+                pixelHeight: 100,
+                cameraModel: nil,
+                lens: LensDescription(
+                    model: nil,
+                    focalLengthIn35mm: nil,
+                    kind: .unknown
+                )
+            )
+        }
+    }
+
     private func patchPNGData() throws -> Data {
         guard let image = NSBitmapImageRep(
             bitmapDataPlanes: nil,
@@ -127,5 +228,16 @@ struct RetouchPatchEditingTests {
             throw RetouchPatchError.writeFailed
         }
         return data
+    }
+}
+
+private actor FailingPanoramaEngine: PanoramaEngine {
+    func stitch(
+        _ panorama: PanoramaSet,
+        masks: [UUID: Data],
+        protectedMasks: [UUID: Data],
+        progress: @escaping @Sendable (Double, String) -> Void
+    ) async throws -> PanoramaStitchResult {
+        throw PanoramaEngineError.stitchingFailed("Simulated stitch failure")
     }
 }
