@@ -9,6 +9,9 @@ typedef struct {
     double coveragePercent;
     int holeCount;
     int usedAlignmentCache;
+    int ringImageCount;
+    int usedSupplementalImageCount;
+    char *skippedImageDetails;
 } PWStitchReport;
 
 typedef void (*PWProgressCallback)(

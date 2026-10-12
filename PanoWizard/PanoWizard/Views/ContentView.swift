@@ -188,6 +188,11 @@ struct ContentView: View {
         } message: {
             Text(model.phase.failureDetails ?? "An unknown error occurred.")
         }
+        .alert("Panorama Created with Skipped Images", isPresented: stitchWarningAlertIsPresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.lastStitchWarning ?? "Some supplemental images were skipped.")
+        }
     }
 
     private var stitchFailureAlertIsPresented: Binding<Bool> {
@@ -196,6 +201,17 @@ struct ContentView: View {
             set: { isPresented in
                 if !isPresented, model.isStitchFailure {
                     model.phase = .ready
+                }
+            }
+        )
+    }
+
+    private var stitchWarningAlertIsPresented: Binding<Bool> {
+        Binding(
+            get: { model.lastStitchWarning != nil },
+            set: { isPresented in
+                if !isPresented {
+                    model.lastStitchWarning = nil
                 }
             }
         )

@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <limits>
 #include <numeric>
+#include <queue>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -24,7 +25,7 @@
 namespace {
 
 constexpr double pi = 3.14159265358979323846;
-constexpr int alignmentCacheFormatVersion = 4;
+constexpr int alignmentCacheFormatVersion = 5;
 
 struct Lens {
     double k1 = pi / 2.0;
@@ -68,6 +69,7 @@ struct GeometryStats {
 
 struct Alignment {
     std::vector<cv::Matx33d> rotations;
+    std::vector<unsigned char> resolvedRoles;
     Lens lens;
     cv::Mat gains;
     GeometryStats stats;
@@ -1352,35 +1354,90 @@ std::vector<cv::Matx33d> levelRotations(
     return result;
 }
 
-void detectSupplementalViews(
+void classifyAutomaticRingViews(
     std::vector<unsigned char> &roles,
-    const std::vector<cv::Matx33d> &initialRotations
+    const std::vector<Edge> &edges
 ) {
-    if (initialRotations.size() < 4) return;
-    const std::vector<cv::Matx33d> leveled = levelRotations(
-        initialRotations
-    );
-    int horizontalCount = 0;
-    int automaticNadirCount = 0;
-    for (int index = 0; index < int(leveled.size()); ++index) {
-        if (roles[index] == 2) continue;
-        const cv::Vec3d axis = leveled[index] * cv::Vec3d(0.0, 0.0, 1.0);
-        if (std::abs(axis[1]) < 0.65) ++horizontalCount;
-        if (roles[index] == 0 && axis[1] < -0.80) {
-            ++automaticNadirCount;
+    const int count = int(roles.size());
+    std::vector<unsigned char> active(count, 0);
+    std::vector<int> degree(count, 0);
+    std::vector<std::vector<int>> adjacency(count);
+    for (int index = 0; index < count; ++index) {
+        active[index] = roles[index] == 2 ? 0 : 1;
+    }
+    for (const Edge &edge : edges) {
+        if (!active[edge.first] || !active[edge.second]) continue;
+        adjacency[edge.first].push_back(edge.second);
+        adjacency[edge.second].push_back(edge.first);
+        ++degree[edge.first];
+        ++degree[edge.second];
+    }
+
+    // A panorama ring belongs to a cycle in the overlap graph. Peeling
+    // endpoints leaves that cyclic core and removes attached views without
+    // relying on where they point on the sphere.
+    std::queue<int> pending;
+    for (int index = 0; index < count; ++index) {
+        if (active[index] && degree[index] < 2) pending.push(index);
+    }
+    while (!pending.empty()) {
+        const int index = pending.front();
+        pending.pop();
+        if (!active[index]) continue;
+        active[index] = 0;
+        for (const int neighbor : adjacency[index]) {
+            if (active[neighbor] && --degree[neighbor] < 2) {
+                pending.push(neighbor);
+            }
         }
     }
-    if (horizontalCount < 3) return;
 
-    // A lone automatic nadir frame is normally a hand-held repair shot and
-    // must not steer the ring geometry. Two such frames, however, provide a
-    // mutually verified monopod sequence with useful control-point support.
-    if (automaticNadirCount >= 2) return;
+    auto largestComponent = [&](const std::vector<unsigned char> &eligible) {
+        std::vector<unsigned char> visited(count, 0);
+        std::vector<int> largest;
+        for (int start = 0; start < count; ++start) {
+            if (!eligible[start] || visited[start]) continue;
+            std::vector<int> component;
+            std::queue<int> search;
+            search.push(start);
+            visited[start] = 1;
+            while (!search.empty()) {
+                const int index = search.front();
+                search.pop();
+                component.push_back(index);
+                for (const int neighbor : adjacency[index]) {
+                    if (eligible[neighbor] && !visited[neighbor]) {
+                        visited[neighbor] = 1;
+                        search.push(neighbor);
+                    }
+                }
+            }
+            if (component.size() > largest.size()) {
+                largest = std::move(component);
+            }
+        }
+        return largest;
+    };
 
-    for (int index = 0; index < int(leveled.size()); ++index) {
-        if (roles[index] != 0) continue;
-        const cv::Vec3d axis = leveled[index] * cv::Vec3d(0.0, 0.0, 1.0);
-        if (axis[1] < -0.80) roles[index] = 2;
+    std::vector<int> ring = largestComponent(active);
+    if (ring.size() < 3) {
+        // Small panoramas can be a connected path rather than a closed cycle.
+        // Keep their largest connected group instead of classifying every
+        // automatic image as supplemental.
+        std::fill(active.begin(), active.end(), 0);
+        for (int index = 0; index < count; ++index) {
+            active[index] = roles[index] != 2;
+        }
+        ring = largestComponent(active);
+    }
+    if (ring.size() < 2) return;
+
+    std::vector<unsigned char> inRing(count, 0);
+    for (const int index : ring) inRing[index] = 1;
+    for (int index = 0; index < count; ++index) {
+        // Explicit Panorama Ring selections are never demoted. The later
+        // connectivity check still reports an invalid manual ring.
+        if (roles[index] == 0 && !inRing[index]) roles[index] = 2;
     }
 }
 
@@ -1417,14 +1474,14 @@ cv::Matx33d registerSupplementalView(
     }
     if (sourceRays.size() < 20) {
         throw std::runtime_error(
-            "A repair image could not be registered against the panorama ring."
+            "Insufficient overlap matches with the panorama ring for automatic registration."
         );
     }
     auto [rotation, selected] = ransacRotation(sourceRays, targetRays);
     if (selected.empty()
         || std::accumulate(selected.begin(), selected.end(), 0) < 20) {
         throw std::runtime_error(
-            "A repair image is too far from the panorama ring for automatic registration."
+            "Too few consistent overlap points with the panorama ring for automatic registration."
         );
     }
     return rotation;
@@ -1505,12 +1562,22 @@ bool loadCache(
         || width != sourceSize.width || height != sourceSize.height) return false;
     cv::Mat rotations;
     cv::Mat lens;
+    cv::Mat roles;
     storage["rotations"] >> rotations;
     storage["lens"] >> lens;
+    storage["roles"] >> roles;
     storage["gains"] >> alignment.gains;
     if (rotations.rows != imageCount || rotations.cols != 9
-        || lens.total() != 6 || alignment.gains.rows != imageCount
+        || lens.total() != 6 || roles.rows != 1 || roles.cols != imageCount
+        || roles.type() != CV_8U
+        || alignment.gains.rows != imageCount
         || alignment.gains.cols != 3) return false;
+    alignment.resolvedRoles.clear();
+    for (int index = 0; index < imageCount; ++index) {
+        alignment.resolvedRoles.push_back(
+            std::min<unsigned char>(roles.at<unsigned char>(0, index), 2)
+        );
+    }
     alignment.rotations.clear();
     for (int index = 0; index < imageCount; ++index) {
         cv::Matx33d rotation;
@@ -1548,6 +1615,10 @@ void saveCache(const std::string &path, const Alignment &alignment, cv::Size siz
         }
     }
     cv::Mat lens(1, 6, CV_64F);
+    cv::Mat roles(1, int(alignment.resolvedRoles.size()), CV_8U);
+    for (int index = 0; index < roles.cols; ++index) {
+        roles.at<unsigned char>(0, index) = alignment.resolvedRoles[index];
+    }
     const std::array<double, 6> lensValues = {
         alignment.lens.k1, alignment.lens.k3, alignment.lens.k5,
         alignment.lens.cx, alignment.lens.cy, alignment.lens.aspect
@@ -1560,6 +1631,7 @@ void saveCache(const std::string &path, const Alignment &alignment, cv::Size siz
     storage << "width" << size.width;
     storage << "height" << size.height;
     storage << "rotations" << rotations;
+    storage << "roles" << roles;
     storage << "lens" << lens;
     storage << "gains" << alignment.gains;
     storage << "observations" << alignment.stats.observations;
@@ -3621,6 +3693,14 @@ int PWStitchPanorama(
     PWStitchReport *report,
     char **errorMessage
 ) {
+    if (report != nullptr) {
+        report->coveragePercent = 0.0;
+        report->holeCount = 0;
+        report->usedAlignmentCache = 0;
+        report->ringImageCount = 0;
+        report->usedSupplementalImageCount = 0;
+        report->skippedImageDetails = nullptr;
+    }
     stitchCallbacks = {callbackContext, progressCallback, cancellationCallback};
     struct CallbackReset {
         ~CallbackReset() { stitchCallbacks = {}; }
@@ -3657,12 +3737,22 @@ int PWStitchPanorama(
         }
         reportProgress("Analyzing the lens image circle…", 0.17);
         const OpticalSupport optical = commonOpticalSupport(sources);
-        Alignment alignment;
         const std::string cachePath = alignmentCachePath == nullptr
             ? std::string() : std::string(alignmentCachePath);
-        const bool usedCache = loadCache(
+        Alignment alignment;
+        bool usedCache = loadCache(
             cachePath, imageCount, sources.front().image.size(), alignment
         );
+        std::vector<std::pair<int, std::string>> skippedImages;
+        if (usedCache && alignment.resolvedRoles.size() == resolvedRoles.size()) {
+            for (int index = 0; index < imageCount; ++index) {
+                if (resolvedRoles[index] == 0) {
+                    resolvedRoles[index] = alignment.resolvedRoles[index];
+                }
+            }
+        } else {
+            usedCache = false;
+        }
         if (!usedCache) {
             const double scale = std::hypot(
                 sources.front().image.cols, sources.front().image.rows
@@ -3679,16 +3769,8 @@ int PWStitchPanorama(
                 sources, optical.mask
             );
             reportProgress("Matching overlapping images…", 0.35);
-            const EdgeSets edgeSets = buildEdges(
-                sources, features, initialLens
-            );
-            const std::vector<Edge> &edges = edgeSets.strong;
-            if (isGraphConnected(imageCount, edges)) {
-                detectSupplementalViews(
-                    resolvedRoles,
-                    buildInitialRotations(imageCount, edges)
-                );
-            }
+            const EdgeSets edgeSets = buildEdges(sources, features, initialLens);
+            classifyAutomaticRingViews(resolvedRoles, edgeSets.strong);
 
             std::vector<int> ringIndices;
             std::vector<Source> ringSources;
@@ -3703,7 +3785,7 @@ int PWStitchPanorama(
                 );
             }
             const std::vector<Edge> ringEdges = subsetEdges(
-                edges, ringIndices, imageCount
+                edgeSets.strong, ringIndices, imageCount
             );
             const std::vector<Edge> weakRingEdges = subsetEdges(
                 edgeSets.weak, ringIndices, imageCount
@@ -3730,10 +3812,20 @@ int PWStitchPanorama(
             }
             for (int index = 0; index < imageCount; ++index) {
                 if (resolvedRoles[index] != 2) continue;
-                alignment.rotations[index] = registerSupplementalView(
-                    index, ringIndices, ringAlignment.rotations, edges,
-                    sources.front().image.size(), ringAlignment.lens
-                );
+                try {
+                    alignment.rotations[index] = registerSupplementalView(
+                        index, ringIndices, ringAlignment.rotations,
+                        edgeSets.strong,
+                        sources.front().image.size(), ringAlignment.lens
+                    );
+                } catch (const std::exception &error) {
+                    skippedImages.emplace_back(index, error.what());
+                } catch (...) {
+                    skippedImages.emplace_back(
+                        index,
+                        "The supplemental image could not be registered for an unknown reason."
+                    );
+                }
             }
             reportProgress("Leveling the horizon…", 0.56);
             const std::vector<cv::Matx33d> leveledRing = levelRotations(
@@ -3744,20 +3836,63 @@ int PWStitchPanorama(
             for (cv::Matx33d &rotation : alignment.rotations) {
                 rotation = leveling * rotation;
             }
-            alignment.gains = exposureGains(sources, edges);
-            saveCache(cachePath, alignment, sources.front().image.size());
+            alignment.gains = exposureGains(sources, edgeSets.strong);
+            alignment.resolvedRoles = resolvedRoles;
+            // A cache made from an incomplete supplemental set would cause a
+            // later run to reuse rotations for images that were skipped.
+            if (skippedImages.empty()) {
+                saveCache(cachePath, alignment, sources.front().image.size());
+            }
         } else {
             reportProgress("Using saved image alignment…", 0.58);
         }
-        detectSupplementalViews(resolvedRoles, alignment.rotations);
+
+        std::vector<Source> renderSources;
+        std::vector<unsigned char> renderRoles;
+        Alignment renderAlignment = alignment;
+        renderAlignment.rotations.clear();
+        renderAlignment.gains = cv::Mat(0, 3, CV_64F);
+        std::vector<unsigned char> wasSkipped(imageCount, 0);
+        for (const auto &[index, reason] : skippedImages) {
+            (void)reason;
+            wasSkipped[index] = 1;
+        }
+        for (int index = 0; index < imageCount; ++index) {
+            if (wasSkipped[index]) continue;
+            renderSources.push_back(sources[index]);
+            renderRoles.push_back(resolvedRoles[index]);
+            renderAlignment.rotations.push_back(alignment.rotations[index]);
+            renderAlignment.gains.push_back(alignment.gains.row(index));
+        }
         const auto [coverage, holes] = renderPanorama(
-            sources, resolvedRoles, alignment, optical.mask,
+            renderSources, renderRoles, renderAlignment, optical.mask,
             outputPath, outputWidth
         );
         if (report != nullptr) {
             report->coveragePercent = coverage;
             report->holeCount = holes;
             report->usedAlignmentCache = usedCache ? 1 : 0;
+            report->ringImageCount = 0;
+            report->usedSupplementalImageCount = 0;
+            for (int index = 0; index < imageCount; ++index) {
+                if (resolvedRoles[index] == 2) {
+                    if (!wasSkipped[index]) {
+                        ++report->usedSupplementalImageCount;
+                    }
+                } else {
+                    ++report->ringImageCount;
+                }
+            }
+            if (!skippedImages.empty()) {
+                std::string details;
+                for (const auto &[index, reason] : skippedImages) {
+                    details += std::to_string(index);
+                    details += '\t';
+                    details += reason;
+                    details += '\n';
+                }
+                report->skippedImageDetails = ::strdup(details.c_str());
+            }
         }
         if (errorMessage != nullptr) *errorMessage = nullptr;
         reportProgress("Panorama complete", 1.0);

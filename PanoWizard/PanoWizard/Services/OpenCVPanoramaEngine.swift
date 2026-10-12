@@ -6,7 +6,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
     static let outputWidth = 4096
     // These on-disk identifiers must remain stable so a source-only rename
     // does not invalidate previously verified alignment caches.
-    static let alignmentCacheFormatKey = "trial-native-weak-crosslink-v1"
+    static let alignmentCacheFormatKey = "automatic-ring-core-v1"
 
     func stitch(
         _ panorama: PanoramaSet,
@@ -115,6 +115,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
                     }
             }
         defer { PWFreeString(errorPointer) }
+        defer { PWFreeString(report.skippedImageDetails) }
         if context.isCancelled {
             throw CancellationError()
         }
@@ -143,8 +144,32 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
             url: retainedURL,
             coveragePercent: report.coveragePercent,
             holeCount: Int(report.holeCount),
-            usedAlignmentCache: report.usedAlignmentCache != 0
+            usedAlignmentCache: report.usedAlignmentCache != 0,
+            ringImageCount: Int(report.ringImageCount),
+            usedSupplementalImageCount: Int(report.usedSupplementalImageCount),
+            warningMessage: skippedImageWarning(
+                from: report.skippedImageDetails,
+                images: images
+            )
         )
+    }
+
+    static func skippedImageWarning(
+        from detailsPointer: UnsafePointer<CChar>?,
+        images: [SourceImage]
+    ) -> String? {
+        guard let detailsPointer else { return nil }
+        let details = String(cString: detailsPointer)
+        let skipped = details.split(whereSeparator: \.isNewline).compactMap { line -> String? in
+            let fields = line.split(separator: "\t", maxSplits: 1)
+            guard fields.count == 2,
+                  let index = Int(fields[0]),
+                  images.indices.contains(index) else { return nil }
+            return "• \(images[index].filename): \(fields[1])"
+        }
+        guard !skipped.isEmpty else { return nil }
+        return "These supplemental images were skipped because they could not be registered:\n\n"
+            + skipped.joined(separator: "\n")
     }
 
     static func alignmentCacheURL(
@@ -157,6 +182,8 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
         for image in images {
             digest.update(data: Data(image.id.uuidString.utf8))
             digest.update(data: Data(image.url.path(percentEncoded: false).utf8))
+            digest.update(data: Data(image.role.rawValue.utf8))
+            digest.update(data: Data((image.automaticRole?.rawValue ?? "none").utf8))
             digest.update(data: Data(image.effectiveRole.rawValue.utf8))
             digest.update(data: Data(image.direction.rawValue.utf8))
             digest.update(data: Data(String(image.rotation.rawValue).utf8))

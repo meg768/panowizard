@@ -27,10 +27,14 @@ struct OpenCVPanoramaEngineTests {
         }
         #expect(image?.width == OpenCVPanoramaEngine.outputWidth)
         #expect(image?.height == OpenCVPanoramaEngine.outputWidth / 2)
-        // The two saved exclusion masks intentionally remove part of the
-        // nadir. The engine must report that missing source coverage instead
-        // of synthesizing replacement pixels.
-        #expect(result.coveragePercent > 95)
+        #expect(result.ringImageCount == 6)
+        #expect(result.usedSupplementalImageCount == 1)
+        #expect(result.warningMessage?.contains("2006-07-09 16.18.38.jpg") == true)
+        #expect(result.warningMessage?.contains("2006-07-09 16.19.38.jpg") != true)
+        #expect(result.warningMessage?.contains("Insufficient overlap matches") == true)
+        // ZA's ceiling view is intentionally unregistrable. Its open area is
+        // reflected in coverage, while the panorama ring and floor fill remain.
+        #expect(result.coveragePercent > 80)
         print(
             "Panorama fixture result: \(result.url.path), "
                 + "coverage=\(result.coveragePercent), holes=\(result.holeCount), "
@@ -51,8 +55,8 @@ struct OpenCVPanoramaEngineTests {
         #expect(selected.map(\.id) == [first.id, third.id])
     }
 
-    @Test("Manual source rotation changes the alignment cache identity")
-    func rotationChangesCacheIdentity() throws {
+    @Test("Source roles and rotation change the alignment cache identity")
+    func sourceStateChangesCacheIdentity() throws {
         let sourceURL = FileManager.default.temporaryDirectory.appending(
             path: "PanoWizard-Cache-Test-\(UUID()).jpg"
         )
@@ -69,8 +73,15 @@ struct OpenCVPanoramaEngineTests {
             images: [source],
             masks: [:]
         )
+        source.rotation = .none
+        source.role = .fillOnly
+        let supplemental = try OpenCVPanoramaEngine.alignmentCacheURL(
+            images: [source],
+            masks: [:]
+        )
 
         #expect(original != rotated)
+        #expect(original != supplemental)
     }
 
     @Test("App dispatches masks directly to its sole engine")
@@ -218,6 +229,85 @@ struct OpenCVPanoramaEngineTests {
         #expect(cachedReport.usedAlignmentCache == 1)
     }
 
+    @Test("A failed supplement is skipped while later supplements are registered")
+    func failedSupplementDoesNotStopLaterSupplements() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizard-Ring-Selection-Test-\(UUID())",
+            directoryHint: .isDirectory
+        )
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let ringSource = directory.appending(path: "ring.jpg")
+        let unrelatedSource = directory.appending(path: "unrelated.jpg")
+        try writeTexturedImage(to: ringSource, seed: 0x6d2b79f5)
+        try writeTexturedImage(to: unrelatedSource, seed: 0x12345678)
+        let output = directory.appending(path: "result.png")
+        let cache = directory.appending(path: "alignment.yml")
+        let paths = [ringSource, ringSource, ringSource, unrelatedSource, ringSource]
+            .map { strdup($0.path(percentEncoded: false)) }
+        defer { paths.forEach { free($0) } }
+        let sourcePaths: [UnsafePointer<CChar>?] = paths.map {
+            $0.map { UnsafePointer($0) }
+        }
+        let automaticRoles: [UInt8] = [1, 1, 1, 2, 2]
+        var report = PWStitchReport()
+        var error: UnsafeMutablePointer<CChar>?
+        defer { PWFreeString(error) }
+        defer { PWFreeString(report.skippedImageDetails) }
+        let succeeded = sourcePaths.withUnsafeBufferPointer { sources in
+            automaticRoles.withUnsafeBufferPointer { roles in
+                PWStitchPanorama(
+                    sources.baseAddress,
+                    nil,
+                    roles.baseAddress,
+                    Int32(sourcePaths.count),
+                    cache.path(percentEncoded: false),
+                    output.path(percentEncoded: false),
+                    512,
+                    nil,
+                    nil,
+                    nil,
+                    &report,
+                    &error
+                )
+            }
+        }
+
+        #expect(succeeded == 1)
+        #expect(error == nil)
+        #expect(FileManager.default.fileExists(atPath: output.path))
+        #expect(report.coveragePercent > 0)
+        #expect(report.ringImageCount == 3)
+        #expect(report.usedSupplementalImageCount == 1)
+        #expect(report.skippedImageDetails != nil)
+        let skippedDetails = report.skippedImageDetails.map { String(cString: $0) }
+        #expect(skippedDetails?.contains("3\t") == true)
+        #expect(skippedDetails?.contains("4\t") != true)
+        #expect(skippedDetails?.contains("Insufficient overlap matches") == true)
+        #expect(!FileManager.default.fileExists(atPath: cache.path))
+    }
+
+    @Test("Skipped supplemental image warning names the source and reason")
+    func skippedImageWarningNamesImageAndReason() throws {
+        let first = image(enabled: true)
+        var supplement = image(enabled: true)
+        supplement.url = URL(fileURLWithPath: "/tmp/ceiling.jpg")
+        let details = strdup("1\tInsufficient overlap with the ring.\n")
+        defer { free(details) }
+
+        let warning = OpenCVPanoramaEngine.skippedImageWarning(
+            from: details.map { UnsafePointer($0) },
+            images: [first, supplement]
+        )
+
+        #expect(warning?.contains("ceiling.jpg") == true)
+        #expect(warning?.contains("Insufficient overlap with the ring.") == true)
+    }
+
     private func image(enabled: Bool) -> SourceImage {
         SourceImage(
             url: URL(fileURLWithPath: "/tmp/\(UUID()).jpg"),
@@ -234,7 +324,10 @@ struct OpenCVPanoramaEngineTests {
         )
     }
 
-    private func writeTexturedImage(to url: URL) throws {
+    private func writeTexturedImage(
+        to url: URL,
+        seed: UInt32 = 0x6d2b79f5
+    ) throws {
         let size = 512
         let bitmap = try #require(NSBitmapImageRep(
             bitmapDataPlanes: nil,
@@ -249,7 +342,7 @@ struct OpenCVPanoramaEngineTests {
             bitsPerPixel: 32
         ))
         let pixels = try #require(bitmap.bitmapData)
-        var state: UInt32 = 0x6d2b79f5
+        var state = seed
         for index in 0..<(size * size) {
             state = state &* 1_664_525 &+ 1_013_904_223
             let value = UInt8(truncatingIfNeeded: state >> 16)

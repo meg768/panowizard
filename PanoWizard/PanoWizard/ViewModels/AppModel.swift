@@ -73,6 +73,7 @@ final class AppModel {
     var stitchStage = ""
     var lastStitchCoverage: Double?
     var lastStitchHoleCount: Int?
+    var lastStitchWarning: String?
     var usedAlignmentCache = false
 
     init(
@@ -335,6 +336,7 @@ final class AppModel {
         stitchOperationID = operationID
         stitchProgress = 0
         stitchStage = "Preparing panorama engine…"
+        lastStitchWarning = nil
         phase = .stitching
         let masks = maskDataByImageID
         let protectedMasks = protectedMaskDataByImageID
@@ -359,6 +361,7 @@ final class AppModel {
                 project.setPanoramaAdjustments(.neutral)
                 lastStitchCoverage = result.coveragePercent
                 lastStitchHoleCount = result.holeCount
+                lastStitchWarning = result.warningMessage
                 usedAlignmentCache = result.usedAlignmentCache
                 stitchProgress = 1
                 stitchStage = "Panorama complete"
