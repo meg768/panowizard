@@ -183,6 +183,22 @@ struct ContentView: View {
         } status: {
             StatusBar(model: model)
         }
+        .alert("Panorama Could Not Be Created", isPresented: stitchFailureAlertIsPresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.phase.failureDetails ?? "An unknown error occurred.")
+        }
+    }
+
+    private var stitchFailureAlertIsPresented: Binding<Bool> {
+        Binding(
+            get: { model.isStitchFailure },
+            set: { isPresented in
+                if !isPresented, model.isStitchFailure {
+                    model.phase = .ready
+                }
+            }
+        )
     }
 
     @ViewBuilder

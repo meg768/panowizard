@@ -22,6 +22,7 @@ final class AppModel {
     enum Phase: Equatable {
         case ready, importing, stitching, retouching, exporting
         case failed(String)
+        case stitchFailed(String)
 
         var message: String {
             switch self {
@@ -30,13 +31,15 @@ final class AppModel {
             case .stitching: "Stitching panorama…"
             case .retouching: "Preparing retouch patch…"
             case .exporting: "Exporting…"
-            case .failed(let message): message
+            case .failed(let message), .stitchFailed(let message): message
             }
         }
 
         var failureDetails: String? {
-            guard case .failed(let message) = self else { return nil }
-            return message
+            switch self {
+            case .failed(let message), .stitchFailed(let message): message
+            default: nil
+            }
         }
     }
 
@@ -157,7 +160,13 @@ final class AppModel {
     }
 
     var canStitch: Bool {
-        project.images.filter(\.isEnabled).count >= 2 && phase == .ready
+        project.images.filter(\.isEnabled).count >= 2
+            && (phase == .ready || isStitchFailure)
+    }
+
+    var isStitchFailure: Bool {
+        if case .stitchFailed = phase { return true }
+        return false
     }
 
     var canCancelStitch: Bool { phase == .stitching }
@@ -362,7 +371,7 @@ final class AppModel {
                 stitchStage = "Panorama creation cancelled"
             } catch {
                 guard stitchOperationID == operationID else { return }
-                phase = .failed(error.localizedDescription)
+                phase = .stitchFailed(error.localizedDescription)
             }
             stitchTask = nil
         }

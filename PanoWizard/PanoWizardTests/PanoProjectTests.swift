@@ -198,6 +198,21 @@ struct PanoProjectTests {
         #expect(project.images.map(\.id) == [second.id])
     }
 
+    @Test("A failed panorama can be retried when enough sources remain enabled")
+    @MainActor
+    func canRetryFailedPanorama() {
+        let first = sourceImage()
+        let second = sourceImage()
+        let model = AppModel.live(project: PanoProject(images: [first, second]))
+
+        model.phase = .stitchFailed("Stitching failed")
+        #expect(model.canStitch)
+        #expect(model.phase.failureDetails == "Stitching failed")
+
+        model.toggleSourceImageEnabled(second.id)
+        #expect(!model.canStitch)
+    }
+
     @Test("Removing all sources clears derived state and preserves original files")
     @MainActor
     func removeAllSources() throws {

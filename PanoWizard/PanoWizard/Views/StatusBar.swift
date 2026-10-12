@@ -80,7 +80,7 @@ struct StatusBar: View {
     }
 
     private var statusSymbol: String {
-        if case .failed = model.phase { return "exclamationmark.triangle.fill" }
+        if model.phase.failureDetails != nil { return "exclamationmark.triangle.fill" }
         if (model.lastStitchHoleCount ?? 0) > 0 {
             return "exclamationmark.triangle.fill"
         }
@@ -88,7 +88,7 @@ struct StatusBar: View {
     }
 
     private var statusColor: Color {
-        if case .failed = model.phase { return .orange }
+        if model.phase.failureDetails != nil { return .orange }
         if (model.lastStitchHoleCount ?? 0) > 0 { return .orange }
         return .green
     }
