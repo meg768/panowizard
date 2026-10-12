@@ -4,29 +4,6 @@ import Testing
 
 @Suite("Project format 10")
 struct PanoProjectTests {
-    @Test("Legacy zenith and nadir roles load as ordinary repair images")
-    func supplementalImageRoles() throws {
-        #expect(SourceImage.Role.fillOnly.isSupplemental)
-        #expect(!SourceImage.Role.automatic.isSupplemental)
-        #expect(!SourceImage.Role.alignment.isSupplemental)
-        #expect(try JSONDecoder().decode(
-            SourceImage.Role.self,
-            from: Data("\"zenith\"".utf8)
-        ) == .fillOnly)
-        #expect(try JSONDecoder().decode(
-            SourceImage.Role.self,
-            from: Data("\"nadir\"".utf8)
-        ) == .fillOnly)
-        #expect(try JSONDecoder().decode(
-            SourceImage.Role.self,
-            from: Data("\"fillOnly\"".utf8)
-        ) == .fillOnly)
-        #expect(try JSONDecoder().decode(
-            SourceImage.Direction.self,
-            from: Data("\"zenith\"".utf8)
-        ) == .horizontal)
-    }
-
     @Test("Round-trip keeps sources, metadata, and adjustments")
     func roundTrip() throws {
         let image = sourceImage()
@@ -219,78 +196,6 @@ struct PanoProjectTests {
         project.removeImage(at: 0)
 
         #expect(project.images.map(\.id) == [second.id])
-    }
-
-    @Test("Removing a disabled source preserves the stitched panorama and retouch")
-    @MainActor
-    func removeDisabledSourcePreservesGeneratedResult() throws {
-        let first = sourceImage()
-        let second = sourceImage()
-        var excluded = sourceImage()
-        excluded.isEnabled = false
-        let patchID = UUID()
-        let patchData = try RGBAImage(
-            width: RetouchPatchService.patchSize,
-            height: RetouchPatchService.patchSize
-        ).pngData()
-        let aiMaskData = Data([9, 10])
-        var panorama = RGBAImage(width: 4, height: 2)
-        for y in 0..<panorama.height {
-            for x in 0..<panorama.width {
-                panorama.setPixel(Pixel(r: 0.2, g: 0.3, b: 0.4, a: 1), x: x, y: y)
-            }
-        }
-        let panoramaData = try panorama.pngData()
-        let adjustments = PanoramaAdjustments(exposure: 0.5, contrast: 12)
-        let project = PanoProject(
-            images: [first, second, excluded],
-            retouchPatches: [RetouchPatch(
-                id: patchID,
-                kind: .ai,
-                viewpoint: PanoramaViewpoint(),
-                prompt: "Remove the sign"
-            )],
-            panoramaAdjustments: adjustments
-        )
-        let model = AppModel.live(
-            project: project,
-            masks: [excluded.id: Data([11])],
-            panoramaData: panoramaData,
-            retouchPatchData: [patchID: patchData],
-            aiRetouchMaskData: [patchID: aiMaskData]
-        )
-        let stitchedURL = try #require(model.stitchedResultURL)
-        let patchURL = try #require(model.retouchPatchURLs[patchID])
-        defer {
-            try? FileManager.default.removeItem(at: stitchedURL)
-            try? FileManager.default.removeItem(at: patchURL)
-        }
-
-        model.removeSourceImage(excluded.id)
-
-        #expect(model.project.images.map(\.id) == [first.id, second.id])
-        #expect(model.stitchedResultURL == stitchedURL)
-        #expect(model.retouchPatches.count == 1)
-        #expect(model.retouchPatchData[patchID] == patchData)
-        #expect(model.aiRetouchMaskDataByPatchID[patchID] == aiMaskData)
-        #expect(model.project.panoramaAdjustments == adjustments)
-        #expect(model.maskDataByImageID[excluded.id] == nil)
-        #expect(model.panoramaRevision == 0)
-    }
-
-    @Test("A failed panorama can be retried when enough sources remain enabled")
-    @MainActor
-    func canRetryFailedPanorama() {
-        let first = sourceImage()
-        let second = sourceImage()
-        let model = AppModel.live(project: PanoProject(images: [first, second]))
-
-        model.phase = .stitchFailed("Stitching failed")
-        #expect(model.canStitch)
-        #expect(model.phase.failureDetails == "Stitching failed")
-
-        model.toggleSourceImageEnabled(second.id)
-        #expect(!model.canStitch)
     }
 
     @Test("Removing all sources clears derived state and preserves original files")

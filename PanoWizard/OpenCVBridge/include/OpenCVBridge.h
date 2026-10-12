@@ -31,7 +31,6 @@ int PWStitchPanorama(
     PWProgressCallback progressCallback,
     PWCancellationCallback cancellationCallback,
     PWStitchReport *report,
-    int *failedSupplementalImageFlags,
     char **errorMessage
 );
 

@@ -80,12 +80,7 @@ struct StatusBar: View {
     }
 
     private var statusSymbol: String {
-        if model.phase.failureDetails != nil {
-            return "exclamationmark.triangle.fill"
-        }
-        if !model.skippedSupplementalImageNames.isEmpty {
-            return "exclamationmark.triangle.fill"
-        }
+        if case .failed = model.phase { return "exclamationmark.triangle.fill" }
         if (model.lastStitchHoleCount ?? 0) > 0 {
             return "exclamationmark.triangle.fill"
         }
@@ -93,8 +88,7 @@ struct StatusBar: View {
     }
 
     private var statusColor: Color {
-        if model.phase.failureDetails != nil { return .orange }
-        if !model.skippedSupplementalImageNames.isEmpty { return .orange }
+        if case .failed = model.phase { return .orange }
         if (model.lastStitchHoleCount ?? 0) > 0 { return .orange }
         return .green
     }
@@ -103,10 +97,6 @@ struct StatusBar: View {
         if model.phase == .ready,
            let coverage = model.lastStitchCoverage,
            let holes = model.lastStitchHoleCount {
-            if !model.skippedSupplementalImageNames.isEmpty {
-                return "Panorama ring complete · skipped: "
-                    + model.skippedSupplementalImageNames.joined(separator: ", ")
-            }
             if holes > 0 {
                 return String(
                     format: "Panorama complete · %.2f %% coverage · %d pixels lack unmasked source data",

@@ -8,8 +8,6 @@ PanoWizard starts in a normal project window with an empty project. The welcome 
 
 **Clear Menu** clears the recent-project history without deleting any project files.
 
-The **Window** menu uses the same shortest unique path names for open project windows, so multiple windows named `panorama.pw` remain distinguishable.
-
 ## Save your work
 
 - **File → Save** (Command-S) saves the editable project.

@@ -183,42 +183,6 @@ struct ContentView: View {
         } status: {
             StatusBar(model: model)
         }
-        .alert(
-            stitchAlertTitle,
-            isPresented: stitchResultAlertIsPresented
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(stitchAlertMessage)
-        }
-    }
-
-    private var stitchResultAlertIsPresented: Binding<Bool> {
-        Binding(
-            get: { model.isStitchFailure || model.showsSupplementalImageWarning },
-            set: { isPresented in
-                if !isPresented {
-                    if model.isStitchFailure { model.phase = .ready }
-                    model.showsSupplementalImageWarning = false
-                }
-            }
-        )
-    }
-
-    private var stitchAlertTitle: String {
-        model.isStitchFailure
-            ? "Panorama Could Not Be Created"
-            : "Panorama Created with Skipped Images"
-    }
-
-    private var stitchAlertMessage: String {
-        if model.isStitchFailure {
-            return model.phase.failureDetails ?? "An unknown error occurred."
-        }
-        let names = model.skippedSupplementalImageNames
-            .map { "• \($0)" }
-            .joined(separator: "\n")
-        return "The panorama ring was created, but these supplemental images could not be registered and were skipped:\n\n\(names)"
     }
 
     @ViewBuilder
