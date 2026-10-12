@@ -1445,41 +1445,56 @@ cv::Matx33d registerSupplementalView(
     int sourceIndex,
     const std::vector<int> &ringIndices,
     const std::vector<cv::Matx33d> &ringRotations,
-    const std::vector<Edge> &edges,
+    const std::vector<Edge> &strongEdges,
+    const std::vector<Edge> &weakEdges,
     const cv::Size &sourceSize,
-    const Lens &lens
+    const Lens &lens,
+    const std::string &sourceName
 ) {
     std::vector<cv::Vec3d> sourceRays;
     std::vector<cv::Vec3d> targetRays;
-    for (const Edge &edge : edges) {
-        const auto ring = std::find(
-            ringIndices.begin(), ringIndices.end(),
-            edge.first == sourceIndex ? edge.second : edge.first
-        );
-        if (ring == ringIndices.end()) continue;
-        const bool sourceIsFirst = edge.first == sourceIndex;
-        const bool sourceIsSecond = edge.second == sourceIndex;
-        if (!sourceIsFirst && !sourceIsSecond) continue;
-        const int ringIndex = int(std::distance(ringIndices.begin(), ring));
-        for (size_t point = 0; point < edge.firstPoints.size(); ++point) {
-            const cv::Point2d sourcePoint = sourceIsFirst
-                ? edge.firstPoints[point] : edge.secondPoints[point];
-            const cv::Point2d ringPoint = sourceIsFirst
-                ? edge.secondPoints[point] : edge.firstPoints[point];
-            sourceRays.push_back(ray(sourcePoint, sourceSize, lens));
-            targetRays.push_back(
-                ringRotations[ringIndex] * ray(ringPoint, sourceSize, lens)
+    auto appendRingMatches = [&](const std::vector<Edge> &edges) {
+        for (const Edge &edge : edges) {
+            const auto ring = std::find(
+                ringIndices.begin(), ringIndices.end(),
+                edge.first == sourceIndex ? edge.second : edge.first
             );
+            if (ring == ringIndices.end()) continue;
+            const bool sourceIsFirst = edge.first == sourceIndex;
+            const bool sourceIsSecond = edge.second == sourceIndex;
+            if (!sourceIsFirst && !sourceIsSecond) continue;
+            const int ringIndex = int(std::distance(ringIndices.begin(), ring));
+            for (size_t point = 0; point < edge.firstPoints.size(); ++point) {
+                const cv::Point2d sourcePoint = sourceIsFirst
+                    ? edge.firstPoints[point] : edge.secondPoints[point];
+                const cv::Point2d ringPoint = sourceIsFirst
+                    ? edge.secondPoints[point] : edge.firstPoints[point];
+                sourceRays.push_back(ray(sourcePoint, sourceSize, lens));
+                targetRays.push_back(
+                    ringRotations[ringIndex] * ray(ringPoint, sourceSize, lens)
+                );
+            }
         }
-    }
+    };
+    appendRingMatches(strongEdges);
+    appendRingMatches(weakEdges);
+    std::fprintf(
+        stderr,
+        "[PanoWizard] Supplemental registration %s: candidates=%zu",
+        sourceName.c_str(), sourceRays.size()
+    );
     if (sourceRays.size() < 20) {
+        std::fprintf(stderr, " final-RANSAC-inliers=not-run\n");
         throw std::runtime_error(
             "Insufficient overlap matches with the panorama ring for automatic registration."
         );
     }
     auto [rotation, selected] = ransacRotation(sourceRays, targetRays);
-    if (selected.empty()
-        || std::accumulate(selected.begin(), selected.end(), 0) < 20) {
+    const int inlierCount = std::accumulate(selected.begin(), selected.end(), 0);
+    std::fprintf(
+        stderr, " final-RANSAC-inliers=%d\n", inlierCount
+    );
+    if (selected.empty() || inlierCount < 20) {
         throw std::runtime_error(
             "Too few consistent overlap points with the panorama ring for automatic registration."
         );
@@ -3815,8 +3830,9 @@ int PWStitchPanorama(
                 try {
                     alignment.rotations[index] = registerSupplementalView(
                         index, ringIndices, ringAlignment.rotations,
-                        edgeSets.strong,
-                        sources.front().image.size(), ringAlignment.lens
+                        edgeSets.strong, edgeSets.weak,
+                        sources.front().image.size(), ringAlignment.lens,
+                        std::filesystem::path(imagePaths[index]).filename().string()
                     );
                 } catch (const std::exception &error) {
                     skippedImages.emplace_back(index, error.what());

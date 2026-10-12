@@ -28,13 +28,9 @@ struct OpenCVPanoramaEngineTests {
         #expect(image?.width == OpenCVPanoramaEngine.outputWidth)
         #expect(image?.height == OpenCVPanoramaEngine.outputWidth / 2)
         #expect(result.ringImageCount == 6)
-        #expect(result.usedSupplementalImageCount == 1)
-        #expect(result.warningMessage?.contains("2006-07-09 16.18.38.jpg") == true)
-        #expect(result.warningMessage?.contains("2006-07-09 16.19.38.jpg") != true)
-        #expect(result.warningMessage?.contains("Insufficient overlap matches") == true)
-        // ZA's ceiling view is intentionally unregistrable. Its open area is
-        // reflected in coverage, while the panorama ring and floor fill remain.
-        #expect(result.coveragePercent > 80)
+        #expect(result.usedSupplementalImageCount == 2)
+        #expect(result.warningMessage == nil)
+        #expect(result.coveragePercent > 95)
         print(
             "Panorama fixture result: \(result.url.path), "
                 + "coverage=\(result.coveragePercent), holes=\(result.holeCount), "
