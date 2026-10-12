@@ -15,11 +15,43 @@ struct SourceImage: Codable, Identifiable, Hashable, Sendable {
     }
 
     enum Direction: String, Codable, Sendable {
-        case horizontal, zenith, nadir
+        case horizontal
+
+        init(from decoder: Decoder) throws {
+            let value = try decoder.singleValueContainer().decode(String.self)
+            // Older projects stored pole labels. They no longer affect image
+            // classification, so load them as ordinary image direction.
+            guard value == "horizontal" || value == "zenith" || value == "nadir" else {
+                throw DecodingError.dataCorruptedError(
+                    in: try decoder.singleValueContainer(),
+                    debugDescription: "Unknown source image direction: \(value)"
+                )
+            }
+            self = .horizontal
+        }
     }
 
     enum Role: String, Codable, Sendable {
         case automatic, alignment, fillOnly
+
+        init(from decoder: Decoder) throws {
+            let value = try decoder.singleValueContainer().decode(String.self)
+            switch value {
+            case "zenith", "nadir": self = .fillOnly
+            default:
+                guard let role = Self(rawValue: value) else {
+                    throw DecodingError.dataCorruptedError(
+                        in: try decoder.singleValueContainer(),
+                        debugDescription: "Unknown source image role: \(value)"
+                    )
+                }
+                self = role
+            }
+        }
+
+        var isSupplemental: Bool {
+            self == .fillOnly
+        }
     }
 
     let id: UUID

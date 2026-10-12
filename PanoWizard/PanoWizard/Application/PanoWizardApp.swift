@@ -41,6 +41,63 @@ private final class FileMenuDelegateProxy: NSObject, NSMenuDelegate {
     }
 }
 
+private final class ProjectWindowMenuDelegateProxy: NSObject, NSMenuDelegate {
+    weak var forwardedDelegate: (any NSMenuDelegate)?
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        forwardedDelegate?.menuNeedsUpdate?(menu)
+        MainActor.assumeIsolated { updateProjectWindowTitles(in: menu) }
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        forwardedDelegate?.menuWillOpen?(menu)
+        MainActor.assumeIsolated { updateProjectWindowTitles(in: menu) }
+    }
+
+    override func responds(to selector: Selector!) -> Bool {
+        super.responds(to: selector)
+            || forwardedDelegate?.responds(to: selector) == true
+    }
+
+    override func forwardingTarget(for selector: Selector!) -> Any? {
+        if forwardedDelegate?.responds(to: selector) == true {
+            return forwardedDelegate
+        }
+        return super.forwardingTarget(for: selector)
+    }
+
+    @MainActor
+    private func updateProjectWindowTitles(in menu: NSMenu) {
+        let projects = NSApp.windows.compactMap { window -> (NSWindow, URL)? in
+            guard let url = window.projectFileURL else { return nil }
+            return (window, url)
+        }
+        let titles = RecentProjectNames.titles(for: projects.map(\.1))
+        let titleByWindow = Dictionary(uniqueKeysWithValues: zip(projects, titles).map {
+            (ObjectIdentifier($0.0.0), ($0.1, $0.0.1))
+        })
+
+        for item in menu.items {
+            let window = (item.representedObject as? NSWindow)
+                ?? (item.representedObject as? NSWindowController)?.window
+                ?? (item.target as? NSWindow)
+            guard let window,
+                  let (title, url) = titleByWindow[ObjectIdentifier(window)] else { continue }
+            item.title = title
+            item.toolTip = url.path
+        }
+    }
+}
+
+@MainActor
+private extension NSWindow {
+    var projectFileURL: URL? {
+        let url = representedURL ?? (windowController?.document?.fileURL ?? nil)
+        guard let url, url.pathExtension.lowercased() == "pw" else { return nil }
+        return url.standardizedFileURL
+    }
+}
+
 enum RecentProjectNames {
     static func titles(for urls: [URL]) -> [String] {
         let paths = urls.map { $0.standardizedFileURL.pathComponents }
@@ -109,6 +166,7 @@ private final class PanoWizardApplicationDelegate: NSObject, NSApplicationDelega
     private weak var pendingTerminationWindow: NSWindow?
     private var discardedTerminationWindows: Set<ObjectIdentifier> = []
     private let fileMenuDelegateProxy = FileMenuDelegateProxy()
+    private let projectWindowMenuDelegateProxy = ProjectWindowMenuDelegateProxy()
     // An off-menu help menu suppresses AppKit's automatic Spotlight Search field.
     private let spotlightHelpMenu = NSMenu()
 
@@ -180,6 +238,7 @@ private final class PanoWizardApplicationDelegate: NSObject, NSApplicationDelega
             NSApp.helpMenu = spotlightHelpMenu
         }
         installFileMenuDelegateIfAvailable()
+        installProjectWindowMenuDelegateIfAvailable()
     }
 
     private func installFileMenuCleanupWhenReady(attempt: Int) {
@@ -206,6 +265,16 @@ private final class PanoWizardApplicationDelegate: NSObject, NSApplicationDelega
             fileMenu.delegate = fileMenuDelegateProxy
         }
         fileMenuDelegateProxy.hideEmptyPlaceholder(in: fileMenu)
+        return true
+    }
+
+    @discardableResult
+    private func installProjectWindowMenuDelegateIfAvailable() -> Bool {
+        guard let windowMenu = NSApp.windowsMenu else { return false }
+        if windowMenu.delegate !== projectWindowMenuDelegateProxy {
+            projectWindowMenuDelegateProxy.forwardedDelegate = windowMenu.delegate
+            windowMenu.delegate = projectWindowMenuDelegateProxy
+        }
         return true
     }
 

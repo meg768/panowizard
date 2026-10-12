@@ -22,6 +22,7 @@ final class AppModel {
     enum Phase: Equatable {
         case ready, importing, stitching, retouching, exporting
         case failed(String)
+        case stitchFailed(String)
 
         var message: String {
             switch self {
@@ -30,13 +31,15 @@ final class AppModel {
             case .stitching: "Stitching panorama…"
             case .retouching: "Preparing retouch patch…"
             case .exporting: "Exporting…"
-            case .failed(let message): message
+            case .failed(let message), .stitchFailed(let message): message
             }
         }
 
         var failureDetails: String? {
-            guard case .failed(let message) = self else { return nil }
-            return message
+            switch self {
+            case .failed(let message), .stitchFailed(let message): message
+            default: nil
+            }
         }
     }
 
@@ -71,6 +74,8 @@ final class AppModel {
     var lastStitchCoverage: Double?
     var lastStitchHoleCount: Int?
     var usedAlignmentCache = false
+    var skippedSupplementalImageNames: [String] = []
+    var showsSupplementalImageWarning = false
 
     init(
         project: PanoProject,
@@ -157,7 +162,13 @@ final class AppModel {
     }
 
     var canStitch: Bool {
-        project.images.filter(\.isEnabled).count >= 2 && phase == .ready
+        project.images.filter(\.isEnabled).count >= 2
+            && (phase == .ready || isStitchFailure)
+    }
+
+    var isStitchFailure: Bool {
+        if case .stitchFailed = phase { return true }
+        return false
     }
 
     var canCancelStitch: Bool { phase == .stitching }
@@ -237,13 +248,18 @@ final class AppModel {
         guard let index = project.images.firstIndex(where: { $0.id == id }) else {
             return
         }
-        cancelStitch()
+        let removedImageWasEnabled = project.images[index].isEnabled
+        if removedImageWasEnabled {
+            cancelStitch()
+        }
         project.removeImage(at: index)
         maskDataByImageID[id] = nil
         protectedMaskDataByImageID[id] = nil
         maskUndoHistory[id] = nil
         maskRevision += 1
-        invalidatePanorama()
+        if removedImageWasEnabled {
+            invalidatePanorama()
+        }
         selection = project.images.isEmpty
             ? nil
             : .source(project.images[min(index, project.images.count - 1)].id)
@@ -326,6 +342,8 @@ final class AppModel {
         stitchOperationID = operationID
         stitchProgress = 0
         stitchStage = "Preparing panorama engine…"
+        skippedSupplementalImageNames = []
+        showsSupplementalImageWarning = false
         phase = .stitching
         let masks = maskDataByImageID
         let protectedMasks = protectedMaskDataByImageID
@@ -351,6 +369,8 @@ final class AppModel {
                 lastStitchCoverage = result.coveragePercent
                 lastStitchHoleCount = result.holeCount
                 usedAlignmentCache = result.usedAlignmentCache
+                skippedSupplementalImageNames = result.skippedSupplementalImages
+                showsSupplementalImageWarning = !result.skippedSupplementalImages.isEmpty
                 stitchProgress = 1
                 stitchStage = "Panorama complete"
                 selection = .panorama
@@ -362,7 +382,7 @@ final class AppModel {
                 stitchStage = "Panorama creation cancelled"
             } catch {
                 guard stitchOperationID == operationID else { return }
-                phase = .failed(error.localizedDescription)
+                phase = .stitchFailed(error.localizedDescription)
             }
             stitchTask = nil
         }

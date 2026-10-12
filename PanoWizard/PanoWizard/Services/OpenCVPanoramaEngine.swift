@@ -6,7 +6,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
     static let outputWidth = 4096
     // These on-disk identifiers must remain stable so a source-only rename
     // does not invalidate previously verified alignment caches.
-    static let alignmentCacheFormatKey = "trial-native-weak-crosslink-v1"
+    static let alignmentCacheFormatKey = "trial-native-pole-registration-v2"
 
     func stitch(
         _ panorama: PanoramaSet,
@@ -63,7 +63,9 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
                 Double(index) / Double(images.count) * 0.08,
                 "Preparing source images…"
             )
-            let sourceURL = workDirectory.appending(path: "source-\(index).tif")
+            let sourceURL = workDirectory.appending(
+                path: "source-\(index)-\(image.url.lastPathComponent).tif"
+            )
             try MaskedSourceImageWriter.write(
                 sourceImage: image,
                 maskData: masks[image.id],
@@ -83,13 +85,17 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
         let outputURL = workDirectory.appending(path: "panorama.png")
         let cacheURL = try alignmentCacheURL(images: images, masks: masks)
         let compositionRoles = images.map { image -> UInt8 in
-            if image.effectiveRole == .fillOnly { return 2 }
+            switch image.effectiveRole {
+            case .fillOnly: return 2
+            case .automatic, .alignment: break
+            }
             if image.role == .alignment || image.automaticRole == .alignment {
                 return 1
             }
             return 0
         }
         var report = PWStitchReport()
+        var failedSupplementalFlags = [Int32](repeating: 0, count: images.count)
         var errorPointer: UnsafeMutablePointer<CChar>?
         let opaqueContext = Unmanaged.passUnretained(context).toOpaque()
         let succeeded = sourceURLs.map { $0.path(percentEncoded: false) }
@@ -97,20 +103,24 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
                 protectedURLs.map { $0?.path(percentEncoded: false) }
                     .withOptionalCStringArray { protectedPaths in
                         compositionRoles.withUnsafeBufferPointer { roles in
-                            PWStitchPanorama(
-                                sourcePaths,
-                                protectedPaths,
-                                roles.baseAddress,
-                                Int32(sourceURLs.count),
-                                cacheURL.path(percentEncoded: false),
-                                outputURL.path(percentEncoded: false),
-                                Int32(outputWidth),
-                                opaqueContext,
-                                progressCallback,
-                                cancellationCallback,
-                                &report,
-                                &errorPointer
-                            )
+                            failedSupplementalFlags.withUnsafeMutableBufferPointer {
+                                failedFlags in
+                                PWStitchPanorama(
+                                    sourcePaths,
+                                    protectedPaths,
+                                    roles.baseAddress,
+                                    Int32(sourceURLs.count),
+                                    cacheURL.path(percentEncoded: false),
+                                    outputURL.path(percentEncoded: false),
+                                    Int32(outputWidth),
+                                    opaqueContext,
+                                    progressCallback,
+                                    cancellationCallback,
+                                    &report,
+                                    failedFlags.baseAddress,
+                                    &errorPointer
+                                )
+                            }
                         }
                     }
             }
@@ -143,7 +153,9 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
             url: retainedURL,
             coveragePercent: report.coveragePercent,
             holeCount: Int(report.holeCount),
-            usedAlignmentCache: report.usedAlignmentCache != 0
+            usedAlignmentCache: report.usedAlignmentCache != 0,
+            skippedSupplementalImages: zip(images, failedSupplementalFlags)
+                .compactMap { image, failed in failed == 0 ? nil : image.filename }
         )
     }
 

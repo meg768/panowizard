@@ -14,6 +14,7 @@ struct PanoramaStitchResult: Sendable {
     let coveragePercent: Double
     let holeCount: Int
     let usedAlignmentCache: Bool
+    var skippedSupplementalImages: [String] = []
 }
 
 enum PanoramaEngineError: LocalizedError {

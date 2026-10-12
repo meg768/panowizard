@@ -24,7 +24,7 @@
 namespace {
 
 constexpr double pi = 3.14159265358979323846;
-constexpr int alignmentCacheFormatVersion = 4;
+constexpr int alignmentCacheFormatVersion = 8;
 
 struct Lens {
     double k1 = pi / 2.0;
@@ -39,6 +39,7 @@ struct Source {
     cv::Mat image;
     cv::Mat userMask;
     cv::Mat protectedMask;
+    std::string fileName;
 };
 
 struct Features {
@@ -79,6 +80,7 @@ struct Warp {
     cv::Mat userExclusionMask;
     cv::Mat protectedMask;
     cv::Mat score;
+    std::string diagnosticLabel;
     bool fillOnly = false;
 };
 
@@ -94,6 +96,16 @@ struct StitchCallbacks {
 };
 
 thread_local StitchCallbacks stitchCallbacks;
+
+const char *compositionRoleName(unsigned char role) {
+    switch (role) {
+        case 0: return "automatic";
+        case 1: return "alignment";
+        case 2: return "fill-only";
+        case 3: return "excluded";
+        default: return "unknown";
+    }
+}
 
 void checkCancellation() {
     if (stitchCallbacks.cancellation != nullptr
@@ -177,7 +189,8 @@ cv::Matx33d kabsch(
 
 std::pair<cv::Matx33d, std::vector<unsigned char>> ransacRotation(
     const std::vector<cv::Vec3d> &source,
-    const std::vector<cv::Vec3d> &target
+    const std::vector<cv::Vec3d> &target,
+    double initialToleranceDegrees = 1.4
 ) {
     if (source.size() < 3 || source.size() != target.size()) {
         return {cv::Matx33d::eye(), {}};
@@ -202,7 +215,7 @@ std::pair<cv::Matx33d, std::vector<unsigned char>> ransacRotation(
             const double cosine = std::clamp(
                 (matrix * source[index]).dot(target[index]), -1.0, 1.0
             );
-            if (std::acos(cosine) < radians(1.4)) {
+            if (std::acos(cosine) < radians(initialToleranceDegrees)) {
                 hit[index] = 1;
                 ++hitCount;
             }
@@ -244,6 +257,25 @@ Source readSource(const char *imagePath, const char *protectedPath) {
         throw std::runtime_error("The source image could not be read: " + std::string(imagePath));
     }
     Source result;
+    result.fileName = std::filesystem::path(imagePath).filename().string();
+    const std::string temporaryPrefix = "source-";
+    if (result.fileName.rfind(temporaryPrefix, 0) == 0) {
+        const size_t originalNameStart = result.fileName.find('-', temporaryPrefix.size());
+        const std::string temporaryExtension = ".tif";
+        if (originalNameStart != std::string::npos
+            && result.fileName.size() >= temporaryExtension.size()
+            && result.fileName.size() > originalNameStart + 1
+            && result.fileName.compare(
+                result.fileName.size() - temporaryExtension.size(),
+                temporaryExtension.size(), temporaryExtension
+            ) == 0) {
+            result.fileName = result.fileName.substr(
+                originalNameStart + 1,
+                result.fileName.size() - originalNameStart
+                    - 1 - temporaryExtension.size()
+            );
+        }
+    }
     if (raw.channels() == 4) {
         std::vector<cv::Mat> channels;
         cv::split(raw, channels);
@@ -345,13 +377,15 @@ OpticalSupport commonOpticalSupport(const std::vector<Source> &sources) {
 
 std::vector<Features> extractFeatures(
     const std::vector<Source> &sources,
-    const cv::Mat &opticalMask
+    const cv::Mat &opticalMask,
+    const std::vector<unsigned char> &roles
 ) {
     const cv::Size size = sources.front().image.size();
     const double factor = std::min(1.0, 1450.0 / std::max(size.width, size.height));
     cv::Ptr<cv::SIFT> sift = cv::SIFT::create(16000, 3, 0.016, 14);
     std::vector<Features> result;
-    for (const Source &source : sources) {
+    for (int sourceIndex = 0; sourceIndex < int(sources.size()); ++sourceIndex) {
+        const Source &source = sources[sourceIndex];
         cv::Mat small;
         cv::resize(source.image, small, cv::Size(), factor, factor, cv::INTER_AREA);
         cv::Mat gray;
@@ -363,7 +397,11 @@ std::vector<Features> extractFeatures(
         cv::Mat descriptors;
         sift->detectAndCompute(gray, usable, keypoints, descriptors);
         if (descriptors.empty() || keypoints.size() < 20) {
-            throw std::runtime_error("A source image contains too few usable image features.");
+            if (roles[sourceIndex] < 2) {
+                throw std::runtime_error("A source image contains too few usable image features.");
+            }
+            result.push_back(Features{});
+            continue;
         }
         Features features;
         features.descriptors = descriptors;
@@ -452,6 +490,8 @@ EdgeSets buildEdges(
     EdgeSets edges;
     for (int first = 0; first < int(sources.size()); ++first) {
         for (int second = first + 1; second < int(sources.size()); ++second) {
+            if (features[first].descriptors.empty()
+                || features[second].descriptors.empty()) continue;
             const auto matches = mutualMatches(
                 features[first], features[second]
             );
@@ -1352,38 +1392,6 @@ std::vector<cv::Matx33d> levelRotations(
     return result;
 }
 
-void detectSupplementalViews(
-    std::vector<unsigned char> &roles,
-    const std::vector<cv::Matx33d> &initialRotations
-) {
-    if (initialRotations.size() < 4) return;
-    const std::vector<cv::Matx33d> leveled = levelRotations(
-        initialRotations
-    );
-    int horizontalCount = 0;
-    int automaticNadirCount = 0;
-    for (int index = 0; index < int(leveled.size()); ++index) {
-        if (roles[index] == 2) continue;
-        const cv::Vec3d axis = leveled[index] * cv::Vec3d(0.0, 0.0, 1.0);
-        if (std::abs(axis[1]) < 0.65) ++horizontalCount;
-        if (roles[index] == 0 && axis[1] < -0.80) {
-            ++automaticNadirCount;
-        }
-    }
-    if (horizontalCount < 3) return;
-
-    // A lone automatic nadir frame is normally a hand-held repair shot and
-    // must not steer the ring geometry. Two such frames, however, provide a
-    // mutually verified monopod sequence with useful control-point support.
-    if (automaticNadirCount >= 2) return;
-
-    for (int index = 0; index < int(leveled.size()); ++index) {
-        if (roles[index] != 0) continue;
-        const cv::Vec3d axis = leveled[index] * cv::Vec3d(0.0, 0.0, 1.0);
-        if (axis[1] < -0.80) roles[index] = 2;
-    }
-}
-
 cv::Matx33d registerSupplementalView(
     int sourceIndex,
     const std::vector<int> &ringIndices,
@@ -1428,6 +1436,169 @@ cv::Matx33d registerSupplementalView(
         );
     }
     return rotation;
+}
+
+struct PoleFit {
+    cv::Matx33d rotation;
+    int support = 0;
+    double medianError = 0.0;
+};
+
+PoleFit fitPoleView(
+    int sourceIndex,
+    const std::vector<int> &ringIndices,
+    const std::vector<cv::Matx33d> &ringRotations,
+    const std::vector<Edge> &edges,
+    const cv::Size &sourceSize,
+    const Lens &lens,
+    const cv::Matx33d &leveling,
+    double poleSign
+) {
+    const cv::Vec3d pole = leveling.t()
+        * cv::Vec3d(0.0, poleSign, 0.0);
+    cv::Vec3d reference = ringRotations.front()
+        * cv::Vec3d(1.0, 0.0, 0.0);
+    reference -= pole * reference.dot(pole);
+    if (cv::norm(reference) < 1e-8) {
+        reference = cv::Vec3d(0.0, 0.0, 1.0);
+        reference -= pole * reference.dot(pole);
+    }
+    reference /= cv::norm(reference);
+    cv::Vec3d vertical = pole.cross(reference);
+    vertical /= cv::norm(vertical);
+    const cv::Matx33d base(
+        reference[0], vertical[0], pole[0],
+        reference[1], vertical[1], pole[1],
+        reference[2], vertical[2], pole[2]
+    );
+
+    std::vector<cv::Vec3d> sourceRays;
+    std::vector<cv::Vec3d> targetRays;
+    for (const Edge &edge : edges) {
+        const bool sourceIsFirst = edge.first == sourceIndex;
+        const bool sourceIsSecond = edge.second == sourceIndex;
+        if (!sourceIsFirst && !sourceIsSecond) continue;
+        const int otherIndex = sourceIsFirst ? edge.second : edge.first;
+        const auto ring = std::find(
+            ringIndices.begin(), ringIndices.end(), otherIndex
+        );
+        if (ring == ringIndices.end()) continue;
+        const int ringIndex = int(std::distance(ringIndices.begin(), ring));
+        for (size_t point = 0; point < edge.firstPoints.size(); ++point) {
+            const cv::Point2d sourcePoint = sourceIsFirst
+                ? edge.firstPoints[point] : edge.secondPoints[point];
+            const cv::Point2d ringPoint = sourceIsFirst
+                ? edge.secondPoints[point] : edge.firstPoints[point];
+            sourceRays.push_back(ray(sourcePoint, sourceSize, lens));
+            targetRays.push_back(
+                ringRotations[ringIndex] * ray(ringPoint, sourceSize, lens)
+            );
+        }
+    }
+    if (sourceRays.size() < 3) {
+        throw std::runtime_error("Too few matches for a pole-aligned repair image.");
+    }
+
+    constexpr double inlierTolerance = 2.0 * pi / 180.0;
+    double bestAngle = 0.0;
+    int bestSupport = 0;
+    for (size_t index = 0; index < sourceRays.size(); ++index) {
+        const cv::Vec3d initial = base * sourceRays[index];
+        const cv::Vec3d projectedInitial = initial - pole * initial.dot(pole);
+        const cv::Vec3d projectedTarget = targetRays[index]
+            - pole * targetRays[index].dot(pole);
+        if (cv::norm(projectedInitial) < 0.08
+            || cv::norm(projectedTarget) < 0.08) continue;
+        const double angle = std::atan2(
+            pole.dot(projectedInitial.cross(projectedTarget)),
+            projectedInitial.dot(projectedTarget)
+        );
+        const cv::Matx33d candidate = rotationMatrix(pole * angle) * base;
+        int support = 0;
+        for (size_t other = 0; other < sourceRays.size(); ++other) {
+            const double cosine = std::clamp(
+                (candidate * sourceRays[other]).dot(targetRays[other]),
+                -1.0, 1.0
+            );
+            if (std::acos(cosine) < inlierTolerance) ++support;
+        }
+        if (support > bestSupport) {
+            bestSupport = support;
+            bestAngle = angle;
+        }
+    }
+    const int requiredSupport = std::max(
+        3, int(std::ceil(sourceRays.size() * 0.35))
+    );
+    if (bestSupport < requiredSupport) {
+        throw std::runtime_error("Too few consistent matches for a pole-aligned repair image.");
+    }
+
+    // Refine the roll around the pole from the inlying overlap matches.
+    const cv::Matx33d initial = rotationMatrix(pole * bestAngle) * base;
+    double sine = 0.0;
+    double cosine = 0.0;
+    std::vector<double> errors;
+    for (size_t index = 0; index < sourceRays.size(); ++index) {
+        const double error = std::acos(std::clamp(
+            (initial * sourceRays[index]).dot(targetRays[index]), -1.0, 1.0
+        ));
+        if (error >= inlierTolerance) continue;
+        const cv::Vec3d projectedInitial = base * sourceRays[index]
+            - pole * (base * sourceRays[index]).dot(pole);
+        const cv::Vec3d projectedTarget = targetRays[index]
+            - pole * targetRays[index].dot(pole);
+        const double angle = std::atan2(
+            pole.dot(projectedInitial.cross(projectedTarget)),
+            projectedInitial.dot(projectedTarget)
+        );
+        sine += std::sin(angle);
+        cosine += std::cos(angle);
+        errors.push_back(error);
+    }
+    if (std::hypot(sine, cosine) > 1e-8) {
+        bestAngle = std::atan2(sine, cosine);
+    }
+    return {
+        rotationMatrix(pole * bestAngle) * base,
+        bestSupport,
+        median(std::move(errors))
+    };
+}
+
+cv::Matx33d registerPoleAlignedSupplementalView(
+    int sourceIndex,
+    const std::vector<int> &ringIndices,
+    const std::vector<cv::Matx33d> &ringRotations,
+    const std::vector<Edge> &edges,
+    const cv::Size &sourceSize,
+    const Lens &lens,
+    const cv::Matx33d &leveling
+) {
+    std::vector<PoleFit> fits;
+    for (double poleSign : {1.0, -1.0}) {
+        try {
+            fits.push_back(fitPoleView(
+                sourceIndex, ringIndices, ringRotations, edges,
+                sourceSize, lens, leveling, poleSign
+            ));
+        } catch (const std::runtime_error &) {
+            // A candidate pole without enough consistent overlap is discarded.
+        }
+    }
+    if (fits.empty()) {
+        throw std::runtime_error("The repair image has no reliable pole-aligned registration.");
+    }
+    std::sort(fits.begin(), fits.end(), [](const PoleFit &left, const PoleFit &right) {
+        if (left.support != right.support) return left.support > right.support;
+        return left.medianError < right.medianError;
+    });
+    if (fits.size() > 1
+        && fits[0].support == fits[1].support
+        && std::abs(fits[0].medianError - fits[1].medianError) < radians(0.5)) {
+        throw std::runtime_error("The repair image's pole direction is ambiguous.");
+    }
+    return fits.front().rotation;
 }
 
 cv::Mat exposureGains(
@@ -2234,8 +2405,9 @@ cv::Mat featherComposite(
         cv::hconcat(tiledPieces, tiled);
         cv::Mat distance;
         cv::distanceTransform(tiled, distance, cv::DIST_L2, 5);
+        const double fadeRadius = std::max(1.0, 1.5 * sigma);
         cv::Mat edgeFade = distance.colRange(width, 2 * width).clone()
-            / std::max(1.0, 1.5 * sigma);
+            / fadeRadius;
         cv::min(edgeFade, 1.0, edgeFade);
         cv::Mat weight = periodicBlur(ownership, sigma).mul(edgeFade);
         cv::Mat floatImage;
@@ -2278,8 +2450,9 @@ cv::Mat centerWeightedComposite(
         cv::hconcat(tiledPieces, tiled);
         cv::Mat distance;
         cv::distanceTransform(tiled, distance, cv::DIST_L2, 5);
+        const double fadeRadius = std::max(8.0, width / 24.0);
         cv::Mat edgeFade = distance.colRange(width, 2 * width).clone()
-            / std::max(8.0, width / 24.0);
+            / fadeRadius;
         cv::min(edgeFade, 1.0, edgeFade);
         cv::Mat clipped;
         cv::max(warp.score, 0.0, clipped);
@@ -2937,6 +3110,43 @@ RadiometryLayers applySpatialRadiometryAcceptance(
     cv::max(acceptanceFull, 0.0, acceptanceFull);
     cv::min(acceptanceFull, 1.0, acceptanceFull);
 
+    // This gate accepts/rejects the earlier radiometry compensation. Report
+    // its effect on supplemental sources separately from the later seam-local
+    // adjustment, which is validated and applied after this function returns.
+    for (size_t index = 0; index < before.compositing.size(); ++index) {
+        if (!before.compositing[index].fillOnly) continue;
+        double proposedMagnitude = 0.0;
+        double retainedMagnitude = 0.0;
+        for (int y = 0; y < acceptanceFull.rows; ++y) {
+            const unsigned char *maskRow =
+                before.compositing[index].mask.ptr<unsigned char>(y);
+            const cv::Vec3b *beforeRow =
+                before.compositing[index].image.ptr<cv::Vec3b>(y);
+            const cv::Vec3b *afterRow =
+                after.compositing[index].image.ptr<cv::Vec3b>(y);
+            const float *acceptanceRow = acceptanceFull.ptr<float>(y);
+            for (int x = 0; x < acceptanceFull.cols; ++x) {
+                if (!maskRow[x]) continue;
+                for (int channel = 0; channel < 3; ++channel) {
+                    const double proposed = std::abs(
+                        int(afterRow[x][channel]) - int(beforeRow[x][channel])
+                    );
+                    proposedMagnitude += proposed;
+                    retainedMagnitude += proposed * acceptanceRow[x];
+                }
+            }
+        }
+        const double retainedPercent = proposedMagnitude > 0.0
+            ? 100.0 * retainedMagnitude / proposedMagnitude : 100.0;
+        std::fprintf(
+            stderr,
+            "[PanoWizard] Spatial radiometry %s: retained %.1f%% of "
+            "compensation (magnitude %.1f -> %.1f)\n",
+            before.compositing[index].diagnosticLabel.c_str(),
+            retainedPercent, proposedMagnitude, retainedMagnitude
+        );
+    }
+
     std::vector<cv::Mat> acceptanceChannels(3, acceptanceFull);
     cv::Mat colorAcceptance;
     cv::merge(acceptanceChannels, colorAcceptance);
@@ -3073,11 +3283,37 @@ std::vector<Warp> applySeamLocalRadiometry(
             cv::bitwise_and(expandedSecond, firstOwner, secondBoundary);
             cv::Mat boundary;
             cv::bitwise_or(firstBoundary, secondBoundary, boundary);
-            if (cv::countNonZero(boundary) < 8) continue;
+            const bool relevantPair =
+                warps[first].fillOnly || warps[second].fillOnly;
+            const int boundaryPixels = cv::countNonZero(boundary);
+            if (boundaryPixels < 8) {
+                if (relevantPair) {
+                    std::fprintf(
+                        stderr,
+                        "[PanoWizard] Local radiometry %s <-> %s: skipped "
+                        "seam boundary (%d < 8 pixels)\n",
+                        warps[first].diagnosticLabel.c_str(),
+                        warps[second].diagnosticLabel.c_str(), boundaryPixels
+                    );
+                }
+                continue;
+            }
 
             cv::Mat overlap;
             cv::bitwise_and(masks[first], masks[second], overlap);
-            if (cv::countNonZero(overlap) < 300) continue;
+            const int overlapPixels = cv::countNonZero(overlap);
+            if (overlapPixels < 300) {
+                if (relevantPair) {
+                    std::fprintf(
+                        stderr,
+                        "[PanoWizard] Local radiometry %s <-> %s: skipped "
+                        "overlap (%d < 300 pixels)\n",
+                        warps[first].diagnosticLabel.c_str(),
+                        warps[second].diagnosticLabel.c_str(), overlapPixels
+                    );
+                }
+                continue;
+            }
 
             std::vector<cv::Mat> boundaryPieces = {boundary, boundary, boundary};
             cv::Mat tiledBoundary;
@@ -3208,13 +3444,18 @@ std::vector<Warp> applySeamLocalRadiometry(
             );
             if (trainingPixels < 240 || validationPixels < 60
                 || trainingCells < 12 || validationCells < 4) {
-                std::fprintf(
-                    stderr,
-                    "[PanoWizard] Local radiometry %d-%d: rejected support "
-                    "train=%d/%d-cells validation=%d/%d-cells\n",
-                    first, second, trainingPixels, trainingCells,
-                    validationPixels, validationCells
-                );
+                if (relevantPair) {
+                    std::fprintf(
+                        stderr,
+                        "[PanoWizard] Local radiometry %s <-> %s: rejected "
+                        "support train=%d/%d-cells validation=%d/%d-cells "
+                        "(need 240/12 and 60/4)\n",
+                        warps[first].diagnosticLabel.c_str(),
+                        warps[second].diagnosticLabel.c_str(),
+                        trainingPixels, trainingCells,
+                        validationPixels, validationCells
+                    );
+                }
                 continue;
             }
 
@@ -3348,16 +3589,20 @@ std::vector<Warp> applySeamLocalRadiometry(
                 && meanAfter <= 0.85 * meanBefore
                 && clippedCorrectionFraction <= 0.01;
             if (!improved) {
-                std::fprintf(
-                    stderr,
-                    "[PanoWizard] Local radiometry %d-%d: rejected validation "
-                    "median=%.3f->%.3f p90=%.3f->%.3f mean=%.3f->%.3f "
-                    "clipped=%.3f%% max-source=%.3f\n",
-                    first, second, medianBefore, medianAfter,
-                    p90Before, p90After, meanBefore, meanAfter,
-                    100.0 * clippedCorrectionFraction,
-                    maximumCorrection
-                );
+                if (relevantPair) {
+                    std::fprintf(
+                        stderr,
+                        "[PanoWizard] Local radiometry %s <-> %s: rejected "
+                        "validation median=%.3f->%.3f p90=%.3f->%.3f "
+                        "mean=%.3f->%.3f clipped=%.3f%% max-source=%.3f\n",
+                        warps[first].diagnosticLabel.c_str(),
+                        warps[second].diagnosticLabel.c_str(),
+                        medianBefore, medianAfter, p90Before, p90After,
+                        meanBefore, meanAfter,
+                        100.0 * clippedCorrectionFraction,
+                        maximumCorrection
+                    );
+                }
                 continue;
             }
 
@@ -3393,20 +3638,36 @@ std::vector<Warp> applySeamLocalRadiometry(
                 medianBefore, medianAfter, p90Before, p90After,
                 maximumApplied
             });
-            std::fprintf(
-                stderr,
-                "[PanoWizard] Local radiometry %d-%d: accepted "
-                "train=%d/%d-cells validation=%d/%d-cells "
-                "median=%.3f->%.3f p90=%.3f->%.3f clipped=%.3f%% max=%.3f\n",
-                first, second, trainingPixels, trainingCells,
-                validationPixels, validationCells,
-                medianBefore, medianAfter, p90Before, p90After,
-                100.0 * clippedCorrectionFraction,
-                maximumApplied
-            );
+            if (relevantPair) {
+                std::fprintf(
+                    stderr,
+                    "[PanoWizard] Local radiometry %s <-> %s: accepted "
+                    "train=%d/%d-cells validation=%d/%d-cells "
+                    "median=%.3f->%.3f p90=%.3f->%.3f clipped=%.3f%% max=%.3f\n",
+                    warps[first].diagnosticLabel.c_str(),
+                    warps[second].diagnosticLabel.c_str(),
+                    trainingPixels, trainingCells,
+                    validationPixels, validationCells,
+                    medianBefore, medianAfter, p90Before, p90After,
+                    100.0 * clippedCorrectionFraction,
+                    maximumApplied
+                );
+            }
         }
     }
-    if (acceptedPairs.empty()) return warps;
+    if (acceptedPairs.empty()) {
+        for (const Warp &warp : warps) {
+            if (warp.fillOnly) {
+                std::fprintf(
+                    stderr,
+                    "[PanoWizard] Local radiometry %s: no validated local "
+                    "pair correction applied\n",
+                    warp.diagnosticLabel.c_str()
+                );
+            }
+        }
+        return warps;
+    }
 
     std::vector<Warp> correctedWarps = warps;
     double maximumApplied = 0.0;
@@ -3414,6 +3675,47 @@ std::vector<Warp> applySeamLocalRadiometry(
         cv::Mat normalization;
         cv::max(correctionWeights[index], 1.0, normalization);
         cv::Mat correction = correctionSums[index] / normalization;
+        if (correctedWarps[index].fillOnly) {
+            // Extend only the already-validated correction field from its
+            // overlap support into the complementary image. Normalized
+            // smoothing carries the local estimate inward, while both the
+            // original and broadened support maps taper the added correction.
+            const double extensionSigma = std::max(
+                fieldSigma, analysisWidth / 8.0
+            );
+            cv::Mat extensionSums = periodicBlur(
+                correctionSums[index], extensionSigma
+            );
+            cv::Mat extensionWeights = periodicBlur(
+                correctionWeights[index], extensionSigma
+            );
+            cv::Mat safeExtensionWeights;
+            cv::max(extensionWeights, 1e-4, safeExtensionWeights);
+            cv::Mat extensionField = extensionSums / safeExtensionWeights;
+            for (int y = 0; y < correction.rows; ++y) {
+                cv::Vec3f *correctionRow = correction.ptr<cv::Vec3f>(y);
+                const cv::Vec3f *extensionRow =
+                    extensionField.ptr<cv::Vec3f>(y);
+                const cv::Vec3f *localWeightRow =
+                    correctionWeights[index].ptr<cv::Vec3f>(y);
+                const cv::Vec3f *extensionWeightRow =
+                    extensionWeights.ptr<cv::Vec3f>(y);
+                for (int x = 0; x < correction.cols; ++x) {
+                    for (int channel = 0; channel < 3; ++channel) {
+                        const float localSupport = std::clamp(
+                            localWeightRow[x][channel] / 0.06f, 0.0f, 1.0f
+                        );
+                        const float extendedSupport = std::clamp(
+                            extensionWeightRow[x][channel] / 0.06f,
+                            0.0f, 1.0f
+                        );
+                        correctionRow[x][channel] +=
+                            extensionRow[x][channel] * extendedSupport
+                                * (1.0f - localSupport);
+                    }
+                }
+            }
+        }
         const double correctionLimit = protectedSource[index] ? 24.0 : 12.0;
         cv::max(
             correction,
@@ -3429,13 +3731,28 @@ std::vector<Warp> applySeamLocalRadiometry(
             correction, correction, labels.size(),
             0.0, 0.0, cv::INTER_CUBIC
         );
+        double sourceCorrectionMagnitude = 0.0;
+        double sourceCorrectionMax = 0.0;
+        size_t sourceCorrectionSamples = 0;
         for (int y = 0; y < correction.rows; ++y) {
             const cv::Vec3f *row = correction.ptr<cv::Vec3f>(y);
+            const unsigned char *maskRow =
+                correctedWarps[index].mask.ptr<unsigned char>(y);
             for (int x = 0; x < correction.cols; ++x) {
                 for (int channel = 0; channel < 3; ++channel) {
                     maximumApplied = std::max(
                         maximumApplied, std::abs(double(row[x][channel]))
                     );
+                    if (maskRow[x]) {
+                        const double magnitude = std::abs(
+                            double(row[x][channel])
+                        );
+                        sourceCorrectionMagnitude += magnitude;
+                        sourceCorrectionMax = std::max(
+                            sourceCorrectionMax, magnitude
+                        );
+                        ++sourceCorrectionSamples;
+                    }
                 }
             }
         }
@@ -3450,6 +3767,17 @@ std::vector<Warp> applySeamLocalRadiometry(
             cv::Scalar(0, 0, 0), correctedWarps[index].mask == 0
         );
         correctedWarps[index].image = std::move(correctedImage);
+        if (correctedWarps[index].fillOnly) {
+            const double meanCorrection = sourceCorrectionSamples > 0
+                ? sourceCorrectionMagnitude / sourceCorrectionSamples : 0.0;
+            std::fprintf(
+                stderr,
+                "[PanoWizard] Local radiometry %s: applied mean-absolute "
+                "correction %.3f, max %.3f\n",
+                correctedWarps[index].diagnosticLabel.c_str(),
+                meanCorrection, sourceCorrectionMax
+            );
+        }
     }
     std::fprintf(
         stderr,
@@ -3473,13 +3801,6 @@ std::pair<double, int> renderPanorama(
     );
     cv::Mat opticalMask;
     cv::bitwise_and(detectedOpticalMask, fittedMask, opticalMask);
-    const int horizontalViews = int(std::count_if(
-        alignment.rotations.begin(), alignment.rotations.end(),
-        [](const cv::Matx33d &rotation) {
-            const cv::Vec3d axis = rotation * cv::Vec3d(0.0, 0.0, 1.0);
-            return std::abs(axis[1]) < 0.65;
-        }
-    ));
     std::vector<Warp> warps;
     std::vector<Warp> radiometryWarps;
     for (int index = 0; index < int(sources.size()); ++index) {
@@ -3493,15 +3814,18 @@ std::pair<double, int> renderPanorama(
         cv::Mat mapX;
         cv::Mat mapY;
         Warp warp;
-        const cv::Vec3d opticalAxis =
-            alignment.rotations[index] * cv::Vec3d(0.0, 0.0, 1.0);
-        const bool automaticNadirFill = compositionRoles[index] == 0
-            && horizontalViews >= 3 && opticalAxis[1] < -0.8;
-        warp.fillOnly = compositionRoles[index] == 2 || automaticNadirFill;
+        warp.fillOnly = compositionRoles[index] == 2;
+        const std::string roleName = compositionRoleName(compositionRoles[index]);
+        warp.diagnosticLabel = sources[index].fileName
+            + " [role=" + roleName + "]";
         buildPanoramaMapping(
             width, height, alignment.rotations[index], sources[index].image.size(),
             alignment.lens, opticalMask, mapX, mapY, warp.mask, warp.score
         );
+        if (compositionRoles[index] == 3) {
+            warp.mask.setTo(0);
+            warp.score.setTo(0);
+        }
         cv::Mat projectedUserMask;
         cv::Mat projectedOpticalMask;
         cv::remap(
@@ -3553,7 +3877,7 @@ std::pair<double, int> renderPanorama(
 
     reportProgress("Matching exposure and color…", 0.78);
     const RadiometryLayers projectedLayers = {warps, radiometryWarps};
-    const RadiometryLayers compensatedLayers = compensateRadiometry(
+    RadiometryLayers compensatedLayers = compensateRadiometry(
         warps, radiometryWarps, width
     );
     // Keep seam ownership on the unchanged compensation result. Acceptance
@@ -3619,6 +3943,7 @@ int PWStitchPanorama(
     PWProgressCallback progressCallback,
     PWCancellationCallback cancellationCallback,
     PWStitchReport *report,
+    int *failedSupplementalImageFlags,
     char **errorMessage
 ) {
     stitchCallbacks = {callbackContext, progressCallback, cancellationCallback};
@@ -3631,6 +3956,13 @@ int PWStitchPanorama(
         }
         if (outputWidth < 512 || outputWidth % 2 != 0) {
             throw std::runtime_error("The panorama width must be an even number of at least 512 pixels.");
+        }
+        if (failedSupplementalImageFlags != nullptr) {
+            std::fill(
+                failedSupplementalImageFlags,
+                failedSupplementalImageFlags + imageCount,
+                0
+            );
         }
         std::vector<Source> sources;
         std::vector<unsigned char> resolvedRoles(imageCount, 0);
@@ -3647,9 +3979,7 @@ int PWStitchPanorama(
                 protectedMaskPaths == nullptr ? nullptr : protectedMaskPaths[index]
             ));
             if (compositionRoles != nullptr) {
-                resolvedRoles[index] = std::min<unsigned char>(
-                    compositionRoles[index], 2
-                );
+                resolvedRoles[index] = compositionRoles[index];
             }
             if (index > 0 && sources[index].image.size() != sources[0].image.size()) {
                 throw std::runtime_error("The panorama engine requires source images with identical pixel dimensions.");
@@ -3676,24 +4006,17 @@ int PWStitchPanorama(
             initialLens.cy = sources.front().image.rows / 2.0;
             reportProgress("Detecting image features…", 0.23);
             const std::vector<Features> features = extractFeatures(
-                sources, optical.mask
+                sources, optical.mask, resolvedRoles
             );
             reportProgress("Matching overlapping images…", 0.35);
             const EdgeSets edgeSets = buildEdges(
                 sources, features, initialLens
             );
             const std::vector<Edge> &edges = edgeSets.strong;
-            if (isGraphConnected(imageCount, edges)) {
-                detectSupplementalViews(
-                    resolvedRoles,
-                    buildInitialRotations(imageCount, edges)
-                );
-            }
-
             std::vector<int> ringIndices;
             std::vector<Source> ringSources;
             for (int index = 0; index < imageCount; ++index) {
-                if (resolvedRoles[index] == 2) continue;
+                if (resolvedRoles[index] >= 2) continue;
                 ringIndices.push_back(index);
                 ringSources.push_back(sources[index]);
             }
@@ -3722,34 +4045,65 @@ int PWStitchPanorama(
                 optical.circular, optical.radius
             );
 
+            const std::vector<cv::Matx33d> leveledRing = levelRotations(
+                ringAlignment.rotations
+            );
+            const cv::Matx33d leveling =
+                leveledRing.front() * ringAlignment.rotations.front().t();
+            std::vector<Edge> supplementalEdges = edgeSets.strong;
+            supplementalEdges.insert(
+                supplementalEdges.end(),
+                edgeSets.weak.begin(), edgeSets.weak.end()
+            );
             alignment = ringAlignment;
             alignment.rotations.assign(imageCount, cv::Matx33d::eye());
+            bool supplementalRegistrationFailed = false;
             for (int index = 0; index < int(ringIndices.size()); ++index) {
                 alignment.rotations[ringIndices[index]] =
                     ringAlignment.rotations[index];
             }
             for (int index = 0; index < imageCount; ++index) {
                 if (resolvedRoles[index] != 2) continue;
-                alignment.rotations[index] = registerSupplementalView(
-                    index, ringIndices, ringAlignment.rotations, edges,
-                    sources.front().image.size(), ringAlignment.lens
-                );
+                try {
+                    alignment.rotations[index] = registerSupplementalView(
+                        index, ringIndices, ringAlignment.rotations, edges,
+                        sources.front().image.size(), ringAlignment.lens
+                    );
+                } catch (const std::exception &) {
+                    try {
+                        alignment.rotations[index] =
+                            registerPoleAlignedSupplementalView(
+                                index, ringIndices, ringAlignment.rotations,
+                                supplementalEdges,
+                                sources.front().image.size(),
+                                ringAlignment.lens, leveling
+                            );
+                    } catch (const std::exception &) {
+                        resolvedRoles[index] = 3;
+                        supplementalRegistrationFailed = true;
+                        if (failedSupplementalImageFlags != nullptr) {
+                            failedSupplementalImageFlags[index] = 1;
+                        }
+                    }
+                }
             }
             reportProgress("Leveling the horizon…", 0.56);
-            const std::vector<cv::Matx33d> leveledRing = levelRotations(
-                ringAlignment.rotations
-            );
-            const cv::Matx33d leveling =
-                leveledRing.front() * ringAlignment.rotations.front().t();
             for (cv::Matx33d &rotation : alignment.rotations) {
                 rotation = leveling * rotation;
             }
-            alignment.gains = exposureGains(sources, edges);
-            saveCache(cachePath, alignment, sources.front().image.size());
+            alignment.gains = cv::Mat::ones(imageCount, 3, CV_64F);
+            const cv::Mat ringGains = exposureGains(ringSources, ringEdges);
+            for (int index = 0; index < int(ringIndices.size()); ++index) {
+                ringGains.row(index).copyTo(
+                    alignment.gains.row(ringIndices[index])
+                );
+            }
+            if (!supplementalRegistrationFailed) {
+                saveCache(cachePath, alignment, sources.front().image.size());
+            }
         } else {
             reportProgress("Using saved image alignment…", 0.58);
         }
-        detectSupplementalViews(resolvedRoles, alignment.rotations);
         const auto [coverage, holes] = renderPanorama(
             sources, resolvedRoles, alignment, optical.mask,
             outputPath, outputWidth

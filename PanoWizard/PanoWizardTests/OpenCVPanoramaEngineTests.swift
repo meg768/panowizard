@@ -73,6 +73,28 @@ struct OpenCVPanoramaEngineTests {
         #expect(original != rotated)
     }
 
+    @Test("Changing a source role changes the alignment cache identity")
+    func roleChangesCacheIdentity() throws {
+        let sourceURL = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizard-Role-Cache-Test-\(UUID()).jpg"
+        )
+        try Data([1, 2, 3]).write(to: sourceURL)
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+        var source = image(enabled: true)
+        source.url = sourceURL
+        let original = try OpenCVPanoramaEngine.alignmentCacheURL(
+            images: [source],
+            masks: [:]
+        )
+        source.role = .fillOnly
+        let fillOnly = try OpenCVPanoramaEngine.alignmentCacheURL(
+            images: [source],
+            masks: [:]
+        )
+
+        #expect(original != fillOnly)
+    }
+
     @Test("App dispatches masks directly to its sole engine")
     @MainActor
     func appDispatch() async throws {
@@ -106,7 +128,8 @@ struct OpenCVPanoramaEngineTests {
         var report = PWStitchReport()
         var error: UnsafeMutablePointer<CChar>?
         let succeeded = PWStitchPanorama(
-            nil, nil, nil, 0, nil, nil, 4096, nil, nil, nil, &report, &error
+            nil, nil, nil, 0, nil, nil, 4096, nil, nil, nil,
+            &report, nil, &error
         )
         defer { PWFreeString(error) }
         #expect(succeeded == 0)
@@ -150,6 +173,7 @@ struct OpenCVPanoramaEngineTests {
                 nil,
                 nil,
                 &firstReport,
+                nil,
                 &firstError
             )
         }
@@ -210,12 +234,77 @@ struct OpenCVPanoramaEngineTests {
                 nil,
                 nil,
                 &cachedReport,
+                nil,
                 &cachedError
             )
         }
         defer { PWFreeString(cachedError) }
         #expect(cachedSucceeded == 1)
         #expect(cachedReport.usedAlignmentCache == 1)
+    }
+
+    @Test("An unregistrable supplemental image is skipped while the ring renders")
+    func skipsUnregistrableSupplementalImage() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizard-Supplemental-Test-\(UUID())",
+            directoryHint: .isDirectory
+        )
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let ringSource = directory.appending(path: "ring.jpg")
+        let blankSource = directory.appending(path: "blank.jpg")
+        try writeTexturedImage(to: ringSource)
+        try writeSolidImage(to: blankSource)
+
+        let ringPath = strdup(ringSource.path(percentEncoded: false))
+        let blankPath = strdup(blankSource.path(percentEncoded: false))
+        defer {
+            free(ringPath)
+            free(blankPath)
+        }
+        let paths: [UnsafePointer<CChar>?] = [
+            ringPath.map { UnsafePointer($0) },
+            ringPath.map { UnsafePointer($0) },
+            blankPath.map { UnsafePointer($0) }
+        ]
+        let roles: [UInt8] = [0, 0, 2]
+        let output = directory.appending(path: "ring-only.png")
+        let cache = directory.appending(path: "alignment.yml")
+        var report = PWStitchReport()
+        var failedFlags = [Int32](repeating: 0, count: paths.count)
+        var error: UnsafeMutablePointer<CChar>?
+        let succeeded = paths.withUnsafeBufferPointer { pathBuffer in
+            roles.withUnsafeBufferPointer { roleBuffer in
+                failedFlags.withUnsafeMutableBufferPointer { failedBuffer in
+                    PWStitchPanorama(
+                        pathBuffer.baseAddress,
+                        nil,
+                        roleBuffer.baseAddress,
+                        Int32(paths.count),
+                        cache.path(percentEncoded: false),
+                        output.path(percentEncoded: false),
+                        512,
+                        nil,
+                        nil,
+                        nil,
+                        &report,
+                        failedBuffer.baseAddress,
+                        &error
+                    )
+                }
+            }
+        }
+        defer { PWFreeString(error) }
+
+        #expect(
+            succeeded == 1,
+            Comment(rawValue: error.map { String(cString: $0) } ?? "")
+        )
+        #expect(failedFlags == [0, 0, 1])
+        #expect(FileManager.default.fileExists(atPath: output.path))
     }
 
     private func image(enabled: Bool) -> SourceImage {
@@ -258,6 +347,28 @@ struct OpenCVPanoramaEngineTests {
             pixels[index * 4 + 2] = value
             pixels[index * 4 + 3] = 255
         }
+        let data = try #require(bitmap.representation(
+            using: .jpeg,
+            properties: [.compressionFactor: 0.95]
+        ))
+        try data.write(to: url)
+    }
+
+    private func writeSolidImage(to url: URL) throws {
+        let bitmap = try #require(NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 512,
+            pixelsHigh: 512,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 512 * 4,
+            bitsPerPixel: 32
+        ))
+        let pixels = try #require(bitmap.bitmapData)
+        pixels.initialize(repeating: 0, count: 512 * 512 * 4)
         let data = try #require(bitmap.representation(
             using: .jpeg,
             properties: [.compressionFactor: 0.95]

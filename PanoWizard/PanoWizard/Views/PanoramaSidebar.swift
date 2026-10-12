@@ -159,10 +159,10 @@ struct PanoramaSidebar: View {
                                 .foregroundStyle(.red)
                                 .help("The image has an individual mask")
                         }
-                        if image.effectiveRole == .fillOnly {
+                        if image.effectiveRole.isSupplemental {
                             Image(systemName: "wrench.and.screwdriver.fill")
                                 .foregroundStyle(.orange)
-                                .help("Repair image — does not affect panorama-ring geometry")
+                                .help("Supplemental image — does not affect panorama-ring geometry")
                         }
                     }
                     .font(.caption)

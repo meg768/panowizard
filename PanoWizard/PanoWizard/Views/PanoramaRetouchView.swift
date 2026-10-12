@@ -245,7 +245,7 @@ struct ManualRetouchSheet: View {
             HStack(alignment: .top, spacing: 16) {
                 AIRetouchImagePane(
                     title: "Before",
-                    footer: "Drag or scroll to pan · ⌘-scroll or pinch to zoom"
+                    footer: "⌘-scroll or pinch to zoom · drag or scroll to pan"
                 ) {
                     if let source {
                         AIRetouchImageViewport(
@@ -1012,6 +1012,7 @@ private final class AIRetouchScrollView: NSScrollView {
 
     override func layout() {
         super.layout()
+        imageView.refreshPanCursor()
         guard !isUpdatingFit, window != nil, needsInitialFit else { return }
         isUpdatingFit = true
         let didUpdate = performInitialFit()
@@ -1028,6 +1029,7 @@ private final class AIRetouchScrollView: NSScrollView {
             endScrollZoom()
             hasUserAdjustedViewport = true
             super.scrollWheel(with: event)
+            imageView.refreshPanCursor()
         case .zoom(let zoomDelta):
             guard let documentView else { return }
             hasUserAdjustedViewport = true
@@ -1071,6 +1073,7 @@ private final class AIRetouchScrollView: NSScrollView {
             contentView.scroll(to: constrained.origin)
             reflectScrolledClipView(contentView)
             imageView.needsDisplay = true
+            imageView.refreshPanCursor()
         case .ignore:
             if event.phase.contains(.began)
                 || (event.phase.isEmpty && event.momentumPhase.isEmpty) {
@@ -1086,6 +1089,7 @@ private final class AIRetouchScrollView: NSScrollView {
         hasUserAdjustedViewport = true
         super.magnify(with: event)
         imageView.needsDisplay = true
+        imageView.refreshPanCursor()
     }
 
     func configure(
@@ -1124,6 +1128,12 @@ private final class AIRetouchScrollView: NSScrollView {
         imageView.onMaskChange = onMaskChange
         imageView.onUndo = onUndo
         imageView.needsDisplay = true
+        imageView.refreshPanCursor()
+    }
+
+    var canPan: Bool {
+        guard let fitMagnification else { return false }
+        return magnification > fitMagnification * 1.001
     }
 
     func beginUserNavigation() {
@@ -1144,6 +1154,7 @@ private final class AIRetouchScrollView: NSScrollView {
             y: contentView.bounds.midY
         ))
         imageView.needsDisplay = true
+        imageView.refreshPanCursor()
     }
 
     func resetToFit() {
@@ -1155,6 +1166,7 @@ private final class AIRetouchScrollView: NSScrollView {
             centeredAt: CGPoint(x: imageView.bounds.midX, y: imageView.bounds.midY)
         )
         imageView.needsDisplay = true
+        imageView.refreshPanCursor()
     }
 
     private func requestFit() {
@@ -1218,6 +1230,7 @@ private final class AIRetouchScrollView: NSScrollView {
         }
         setMagnification(newFit, centeredAt: center)
         imageView.needsDisplay = true
+        imageView.refreshPanCursor()
         return abs(magnification - newFit) < 0.000_001
     }
 
@@ -1340,6 +1353,7 @@ private final class AIRetouchImageDocumentView: NSView, ImageNavigationResponder
     private var isErasingStroke = false
     private var panOrigin: CGPoint?
     private var panStart: CGPoint?
+    private var isPanCursorPushed = false
     private var trackingAreaReference: NSTrackingArea?
     private var modifierMonitor: Any?
     private var modifierInteraction = ImageSurfaceInteraction.navigate {
@@ -1369,10 +1383,16 @@ private final class AIRetouchImageDocumentView: NSView, ImageNavigationResponder
                                   modifierInteraction != .navigate,
                                   isPaintingEnabled {
             Self.transparentCursor
-        } else {
+        } else if viewport?.canPan == true {
             .openHand
+        } else {
+            .arrow
         }
         addCursorRect(bounds, cursor: cursor)
+    }
+
+    func refreshPanCursor() {
+        window?.invalidateCursorRects(for: self)
     }
 
     override func updateTrackingAreas() {
@@ -1422,9 +1442,12 @@ private final class AIRetouchImageDocumentView: NSView, ImageNavigationResponder
             needsDisplay = true
         } else if let viewport {
             viewport.beginUserNavigation()
-            panOrigin = viewport.contentView.bounds.origin
-            panStart = event.locationInWindow
-            NSCursor.closedHand.push()
+            if viewport.canPan {
+                panOrigin = viewport.contentView.bounds.origin
+                panStart = event.locationInWindow
+                NSCursor.closedHand.push()
+                isPanCursorPushed = true
+            }
         }
     }
 
@@ -1445,7 +1468,8 @@ private final class AIRetouchImageDocumentView: NSView, ImageNavigationResponder
         defer {
             activeStroke = []
             isErasingStroke = false
-            if panOrigin != nil { NSCursor.pop() }
+            if isPanCursorPushed { NSCursor.pop() }
+            isPanCursorPushed = false
             panOrigin = nil
             panStart = nil
             needsDisplay = true
@@ -1525,6 +1549,7 @@ private final class AIRetouchImageDocumentView: NSView, ImageNavigationResponder
         let constrained = viewport.contentView.constrainBoundsRect(proposed)
         viewport.contentView.scroll(to: constrained.origin)
         viewport.reflectScrolledClipView(viewport.contentView)
+        refreshPanCursor()
     }
 
     private func installModifierMonitor() {
