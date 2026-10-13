@@ -44,6 +44,30 @@ struct OpenAIAIRetouchServiceTests {
     }
 
     @Test
+    func buildsMultipartRequestWithFullImageAndSeparateMask() throws {
+        let imageData = Data("FULL_UNMASKED_IMAGE".utf8)
+        let maskData = Data("EDIT_REGION_MASK".utf8)
+        let request = try OpenAIImageEditService.makeMaskedRequest(
+            apiKey: "test-key",
+            imageData: imageData,
+            maskData: maskData,
+            filename: "patch.png",
+            maskFilename: "mask.png",
+            prompt: "Repair the marked area",
+            size: 2_048,
+            boundary: "masked-test"
+        )
+
+        let body = request.httpBody ?? Data()
+        let bodyText = String(decoding: body, as: UTF8.self)
+        #expect(bodyText.contains("name=\"image[]\"; filename=\"patch.png\""))
+        #expect(bodyText.contains("name=\"mask\"; filename=\"mask.png\""))
+        #expect(body.range(of: imageData) != nil)
+        #expect(body.range(of: maskData) != nil)
+        #expect(bodyText.contains("name=\"size\"\r\n\r\n2048x2048"))
+    }
+
+    @Test
     func decodesBase64ImageResponse() throws {
         let expected = Data([0x89, 0x50, 0x4e, 0x47])
         let response = """

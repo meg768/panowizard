@@ -93,6 +93,39 @@ struct RetouchPatchService: Sendable {
         return try image.pngData()
     }
 
+    func prepareAIRetouchAPIInputMask(
+        from maskData: Data,
+        sourceURL: URL,
+        expectedSize: Int = Self.patchSize
+    ) throws -> Data {
+        let source = try RGBAImage(contentsOf: sourceURL)
+        let userMask = try RGBAImage(data: maskData)
+        for image in [source, userMask]
+        where image.width != expectedSize || image.height != expectedSize {
+            throw RetouchPatchError.invalidDimensions(
+                expected: expectedSize,
+                width: image.width,
+                height: image.height
+            )
+        }
+
+        var apiMask = RGBAImage(width: userMask.width, height: userMask.height)
+        var containsPaintedPixels = false
+        for y in 0..<userMask.height {
+            for x in 0..<userMask.width {
+                let isPainted = userMask.pixel(x: x, y: y).a > 0
+                containsPaintedPixels = containsPaintedPixels || isPainted
+                apiMask.setPixel(
+                    Pixel(r: 1, g: 1, b: 1, a: isPainted ? 0 : 1),
+                    x: x,
+                    y: y
+                )
+            }
+        }
+        guard containsPaintedPixels else { throw RetouchPatchError.emptyMask }
+        return try apiMask.pngData()
+    }
+
     func prepareAIRetouchPatch(
         originalURL: URL,
         editedURL: URL,

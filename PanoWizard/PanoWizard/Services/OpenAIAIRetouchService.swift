@@ -114,6 +114,34 @@ struct OpenAIImageEditService: Sendable {
         )
     }
 
+    func edit(
+        imageData: Data,
+        maskData: Data,
+        filename: String,
+        maskFilename: String,
+        prompt: String,
+        size: Int
+    ) async throws -> Data {
+        guard !apiKey.isEmpty else { throw OpenAIImageEditError.missingAPIKey }
+        let request = try Self.makeMaskedRequest(
+            apiKey: apiKey,
+            imageData: imageData,
+            maskData: maskData,
+            filename: filename,
+            maskFilename: maskFilename,
+            prompt: prompt,
+            size: size
+        )
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OpenAIImageEditError.invalidResponse
+        }
+        return try Self.decodeImageData(
+            from: data,
+            statusCode: httpResponse.statusCode
+        )
+    }
+
     static func makeRequest(
         apiKey: String,
         imageData: Data,
@@ -160,6 +188,45 @@ struct OpenAIImageEditService: Sendable {
             "multipart/form-data; boundary=\(boundary)",
             forHTTPHeaderField: "Content-Type"
         )
+        request.httpBody = body
+        return request
+    }
+
+    static func makeMaskedRequest(
+        apiKey: String,
+        imageData: Data,
+        maskData: Data,
+        filename: String,
+        maskFilename: String,
+        prompt: String,
+        size: Int,
+        boundary: String = "PanoWizard-\(UUID().uuidString)"
+    ) throws -> URLRequest {
+        var request = try makeRequest(
+            apiKey: apiKey,
+            imageData: imageData,
+            filename: filename,
+            prompt: prompt,
+            size: size,
+            boundary: boundary
+        )
+        guard var body = request.httpBody else {
+            throw OpenAIImageEditError.invalidResponse
+        }
+        let closingBoundary = Data("--\(boundary)--\r\n".utf8)
+        guard body.suffix(closingBoundary.count).elementsEqual(closingBoundary) else {
+            throw OpenAIImageEditError.invalidResponse
+        }
+        body.removeLast(closingBoundary.count)
+        appendFile(
+            name: "mask",
+            filename: maskFilename,
+            contentType: "image/png",
+            data: maskData,
+            boundary: boundary,
+            to: &body
+        )
+        body.appendUTF8("--\(boundary)--\r\n")
         request.httpBody = body
         return request
     }
