@@ -1,6 +1,6 @@
 # Create an AI patch
 
-An AI patch repairs a small area of an otherwise finished panorama. The selected image and instruction are sent to OpenAI. Nothing is activated until you choose **Apply**.
+An AI patch changes a small area of an otherwise finished panorama. The captured image, mask, and active instruction are sent to OpenAI. The result stays a preview until you choose **Apply**.
 
 ## Before you start
 
@@ -20,9 +20,13 @@ The dialog contains a fixed capture. Its pan/zoom controls inspect that image; c
 
 In **Before**, **Option-drag** over the problem. **Command-Option-drag** erases; **Command-Z** undoes a stroke. **Clear Mask** removes the mask. Transparent gaps are selected automatically in a new patch.
 
-Keep the supplied **Instruction** unless you need to add a specific requirement. Click **AI Retouch**. A mask and a nonempty instruction are required; generation may take a while and can be cancelled.
+Choose **Replace** to generate content for the masked area, or **Repair** to fix it while preserving as much of its visible original content as possible. New patches start in **Replace** mode. Each mode has its own editable instruction. Switching modes keeps both texts; the reset button restores the default instruction for the selected mode. Only the active instruction is sent to OpenAI.
 
-![The saved floor mask and AI result in the current patch dialog](Images/02-mask-and-generate.png)
+For example, use **Replace** when something is missing: “Fill the masked area with the same wooden floor pattern as the surrounding boards.” Use **Repair** when the original is visible but needs correction: “Remove the dark stain from the floor. Keep the existing board pattern and preserve the rest of the image.”
+
+When editing an existing patch, its selected mode and both instructions are restored. Choosing **Apply** saves the selected mode and both instruction texts with that patch, so you can return to either mode later without losing edits.
+
+Click **AI Retouch** to generate a preview. A mask and a nonempty active instruction are required; generation may take a while and can be cancelled.
 
 ## Review and apply
 

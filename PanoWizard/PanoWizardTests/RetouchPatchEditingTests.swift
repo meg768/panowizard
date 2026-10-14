@@ -57,14 +57,18 @@ struct RetouchPatchEditingTests {
         let newMask = Data([9, 8, 7])
         try model.applyAIRetouchPreview(
             preview,
-            prompt: "Refined instruction",
+            mode: .repair,
+            replacePrompt: "Updated replacement instruction",
+            repairPrompt: "Updated repair instruction",
             maskData: newMask,
             replacing: aiPatch
         )
 
         #expect(model.retouchPatches.map(\.id) == [aiPatch.id, manualPatch.id])
         #expect(model.retouchPatches.allSatisfy { !$0.isEnabled })
-        #expect(model.retouchPatches[0].prompt == "Refined instruction")
+        #expect(model.retouchPatches[0].aiRetouchMode == .repair)
+        #expect(model.retouchPatches[0].replacePrompt == "Updated replacement instruction")
+        #expect(model.retouchPatches[0].repairPrompt == "Updated repair instruction")
         #expect(model.aiRetouchMaskDataByPatchID[aiPatch.id] == newMask)
         #expect(model.retouchPatchData.keys.contains(aiPatch.id))
         #expect(model.retouchPatchData.keys.contains(manualPatch.id))

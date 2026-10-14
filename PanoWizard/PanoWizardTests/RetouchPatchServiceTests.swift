@@ -84,6 +84,37 @@ struct RetouchPatchServiceTests {
     }
 
     @Test
+    func apiMaskMarksPaintedPixelsAsTransparentAndKeepsOtherPixelsOpaque() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourceURL = directory.appending(path: "source.png")
+        let maskURL = directory.appending(path: "mask.png")
+        let apiMaskURL = directory.appending(path: "api-mask.png")
+        try writeImage(width: 64, height: 64, to: sourceURL) { _, _ in
+            (120, 80, 40, 255)
+        }
+        try writeImage(width: 64, height: 64, to: maskURL) { x, y in
+            (x == 32 && y == 32) || (x == 33 && y == 32)
+                ? (255, 0, 0, 255)
+                : (0, 0, 0, 0)
+        }
+
+        let apiMask = try RetouchPatchService().prepareAIRetouchAPIInputMask(
+            from: Data(contentsOf: maskURL),
+            sourceURL: sourceURL,
+            expectedSize: 64
+        )
+        try apiMask.write(to: apiMaskURL)
+        let result = try pixels(at: apiMaskURL)
+
+        #expect(result.width == 64)
+        #expect(result.height == 64)
+        #expect(result.pixel(x: 32, y: 32).3 == 0)
+        #expect(result.pixel(x: 33, y: 32).3 == 0)
+        #expect(result.pixel(x: 10, y: 10).3 == 255)
+    }
+
+    @Test
     func exportedPatchPreservesAlpha() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

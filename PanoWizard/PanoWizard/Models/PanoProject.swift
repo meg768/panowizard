@@ -8,24 +8,38 @@ struct RetouchPatch: Codable, Equatable, Identifiable, Sendable {
         var displayName: String { self == .ai ? "AI Patch" : "Manual Patch" }
     }
 
+    enum AIRetouchMode: String, Codable, CaseIterable, Hashable, Sendable {
+        case replace
+        case repair
+    }
+
     var id: UUID
     var kind: Kind
     var viewpoint: PanoramaViewpoint
     var isEnabled: Bool
     var prompt: String?
+    var aiRetouchMode: AIRetouchMode?
+    var replacePrompt: String?
+    var repairPrompt: String?
 
     init(
         id: UUID = UUID(),
         kind: Kind,
         viewpoint: PanoramaViewpoint,
         isEnabled: Bool = true,
-        prompt: String? = nil
+        prompt: String? = nil,
+        aiRetouchMode: AIRetouchMode? = nil,
+        replacePrompt: String? = nil,
+        repairPrompt: String? = nil
     ) {
         self.id = id
         self.kind = kind
         self.viewpoint = viewpoint
         self.isEnabled = isEnabled
         self.prompt = prompt
+        self.aiRetouchMode = aiRetouchMode
+        self.replacePrompt = replacePrompt
+        self.repairPrompt = repairPrompt
     }
 }
 

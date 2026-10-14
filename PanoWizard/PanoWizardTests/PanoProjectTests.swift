@@ -291,7 +291,9 @@ struct PanoProjectTests {
                 pitchRadians: -0.2,
                 verticalFieldOfViewDegrees: 70
             ),
-            prompt: "Remove the tripod"
+            aiRetouchMode: .repair,
+            replacePrompt: "Replace instruction",
+            repairPrompt: "Repair instruction"
         )
         let manualPatch = RetouchPatch(
             kind: .manual,
@@ -315,6 +317,9 @@ struct PanoProjectTests {
         let restored = try PanoProjectDocument(contentsOf: projectURL)
 
         #expect(restored.project.retouchPatches == [aiPatch, manualPatch])
+        #expect(restored.project.retouchPatches[0].aiRetouchMode == .repair)
+        #expect(restored.project.retouchPatches[0].replacePrompt == "Replace instruction")
+        #expect(restored.project.retouchPatches[0].repairPrompt == "Repair instruction")
         #expect(restored.retouchPatchData[aiPatch.id] == aiImage)
         #expect(restored.retouchPatchData[manualPatch.id] == manualImage)
         #expect(restored.aiRetouchMaskData == [aiPatch.id: aiMask])
@@ -325,6 +330,39 @@ struct PanoProjectTests {
         #expect(!FileManager.default.fileExists(
             atPath: projectURL.appending(path: "panorama/result.jpg").path
         ))
+    }
+
+    @Test("Format 10 projects with legacy AI prompts still open")
+    func opensLegacyAIRetouchProject() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizard-Legacy-AI-Retouch-Test-\(UUID())",
+            directoryHint: .isDirectory
+        )
+        let projectURL = directory.appending(
+            path: "Legacy.pw",
+            directoryHint: .isDirectory
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+
+        let legacyPatch = RetouchPatch(
+            kind: .ai,
+            viewpoint: PanoramaViewpoint(),
+            prompt: "Legacy instruction"
+        )
+        try PanoProjectDocument(
+            project: PanoProject(retouchPatches: [legacyPatch])
+        ).writeAtomically(to: projectURL)
+
+        let restored = try PanoProjectDocument(contentsOf: projectURL)
+        #expect(restored.project.formatVersion == 10)
+        #expect(restored.project.retouchPatches == [legacyPatch])
+        #expect(restored.project.retouchPatches[0].aiRetouchMode == nil)
+        #expect(restored.project.retouchPatches[0].replacePrompt == nil)
+        #expect(restored.project.retouchPatches[0].repairPrompt == nil)
     }
 
     private func sourceImage() -> SourceImage {

@@ -1885,3 +1885,26 @@ osparat-status och stängningsvarning. docs/projects.md uppdaterad.
 Release byggt, installerat och signaturverifierat; git diff --check godkänd.
 Appen inte omstartad; fysisk preview-scroll återstår för användaren att prova.
 Ingen commit/push begärd.
+
+## Panorama C regression and isolated AI retouch transfer — 2026-10-14
+
+User tested fresh projects with all eight original C images. Confirmed good:
+`c857861`, `b5c4a6e`, `b53b18e`, and `0600cf0`. Confirmed bad: `d2dd3e8`.
+`0600cf0` and `d2dd3e8` are adjacent commits, locating the first observed
+regression at `d2dd3e8`; no stitching repair is authorized in this task.
+
+The former HEAD `a90d020` is preserved on
+`codex/safety-before-restore-20261014-004036`. Its six uncommitted AI retouch
+changes are preserved in stash `b1e3603eaab5498fcc380da6bec66029d379da2e`
+and `/Users/magnus/Library/Developer/PanoWizardCheckpoints/restore-2026-10-12-02-24-20261014-004036`.
+
+User authorized transferring only those six saved AI retouch changes onto
+`0600cf0`. Active branch: `codex/ai-retouch-on-0600cf0`. Applied the exact diff
+from `a90d020` to the saved stash, without later committed changes. The API now
+receives the original unmasked patch image and a separate PNG mask, with painted
+pixels transparent in the API mask. The default instruction explains that
+original pixels are available as reference. OpenCV bridge and stitching services
+are unchanged relative to `0600cf0`. User's panorama projects and originals must
+remain untouched; user performs the real panorama C and live AI retouch checks.
+
+Validation: 12 tests in OpenAIAIRetouchServiceTests and RetouchPatchServiceTests passed. Clean Release build succeeded; installed identical verified bundle in /Applications/PanoWizard.app and launched it. Real panorama C and live AI retouch remain user verification. No commit or push performed.

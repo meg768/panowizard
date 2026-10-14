@@ -14,7 +14,7 @@ You choose where to save projects and exports. If you choose a folder managed by
 
 ## Optional AI retouching
 
-AI retouching uses OpenAI and requires your own OpenAI API key. When you request an AI retouch, PanoWizard sends the prepared image of the selected panorama view and the editing instruction to OpenAI over HTTPS. Your API key authenticates that request. The selected image can contain personal information visible in the photograph.
+AI retouching uses OpenAI and requires your own OpenAI API key. When you request an AI retouch, PanoWizard sends the captured panorama image, a separate mask that marks the area to edit, and the active instruction to OpenAI over HTTPS. The image retains its original pixels, including inside the masked area. Your API key authenticates that request. The image can contain personal information visible in the photograph.
 
 The developer does not operate an intermediary server for these requests. OpenAI processes the submitted data under its applicable terms and data policies. See [OpenAI's API data documentation](https://platform.openai.com/docs/guides/your-data). Do not submit images or instructions that you are not permitted to share with OpenAI.
 

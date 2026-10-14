@@ -411,7 +411,9 @@ struct AIRetouchSheet: View {
 
     private let viewpoint: PanoramaViewpoint
     private let replacingPatch: RetouchPatch?
-    @State private var prompt: String
+    @State private var mode: RetouchPatch.AIRetouchMode
+    @State private var replacePrompt: String
+    @State private var repairPrompt: String
     @State private var source: AIRetouchSource?
     @State private var preview: AIRetouchPreview?
     @State private var existingPreviewURL: URL?
@@ -437,7 +439,16 @@ struct AIRetouchSheet: View {
         self.viewpoint = viewpoint
         self.replacingPatch = replacingPatch
         self.onDismiss = onDismiss
-        _prompt = State(initialValue: replacingPatch?.prompt ?? Self.defaultPrompt)
+        _mode = State(initialValue: replacingPatch?.aiRetouchMode ?? .replace)
+        _replacePrompt = State(
+            initialValue: replacingPatch?.replacePrompt
+                ?? replacingPatch?.prompt
+                ?? Self.replaceDefaultPrompt
+        )
+        _repairPrompt = State(
+            initialValue: replacingPatch?.repairPrompt
+                ?? Self.repairDefaultPrompt
+        )
         _maskData = State(initialValue: replacingPatch.flatMap {
             model.aiRetouchMaskDataByPatchID[$0.id]
         })
@@ -479,9 +490,12 @@ struct AIRetouchSheet: View {
                         )
                     }
                 } trailing: {
-                    Button("Clear Mask", role: .destructive) {
+                    Button(role: .destructive) {
                         clearMask()
+                    } label: {
+                        Label("Clear Mask", systemImage: "trash")
                     }
+                    .buttonStyle(AIRetouchModeButtonStyle(isSelected: false))
                     .disabled(maskData == nil || isWorking)
                     .accessibilityIdentifier("clear-ai-retouch-mask")
                 }
@@ -514,7 +528,7 @@ struct AIRetouchSheet: View {
             }
 
             GroupBox {
-                TextEditor(text: $prompt)
+                TextEditor(text: activePromptBinding)
                     .font(.body)
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 82, maxHeight: 110)
@@ -522,6 +536,7 @@ struct AIRetouchSheet: View {
             } label: {
                 HStack(spacing: 5) {
                     Text("Instruction")
+                        .font(.headline)
                     Button {
                         restoreDefaultPrompt()
                     } label: {
@@ -532,6 +547,26 @@ struct AIRetouchSheet: View {
                     .help("Restore default instruction")
                     .accessibilityLabel("Restore default instruction")
                     .disabled(!canRestoreDefaultPrompt)
+
+                    Spacer(minLength: 12)
+
+                    Button {
+                        mode = .replace
+                    } label: {
+                        Label("Replace", systemImage: "paintbrush.pointed")
+                    }
+                    .buttonStyle(AIRetouchModeButtonStyle(isSelected: mode == .replace))
+                    .accessibilityAddTraits(mode == .replace ? .isSelected : [])
+                    .accessibilityIdentifier("ai-retouch-mode-replace")
+
+                    Button {
+                        mode = .repair
+                    } label: {
+                        Label("Repair", systemImage: "wrench.adjustable")
+                    }
+                    .buttonStyle(AIRetouchModeButtonStyle(isSelected: mode == .repair))
+                    .accessibilityAddTraits(mode == .repair ? .isSelected : [])
+                    .accessibilityIdentifier("ai-retouch-mode-repair")
                 }
             }
 
@@ -580,6 +615,9 @@ struct AIRetouchSheet: View {
         }
         .padding(22)
         .frame(width: 780)
+        .onChange(of: mode) { invalidatePreview() }
+        .onChange(of: replacePrompt) { invalidatePreview() }
+        .onChange(of: repairPrompt) { invalidatePreview() }
         .task {
             storedAPIKey = keyStore.load()
             await prepareSource()
@@ -648,7 +686,7 @@ struct AIRetouchSheet: View {
     private var canGenerate: Bool {
         source != nil
             && maskData != nil
-            && !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !activePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var afterURL: URL? {
@@ -656,11 +694,42 @@ struct AIRetouchSheet: View {
     }
 
     private var canRestoreDefaultPrompt: Bool {
-        prompt != Self.defaultPrompt
+        activePrompt != defaultPrompt(for: mode)
     }
 
     private func restoreDefaultPrompt() {
-        prompt = Self.defaultPrompt
+        switch mode {
+        case .replace:
+            replacePrompt = Self.replaceDefaultPrompt
+        case .repair:
+            repairPrompt = Self.repairDefaultPrompt
+        }
+    }
+
+    private var activePrompt: String {
+        switch mode {
+        case .replace: replacePrompt
+        case .repair: repairPrompt
+        }
+    }
+
+    private var activePromptBinding: Binding<String> {
+        Binding(
+            get: { activePrompt },
+            set: { updatedPrompt in
+                switch mode {
+                case .replace: replacePrompt = updatedPrompt
+                case .repair: repairPrompt = updatedPrompt
+                }
+            }
+        )
+    }
+
+    private func defaultPrompt(for mode: RetouchPatch.AIRetouchMode) -> String {
+        switch mode {
+        case .replace: Self.replaceDefaultPrompt
+        case .repair: Self.repairDefaultPrompt
+        }
     }
 
     private func prepareSource() async {
@@ -734,7 +803,7 @@ struct AIRetouchSheet: View {
                 let newPreview = try await model.createAIRetouchPreview(
                     source: source,
                     maskData: maskData,
-                    prompt: prompt,
+                    prompt: activePrompt,
                     apiKey: apiKey
                 )
                 guard !Task.isCancelled else {
@@ -759,7 +828,9 @@ struct AIRetouchSheet: View {
         do {
             try model.applyAIRetouchPreview(
                 preview,
-                prompt: prompt,
+                mode: mode,
+                replacePrompt: replacePrompt,
+                repairPrompt: repairPrompt,
                 maskData: maskData,
                 replacing: replacingPatch
             )
@@ -812,8 +883,8 @@ struct AIRetouchSheet: View {
         self.preview = nil
     }
 
-    private static let defaultPrompt = """
-            This is a flat view of part of a 360° panorama. The masked area has been removed and must be reconstructed.
+    private static let replaceDefaultPrompt = """
+            This is a flat view of part of a 360° panorama. The mask marks the area to retouch. Its original pixels are visible and may be used as a reference while making the requested repair.
 
             Fill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.
 
@@ -826,6 +897,52 @@ struct AIRetouchSheet: View {
             Do not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.
             """
 
+    private static let repairDefaultPrompt = """
+            This is a flat view of part of a 360° panorama. The mask identifies the area that needs repair. The original pixels remain visible and should be used as a reference.
+
+            Repair the marked area photorealistically while preserving as much of the original content as possible. Correct visible defects and reconstruct only what is necessary.
+
+            Preserve existing objects, structures, geometry, perspective, and textures. Maintain continuity with the surrounding image.
+
+            Match the surrounding image's color, exposure, sharpness, texture, and noise. Avoid visible seams, abrupt transitions, or mask-shaped changes.
+
+            Do not modify unrelated areas or apply global image adjustments.
+            """
+
+}
+
+private struct AIRetouchModeButtonStyle: ButtonStyle {
+    let isSelected: Bool
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .medium))
+            .lineLimit(1)
+            .padding(.horizontal, 11)
+            .frame(height: 32)
+            .foregroundStyle(.primary)
+            .background(
+                backgroundColor(isPressed: configuration.isPressed),
+                in: RoundedRectangle(cornerRadius: 16)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(borderColor, lineWidth: 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 16))
+            .opacity(isEnabled ? 1 : 0.42)
+    }
+
+    private func backgroundColor(isPressed: Bool) -> Color {
+        if isPressed { return Color.primary.opacity(0.18) }
+        return Color.primary.opacity(isSelected ? 0.14 : 0.055)
+    }
+
+    private var borderColor: Color {
+        Color.primary.opacity(isSelected ? 0.3 : 0.12)
+    }
 }
 
 private struct RetouchPatchPanoramaViewport: View {
