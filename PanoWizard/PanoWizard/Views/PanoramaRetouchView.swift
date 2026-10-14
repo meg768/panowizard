@@ -813,7 +813,7 @@ struct AIRetouchSheet: View {
     }
 
     private static let defaultPrompt = """
-            This is a flat view of part of a 360° panorama. The masked area has been removed and must be reconstructed.
+            This is a flat view of part of a 360° panorama. The mask marks the area to retouch. Its original pixels are visible and may be used as a reference while making the requested repair.
 
             Fill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.
 

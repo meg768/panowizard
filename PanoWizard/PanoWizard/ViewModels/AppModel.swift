@@ -549,15 +549,21 @@ final class AppModel {
             at: directory,
             withIntermediateDirectories: true
         )
-        let sourceData = try await Task.detached(priority: .userInitiated) {
-            try RetouchPatchService().prepareAIRetouchInput(
-                from: source.sourceURL,
-                maskData: maskData
+        let apiInput = try await Task.detached(priority: .userInitiated) {
+            let service = RetouchPatchService()
+            return (
+                try Data(contentsOf: source.sourceURL),
+                try service.prepareAIRetouchAPIInputMask(
+                    from: maskData,
+                    sourceURL: source.sourceURL
+                )
             )
         }.value
         let editedData = try await OpenAIImageEditService(apiKey: apiKey).edit(
-            imageData: sourceData,
+            imageData: apiInput.0,
+            maskData: apiInput.1,
             filename: "patch.png",
+            maskFilename: "mask.png",
             prompt: prompt,
             size: RetouchPatchService.patchSize
         )
