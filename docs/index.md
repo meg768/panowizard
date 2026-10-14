@@ -22,7 +22,7 @@ New to PanoWizard? Start with the [illustrated Getting Started guide](getting-st
 
 - **[Masks](HowTo/Masking/index.html)** — Exclude unwanted source pixels or prefer better overlap.
 - **[Retouching](HowTo/ManualPatch/index.html)** — Repair a local area with a manual patch and an image editor.
-- **[AI Retouch](HowTo/AIPatch/index.html)** — Mask a local problem, generate a repair, and review it before applying.
+- **[AI Retouch](HowTo/AIPatch/index.html)** — Mask a local area, replace or repair it with AI, and review it before applying.
 
 ## Export
 
