@@ -28,9 +28,7 @@ enum RetouchPatchError: LocalizedError {
 
 struct RetouchPatchService: Sendable {
     static let patchSize = 2_048
-    private static let aiPatchFeatherFraction = 0.01
-    private static let radiometricBandOuterFeatherMultiple = 4.0
-    private static let radiometricClipMargin = 8.0 / 255.0
+    private static let aiPatchFeatherWidth = 128
 
     func maskForTransparentPixels(
         in sourceURL: URL,
@@ -129,91 +127,48 @@ struct RetouchPatchService: Sendable {
     func prepareAIRetouchPatch(
         originalURL: URL,
         editedURL: URL,
-        maskData: Data,
+        maskData _: Data,
         overlayURL: URL,
         previewURL: URL,
         expectedSize: Int = Self.patchSize
     ) throws {
-        let original = try RGBAImage(contentsOf: originalURL)
-        let edited = try RGBAImage(contentsOf: editedURL)
-        let mask = try RGBAImage(data: maskData)
-        for image in [original, edited, mask]
-        where image.width != expectedSize || image.height != expectedSize {
+        var edited = try RGBAImage(contentsOf: editedURL)
+        guard edited.width == expectedSize, edited.height == expectedSize else {
             throw RetouchPatchError.invalidDimensions(
                 expected: expectedSize,
-                width: image.width,
-                height: image.height
+                width: edited.width,
+                height: edited.height
             )
         }
-
-        let width = original.width
-        let height = original.height
-        var painted = [Bool](repeating: false, count: width * height)
-        for y in 0..<height {
-            for x in 0..<width {
-                painted[y * width + x] = mask.pixel(x: x, y: y).a > 0
+        for y in 0..<edited.height {
+            let verticalOpacity = Self.edgeOpacity(
+                distance: min(y, edited.height - 1 - y)
+            )
+            for x in 0..<edited.width {
+                let horizontalOpacity = Self.edgeOpacity(
+                    distance: min(x, edited.width - 1 - x)
+                )
+                let opacity = horizontalOpacity * verticalOpacity
+                var pixel = edited.pixel(x: x, y: y)
+                pixel.r *= opacity
+                pixel.g *= opacity
+                pixel.b *= opacity
+                pixel.a *= opacity
+                edited.setPixel(pixel, x: x, y: y)
             }
         }
-        guard painted.contains(true) else { throw RetouchPatchError.emptyMask }
-
-        let distance = Self.euclideanDistanceToPaintedArea(
-            painted,
-            width: width,
-            height: height
+        try edited.writePNG(to: overlayURL)
+        try compositePatch(
+            backgroundURL: originalURL,
+            patchURL: overlayURL,
+            to: previewURL,
+            expectedSize: expectedSize
         )
-        let featherWidth = max(
-            1,
-            Double(min(width, height)) * Self.aiPatchFeatherFraction
-        )
-        let offset = Self.radiometricOffset(
-            original: original,
-            edited: edited,
-            painted: painted,
-            distance: distance,
-            featherWidth: featherWidth
-        )
+    }
 
-        var overlay = RGBAImage(width: width, height: height)
-        var preview = original
-        for y in 0..<height {
-            for x in 0..<width {
-                let index = y * width + x
-                let alpha: Double
-                if painted[index] {
-                    alpha = 1
-                } else if distance[index] < featherWidth {
-                    let t = 1 - distance[index] / featherWidth
-                    alpha = t * t * (3 - 2 * t)
-                } else {
-                    alpha = 0
-                }
-                guard alpha > 0 else { continue }
-
-                let source = edited.pixel(x: x, y: y)
-                let corrected = Pixel(
-                    r: min(max(source.r + offset.r, 0), 1),
-                    g: min(max(source.g + offset.g, 0), 1),
-                    b: min(max(source.b + offset.b, 0), 1),
-                    a: 1
-                )
-                let patch = Pixel(
-                    r: corrected.r * alpha,
-                    g: corrected.g * alpha,
-                    b: corrected.b * alpha,
-                    a: alpha
-                )
-                // The existing compositor expects premultiplied RGB and exact
-                // zeroes wherever the overlay is transparent.
-                overlay.setPixel(patch, x: x, y: y)
-                preview.setPixel(
-                    Self.blend(patch, over: original.pixel(x: x, y: y)),
-                    x: x,
-                    y: y
-                )
-            }
-        }
-        try overlay.writePNG(to: overlayURL)
-        try preview.writePNG(to: previewURL)
+    private static func edgeOpacity(distance: Int) -> Double {
+        let progress = min(Double(distance) / Double(aiPatchFeatherWidth), 1)
+        return progress * progress * (3 - 2 * progress)
     }
 
     private static func blend(_ foreground: Pixel, over background: Pixel) -> Pixel {
@@ -224,136 +179,6 @@ struct RetouchPatchService: Sendable {
             b: foreground.b + background.b * inverseAlpha,
             a: foreground.a + background.a * inverseAlpha
         )
-    }
-
-    private static func radiometricOffset(
-        original: RGBAImage,
-        edited: RGBAImage,
-        painted: [Bool],
-        distance: [Double],
-        featherWidth: Double
-    ) -> Pixel {
-        var red = [Double]()
-        var green = [Double]()
-        var blue = [Double]()
-        let outerDistance = featherWidth * radiometricBandOuterFeatherMultiple
-        for y in 0..<original.height {
-            for x in 0..<original.width {
-                let index = y * original.width + x
-                guard !painted[index],
-                      distance[index] >= featherWidth,
-                      distance[index] < outerDistance else { continue }
-                let before = original.pixel(x: x, y: y)
-                let after = edited.pixel(x: x, y: y)
-                if isRadiometricallyValid(before.r),
-                   isRadiometricallyValid(after.r) {
-                    red.append(before.r - after.r)
-                }
-                if isRadiometricallyValid(before.g),
-                   isRadiometricallyValid(after.g) {
-                    green.append(before.g - after.g)
-                }
-                if isRadiometricallyValid(before.b),
-                   isRadiometricallyValid(after.b) {
-                    blue.append(before.b - after.b)
-                }
-            }
-        }
-        return Pixel(
-            r: median(red),
-            g: median(green),
-            b: median(blue),
-            a: 1
-        )
-    }
-
-    private static func isRadiometricallyValid(_ value: Double) -> Bool {
-        value > radiometricClipMargin && value < 1 - radiometricClipMargin
-    }
-
-    private static func median(_ values: [Double]) -> Double {
-        guard !values.isEmpty else { return 0 }
-        let sorted = values.sorted()
-        let middle = sorted.count / 2
-        if sorted.count.isMultiple(of: 2) {
-            return (sorted[middle - 1] + sorted[middle]) / 2
-        }
-        return sorted[middle]
-    }
-
-    private static func euclideanDistanceToPaintedArea(
-        _ painted: [Bool],
-        width: Int,
-        height: Int
-    ) -> [Double] {
-        let maximumSquaredDistance = Double(width * width + height * height + 1)
-        var horizontal = [Double](
-            repeating: maximumSquaredDistance,
-            count: width * height
-        )
-        var input = [Double](repeating: 0, count: max(width, height))
-        var output = input
-
-        for y in 0..<height {
-            for x in 0..<width {
-                input[x] = painted[y * width + x] ? 0 : maximumSquaredDistance
-            }
-            squaredDistanceTransform(input, count: width, output: &output)
-            for x in 0..<width { horizontal[y * width + x] = output[x] }
-        }
-
-        var result = [Double](repeating: 0, count: width * height)
-        for x in 0..<width {
-            for y in 0..<height { input[y] = horizontal[y * width + x] }
-            squaredDistanceTransform(input, count: height, output: &output)
-            for y in 0..<height { result[y * width + x] = sqrt(output[y]) }
-        }
-        return result
-    }
-
-    private static func squaredDistanceTransform(
-        _ input: [Double],
-        count: Int,
-        output: inout [Double]
-    ) {
-        guard count > 0 else { return }
-        var locations = [Int](repeating: 0, count: count)
-        var boundaries = [Double](repeating: 0, count: count + 1)
-        var envelopeIndex = 0
-        locations[0] = 0
-        boundaries[0] = -.infinity
-        boundaries[1] = .infinity
-
-        if count > 1 {
-            for point in 1..<count {
-                var intersection: Double
-                repeat {
-                    let location = locations[envelopeIndex]
-                    intersection = (
-                        input[point] + Double(point * point)
-                            - input[location] - Double(location * location)
-                    ) / Double(2 * (point - location))
-                    if intersection <= boundaries[envelopeIndex] {
-                        envelopeIndex -= 1
-                    } else {
-                        break
-                    }
-                } while envelopeIndex >= 0
-                envelopeIndex += 1
-                locations[envelopeIndex] = point
-                boundaries[envelopeIndex] = intersection
-                boundaries[envelopeIndex + 1] = .infinity
-            }
-        }
-
-        envelopeIndex = 0
-        for point in 0..<count {
-            while boundaries[envelopeIndex + 1] < Double(point) {
-                envelopeIndex += 1
-            }
-            let delta = point - locations[envelopeIndex]
-            output[point] = Double(delta * delta) + input[locations[envelopeIndex]]
-        }
     }
 
     func exportPatch(

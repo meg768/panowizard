@@ -150,7 +150,7 @@ struct RetouchPatchServiceTests {
     }
 
     @Test
-    func aiRetouchPatchIsLocalAndRadiometricallyMatched() throws {
+    func aiRetouchPatchFeathersAllEdgesAndPreview() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let originalURL = directory.appending(path: "original.png")
@@ -158,9 +158,10 @@ struct RetouchPatchServiceTests {
         let maskURL = directory.appending(path: "mask.png")
         let overlayURL = directory.appending(path: "overlay.png")
         let previewURL = directory.appending(path: "preview.png")
-        let size = 256
+        let storedPatchURL = directory.appending(path: "stored-patch.png")
+        let size = 512
         let isPainted: (Int, Int) -> Bool = { x, y in
-            (96..<160).contains(x) && (96..<160).contains(y)
+            (224..<288).contains(x) && (224..<288).contains(y)
         }
         try writeImage(width: size, height: size, to: originalURL) { _, _ in
             (80, 100, 120, 255)
@@ -180,14 +181,36 @@ struct RetouchPatchServiceTests {
             previewURL: previewURL,
             expectedSize: size
         )
+        try RetouchPatchService().prepareImportedPatch(
+            from: overlayURL,
+            to: storedPatchURL,
+            expectedSize: size
+        )
 
         let overlay = try pixels(at: overlayURL)
         let preview = try pixels(at: previewURL)
-        #expect(overlay.pixel(x: 128, y: 128) == (190, 160, 130, 255))
-        #expect(preview.pixel(x: 128, y: 128) == (190, 160, 130, 255))
-        #expect(overlay.pixel(x: 0, y: 0) == (0, 0, 0, 0))
-        #expect(preview.pixel(x: 0, y: 0) == (80, 100, 120, 255))
-        #expect((1..<255).contains(Int(overlay.pixel(x: 95, y: 128).3)))
+        let storedPatch = try pixels(at: storedPatchURL)
+        #expect(overlay.pixel(x: 256, y: 256) == (210, 190, 170, 255))
+        #expect(preview.pixel(x: 256, y: 256) == (210, 190, 170, 255))
+        #expect(storedPatch.pixel(x: 256, y: 256) == (210, 190, 170, 255))
+
+        for edge in [
+            overlay.pixel(x: 256, y: 0),
+            overlay.pixel(x: size - 1, y: 256),
+            overlay.pixel(x: 256, y: size - 1),
+            overlay.pixel(x: 0, y: 256),
+        ] {
+            #expect(edge.3 == 0)
+        }
+        #expect(overlay.pixel(x: 256, y: 64).3 == 128)
+        #expect(overlay.pixel(x: 256, y: 128).3 == 255)
+        #expect(overlay.pixel(x: 64, y: 64).3 == 64)
+        #expect(overlay.pixel(x: 128, y: 128).3 == 255)
+
+        #expect(preview.pixel(x: 256, y: 0) == (80, 100, 120, 255))
+        #expect(preview.pixel(x: 256, y: 64) == (90, 115, 140, 255))
+        #expect(preview.pixel(x: 256, y: 128) == (100, 130, 160, 255))
+        #expect(storedPatch.pixel(x: 256, y: 64).3 == 128)
     }
 
     @Test
