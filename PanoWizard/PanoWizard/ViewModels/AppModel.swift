@@ -589,7 +589,9 @@ final class AppModel {
 
     func applyAIRetouchPreview(
         _ preview: AIRetouchPreview,
-        prompt: String,
+        mode: RetouchPatch.AIRetouchMode,
+        replacePrompt: String,
+        repairPrompt: String,
         maskData: Data,
         replacing existingPatch: RetouchPatch? = nil
     ) throws {
@@ -598,7 +600,9 @@ final class AppModel {
             kind: .ai,
             viewpoint: preview.viewpoint,
             isEnabled: existingPatch?.isEnabled ?? true,
-            prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            aiRetouchMode: mode,
+            replacePrompt: replacePrompt,
+            repairPrompt: repairPrompt
         )
         try storeRetouchPatch(
             patch,

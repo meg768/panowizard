@@ -222,18 +222,11 @@ struct PanoramaCommandActions {
     let showExport: () -> Void
 }
 
-struct ImageCommandItem: Identifiable {
-    let id: SourceImage.ID
-    let filename: String
-    let isSelected: Bool
-}
-
 struct ImagesCommandActions {
     let canNavigateImage: Bool
-    let images: [ImageCommandItem]
+    let hasImages: Bool
     let addImages: () -> Void
     let removeAllImages: () -> Void
-    let selectImage: (SourceImage.ID) -> Void
 }
 
 struct ProjectDocumentCommandActions {
@@ -388,38 +381,7 @@ private struct ImagesMenuCommands: Commands {
             Button("Add...") { actions?.addImages() }
                 .disabled(actions == nil)
             Button("Remove All…") { actions?.removeAllImages() }
-                .disabled(actions?.images.isEmpty != false)
-            if !(actions?.images.isEmpty ?? true) { Divider() }
-            ForEach(
-                Array((actions?.images ?? []).enumerated()),
-                id: \.element.id
-            ) { index, image in
-                if index < 9 {
-                    imageButton(image, number: index + 1)
-                        .keyboardShortcut(
-                            KeyEquivalent(Character(String(index + 1))),
-                            modifiers: .option
-                        )
-                } else {
-                    imageButton(image, number: index + 1)
-                }
-            }
-        }
-    }
-
-    private func imageButton(
-        _ image: ImageCommandItem,
-        number: Int
-    ) -> some View {
-        Button {
-            actions?.selectImage(image.id)
-        } label: {
-            let title = image.filename
-            if image.isSelected {
-                Label(title, systemImage: "checkmark")
-            } else {
-                Text(title)
-            }
+                .disabled(actions?.hasImages != true)
         }
     }
 }

@@ -84,16 +84,9 @@ struct ContentView: View {
                     && (model.selection == .retouch
                         ? model.currentPanoramaURL != nil
                         : model.selectedPreviewURL != nil),
-                images: model.project.images.map { image in
-                    ImageCommandItem(
-                        id: image.id,
-                        filename: image.filename,
-                        isSelected: model.selectedSourceImage?.id == image.id
-                    )
-                },
+                hasImages: !model.project.images.isEmpty,
                 addImages: { model.isImporterPresented = true },
-                removeAllImages: { confirmsRemoveAllImages = true },
-                selectImage: model.selectSourceImage
+                removeAllImages: { confirmsRemoveAllImages = true }
             )
         )
         .focusedSceneValue(
