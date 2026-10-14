@@ -490,8 +490,10 @@ struct AIRetouchSheet: View {
                         )
                     }
                 } trailing: {
-                    Button("Clear Mask", role: .destructive) {
+                    Button(role: .destructive) {
                         clearMask()
+                    } label: {
+                        Label("Clear Mask", systemImage: "trash")
                     }
                     .buttonStyle(AIRetouchModeButtonStyle(isSelected: false))
                     .disabled(maskData == nil || isWorking)
@@ -534,6 +536,7 @@ struct AIRetouchSheet: View {
             } label: {
                 HStack(spacing: 5) {
                     Text("Instruction")
+                        .font(.headline)
                     Button {
                         restoreDefaultPrompt()
                     } label: {
@@ -547,15 +550,19 @@ struct AIRetouchSheet: View {
 
                     Spacer(minLength: 12)
 
-                    Button("Replace") {
+                    Button {
                         mode = .replace
+                    } label: {
+                        Label("Replace", systemImage: "paintbrush.pointed")
                     }
                     .buttonStyle(AIRetouchModeButtonStyle(isSelected: mode == .replace))
                     .accessibilityAddTraits(mode == .replace ? .isSelected : [])
                     .accessibilityIdentifier("ai-retouch-mode-replace")
 
-                    Button("Repair") {
+                    Button {
                         mode = .repair
+                    } label: {
+                        Label("Repair", systemImage: "wrench.adjustable")
                     }
                     .buttonStyle(AIRetouchModeButtonStyle(isSelected: mode == .repair))
                     .accessibilityAddTraits(mode == .repair ? .isSelected : [])
