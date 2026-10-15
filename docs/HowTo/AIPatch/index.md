@@ -2,7 +2,23 @@
 
 An AI patch changes a small area of an otherwise finished panorama. The captured image, mask, and active instruction are sent to OpenAI. The result stays a preview until you choose **Apply**.
 
-## Before you start
+## Explore the saved repair in example C
+
+[Download and open example C](../../examples.html#example-c). It has seven source JPEGs and one saved AI patch repairing the mosaic floor below the camera.
+
+1. Open **Retouch** and find **AI Patch** in **Patches**.
+2. Click its thumbnail to locate the floor in Preview.
+3. Return to Retouch and switch the patch off, then click the thumbnail again to inspect the same area without the repair. Repeat with the switch on.
+
+![Example C's saved AI patch in Retouch](../../Images/Examples/c-retouch.jpg)
+
+![The same floor view with the AI patch disabled on the left and enabled on the right](../../Images/Examples/c-ai-comparison.jpg)
+
+*Left: the camera support is visible. Right: the saved AI result continues the mosaic floor. The source images are unchanged.*
+
+Viewing and toggling the saved patch requires no API key and makes no generation request. To inspect its saved mask and instruction, click its pencil button; choose **Cancel** to leave it unchanged. Do not choose **Try Again** unless you intend to generate a new result.
+
+## Before generating a new repair
 
 AI retouch requires internet access and your own OpenAI API key. API usage is billed separately by OpenAI; it is not included in a ChatGPT or Codex subscription.
 
@@ -12,7 +28,7 @@ Use **Create API Key…** in the patch dialog to open setup, then **Open OpenAI 
 
 Open **Retouch**, frame the problem in the square view, and click **Add AI patch**. Drag to pan; scroll or pinch to zoom without a modifier.
 
-![Framing the floor before opening an AI patch](Images/01-position-the-patch.png)
+Use a copy of the entire C folder when practicing, so the finished example stays available.
 
 The dialog contains a fixed capture. Its pan/zoom controls inspect that image; cancel and reposition in Retouch to capture a different area.
 
@@ -32,9 +48,11 @@ Click **AI Retouch** to generate a preview. A mask and a nonempty active instruc
 
 Inspect lines, textures, color, and the repair boundary in **After**. AI can invent plausible but incorrect details. Choose **Try Again** for another attempt, or **Apply** to keep the result.
 
-![Matched floor views before and after the saved AI repair](Images/03-result-in-preview.png)
+![The saved mask and result in C's AI Retouch Patch dialog](../../Images/Examples/c-ai-dialog.jpg)
 
-*Left: original. Right: the saved repair enabled. An AI repair is generated content, not recovered source pixels.*
+*The red mask selects the camera support in Before; After contains the saved generated floor repair. An AI repair is generated content, not recovered source pixels.*
+
+[Example B](../../examples.html#example-b) includes a more ambitious AI reconstruction of the Eiffel Tower from above, alongside a manual patch. Inspect it as generated content, not as evidence of the tower's exact appearance.
 
 In **Patches**, use the switch to hide/show a repair, click its thumbnail to locate it, or use the pencil/trash button to edit/delete it. Finish source corrections first: changing sources or masks clears patches. Save the project to keep an accepted repair.
 

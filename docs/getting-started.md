@@ -1,43 +1,49 @@
-# PanoWizard — Create Complete 360° Panoramas
+# Get started with PanoWizard
 
-**Import → Create → Preview → Export**
+**Open → Explore → Export**, or **Import → Create → Preview → Export** when starting from source photographs.
 
-Start with one complete ring of overlapping fisheye photographs. See [Adding Source Images](source-images.html) if you are unsure which photos to use.
+## 1. Open a finished example
 
-## 1. Import
+[Download the three example panoramas](examples.html), then open **A/panorama.pw** with **File → Open…**. If asked for access, choose the A folder and click **Grant Access**. The sidebar should show nine source photographs.
 
-When you launch PanoWizard without a project, the project window shows the welcome view below. The sidebar and menus remain available. Use **Open Existing Panorama…** to continue a saved project.
+![Example A with its finished panorama open](Images/Examples/a-preview.jpg)
 
-Click **Add Images…** in the welcome view or sidebar, select the photographs together, and click **Open**. This loads the images; it does not stitch them yet.
+You do not need to stitch again to explore the saved result. Keep the source JPEGs beside the project, and duplicate the whole A folder before making changes.
 
-![An empty project welcomes you with Add Images and Open Existing Panorama](Images/00-welcome.png)
+## 2. Explore the panorama
 
-## 2. Create
+Choose **Panorama → Preview**. Drag to look around; scroll or pinch to zoom. Look up at the sky, down at the ground, and around the full circle. **View → Reset View** resets the view.
 
-Click **Create Panorama** under **Panorama** in the sidebar, or choose **Panorama → Create**. Wait while PanoWizard aligns and stitches the images.
+The [Masks guide](HowTo/Masking/index.html) explains A's red and green source masks. Open **Retouch** to inspect its saved manual patch. For an AI floor repair, open [example C](examples.html#example-c).
 
-![Five coastal photographs imported in the Images sidebar](Images/01-source-images.png)
+## 3. Export
 
-## 3. Preview
+Select **Export**, then **Save JPEG…** for an image or **Save HTML…** for an interactive panorama you can open in a browser. **Size: Original** keeps the saved panorama's dimensions.
 
-**Preview** opens when creation finishes. Drag to look around. Scroll or pinch to zoom without a modifier. Check the seams, horizon, sky, and ground.
+![Export controls for example A](Images/Examples/a-export.jpg)
 
-![The freshly stitched coastal panorama in Preview](Images/02-panorama-preview.png)
+Save the editable project with **File → Save** (Command-S) to keep your changes. Exporting an image does not save the project.
 
-## 4. Export
+## Create a panorama from the photographs
 
-Select **Export**, then **Save JPEG…** for an image or **Save HTML…** for an interactive panorama you can open in a browser. **Size: Original** keeps the panorama's existing dimensions.
+Choose **File → New** for an empty project.
 
-![Current JPEG, PNG, HTML, and Little Planet export options](Images/04-export.png)
+![An empty PanoWizard window with Add Images and Open Existing Panorama](Images/Examples/welcome.jpg)
 
-Save the editable project with **File → Save** (Command-S) if you want to return to it later. Exporting an image does not save the project.
+1. Click **Add Images…** and select all nine JPEGs in a copy of the A folder. Do not select `panorama.pw`.
+2. Click **Create Panorama** under **Panorama** in the sidebar, or choose **Panorama → Create**.
+3. Wait while the images are aligned and stitched. **Preview** opens when creation finishes.
+4. Save your new project beside the photographs using a different name, such as `practice.pw`.
+
+A new project does not inherit the saved example's masks or patches. Its first result can therefore differ from the finished example. Use the [mask exercise](HowTo/Masking/index.html) before adding retouch patches.
 
 ## Next steps
 
-- [Inspect and adjust the result](preview.html).
-- [Mask source images](HowTo/Masking/index.html).
-- [Create a manual patch](HowTo/ManualPatch/index.html).
-- [Create an AI patch](HowTo/AIPatch/index.html).
-- [Create a Little Planet](HowTo/LittlePlanet/index.html).
+- [Adding Source Images](source-images.html)
+- [Creating the Panorama](creating-panorama.html)
+- [Preview and Adjustments](preview.html)
+- [Manual Retouch](HowTo/ManualPatch/index.html)
+- [AI Retouch](HowTo/AIPatch/index.html)
+- [Little Planet](HowTo/LittlePlanet/index.html)
 
 [Back to PanoWizard Help](index.html)

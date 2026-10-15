@@ -6,7 +6,7 @@ Open **Export** and choose:
 - **Save PNG…** for a lossless panorama image.
 - **Save HTML…** for a self-contained interactive 360° viewer.
 
-![Current export options](Images/04-export.png)
+![Current export options](Images/Examples/a-export.jpg)
 
 ## Image size and quality
 
@@ -14,7 +14,7 @@ JPEG and PNG use the **2:1 equirectangular** format: the whole sphere laid out a
 
 **Size: Original** preserves the panorama's existing dimensions. New panoramas are **4096 × 2048**; **4096 px** and **2048 px** choose the image width. **JPEG Quality** affects JPEG only.
 
-![The coastal panorama as a flat 2:1 image](Images/00-finished-panorama.jpg)
+![Example A as a flat 2:1 panorama](Images/Examples/a-panorama.jpg)
 
 ## Interactive viewer
 

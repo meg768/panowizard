@@ -2,7 +2,7 @@
 
 Drag to look around. Scroll or pinch to zoom without a modifier. **View → Zoom In**, **Zoom Out**, and **Reset View** are also available (Command-Plus, Command-Minus, Command-0).
 
-![The panorama in the current Preview workspace](Images/02-panorama-preview.png)
+![The panorama in the current Preview workspace](Images/Examples/a-preview.jpg)
 
 Use the sidebar button in the toolbar to hide or show the sidebar. Zoom commands are available when the current workspace has an image to navigate.
 
@@ -20,11 +20,9 @@ Look all the way around, then up at the sky or ceiling (**zenith**) and down at 
 
 Click **Adjustments** in Preview. Use **Light** for exposure and tone, and **Color** for white balance and saturation. **Original** temporarily shows the panorama without these adjustments; it does not remove patches. Use a slider's reset arrow or **Reset All** to undo adjustments.
 
-![The current Adjustments panel](Images/05-adjustments.png)
+![The current Adjustments panel](Images/Examples/c-adjustments.jpg)
 
-![The same view before and after the project's light and color adjustments](Images/06-adjustments-comparison.jpg)
-
-*Left: Original. Right: adjusted. Direction and zoom are unchanged.*
+The panel above shows [example C](examples.html#example-c) with its saved neutral adjustment values. Try sliders on a copy of the example; **Original** lets you compare your changes without disabling the AI patch.
 
 Adjustments are saved with the project and included in exports. They do not repair alignment or seams.
 

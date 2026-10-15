@@ -2,7 +2,7 @@
 
 Click **Add Images…** in the sidebar or welcome view, or choose **Images → Add...**. Select the photographs together and click **Open**. The welcome view appears whenever the project has no source images.
 
-![Selecting the five source photographs together](Images/00-choose-images.png)
+Practice with the JPEG photographs in [example A, B, or C](examples.html). Select only the source JPEGs when importing into a new project. Open `panorama.pw` instead to retain the example's existing masks and patches.
 
 ## Which photographs?
 
@@ -18,7 +18,7 @@ Click an image's thumbnail or filename to inspect it. PanoWizard arranges import
 
 The **numbered circle** enables or disables an image for stitching. A disabled image remains in the project. The small mask symbol indicates a source mask; the repair symbol identifies a Repair Image.
 
-![The source workspace with Exclude, Include, Clear, and Rotate](Images/01-source-images.png)
+![Example A source workspace with Include selected](Images/Examples/a-include.jpg)
 
 Leave **Image Type → Automatic** selected unless you need to override the role. Right-click a sidebar image to choose **Panorama Ring** or **Repair Image**. Repair images fill local coverage without steering the ring's geometry; they cannot bridge missing overlap between ring images.
 

@@ -1,12 +1,14 @@
 # PanoWizard Help
 
-![A complete 360-degree panorama created with PanoWizard](Images/00-finished-panorama.jpg)
+![Example A: a complete panorama of a church square](Images/Examples/a-panorama.jpg)
 
 Turn one horizontal ring of overlapping fisheye photographs into a complete **360° × 180° panorama**. Inspect the result, guide stitching with masks, repair local details, and export a panorama, an interactive viewer, or a Little Planet.
 
 New to PanoWizard? Start with the [illustrated Getting Started guide](getting-started.html), or choose a topic below.
 
 ## Start
+
+- **[Example Panoramas](examples.html)** — Download A, B, and C; explore saved masks, manual patches, and AI repairs without creating a new panorama.
 
 - **[Getting Started](getting-started.html)** — Follow a complete project from source photographs to export.
 - **[Creating and Opening Projects](projects.html)** — Start, reopen, and save your work.

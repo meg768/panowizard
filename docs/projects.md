@@ -2,6 +2,8 @@
 
 PanoWizard starts in a normal project window with an empty project. The welcome view stays inside that window, so the menus remain available. Click **Add Images…** to choose your source images. Choose **File → New** for another empty project. Use **Open Existing Panorama…** in the welcome view or **File → Open…** to open an existing `.pw` project.
 
+For a finished project to explore, [download the examples](examples.html). Keep the entire A, B, or C folder together and open its `panorama.pw`. To experiment, duplicate that whole folder first.
+
 ## Open recent projects
 
 **File → Open Recent** lists up to 10 recently opened or saved projects, newest first. Each entry shows the shortest trailing part of its path needed to distinguish it from the other entries. For example, two projects named `panorama.pw` can appear as `U/panorama.pw` and `G/panorama.pw`. More parent folders appear only when needed. Hover over an entry to see its full path.

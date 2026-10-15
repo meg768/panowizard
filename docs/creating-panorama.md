@@ -4,6 +4,10 @@ Click **Create Panorama** in the sidebar or choose **Panorama → Create**. You 
 
 The progress dialog shows the current stage. Creation can take a few minutes; **Cancel** stops the operation. When complete, **Preview** opens. The current application creates a **4096 × 2048** panorama.
 
+Practice with the photographs from [example A](examples.html#example-a) in a new project. Opening the saved `panorama.pw` lets you inspect its finished result without creating again.
+
+![Example A in Preview](Images/Examples/a-preview.jpg)
+
 ## Check the result
 
 The status line reports coverage after creation. **100% coverage means source pixels are available everywhere, not that every seam is correct.** Reopened projects may show **Ready** instead. Always inspect the panorama yourself.
