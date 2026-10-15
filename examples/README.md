@@ -5,8 +5,8 @@ Three complete examples for App Store Review and learning PanoWizard. Each folde
 | Example | Scene | Source photographs | Project to open |
 | --- | --- | --- | --- |
 | A | Outdoor square and church | 9 JPEGs | `A/panorama.pw` |
-| B | View over Paris | 8 PNGs | `B/panorama.pw` |
-| C | Bathroom interior | 7 PNGs | `C/panorama.pw` |
+| B | View over Paris | 8 JPEGs | `B/panorama.pw` |
+| C | Bathroom interior | 7 JPEGs | `C/panorama.pw` |
 
 ## Download
 
