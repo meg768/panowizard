@@ -1,0 +1,159 @@
+{
+  "createdAt" : "2026-09-27T18:19:12Z",
+  "formatVersion" : 10,
+  "id" : "01CDF4C9-9B7C-4DEF-A376-FB1763C7D1A9",
+  "images" : [
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-03-21T11:04:05Z",
+      "direction" : "horizontal",
+      "id" : "92D4A84B-B11F-44DF-9460-495732F3CB62",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-03-21%2012-04-05.png"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-03-21T11:04:20Z",
+      "direction" : "horizontal",
+      "id" : "83120B4E-9ADC-4216-80CC-89C6D3C8AABA",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-03-21%2012-04-20.png"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-03-21T11:04:30Z",
+      "direction" : "horizontal",
+      "id" : "835010F3-7843-4079-9992-EE3EB0D80D8E",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-03-21%2012-04-30.png"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-03-21T11:04:39Z",
+      "direction" : "horizontal",
+      "id" : "AE47C089-507D-46D6-BB18-01F044319CF7",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-03-21%2012-04-39.png"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-03-21T11:04:57Z",
+      "direction" : "horizontal",
+      "id" : "375DBFD6-BDED-4946-B6D9-76B9CE5349A1",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-03-21%2012-04-57.png"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-03-21T11:05:06Z",
+      "direction" : "horizontal",
+      "id" : "20174E9F-0126-46DB-B0D0-FA3BE37A61E3",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-03-21%2012-05-06.png"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-03-21T11:05:13Z",
+      "direction" : "horizontal",
+      "id" : "841D330E-D5EE-4524-9CAD-61983630C03D",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-03-21%2012-05-13.png"
+    }
+  ],
+  "modifiedAt" : "2026-10-15T22:32:07Z",
+  "panoramaAdjustments" : {
+    "blacks" : 0,
+    "brightness" : 0,
+    "contrast" : 0,
+    "exposure" : 0,
+    "highlights" : 0,
+    "saturation" : 0,
+    "shadows" : 0,
+    "temperature" : 0,
+    "tint" : 0,
+    "vibrance" : 0,
+    "whites" : 0
+  },
+  "previewViewpoint" : {
+    "pitchRadians" : 1.566304087638855,
+    "verticalFieldOfViewDegrees" : 85.65709686279297,
+    "yawRadians" : 6.236279010772705
+  },
+  "retouchPatches" : [
+    {
+      "id" : "5EA01442-6BA8-45A6-812C-718034303805",
+      "isEnabled" : true,
+      "kind" : "ai",
+      "prompt" : "This is a flat view of part of a 360° panorama. The masked area has been removed and must be reconstructed.\n\nFill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.\n\nThe reconstruction must blend seamlessly with the surrounding original image. Locally match exposure, brightness, hue, white balance, contrast, sharpness, texture, and noise so that no visible boundary or tonal edge appears around the reconstructed area.\n\nThe transition between reconstructed and original image content must be smooth and gradual. Avoid a uniformly bounded or mask-shaped change in light or color.\n\nPreserve the image's existing geometry and perspective. Do not alter objects or structures that do not need to be reconstructed to fill the missing area.\n\nDo not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.\n\nI detta fall, se till att mosaiken i golvet verkligen ser ut som mosaik. Raka linjer överallt.",
+      "viewpoint" : {
+        "pitchRadians" : 1.5617530345916748,
+        "verticalFieldOfViewDegrees" : 79.81282806396484,
+        "yawRadians" : -0.017636209726333618
+      }
+    }
+  ],
+  "title" : "21 Mar 2009"
+}

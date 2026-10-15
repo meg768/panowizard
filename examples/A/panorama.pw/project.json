@@ -1,0 +1,192 @@
+{
+  "createdAt" : "2026-10-11T16:40:25Z",
+  "formatVersion" : 10,
+  "id" : "F7C16EBA-ADC6-4BF3-9CC9-B67F571F697F",
+  "images" : [
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-01-16T14:18:38Z",
+      "direction" : "horizontal",
+      "id" : "7291131D-F9C6-42EE-9D7D-ACBB292FA2B6",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-01-16%2015-18-38.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-01-16T14:18:41Z",
+      "direction" : "horizontal",
+      "id" : "C7CFA02E-519F-4527-AC49-778FE1712974",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-01-16%2015-18-41.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-01-16T14:18:46Z",
+      "direction" : "horizontal",
+      "id" : "35B57756-56FE-44FD-80AF-A2143B9611CE",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-01-16%2015-18-46.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-01-16T14:18:51Z",
+      "direction" : "horizontal",
+      "id" : "3D8D102C-2F9A-4D5F-B7F8-2A6305321CD2",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-01-16%2015-18-51.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-01-16T14:18:55Z",
+      "direction" : "horizontal",
+      "id" : "1D7E4D3C-ACD1-45CF-ADF5-755AE964DE17",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-01-16%2015-18-55.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-01-16T14:19:00Z",
+      "direction" : "horizontal",
+      "id" : "C2A85FF3-0886-4AD9-973F-50D6E472B5AA",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-01-16%2015-19-00.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-01-16T14:19:13Z",
+      "direction" : "horizontal",
+      "id" : "B297314F-9943-403C-A488-B4E4CE4FABAD",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-01-16%2015-19-13.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-01-16T14:19:32Z",
+      "direction" : "horizontal",
+      "id" : "1D543F72-C0A3-476C-82EA-20D8A414965D",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-01-16%2015-19-32.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-01-16T14:19:39Z",
+      "direction" : "horizontal",
+      "id" : "C0034BAD-FE3F-4B53-BAFC-0E7DE04166CE",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-01-16%2015-19-39.jpg"
+    }
+  ],
+  "modifiedAt" : "2026-10-15T21:22:16Z",
+  "panoramaAdjustments" : {
+    "blacks" : 0,
+    "brightness" : 0,
+    "contrast" : 0,
+    "exposure" : 0,
+    "highlights" : 0,
+    "saturation" : 0,
+    "shadows" : 0,
+    "temperature" : 0,
+    "tint" : 0,
+    "vibrance" : 0,
+    "whites" : 0
+  },
+  "previewViewpoint" : {
+    "pitchRadians" : -0.5863120555877686,
+    "verticalFieldOfViewDegrees" : 92.53248596191406,
+    "yawRadians" : -0.7417547106742859
+  },
+  "retouchPatches" : [
+    {
+      "id" : "D028D394-2C4C-4D2F-A3E2-D309D9271579",
+      "isEnabled" : true,
+      "kind" : "manual",
+      "viewpoint" : {
+        "pitchRadians" : -0.6461703181266785,
+        "verticalFieldOfViewDegrees" : 55.748558044433594,
+        "yawRadians" : -3.5551366806030273
+      }
+    }
+  ],
+  "title" : "16 Jan 2005"
+}
