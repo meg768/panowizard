@@ -20,7 +20,6 @@ enum ImageSurfaceInteraction: Equatable, Sendable {
 }
 
 enum ImageSurfaceScrollIntent: Equatable, Sendable {
-    case pan(horizontal: CGFloat, vertical: CGFloat)
     case zoom(CGFloat)
     case ignore
 }
@@ -29,24 +28,18 @@ enum ImageSurfaceScroll {
     static func intent(
         horizontal: CGFloat,
         vertical: CGFloat,
-        isDirectionInverted: Bool,
-        modifierFlags: NSEvent.ModifierFlags
+        isDirectionInverted: Bool
     ) -> ImageSurfaceScrollIntent {
-        guard modifierFlags.contains(.command) else {
-            return .pan(horizontal: horizontal, vertical: vertical)
-        }
-        guard abs(vertical) >= abs(horizontal), abs(vertical) > 0.01 else {
-            return .ignore
-        }
-        return .zoom(isDirectionInverted ? -vertical : vertical)
+        let delta = abs(vertical) >= abs(horizontal) ? vertical : horizontal
+        guard abs(delta) > 0.01 else { return .ignore }
+        return .zoom(isDirectionInverted ? -delta : delta)
     }
 
     static func intent(for event: NSEvent) -> ImageSurfaceScrollIntent {
         intent(
             horizontal: event.scrollingDeltaX,
             vertical: event.scrollingDeltaY,
-            isDirectionInverted: event.isDirectionInvertedFromDevice,
-            modifierFlags: event.modifierFlags
+            isDirectionInverted: event.isDirectionInvertedFromDevice
         )
     }
 }

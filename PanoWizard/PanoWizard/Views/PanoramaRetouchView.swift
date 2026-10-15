@@ -65,7 +65,7 @@ struct PanoramaRetouchView: View {
                     .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
                     .frame(maxWidth: .infinity)
 
-                    Text("Drag or scroll to pan · ⌘-scroll or pinch to zoom")
+                    Text("Drag to pan · Scroll or pinch to zoom")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
@@ -245,7 +245,7 @@ struct ManualRetouchSheet: View {
             HStack(alignment: .top, spacing: 16) {
                 AIRetouchImagePane(
                     title: "Before",
-                    footer: "Drag or scroll to pan · ⌘-scroll or pinch to zoom"
+                    footer: "Drag to pan · Scroll or pinch to zoom"
                 ) {
                     if let source {
                         AIRetouchImageViewport(
@@ -469,7 +469,7 @@ struct AIRetouchSheet: View {
             HStack(alignment: .top, spacing: 16) {
                 AIRetouchImagePane(
                     title: "Before",
-                    footer: "Drag or scroll to pan · ⌘-scroll or pinch to zoom · "
+                    footer: "Drag to pan · Scroll or pinch to zoom · "
                         + "⌥-drag to paint · ⌘⌥-drag to erase · ⌘Z to undo"
                 ) {
                     if let source {
@@ -505,7 +505,7 @@ struct AIRetouchSheet: View {
 
                 AIRetouchImagePane(
                     title: "After",
-                    footer: "Drag or scroll to pan · ⌘-scroll or pinch to zoom"
+                    footer: "Drag to pan · Scroll or pinch to zoom"
                 ) {
                     if let afterURL {
                         AIRetouchImageViewport(
@@ -1142,11 +1142,6 @@ private final class AIRetouchScrollView: NSScrollView {
     override func scrollWheel(with event: NSEvent) {
         window?.makeFirstResponder(imageView)
         switch ImageSurfaceScroll.intent(for: event) {
-        case .pan:
-            endScrollZoom()
-            hasUserAdjustedViewport = true
-            super.scrollWheel(with: event)
-            imageView.refreshPanCursor()
         case .zoom(let zoomDelta):
             guard let documentView else { return }
             hasUserAdjustedViewport = true
@@ -1192,11 +1187,12 @@ private final class AIRetouchScrollView: NSScrollView {
             imageView.needsDisplay = true
             imageView.refreshPanCursor()
         case .ignore:
-            if event.phase.contains(.began)
+            if event.phase.contains(.ended) || event.phase.contains(.cancelled)
+                || event.momentumPhase.contains(.ended)
+                || event.momentumPhase.contains(.cancelled)
                 || (event.phase.isEmpty && event.momentumPhase.isEmpty) {
                 endScrollZoom()
             }
-            break
         }
     }
 

@@ -11,6 +11,9 @@ struct ImageSurfaceInteractionTests {
             ImageSurfaceInteraction(modifierFlags: [.command]) == .navigate
         )
         #expect(
+            ImageSurfaceInteraction(modifierFlags: [.shift]) == .navigate
+        )
+        #expect(
             ImageSurfaceInteraction(modifierFlags: [.option]) == .edit
         )
         #expect(
@@ -21,30 +24,36 @@ struct ImageSurfaceInteractionTests {
     }
 
     @Test
-    func mapsScrollToPanOrCommandVerticalZoom() {
+    func scrollZoomsWithoutModifiersOnEitherAxis() {
         #expect(ImageSurfaceScroll.intent(
             horizontal: 2,
             vertical: -8,
-            isDirectionInverted: false,
-            modifierFlags: []
-        ) == .pan(horizontal: 2, vertical: -8))
-        #expect(ImageSurfaceScroll.intent(
-            horizontal: 2,
-            vertical: -8,
-            isDirectionInverted: false,
-            modifierFlags: [.command]
+            isDirectionInverted: false
         ) == .zoom(-8))
         #expect(ImageSurfaceScroll.intent(
             horizontal: 2,
             vertical: -8,
-            isDirectionInverted: true,
-            modifierFlags: [.command]
+            isDirectionInverted: false
+        ) == .zoom(-8))
+        #expect(ImageSurfaceScroll.intent(
+            horizontal: 2,
+            vertical: -8,
+            isDirectionInverted: true
         ) == .zoom(8))
         #expect(ImageSurfaceScroll.intent(
             horizontal: 9,
             vertical: 3,
-            isDirectionInverted: true,
-            modifierFlags: [.command]
+            isDirectionInverted: false
+        ) == .zoom(9))
+        #expect(ImageSurfaceScroll.intent(
+            horizontal: -9,
+            vertical: 3,
+            isDirectionInverted: true
+        ) == .zoom(9))
+        #expect(ImageSurfaceScroll.intent(
+            horizontal: 0,
+            vertical: 0,
+            isDirectionInverted: false
         ) == .ignore)
     }
 

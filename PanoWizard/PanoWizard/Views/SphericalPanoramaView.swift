@@ -126,8 +126,8 @@ private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
     weak var panoramaRenderer: SphericalPanoramaRenderer?
     private var previousDragLocation: CGPoint?
     private var pushedDragCursor = false
-    private var commandIsPressed = false
-    private var modifierMonitor: Any?
+    private var scrollZoomGesture = ImageSurfaceScrollGesture()
+    private var lastPhaseLessZoomTime: TimeInterval?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -147,11 +147,6 @@ private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window == nil {
-            removeModifierMonitor()
-        } else {
-            installModifierMonitor()
-        }
     }
 
     override func resetCursorRects() {
@@ -188,16 +183,41 @@ private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
     override func scrollWheel(with event: NSEvent) {
         window?.makeFirstResponder(self)
         switch ImageSurfaceScroll.intent(for: event) {
-        case .pan(let horizontal, let vertical):
-            panoramaRenderer?.rotate(
-                horizontal: Float(horizontal),
-                vertical: Float(-vertical)
-            )
         case .zoom(let delta):
-            guard commandIsPressed else { return }
+            let begins: Bool
+            if event.phase.isEmpty && event.momentumPhase.isEmpty {
+                begins = lastPhaseLessZoomTime.map {
+                    event.timestamp - $0 > 0.25
+                } ?? true
+                lastPhaseLessZoomTime = event.timestamp
+            } else {
+                begins = scrollZoomGesture.beginsZoom(
+                    phase: event.phase,
+                    momentumPhase: event.momentumPhase
+                )
+                lastPhaseLessZoomTime = nil
+            }
+            if begins {
+                panoramaRenderer?.beginScrollZoom(
+                    anchor: normalizedAnchor(for: event)
+                )
+            }
             panoramaRenderer?.zoom(by: Float(delta))
+            if event.phase.contains(.cancelled)
+                || event.momentumPhase.contains(.ended)
+                || event.momentumPhase.contains(.cancelled) {
+                panoramaRenderer?.endScrollZoom()
+            }
         case .ignore:
-            break
+            if event.phase.contains(.cancelled)
+                || event.momentumPhase.contains(.ended)
+                || event.momentumPhase.contains(.cancelled) {
+                _ = scrollZoomGesture.beginsZoom(
+                    phase: event.phase,
+                    momentumPhase: event.momentumPhase
+                )
+                panoramaRenderer?.endScrollZoom()
+            }
         }
     }
 
@@ -236,51 +256,11 @@ private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
         normalizedAnchor(for: convert(event.locationInWindow, from: nil))
     }
 
-    private func installModifierMonitor() {
-        guard modifierMonitor == nil else { return }
-        modifierMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: .flagsChanged
-        ) { [weak self] event in
-            self?.updateCommandAnchor(event: event)
-            return event
-        }
-    }
-
-    private func removeModifierMonitor() {
-        if let modifierMonitor { NSEvent.removeMonitor(modifierMonitor) }
-        modifierMonitor = nil
-        commandIsPressed = false
-        panoramaRenderer?.endCommandZoom()
-    }
-
-    private func updateCommandAnchor(event: NSEvent) {
-        let isPressed = event.modifierFlags.contains(.command)
-        guard isPressed != commandIsPressed else { return }
-        commandIsPressed = isPressed
-
-        guard isPressed,
-              let window,
-              event.window == nil || event.window === window else {
-            panoramaRenderer?.endCommandZoom()
-            return
-        }
-        let mouseInWindow = window.convertPoint(fromScreen: NSEvent.mouseLocation)
-        let location = convert(mouseInWindow, from: nil)
-        guard bounds.contains(location) else {
-            panoramaRenderer?.endCommandZoom()
-            return
-        }
-        window.makeFirstResponder(self)
-        panoramaRenderer?.beginCommandZoom(
-            anchor: normalizedAnchor(for: location)
-        )
-    }
-
 }
 
 @MainActor
 private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
-    private struct CommandZoomAnchor {
+    private struct ScrollZoomAnchor {
         let viewportPosition: SIMD2<Float>
         let worldDirection: SIMD3<Float>
     }
@@ -303,7 +283,7 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     private var yaw: Float = 0
     private var pitch: Float = 0
     private var verticalFieldOfView: Float = 75 * .pi / 180
-    private var commandZoomAnchor: CommandZoomAnchor?
+    private var scrollZoomAnchor: ScrollZoomAnchor?
     private var adjustments: PanoramaAdjustments
     private let initialViewpoint: PanoramaViewpoint
     private let onViewpointChange: (PanoramaViewpoint) -> Void
@@ -374,10 +354,10 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         view?.setNeedsDisplay(view?.bounds ?? .zero)
     }
 
-    func beginCommandZoom(anchor: SIMD2<Float>) {
+    func beginScrollZoom(anchor: SIMD2<Float>) {
         let aspect = Float(view?.drawableSize.width ?? 1)
             / max(Float(view?.drawableSize.height ?? 1), 1)
-        commandZoomAnchor = CommandZoomAnchor(
+        scrollZoomAnchor = ScrollZoomAnchor(
             viewportPosition: anchor,
             worldDirection: direction(
                 at: anchor,
@@ -387,16 +367,16 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         )
     }
 
-    func endCommandZoom() {
-        commandZoomAnchor = nil
+    func endScrollZoom() {
+        scrollZoomAnchor = nil
     }
 
     func zoom(by delta: Float) {
-        guard let commandZoomAnchor else { return }
+        guard let scrollZoomAnchor else { return }
         setVerticalFieldOfView(
             verticalFieldOfView + delta * 0.006,
-            anchoredAt: commandZoomAnchor.viewportPosition,
-            preserving: commandZoomAnchor.worldDirection
+            anchoredAt: scrollZoomAnchor.viewportPosition,
+            preserving: scrollZoomAnchor.worldDirection
         )
     }
 

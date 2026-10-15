@@ -1,6 +1,6 @@
 # Preview and Navigation
 
-Drag or scroll to pan. Hold Command while scrolling, or pinch, to zoom. **View → Zoom In**, **Zoom Out**, and **Reset View** are also available (Command-Plus, Command-Minus, Command-0).
+Drag to look around. Scroll or pinch to zoom without a modifier. **View → Zoom In**, **Zoom Out**, and **Reset View** are also available (Command-Plus, Command-Minus, Command-0).
 
 ![The panorama in the current Preview workspace](Images/02-panorama-preview.png)
 

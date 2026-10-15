@@ -1908,3 +1908,23 @@ are unchanged relative to `0600cf0`. User's panorama projects and originals must
 remain untouched; user performs the real panorama C and live AI retouch checks.
 
 Validation: 12 tests in OpenAIAIRetouchServiceTests and RetouchPatchServiceTests passed. Clean Release build succeeded; installed identical verified bundle in /Applications/PanoWizard.app and launched it. Real panorama C and live AI retouch remain user verification. No commit or push performed.
+
+## Pan/zoom and mask gestures — 2026-10-15
+
+User approved a simpler, consistent navigation model inspired by Google Maps:
+drag to pan (drag rotates the spherical preview); scroll in any dominant axis
+zooms without a modifier; trackpad pinch zooms. `Option`-drag paints masks and
+`Command-Option`-drag erases; plain drag never changes a mask. Little Planet
+now uses drag to rotate and click to set its center; its special Option-drag
+and horizontal-scroll pan were removed. Exported HTML wheel zoom now also
+uses the dominant scroll axis.
+
+Implementation is currently uncommitted on local `main` (which was synced with
+`origin/main` before this work). Changed navigation/gesture code in
+ImageSurfaceInteraction.swift, PanoramaPreview.swift, PanoramaRetouchView.swift,
+SphericalPanoramaView.swift, LittlePlanetExportSheet.swift, and
+PanoramaExporter.swift; updated targeted tests, README, and help pages. Tests
+and Debug build passed; built app copied to `/Applications/PanoWizard.app`
+(bundle version `202610151915`). `git diff --check` passed. No commit or push.
+Next conversation should continue from these uncommitted GUI/navigation changes;
+the stitching engine was not modified.

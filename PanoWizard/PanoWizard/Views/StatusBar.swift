@@ -121,7 +121,7 @@ struct StatusBar: View {
         } else {
             action = "paints a red exclusion mask"
         }
-        return "Drag or scroll to pan · ⌘-scroll or pinch to zoom · "
+        return "Drag to pan · Scroll or pinch to zoom · "
             + "⌥-drag \(action) · ⌘⌥-drag erases"
     }
 }

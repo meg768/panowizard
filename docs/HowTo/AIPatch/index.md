@@ -10,7 +10,7 @@ Use **Create API Key…** in the patch dialog to open setup, then **Open OpenAI 
 
 ## Choose the area
 
-Open **Retouch**, frame the problem in the square view, and click **Add AI patch**. Drag or scroll to pan; Command-scroll or pinch to zoom.
+Open **Retouch**, frame the problem in the square view, and click **Add AI patch**. Drag to pan; scroll or pinch to zoom without a modifier.
 
 ![Framing the floor before opening an AI patch](Images/01-position-the-patch.png)
 

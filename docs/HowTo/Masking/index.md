@@ -34,8 +34,8 @@ A small remaining camera-footprint gap can be repaired with a [manual patch](../
 
 ## Refine a mask
 
-- Plain drag or scroll moves the image; hold Command while scrolling to zoom in for finer painting.
-- **Command-Option-drag** erases. **Edit → Undo Mask Change** (Command-Z) undoes the last source-mask change for the selected image.
+- Drag to pan. Scroll or pinch to zoom without a modifier. Hold Option and drag to paint the selected mask; hold Command-Option and drag to erase it. Plain drag never changes the mask.
+- **Edit → Undo Mask Change** (Command-Z) undoes the last source-mask change for the selected image.
 - **Clear** removes the selected image's current mask type: Exclude or Include.
 
 Keep masks small. If exclusion leaves uncovered areas, reduce it or supply a source with replacement coverage.

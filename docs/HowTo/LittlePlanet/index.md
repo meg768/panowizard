@@ -12,8 +12,8 @@ Finish the panorama, open **Export**, and click **Create Little Planet…**.
 
 Use the panorama on the left:
 
-- **Drag horizontally or scroll horizontally** to rotate the planet.
-- **Option-drag** to position the center.
+- **Drag horizontally** to rotate the planet.
+- **Click** to position the center.
 - Use the slider **below the Little Planet preview** to make the planet smaller or larger.
 
 ![The current Little Planet dialog with rotation, centering, and size controls](Images/02-shape-little-planet.png)

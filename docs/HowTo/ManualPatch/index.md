@@ -4,7 +4,7 @@ A manual patch repairs a small area of an otherwise finished panorama using an e
 
 ## Choose the area
 
-Open **Retouch**, position the square view over the problem, and click **Add manual patch**. Drag or scroll to pan; Command-scroll or pinch to zoom.
+Open **Retouch**, position the square view over the problem, and click **Add manual patch**. Drag to pan; scroll or pinch to zoom without a modifier.
 
 ![Positioning a real ground repair in Retouch](Images/01-position-the-patch.png)
 

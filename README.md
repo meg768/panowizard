@@ -53,12 +53,11 @@ no valid source coverage remain empty until they are repaired or retouched.
 
 ### Navigation
 
-Source-image and panorama views use the same controls. Drag or two-finger
-scroll to pan. Pressing Command captures the point under the pointer as the
-zoom anchor until Command is released; vertical scroll while holding Command
-zooms around that fixed point. Pinch zooms at the pointer, and Command-Plus,
-Command-Minus, or Command-0 zooms in, zooms out, or resets the view. A panorama
-wraps horizontally; ordinary images stop at their edges.
+Drag to pan through a source image, retouch view, or spherical panorama. Scroll
+or pinch to zoom without a modifier; scroll zoom stays anchored at the pointer.
+The **View** menu also provides Zoom In, Zoom Out, and Reset View commands
+(Command-Plus, Command-Minus, and Command-0). A panorama wraps horizontally;
+ordinary images stop at their edges.
 
 In a mask-editable image, Option-drag paints the selected Include or Exclude
 mask and Command-Option-drag erases. A plain drag never changes a mask. The
@@ -80,8 +79,8 @@ Retouching is an optional post-processing step and does not affect panorama
 alignment or seam selection. Retouch contains a square panorama viewfinder
 that starts at the direction and zoom last shown in Preview. Position the exact
 area there, then choose `Add manual patch` or `Add AI patch` to capture that
-fixed view. In the AI dialog, drag or two-finger scroll pans within the captured
-image, Command-scroll or pinch zooms, Option-drag paints the mask, and
+fixed view. In the AI dialog, drag pans within the captured image; scroll or
+pinch zooms without a modifier. Option-drag paints the mask, and
 Command-Option-drag erases. Manual Patch is a modal export, external edit,
 import, and Apply workflow using a
 2048 × 2048 PNG named `patch.png` by default. The project stores only the

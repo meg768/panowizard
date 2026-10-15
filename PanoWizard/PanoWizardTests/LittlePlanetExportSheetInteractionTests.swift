@@ -4,19 +4,6 @@ import Testing
 
 @Suite("Little Planet dialog interaction")
 struct LittlePlanetExportSheetInteractionTests {
-    @Test("Option selects center drag without changing normal drag")
-    func dragModes() {
-        #expect(LittlePlanetPanoramaDragMode(modifierFlags: []) == .pan)
-        #expect(
-            LittlePlanetPanoramaDragMode(modifierFlags: [.option]) == .center
-        )
-        #expect(
-            LittlePlanetPanoramaDragMode(
-                modifierFlags: [.command, .option]
-            ) == .center
-        )
-    }
-
     @Test("Center marker clamps to every viewport edge and corner")
     func clampsCenterMarker() {
         let size = CGSize(width: 360, height: 360)

@@ -170,8 +170,9 @@ struct FilePanoramaExporter: PanoramaExporting {
         canvas.addEventListener("wheel",e=>{e.preventDefault();const a=eventAnchor(e);
         if(e.ctrlKey){if(supportsGestureZoom)return;endWheelZoom();
         setFOV(f*180/PI*Math.exp(e.deltaY*.01),a[0],a[1]);return}
-        if(Math.abs(e.deltaY)>=Math.abs(e.deltaX)){if(!wheelZoom)wheelZoom={a:a,
-        fixed:directionAt(a[0],a[1],f)};setFOV(f*180/PI+e.deltaY*.04*scrollDirection,wheelZoom.a[0],
+        const scrollDelta=Math.abs(e.deltaY)>=Math.abs(e.deltaX)?e.deltaY:e.deltaX;
+        if(Math.abs(scrollDelta)>.01){if(!wheelZoom)wheelZoom={a:a,
+        fixed:directionAt(a[0],a[1],f)};setFOV(f*180/PI+scrollDelta*.04*scrollDirection,wheelZoom.a[0],
         wheelZoom.a[1],wheelZoom.fixed);if(wheelZoomTimer)clearTimeout(wheelZoomTimer);
         wheelZoomTimer=setTimeout(endWheelZoom,120)}
         },{passive:false});

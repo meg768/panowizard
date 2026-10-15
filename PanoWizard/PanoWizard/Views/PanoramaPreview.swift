@@ -320,7 +320,7 @@ private struct SourceMaskEditor: View {
                         .frame(width: displaySize.width, height: displaySize.height)
                         .background {
                             NativeImagePanMonitor(
-                                onCommandScroll: { delta, _ in
+                                onScrollZoom: { delta, _ in
                                     pendingZoomAnchor = nil
                                     setZoom(zoom * exp(-delta * 0.006))
                                 },
@@ -797,7 +797,7 @@ private struct ImageSurfaceModifierMonitor: NSViewRepresentable {
 }
 
 private struct NativeImagePanMonitor: NSViewRepresentable {
-    let onCommandScroll: (CGFloat, UnitPoint) -> Void
+    let onScrollZoom: (CGFloat, UnitPoint) -> Void
     let onZoomIn: () -> Void
     let onZoomOut: () -> Void
     let onReset: () -> Void
@@ -820,7 +820,7 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             coordinator?.correctZoomPosition()
         }
         context.coordinator.commandView = view
-        context.coordinator.onCommandScroll = onCommandScroll
+        context.coordinator.onScrollZoom = onScrollZoom
         context.coordinator.install()
         return view
     }
@@ -831,7 +831,7 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         view.onReset = onReset
         context.coordinator.scrollView = view.enclosingScrollView
         context.coordinator.commandView = view
-        context.coordinator.onCommandScroll = onCommandScroll
+        context.coordinator.onScrollZoom = onScrollZoom
     }
 
     static func dismantleNSView(
@@ -879,12 +879,11 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
     final class Coordinator {
         weak var scrollView: NSScrollView?
         weak var commandView: AttachmentView?
-        var onCommandScroll: (CGFloat, UnitPoint) -> Void = { _, _ in }
+        var onScrollZoom: (CGFloat, UnitPoint) -> Void = { _, _ in }
         private var monitor: Any?
         private var panOrigin: CGPoint?
         private var panStart: CGPoint?
         private var pushedCursor = false
-        private var commandIsPressed = false
         private var scrollZoomAnchor: UnitPoint?
         private var imageZoomAnchor: UnitPoint?
         private var lastZoomImageSize: CGSize?
@@ -900,8 +899,7 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
                     .leftMouseDragged,
                     .leftMouseUp,
                     .scrollWheel,
-                    .magnify,
-                    .flagsChanged
+                    .magnify
                 ]
             ) { [weak self] event in
                 guard let self else { return event }
@@ -916,10 +914,6 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         }
 
         private func handle(_ event: NSEvent) -> NSEvent? {
-            if event.type == .flagsChanged {
-                updateCommandAnchor(event: event)
-                return event
-            }
             if event.type == .leftMouseUp, panOrigin != nil {
                 finishPan()
                 return nil
@@ -942,12 +936,7 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
                 window.makeFirstResponder(commandView)
                 guard event.type == .scrollWheel else { return event }
                 switch ImageSurfaceScroll.intent(for: event) {
-                case .pan:
-                    imageZoomAnchor = nil
-                    needsZoomCorrection = false
-                    return event
                 case .zoom(let delta):
-                    guard event.modifierFlags.contains(.command) else { return nil }
                     let begins: Bool
                     if event.phase.isEmpty && event.momentumPhase.isEmpty {
                         begins = lastPhaseLessZoomTime.map { event.timestamp - $0 > 0.25 } ?? true
@@ -959,11 +948,11 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
                         lastPhaseLessZoomTime = nil
                     }
                     if begins || scrollZoomAnchor == nil {
-                        captureCommandAnchor(event: event)
+                        captureScrollZoomAnchor(event: event)
                     }
                     guard let scrollZoomAnchor else { return nil }
                     needsZoomCorrection = true
-                    onCommandScroll(delta, scrollZoomAnchor)
+                    onScrollZoom(delta, scrollZoomAnchor)
                     commandView?.needsLayout = true
                     return nil
                 case .ignore:
@@ -1033,21 +1022,8 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             return false
         }
 
-        private func updateCommandAnchor(event: NSEvent) {
-            let isPressed = event.modifierFlags.contains(.command)
-            guard isPressed != commandIsPressed else { return }
-            commandIsPressed = isPressed
-
-            scrollZoomGesture.reset()
-            lastPhaseLessZoomTime = nil
-            scrollZoomAnchor = nil
-            imageZoomAnchor = nil
-            needsZoomCorrection = false
-        }
-
-        private func captureCommandAnchor(event: NSEvent) {
-            guard event.modifierFlags.contains(.command),
-                  let scrollView,
+        private func captureScrollZoomAnchor(event: NSEvent) {
+            guard let scrollView,
                   let window = scrollView.window,
                   event.window == nil || event.window === window else {
                 scrollZoomAnchor = nil
@@ -1134,6 +1110,26 @@ private struct ZoomableImageView: View {
                         )
                 }
                 .scrollIndicators(.hidden)
+                .background {
+                    NativeImagePanMonitor(
+                        onScrollZoom: { delta, _ in
+                            scale = min(max(scale * exp(-delta * 0.006), 0.2), 8)
+                            lastScale = scale
+                        },
+                        onZoomIn: {
+                            scale = min(scale * 1.25, 8)
+                            lastScale = scale
+                        },
+                        onZoomOut: {
+                            scale = max(scale / 1.25, 0.2)
+                            lastScale = scale
+                        },
+                        onReset: {
+                            scale = 1
+                            lastScale = 1
+                        }
+                    )
+                }
             }
             .gesture(
                 MagnifyGesture()

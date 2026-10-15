@@ -2,15 +2,6 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum LittlePlanetPanoramaDragMode: Equatable {
-    case pan
-    case center
-
-    init(modifierFlags: NSEvent.ModifierFlags) {
-        self = modifierFlags.contains(.option) ? .center : .pan
-    }
-}
-
 struct LittlePlanetPanoramaSelection {
     static func clampedLocation(
         _ location: CGPoint,
@@ -159,9 +150,6 @@ struct LittlePlanetExportSheet: View {
     @State private var controller = LittlePlanetExportController()
     @State private var panoramaPanTurns = 0.0
     @State private var panoramaDragTranslation: CGFloat = 0
-    @State private var panoramaScrollTranslation: CGFloat = 0
-    @State private var panoramaDragMode: LittlePlanetPanoramaDragMode?
-    @State private var pendingCenterLocation: CGPoint?
 
     var body: some View {
         @Bindable var controller = controller
@@ -178,7 +166,7 @@ struct LittlePlanetExportSheet: View {
                     title: "Panorama",
                     content: panoramaPicker
                 ) {
-                    Text("Drag to rotate · ⌥-drag to center")
+                    Text("Drag to rotate · Click to set center")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(
@@ -253,7 +241,6 @@ struct LittlePlanetExportSheet: View {
             let height = max(geometry.size.height, 1)
             let panoramaWidth = height * 2
             let manipulationTranslation = panoramaDragTranslation
-                + panoramaScrollTranslation
             let manipulationTurns = Double(
                 manipulationTranslation / panoramaWidth
             )
@@ -288,17 +275,12 @@ struct LittlePlanetExportSheet: View {
                                 y: height / 2
                             )
                     }
-                    if let pendingCenterLocation {
+                    ForEach(-1...1, id: \.self) { copy in
                         centerMarker
-                            .position(pendingCenterLocation)
-                    } else {
-                        ForEach(-1...1, id: \.self) { copy in
-                            centerMarker
-                                .position(
-                                    x: markerX + CGFloat(copy) * panoramaWidth,
-                                    y: markerY
-                                )
-                        }
+                            .position(
+                                x: markerX + CGFloat(copy) * panoramaWidth,
+                                y: markerY
+                            )
                     }
                 } else {
                     ProgressView()
@@ -310,68 +292,32 @@ struct LittlePlanetExportSheet: View {
             .clipped()
             .contentShape(Rectangle())
             .gesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                DragGesture(minimumDistance: 4, coordinateSpace: .local)
                     .onChanged { value in
-                        let mode = panoramaDragMode
-                            ?? LittlePlanetPanoramaDragMode(
-                                modifierFlags: NSEvent.modifierFlags
-                            )
-                        panoramaDragMode = mode
-                        switch mode {
-                        case .pan:
-                            panoramaDragTranslation = value.translation.width
-                        case .center:
-                            pendingCenterLocation = LittlePlanetPanoramaSelection
-                                .clampedLocation(
-                                    value.location,
-                                    in: geometry.size
-                                )
-                        }
+                        panoramaDragTranslation = value.translation.width
                     }
                     .onEnded { value in
-                        let mode = panoramaDragMode
-                            ?? LittlePlanetPanoramaDragMode(
-                                modifierFlags: NSEvent.modifierFlags
-                            )
-                        panoramaDragMode = nil
-                        switch mode {
-                        case .pan:
-                            panoramaDragTranslation = 0
-                            completePan(
-                                translation: value.translation.width,
-                                panoramaWidth: panoramaWidth
-                            )
-                        case .center:
-                            let location = pendingCenterLocation
-                                ?? LittlePlanetPanoramaSelection.clampedLocation(
-                                    value.location,
-                                    in: geometry.size
-                                )
-                            pendingCenterLocation = nil
-                            commitCenter(
-                                at: location,
-                                viewportSize: geometry.size,
-                                panoramaWidth: panoramaWidth,
-                                panTurns: displayedPanTurns
-                            )
-                        }
-                    }
-            )
-            .background {
-                LittlePlanetHorizontalScrollMonitor(
-                    isEnabled: !controller.isLoading && !controller.isSaving,
-                    onChange: { translation in
-                        panoramaScrollTranslation = translation
-                    },
-                    onEnd: { translation in
-                        panoramaScrollTranslation = 0
+                        panoramaDragTranslation = 0
                         completePan(
-                            translation: translation,
+                            translation: value.translation.width,
                             panoramaWidth: panoramaWidth
                         )
                     }
-                )
-            }
+            )
+            .simultaneousGesture(
+                SpatialTapGesture()
+                    .onEnded { value in
+                        commitCenter(
+                            at: LittlePlanetPanoramaSelection.clampedLocation(
+                                value.location,
+                                in: geometry.size
+                            ),
+                            viewportSize: geometry.size,
+                            panoramaWidth: panoramaWidth,
+                            panTurns: displayedPanTurns
+                        )
+                    }
+            )
             .allowsHitTesting(!controller.isLoading && !controller.isSaving)
         }
     }
@@ -469,140 +415,4 @@ struct LittlePlanetExportSheet: View {
         )
     }
 
-}
-
-private struct LittlePlanetHorizontalScrollMonitor: NSViewRepresentable {
-    let isEnabled: Bool
-    let onChange: (CGFloat) -> Void
-    let onEnd: (CGFloat) -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onChange: onChange, onEnd: onEnd)
-    }
-
-    func makeNSView(context: Context) -> AttachmentView {
-        let view = AttachmentView()
-        context.coordinator.view = view
-        context.coordinator.install()
-        return view
-    }
-
-    func updateNSView(_ view: AttachmentView, context: Context) {
-        context.coordinator.view = view
-        context.coordinator.isEnabled = isEnabled
-        context.coordinator.onChange = onChange
-        context.coordinator.onEnd = onEnd
-    }
-
-    static func dismantleNSView(
-        _ view: AttachmentView,
-        coordinator: Coordinator
-    ) {
-        coordinator.uninstall()
-    }
-
-    final class AttachmentView: NSView {
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
-    }
-
-    @MainActor
-    final class Coordinator {
-        weak var view: AttachmentView?
-        var isEnabled = true
-        var onChange: (CGFloat) -> Void
-        var onEnd: (CGFloat) -> Void
-
-        private var monitor: Any?
-        private var accumulatedDelta: CGFloat = 0
-        private var isDirectScroll = false
-        private var ignoresMomentum = false
-
-        init(
-            onChange: @escaping (CGFloat) -> Void,
-            onEnd: @escaping (CGFloat) -> Void
-        ) {
-            self.onChange = onChange
-            self.onEnd = onEnd
-        }
-
-        func install() {
-            monitor = NSEvent.addLocalMonitorForEvents(
-                matching: .scrollWheel
-            ) { [weak self] event in
-                self?.handle(event) ?? event
-            }
-        }
-
-        func uninstall() {
-            if let monitor { NSEvent.removeMonitor(monitor) }
-            monitor = nil
-        }
-
-        private func handle(_ event: NSEvent) -> NSEvent? {
-            guard isEnabled,
-                  let view,
-                  let window = view.window,
-                  event.window === window,
-                  view.bounds.contains(view.convert(
-                      event.locationInWindow,
-                      from: nil
-                  )) else { return event }
-
-            if !event.momentumPhase.isEmpty {
-                guard ignoresMomentum else { return event }
-                if event.momentumPhase.contains(.ended)
-                    || event.momentumPhase.contains(.cancelled) {
-                    ignoresMomentum = false
-                }
-                return nil
-            }
-
-            let horizontal = event.scrollingDeltaX
-            let isHorizontal = abs(horizontal) > 0.01
-                && abs(horizontal) >= abs(event.scrollingDeltaY)
-
-            if event.phase.isEmpty {
-                guard isHorizontal else { return event }
-                ignoresMomentum = false
-                onChange(horizontal)
-                onEnd(horizontal)
-                return nil
-            }
-
-            if event.phase.contains(.began)
-                || event.phase.contains(.mayBegin) {
-                ignoresMomentum = false
-                guard isHorizontal else { return event }
-                accumulatedDelta = horizontal
-                isDirectScroll = true
-                onChange(accumulatedDelta)
-                return nil
-            }
-
-            if event.phase.contains(.changed) {
-                if !isDirectScroll {
-                    guard isHorizontal else { return event }
-                    accumulatedDelta = 0
-                    isDirectScroll = true
-                }
-                accumulatedDelta += horizontal
-                onChange(accumulatedDelta)
-                return nil
-            }
-
-            if event.phase.contains(.ended)
-                || event.phase.contains(.cancelled) {
-                guard isDirectScroll else { return event }
-                accumulatedDelta += horizontal
-                let completedDelta = accumulatedDelta
-                accumulatedDelta = 0
-                isDirectScroll = false
-                ignoresMomentum = true
-                onEnd(completedDelta)
-                return nil
-            }
-
-            return event
-        }
-    }
 }

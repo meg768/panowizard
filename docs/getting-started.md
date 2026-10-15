@@ -20,7 +20,7 @@ Click **Create Panorama** under **Panorama** in the sidebar, or choose **Panoram
 
 ## 3. Preview
 
-**Preview** opens when creation finishes. Drag to look around. Hold Command while scrolling, or pinch, to zoom. Check the seams, horizon, sky, and ground.
+**Preview** opens when creation finishes. Drag to look around. Scroll or pinch to zoom without a modifier. Check the seams, horizon, sky, and ground.
 
 ![The freshly stitched coastal panorama in Preview](Images/02-panorama-preview.png)
 
