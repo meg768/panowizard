@@ -226,5 +226,5 @@ regressions remain separate from normal builds.
 - `PanoWizard/PanoWizardTests` — original focused unit and engine tests
 - `PanoWizard/Vendor/OpenCV` — original pinned headers and dynamic libraries
 - `docs` — self-contained GitHub Pages help, illustrated guides and images
-- `examples.zip` — example projects A, B and C with source photographs and opening instructions
+- `examples` — editable example projects A, B and C with source photographs and opening instructions
 - `CONTEXT.md` — current technical context and verification limits

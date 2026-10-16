@@ -4,8 +4,8 @@ Start with a finished panorama, then inspect how its source photographs, masks, 
 
 ## Download and open
 
-1. Get [examples.zip](https://github.com/meg768/panowizard/raw/refs/heads/main/examples.zip), or choose **Help → Download Examples…** in PanoWizard. No development tools are required.
-2. Double-click **examples.zip** in Finder, then open the extracted **examples** folder.
+1. Open the [PanoWizard repository on GitHub](https://github.com/meg768/panowizard) and choose **Code → Download ZIP**. No development tools are required.
+2. Double-click the ZIP in Finder. Open the extracted repository folder, then **examples**.
 3. Launch PanoWizard. Choose **File → Open…**, then select **panorama.pw** inside A, B, or C.
 4. If prompted, select that same A, B, or C folder and click **Grant Access**. This lets macOS read the source photographs.
 5. Choose **Panorama → Preview**. Drag to look around; scroll or pinch to zoom.
