@@ -157,7 +157,7 @@
       "url" : "2005-01-16%2015-19-39.jpg"
     }
   ],
-  "modifiedAt" : "2026-10-15T21:22:16Z",
+  "modifiedAt" : "2026-10-16T18:56:57Z",
   "panoramaAdjustments" : {
     "blacks" : 0,
     "brightness" : 0,
@@ -172,9 +172,9 @@
     "whites" : 0
   },
   "previewViewpoint" : {
-    "pitchRadians" : -0.5863120555877686,
-    "verticalFieldOfViewDegrees" : 92.53248596191406,
-    "yawRadians" : -0.7417547106742859
+    "pitchRadians" : -0.5276626348495483,
+    "verticalFieldOfViewDegrees" : 94.99594116210938,
+    "yawRadians" : -0.5168856978416443
   },
   "retouchPatches" : [
     {
@@ -185,6 +185,19 @@
         "pitchRadians" : -0.6461703181266785,
         "verticalFieldOfViewDegrees" : 55.748558044433594,
         "yawRadians" : -3.5551366806030273
+      }
+    },
+    {
+      "aiRetouchMode" : "replace",
+      "id" : "D30DEBAC-089E-48CF-BBED-72012EF4AA7B",
+      "isEnabled" : true,
+      "kind" : "ai",
+      "repairPrompt" : "This is a flat view of part of a 360° panorama. The mask identifies the area that needs repair. The original pixels remain visible and should be used as a reference.\n\nRepair the marked area photorealistically while preserving as much of the original content as possible. Correct visible defects and reconstruct only what is necessary.\n\nPreserve existing objects, structures, geometry, perspective, and textures. Maintain continuity with the surrounding image.\n\nMatch the surrounding image's color, exposure, sharpness, texture, and noise. Avoid visible seams, abrupt transitions, or mask-shaped changes.\n\nDo not modify unrelated areas or apply global image adjustments.",
+      "replacePrompt" : "This is a flat view of part of a 360° panorama. The mask marks the area to retouch. Its original pixels are visible and may be used as a reference while making the requested repair.\n\nFill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.\n\nThe reconstruction must blend seamlessly with the surrounding original image. Locally match exposure, brightness, hue, white balance, contrast, sharpness, texture, and noise so that no visible boundary or tonal edge appears around the reconstructed area.\n\nThe transition between reconstructed and original image content must be smooth and gradual. Avoid a uniformly bounded or mask-shaped change in light or color.\n\nPreserve the image's existing geometry and perspective. Do not alter objects or structures that do not need to be reconstructed to fill the missing area.\n\nDo not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.",
+      "viewpoint" : {
+        "pitchRadians" : 1.5681791305541992,
+        "verticalFieldOfViewDegrees" : 78.8160171508789,
+        "yawRadians" : -0.4945249557495117
       }
     }
   ],
