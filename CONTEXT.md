@@ -1,14 +1,26 @@
 # PanoWizard — projekt- och utvecklingskontext
 
-Senast uppdaterad: 2026-10-08.
+Senast uppdaterad: 2026-10-16.
 
-## Aktuellt publiceringsläge — läs först (2026-10-08)
+## Aktuellt publiceringsläge — läs först (2026-10-16)
 
-PanoWizard 1.0, build **202610080027**, är **inskickad till App Review**.
-Användarens screenshot visar "1 Item Submitted"; Apple anger upp till 48 timmar
-och e-post när granskningen är klar. Inget godkännande eller offentlig release
-har ännu observerats. Nästa steg är att invänta Apples besked och hantera eventuell
-feedback. Skicka inte in på nytt eller byt build utan användarens instruktion.
+PanoWizard **1.1**, build **202610162112**, är **inskickad till App Review**.
+Användarens screenshot från App Store Connect bekräftar **Items Submitted (1)**,
+**macOS App 1.1**, **1.1 (202610162112)** och **Waiting for Review** den 16 oktober.
+Detta är inskickat, inte godkänt eller publicerat. Nästa steg är att invänta
+Apples besked. Skicka inte in på nytt eller byt build utan användarens instruktion.
+
+Version 1.0 (202610080027) avvisades den 15 oktober: Kina/OpenAI och saknade
+exempelfiler. Fastlandskina har avmarkerats. Review Notes har uppdaterats för
+Help → Download Examples…, som hämtar det automatiskt genererade paketet från
+GitHub. Källfilerna under examples/ är fortsatt redigerbara. Användaren har
+verifierat både den nya AI-patchen i A via nedladdningen och den korrigerade
+360-zoomningen lokalt.
+
+Källkodscheckpoint före dokumentation av inskickningen: `22debb5`.
+Taggen `apple-submitted-1.1-202610162112` markerar denna dokumenterade
+inskickningscheckpoint; exakt binäridentitet mellan arkiv och commit har inte
+verifierats genom reproducerbar byggjämförelse.
 
 **Publiceringsbeslut:** PanoWizard är projektet Magnus vill publicera.
 **LAN Scanner och Broker Explorer används endast privat/lokalt av Magnus.**
