@@ -54,14 +54,15 @@ no valid source coverage remain empty until they are repaired or retouched.
 ### Navigation
 
 Drag to pan through a source image, retouch view, or spherical panorama. Scroll
-or pinch to zoom without a modifier; scroll zoom stays anchored at the pointer.
+vertically or pinch to zoom without a modifier; horizontal scrolling is ignored.
+Scroll zoom stays anchored at the pointer when the gesture begins.
 The **View** menu also provides Zoom In, Zoom Out, and Reset View commands
 (Command-Plus, Command-Minus, and Command-0). A panorama wraps horizontally;
 ordinary images stop at their edges.
 
 In a mask-editable image, Option-drag paints the selected Include or Exclude
 mask and Command-Option-drag erases. A plain drag never changes a mask. The
-interactive HTML export uses the same navigation controls without mask editing.
+interactive HTML export supports panning and zooming without mask editing.
 
 ### Source masks
 
@@ -145,9 +146,9 @@ metadata, image role, orientation, and red exclusion masks.
 
 ## Project files
 
-The project format is version 10. It stores source images, roles, manual
-rotation, masks, the completed panorama, preview state, ordered retouch
-patches, and global panorama adjustments in one project package. PanoWizard
+The project format is version 10. It stores references to external source images,
+image roles, manual rotation, masks, the completed panorama, preview state,
+ordered retouch patches, and global panorama adjustments in one project package. PanoWizard
 accepts version 10 projects only; other project-format versions are rejected.
 
 ## Building from source
@@ -190,7 +191,7 @@ The App Store version and build number remain managed in the Xcode project.
 ### Source-image access in the sandbox
 
 Original images remain external files, as in the existing application. Selected
-files are remembered using security-scoped bookmarks in the app's preferences.
+files are remembered using security-scoped bookmarks saved with the project.
 When opening an existing project without a saved access grant, macOS may ask you
 to choose the folder containing its source images. The project format remains 10.
 The sandboxed app has separate preferences from the old app; enter the OpenAI
@@ -198,7 +199,7 @@ API key again in its existing API-key dialog if needed.
 
 ### Tests
 
-The original 13 Swift Testing suites are included in the native hosted
+The Swift Testing suites are included in the native hosted
 `PanoWizardTests` target. Run them in Xcode or with:
 
 ```sh
@@ -225,4 +226,5 @@ regressions remain separate from normal builds.
 - `PanoWizard/PanoWizardTests` — original focused unit and engine tests
 - `PanoWizard/Vendor/OpenCV` — original pinned headers and dynamic libraries
 - `docs` — self-contained GitHub Pages help, illustrated guides and images
+- `examples.zip` — example projects A, B and C with source photographs and opening instructions
 - `CONTEXT.md` — current technical context and verification limits

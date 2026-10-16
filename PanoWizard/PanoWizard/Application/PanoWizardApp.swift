@@ -383,6 +383,10 @@ struct PanoWizardApp: App {
                     ) as? String, let url = URL(string: configuredURL) else { return }
                     NSWorkspace.shared.open(url)
                 }
+                Button("Download Examples…") {
+                    guard let url = URL(string: "https://github.com/meg768/panowizard/raw/refs/heads/main/examples.zip") else { return }
+                    NSWorkspace.shared.open(url)
+                }
             }
             SourceMaskMenuCommands()
             ImagesMenuCommands()
