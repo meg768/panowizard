@@ -52,6 +52,8 @@ Inspect lines, textures, color, and the repair boundary in **After**. AI can inv
 
 *The red mask selects the camera support in Before; After contains the saved generated floor repair. An AI repair is generated content, not recovered source pixels.*
 
+[Example A](../../examples.html#example-a) also includes a saved AI repair of the cobblestone ground below the camera, alongside its manual pole repair. Click the **AI Patch** thumbnail in A to locate it, then compare with the patch switched off and on.
+
 [Example B](../../examples.html#example-b) includes a more ambitious AI reconstruction of the Eiffel Tower from above, alongside a manual patch. Inspect it as generated content, not as evidence of the tower's exact appearance.
 
 In **Patches**, use the switch to hide/show a repair, click its thumbnail to locate it, or use the pencil/trash button to edit/delete it. Finish source corrections first: changing sources or masks clears patches. Save the project to keep an accepted repair.

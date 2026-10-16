@@ -38,7 +38,7 @@ In your practice copy, click **Create Panorama** again. Inspect the ground and p
 
 ![The saved panorama in example A](../../Images/Examples/a-panorama.jpg)
 
-*The downloadable finished A project includes both source masks and a later manual patch. Rebuilding applies the masks but removes that patch; the two results need not look identical.*
+*The downloadable finished A project includes source masks, a manual patch at the pole, and an AI patch on the ground. Rebuilding applies the masks but removes both retouch patches; the two results need not look identical.*
 
 For more masks, inspect [example B](../../examples.html#example-b): each of its eight source images has an Exclude mask.
 

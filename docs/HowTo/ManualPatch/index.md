@@ -4,9 +4,9 @@ A manual patch repairs a small area of an otherwise finished panorama using an e
 
 ## Explore the saved patch in example A
 
-[Download and open example A](../../examples.html#example-a), then choose **Retouch**. The saved **Manual Patch** repairs a local area at the pole. Use its switch to hide or show it; click its thumbnail to locate that exact area in Preview. Return to Retouch to toggle it again.
+[Download and open example A](../../examples.html#example-a), then choose **Retouch**. The saved **Manual Patch** repairs a local area at the pole. Use its switch to hide or show it; click its thumbnail to locate that exact area in Preview. Return to Retouch to toggle it again. A also has an independent **AI Patch** on the ground below the camera; leave that enabled while comparing the manual repair.
 
-![Example A's Retouch workspace and saved Manual Patch](../../Images/Examples/a-retouch.jpg)
+![Example A's Retouch workspace with its saved manual and AI patches](../../Images/Examples/a-retouch.jpg)
 
 ![The same pole view with the manual patch disabled on the left and enabled on the right](../../Images/Examples/a-manual-comparison.jpg)
 

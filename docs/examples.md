@@ -20,13 +20,19 @@ The saved panoramas and patches are ready to explore. No API key is needed to vi
 
 ## A — Church square
 
-**9 JPEG photographs · 2 Exclude masks · 1 Include mask · 1 manual patch**
+**9 JPEG photographs · 2 Exclude masks · 1 Include mask · 1 manual patch · 1 AI patch**
 
 ![Example A open in PanoWizard Preview](Images/Examples/a-preview.jpg)
 
 Start here for [source masks](HowTo/Masking/index.html): select `2005-01-16 15-19-32.jpg` or `15-19-39.jpg` and choose **Exclude** to inspect the red masks over the hand and level. Select `2005-01-16 15-18-46.jpg` and choose **Include** to see the green mask preferring an intact pole.
 
 Open **Retouch** to find the saved **Manual Patch**. Its thumbnail locates the repaired pole in Preview. Follow the [manual patch guide](HowTo/ManualPatch/index.html) to compare it with the unpatched view.
+
+A also contains an **AI Patch** repairing the cobblestone ground directly below the camera. Click its thumbnail to look down at the repair, then toggle it off and on to compare. Both saved patches can be inspected without an API key. See the [AI patch guide](HowTo/AIPatch/index.html) before generating a new result.
+
+![Example A with its saved AI ground repair visible](Images/Examples/a-ai-after.jpg)
+
+*The cobblestone repair is generated content, not recovered source pixels.*
 
 <a id="example-b"></a>
 

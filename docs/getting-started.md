@@ -14,7 +14,7 @@ You do not need to stitch again to explore the saved result. Keep the source JPE
 
 Choose **Panorama → Preview**. Drag to look around; scroll or pinch to zoom. Look up at the sky, down at the ground, and around the full circle. **View → Reset View** resets the view.
 
-The [Masks guide](HowTo/Masking/index.html) explains A's red and green source masks. Open **Retouch** to inspect its saved manual patch. For an AI floor repair, open [example C](examples.html#example-c).
+The [Masks guide](HowTo/Masking/index.html) explains A's red and green source masks. Open **Retouch** to inspect its saved manual patch at the pole and AI patch on the cobblestone ground below the camera. Click a patch thumbnail to locate it in Preview, and use its switch to compare before and after. No API key is needed to explore either saved patch. For another AI floor repair, open [example C](examples.html#example-c).
 
 ## 3. Export
 

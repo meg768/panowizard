@@ -2,11 +2,11 @@
 
 Three complete examples for App Store Review and learning PanoWizard. Each folder contains the source photographs and a saved `panorama.pw` project with a finished panorama.
 
-| Example | Scene | Source photographs | Project to open |
-| --- | --- | --- | --- |
-| A | Outdoor square and church | 9 JPEGs | `A/panorama.pw` |
-| B | View over Paris | 8 JPEGs | `B/panorama.pw` |
-| C | Bathroom interior | 7 JPEGs | `C/panorama.pw` |
+| Example | Scene | Source photographs | Saved retouching | Project to open |
+| --- | --- | --- | --- | --- |
+| A | Outdoor square and church | 9 JPEGs | Manual pole repair and AI ground repair | `A/panorama.pw` |
+| B | View over Paris | 8 JPEGs | Manual sky repair and AI ground reconstruction | `B/panorama.pw` |
+| C | Bathroom interior | 7 JPEGs | AI floor repair | `C/panorama.pw` |
 
 Keep each example folder intact. Its source photographs must stay beside
 `panorama.pw`. You can move or copy the whole A, B, or C folder anywhere on your Mac.
