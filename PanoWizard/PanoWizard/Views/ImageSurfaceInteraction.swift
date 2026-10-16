@@ -30,8 +30,10 @@ enum ImageSurfaceScroll {
         vertical: CGFloat,
         isDirectionInverted: Bool
     ) -> ImageSurfaceScrollIntent {
-        let delta = abs(vertical) >= abs(horizontal) ? vertical : horizontal
-        guard abs(delta) > 0.01 else { return .ignore }
+        guard abs(vertical) >= abs(horizontal), abs(vertical) > 0.01 else {
+            return .ignore
+        }
+        let delta = vertical
         return .zoom(isDirectionInverted ? -delta : delta)
     }
 

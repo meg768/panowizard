@@ -1466,7 +1466,6 @@ private final class AIRetouchImageDocumentView: NSView, ImageNavigationResponder
     private var isErasingStroke = false
     private var panOrigin: CGPoint?
     private var panStart: CGPoint?
-    private var isPanCursorPushed = false
     private var trackingAreaReference: NSTrackingArea?
     private var modifierMonitor: Any?
     private var modifierInteraction = ImageSurfaceInteraction.navigate {
@@ -1497,7 +1496,7 @@ private final class AIRetouchImageDocumentView: NSView, ImageNavigationResponder
                                   isPaintingEnabled {
             Self.transparentCursor
         } else {
-            viewport?.canPan == true ? .openHand : .arrow
+            .arrow
         }
         addCursorRect(bounds, cursor: cursor)
     }
@@ -1556,8 +1555,6 @@ private final class AIRetouchImageDocumentView: NSView, ImageNavigationResponder
             if viewport.canPan {
                 panOrigin = viewport.contentView.bounds.origin
                 panStart = event.locationInWindow
-                NSCursor.closedHand.push()
-                isPanCursorPushed = true
             }
         }
     }
@@ -1579,8 +1576,6 @@ private final class AIRetouchImageDocumentView: NSView, ImageNavigationResponder
         defer {
             activeStroke = []
             isErasingStroke = false
-            if isPanCursorPushed { NSCursor.pop() }
-            isPanCursorPushed = false
             panOrigin = nil
             panStart = nil
             needsDisplay = true

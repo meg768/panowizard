@@ -125,9 +125,10 @@ private struct SphericalMetalView: NSViewRepresentable {
 private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
     weak var panoramaRenderer: SphericalPanoramaRenderer?
     private var previousDragLocation: CGPoint?
-    private var pushedDragCursor = false
     private var scrollZoomGesture = ImageSurfaceScrollGesture()
     private var lastPhaseLessZoomTime: TimeInterval?
+    private var lastPhaseLessZoomDelta: CGFloat?
+    private var isMagnifying = false
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -151,14 +152,13 @@ private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
 
     override func resetCursorRects() {
         super.resetCursorRects()
-        addCursorRect(bounds, cursor: .openHand)
+        addCursorRect(bounds, cursor: .arrow)
     }
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        finishZoom()
         previousDragLocation = convert(event.locationInWindow, from: nil)
-        NSCursor.closedHand.push()
-        pushedDragCursor = true
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -176,26 +176,28 @@ private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
 
     override func mouseUp(with event: NSEvent) {
         previousDragLocation = nil
-        if pushedDragCursor { NSCursor.pop() }
-        pushedDragCursor = false
     }
 
     override func scrollWheel(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        if isMagnifying { finishZoom() }
         switch ImageSurfaceScroll.intent(for: event) {
         case .zoom(let delta):
             let begins: Bool
             if event.phase.isEmpty && event.momentumPhase.isEmpty {
                 begins = lastPhaseLessZoomTime.map {
                     event.timestamp - $0 > 0.25
+                        || (lastPhaseLessZoomDelta.map { ($0 > 0) != (delta > 0) } ?? false)
                 } ?? true
                 lastPhaseLessZoomTime = event.timestamp
+                lastPhaseLessZoomDelta = delta
             } else {
                 begins = scrollZoomGesture.beginsZoom(
                     phase: event.phase,
                     momentumPhase: event.momentumPhase
                 )
                 lastPhaseLessZoomTime = nil
+                lastPhaseLessZoomDelta = nil
             }
             if begins {
                 panoramaRenderer?.beginScrollZoom(
@@ -223,21 +225,37 @@ private final class PanoramaMTKView: MTKView, ImageNavigationResponder {
 
     override func magnify(with event: NSEvent) {
         window?.makeFirstResponder(self)
-        panoramaRenderer?.magnify(
-            by: Float(event.magnification),
-            anchor: normalizedAnchor(for: event)
-        )
+        if event.phase.contains(.began) || !isMagnifying {
+            finishZoom()
+            panoramaRenderer?.beginScrollZoom(anchor: normalizedAnchor(for: event))
+            isMagnifying = true
+        }
+        panoramaRenderer?.magnify(by: Float(event.magnification))
+        if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+            finishZoom()
+        }
+    }
+
+    private func finishZoom() {
+        scrollZoomGesture.reset()
+        lastPhaseLessZoomTime = nil
+        lastPhaseLessZoomDelta = nil
+        isMagnifying = false
+        panoramaRenderer?.endScrollZoom()
     }
 
     func resetViewpoint() {
+        finishZoom()
         panoramaRenderer?.resetViewpoint()
     }
 
     @objc func zoomImageIn(_ sender: Any?) {
+        finishZoom()
         panoramaRenderer?.keyboardZoom(inward: true)
     }
 
     @objc func zoomImageOut(_ sender: Any?) {
+        finishZoom()
         panoramaRenderer?.keyboardZoom(inward: false)
     }
 
@@ -380,10 +398,12 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
         )
     }
 
-    func magnify(by amount: Float, anchor: SIMD2<Float>) {
+    func magnify(by amount: Float) {
+        guard let scrollZoomAnchor else { return }
         setVerticalFieldOfView(
             verticalFieldOfView * (1 - amount),
-            anchoredAt: anchor
+            anchoredAt: scrollZoomAnchor.viewportPosition,
+            preserving: scrollZoomAnchor.worldDirection
         )
     }
 

@@ -24,12 +24,12 @@ struct ImageSurfaceInteractionTests {
     }
 
     @Test
-    func scrollZoomsWithoutModifiersOnEitherAxis() {
+    func scrollZoomsVerticallyAndIgnoresHorizontalGestures() {
         #expect(ImageSurfaceScroll.intent(
-            horizontal: 2,
-            vertical: -8,
+            horizontal: 9,
+            vertical: 0,
             isDirectionInverted: false
-        ) == .zoom(-8))
+        ) == .ignore)
         #expect(ImageSurfaceScroll.intent(
             horizontal: 2,
             vertical: -8,
@@ -44,12 +44,12 @@ struct ImageSurfaceInteractionTests {
             horizontal: 9,
             vertical: 3,
             isDirectionInverted: false
-        ) == .zoom(9))
+        ) == .ignore)
         #expect(ImageSurfaceScroll.intent(
             horizontal: -9,
             vertical: 3,
             isDirectionInverted: true
-        ) == .zoom(9))
+        ) == .ignore)
         #expect(ImageSurfaceScroll.intent(
             horizontal: 0,
             vertical: 0,

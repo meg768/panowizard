@@ -626,7 +626,7 @@ private struct SourceMaskEditor: View {
         if modifierInteraction == .navigate {
             hoverPoint = nil
             showSystemCursor()
-            NSCursor.openHand.set()
+            NSCursor.arrow.set()
         } else {
             hoverPoint = lastHoverPoint
             hideSystemCursor()
@@ -883,7 +883,6 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         private var monitor: Any?
         private var panOrigin: CGPoint?
         private var panStart: CGPoint?
-        private var pushedCursor = false
         private var scrollZoomAnchor: UnitPoint?
         private var imageZoomAnchor: UnitPoint?
         private var lastZoomImageSize: CGSize?
@@ -978,8 +977,6 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
                 ) == .navigate else { return event }
                 panOrigin = scrollView.contentView.bounds.origin
                 panStart = event.locationInWindow
-                NSCursor.closedHand.push()
-                pushedCursor = true
                 return nil
             case .leftMouseDragged:
                 guard let panOrigin, let panStart else { return event }
@@ -1075,8 +1072,6 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         private func finishPan() {
             panOrigin = nil
             panStart = nil
-            if pushedCursor { NSCursor.pop() }
-            pushedCursor = false
         }
     }
 }
