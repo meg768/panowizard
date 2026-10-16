@@ -1928,3 +1928,11 @@ and Debug build passed; built app copied to `/Applications/PanoWizard.app`
 (bundle version `202610151915`). `git diff --check` passed. No commit or push.
 Next conversation should continue from these uncommitted GUI/navigation changes;
 the stitching engine was not modified.
+
+## Publishing archive prepared — 2026-10-16
+
+On Magnus’s request, created a Release archive of current clean commit `968bc96433826435f1fbc73ed495313fceebca77` for upload preparation. Version **1.1**, build **202610161843**, arm64. Archive: `/Users/magnus/Library/Developer/Xcode/Archives/2026-10-16/PanoWizard-1.1.xcarchive`. Archive succeeded; deep strict signature verification passed for app and embedded OpenCV libraries; sandbox entitlements verified. Archive has Apple Development signing; distribution signing/validation remains part of Xcode Organizer distribution. Existing actor-isolation warnings in PanoWizardApp.swift remain. No functional tests performed in this turn. No upload, App Review message, or resubmission performed. Build log: `/tmp/panowizard-1.1-archive.log`.
+
+## App Store Connect follow-up — 2026-10-16
+
+Apple rejected version 1.0 (202610080027) on October 15 under Guidelines 5 (China mainland/OpenAI references) and 2.1(a) (sample files needed). China mainland was deselected and saved; availability changed from 175 to 174 countries/regions. Public examples and instructions are at https://meg768.github.io/panowizard/examples.html and https://github.com/meg768/panowizard/tree/main/examples. User screenshots confirm a separate archive **1.1 (202610161844)** passed validation and was uploaded to Apple, then selected on the version page; export compliance warning was cleared. This is the uploaded build, distinct from the assistant-created 202610161843 archive above. Review Notes and revised store description were drafted in chat; saving all metadata and final version field were not independently verified. User chose to keep one store screenshot for 1.1. No new review submission or approval has been confirmed. Opening downloaded examples on another Mac remains unverified.
