@@ -383,8 +383,8 @@ struct PanoWizardApp: App {
                     ) as? String, let url = URL(string: configuredURL) else { return }
                     NSWorkspace.shared.open(url)
                 }
-                Button("Example Projects…") {
-                    guard let url = URL(string: "https://meg768.github.io/panowizard/examples.html") else { return }
+                Button("Download Examples…") {
+                    guard let url = URL(string: "https://github.com/meg768/panowizard/releases/download/examples/examples.zip") else { return }
                     NSWorkspace.shared.open(url)
                 }
             }
