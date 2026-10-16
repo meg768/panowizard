@@ -384,7 +384,7 @@ struct PanoWizardApp: App {
                     NSWorkspace.shared.open(url)
                 }
                 Button("Download Examples…") {
-                    guard let url = URL(string: "https://github.com/meg768/panowizard/releases/download/examples/examples.zip") else { return }
+                    guard let url = URL(string: "https://github.com/meg768/panowizard/releases/download/examples/examples.zip?request=\(UUID().uuidString)") else { return }
                     NSWorkspace.shared.open(url)
                 }
             }
