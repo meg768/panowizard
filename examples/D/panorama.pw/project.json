@@ -1,0 +1,229 @@
+{
+  "createdAt" : "2026-09-27T17:34:29Z",
+  "formatVersion" : 10,
+  "id" : "F8C3D434-CB07-4E4D-9DC5-820645019260",
+  "images" : [
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-04-29T10:57:30Z",
+      "direction" : "horizontal",
+      "id" : "4CD1B9C0-5D64-441A-8158-341EB094F339",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-04-29%2012.57.30.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-04-29T10:57:37Z",
+      "direction" : "horizontal",
+      "id" : "126355DA-7311-4934-B200-1B0059952048",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-04-29%2012.57.37.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-04-29T10:57:41Z",
+      "direction" : "horizontal",
+      "id" : "F71C61E7-92BB-43C3-9526-E8774756DE34",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-04-29%2012.57.41.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-04-29T10:57:46Z",
+      "direction" : "horizontal",
+      "id" : "5B0258E5-CB90-47D6-8BEC-5F2CC0517936",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-04-29%2012.57.46.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-04-29T10:57:51Z",
+      "direction" : "horizontal",
+      "id" : "41E2DD35-7CF7-4A32-9274-4F6C3DC2E9CE",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-04-29%2012.57.51.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-04-29T10:57:54Z",
+      "direction" : "horizontal",
+      "id" : "48C9BD1B-6D6E-4D8E-A41D-75DC56894DA9",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-04-29%2012.57.54.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-04-29T10:57:58Z",
+      "direction" : "horizontal",
+      "id" : "42DB614E-8170-486C-9B1F-852BA7A261C5",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-04-29%2012.57.58.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-04-29T10:58:02Z",
+      "direction" : "horizontal",
+      "id" : "A924B200-A42C-45F5-925B-3893F87CEA1B",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-04-29%2012.58.02.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-04-29T10:58:18Z",
+      "direction" : "horizontal",
+      "id" : "6DE716E1-C9FA-4F7C-AE4B-003BDB641F14",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-04-29%2012.58.18.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-04-29T10:58:32Z",
+      "direction" : "horizontal",
+      "id" : "B4B7C819-7B58-4A59-8704-7E25801F1026",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-04-29%2012.58.32.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2005-04-29T10:58:56Z",
+      "direction" : "horizontal",
+      "id" : "7F112681-36C3-40FD-A5D9-7B691235324C",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2005-04-29%2012.58.56.jpg"
+    }
+  ],
+  "modifiedAt" : "2026-10-18T22:35:20Z",
+  "panoramaAdjustments" : {
+    "blacks" : 0,
+    "brightness" : 0,
+    "contrast" : 0,
+    "exposure" : 0,
+    "highlights" : 0,
+    "saturation" : 0,
+    "shadows" : 0,
+    "temperature" : 0,
+    "tint" : 0,
+    "vibrance" : 0,
+    "whites" : 0
+  },
+  "previewViewpoint" : {
+    "pitchRadians" : 0.021230757236480713,
+    "verticalFieldOfViewDegrees" : 95.3398208618164,
+    "yawRadians" : -5.840945720672607
+  },
+  "retouchPatches" : [
+    {
+      "aiRetouchMode" : "replace",
+      "id" : "088D0AA3-2BCC-407F-8E76-A7EEFFC4F371",
+      "isEnabled" : true,
+      "kind" : "ai",
+      "repairPrompt" : "This is a flat view of part of a 360° panorama. The mask identifies the area that needs repair. The original pixels remain visible and should be used as a reference.\n\nRepair the marked area photorealistically while preserving as much of the original content as possible. Correct visible defects and reconstruct only what is necessary.\n\nPreserve existing objects, structures, geometry, perspective, and textures. Maintain continuity with the surrounding image.\n\nMatch the surrounding image's color, exposure, sharpness, texture, and noise. Avoid visible seams, abrupt transitions, or mask-shaped changes.\n\nDo not modify unrelated areas or apply global image adjustments.",
+      "replacePrompt" : "This is a flat view of part of a 360° panorama. The mask marks the area to retouch. Its original pixels are visible and may be used as a reference while making the requested repair.\n\nFill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.\n\nThe reconstruction mus\tt blend seamlessly with the surrounding original image. Locally match exposure, brightness, hue, white balance, contrast, sharpness, texture, and noise so that no visible boundary or tonal edge appears around the reconstructed area.\n\nThe transition between reconstructed and original image content must be smooth and gradual. Avoid a uniformly bounded or mask-shaped change in light or color.\n\nPreserve the image's existing geometry and perspective. Do not alter objects or structures that do not need to be reconstructed to fill the missing area.\n\nDo not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.\n\nIn this case, try to follow the lines in the stone paving, particularly the boundaries between the dark and light stones.",
+      "viewpoint" : {
+        "pitchRadians" : 1.570796251296997,
+        "verticalFieldOfViewDegrees" : 75.05706024169922,
+        "yawRadians" : -8.935758590698242
+      }
+    }
+  ],
+  "title" : "29 Apr 2005"
+}

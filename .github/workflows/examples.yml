@@ -34,7 +34,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          printf 'Example projects A, B and C with source photographs and opening instructions. Extract examples.zip and keep each example folder intact.\n\nAutomatically packaged from commit %s.\n' "$GITHUB_SHA" > "$RUNNER_TEMP/examples-notes.md"
+          printf 'Example projects A, B, C and D with source photographs and opening instructions. Extract examples.zip and keep each example folder intact.\n\nAutomatically packaged from commit %s.\n' "$GITHUB_SHA" > "$RUNNER_TEMP/examples-notes.md"
           if gh release view examples >/dev/null 2>&1; then
             gh release upload examples "$RUNNER_TEMP/examples.zip" --clobber
             gh release edit examples --notes-file "$RUNNER_TEMP/examples-notes.md" --latest=false

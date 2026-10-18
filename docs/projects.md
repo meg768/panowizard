@@ -2,7 +2,7 @@
 
 PanoWizard starts in a normal project window with an empty project. The welcome view stays inside that window, so the menus remain available. Click **Add Images…** to choose your source images. Choose **File → New** for another empty project. Use **Open Existing Panorama…** in the welcome view or **File → Open…** to open an existing `.pw` project.
 
-For a finished project to explore, [download the examples](examples.html). Keep the entire A, B, or C folder together and open its `panorama.pw`. To experiment, duplicate that whole folder first.
+For a finished project to explore, [download the examples](examples.html). Keep the entire A, B, C, or D folder together and open its `panorama.pw`. To experiment, duplicate that whole folder first.
 
 ## Open recent projects
 

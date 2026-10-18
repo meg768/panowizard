@@ -2,7 +2,7 @@
 
 Click **Add Images…** in the sidebar or welcome view, or choose **Images → Add...**. Select the photographs together and click **Open**. The welcome view appears whenever the project has no source images.
 
-Practice with the JPEG photographs in [example A, B, or C](examples.html). Select only the source JPEGs when importing into a new project. Open `panorama.pw` instead to retain the example's existing masks and patches.
+Practice with the JPEG photographs in [example A, B, C, or D](examples.html). Select only the source JPEGs when importing into a new project. Open `panorama.pw` instead to retain the example's existing masks and patches.
 
 ## Which photographs?
 
