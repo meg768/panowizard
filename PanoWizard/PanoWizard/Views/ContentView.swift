@@ -329,7 +329,33 @@ struct ContentView: View {
     @ViewBuilder
     private var sourceMaskToolbarCenter: some View {
         HStack(spacing: 5) {
-            HStack(spacing: 2) {
+            HStack(spacing: 8) {
+                Button {
+                    model.sourceMaskTool = .brush
+                } label: {
+                    Label("Paint", systemImage: "paintbrush.pointed")
+                }
+                .buttonStyle(MaskToolbarButtonStyle(
+                    isSelected: model.sourceMaskTool == .brush,
+                    showsTitle: true
+                ))
+                .help("Option-drag to paint; Command-Option-drag to erase")
+
+                Button {
+                    model.sourceMaskTool = .lasso
+                } label: {
+                    Label("Lasso", systemImage: "lasso")
+                }
+                .buttonStyle(MaskToolbarButtonStyle(
+                    isSelected: model.sourceMaskTool == .lasso,
+                    showsTitle: true
+                ))
+                .help("Option-drag to outline an area; release to fill")
+            }
+
+            maskToolbarDivider
+
+            HStack(spacing: 8) {
                 Button {
                     model.sourceMaskIntent = .exclude
                 } label: {

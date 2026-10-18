@@ -116,6 +116,8 @@ struct StatusBar: View {
         let action: String
         if model.sourceMaskTool == .rectangle {
             action = "selects a rectangular area"
+        } else if model.sourceMaskTool == .lasso {
+            action = "draws a lasso (release to fill; Esc cancels)"
         } else if model.sourceMaskIntent == .protect {
             action = "paints a green inclusion mask"
         } else {

@@ -10,6 +10,7 @@ struct MaskPoint: Equatable, Sendable {
 
 enum SourceMaskTool: Hashable, Sendable {
     case brush
+    case lasso
     case rectangle
 }
 
@@ -154,6 +155,70 @@ enum SourceMaskRasterizer {
         ) else {
             return existingData
         }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { return existingData }
+        return data as Data
+    }
+
+    /// Normalized coordinates match the already-oriented source displayed by the editor.
+    /// Keep outside points: the raster canvas clips the polygon, without distorting its edges.
+    static func lassoPath(points: [MaskPoint], width: Int, height: Int) -> CGPath? {
+        guard width > 0, height > 0, points.count >= 3,
+              points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else { return nil }
+        let pixels = points.map {
+            CGPoint(x: $0.x * CGFloat(width), y: (1 - $0.y) * CGFloat(height))
+        }
+        guard pixels.allSatisfy({ $0.x.isFinite && $0.y.isFinite }),
+              let first = pixels.first,
+              let second = pixels.dropFirst().first(where: { $0 != first }),
+              pixels.contains(where: {
+                  abs((second.x - first.x) * ($0.y - first.y)
+                      - (second.y - first.y) * ($0.x - first.x)) > 1
+              }) else { return nil }
+        let path = CGMutablePath()
+        path.move(to: first)
+        pixels.dropFirst().forEach { path.addLine(to: $0) }
+        path.closeSubpath()
+        return path
+    }
+
+    static func applyingLasso(
+        points: [MaskPoint],
+        erasing: Bool,
+        protectedArea: Bool = false,
+        to existingData: Data?,
+        width: Int,
+        height: Int
+    ) -> Data? {
+        guard let path = lassoPath(points: points, width: width, height: height) else { return existingData }
+        if erasing, existingData == nil { return nil }
+        guard let context = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return existingData }
+        let canvas = CGRect(x: 0, y: 0, width: width, height: height)
+        context.clear(canvas)
+        if let existingData,
+           let source = CGImageSourceCreateWithData(existingData as CFData, nil),
+           let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+            context.draw(image, in: canvas)
+        }
+        context.setShouldAntialias(false)
+        context.setAllowsAntialiasing(false)
+        context.setBlendMode(erasing ? .clear : .normal)
+        context.setFillColor(protectedArea
+            ? CGColor(red: 0.08, green: 0.9, blue: 0.22, alpha: 1)
+            : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1))
+        context.addPath(path)
+        context.drawPath(using: .eoFill)
+        guard let image = context.makeImage() else { return existingData }
+        if erasing, !hasVisibleAlpha(image) { return nil }
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data, UTType.png.identifier as CFString, 1, nil
+        ) else { return existingData }
         CGImageDestinationAddImage(destination, image, nil)
         guard CGImageDestinationFinalize(destination) else { return existingData }
         return data as Data

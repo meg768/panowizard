@@ -20,14 +20,18 @@ Select `2005-01-16 15-18-46.jpg` and choose **Include**. The green mask follows 
 
 Selecting an image or switching Exclude/Include lets you inspect masks without repainting them.
 
-## Paint your own masks
+## Create your own masks
 
 **Duplicate the entire A folder before changing masks. Changing masks clears the panorama, patches, and adjustments. A successful new Create also clears patches and resets adjustments.** Finish masks before retouching.
 
-- Choose **Exclude** or **Include**, then **Option-drag** to paint that mask.
+- Choose **Paint** (the default) or **Lasso**, independently of **Exclude** / **Include**.
+- With **Paint**, **Option-drag** paints as before; brush size follows the existing zoom behavior.
+- With **Lasso**, **Option-drag** traces a freehand outline. Release to close and fill it with the current mask mode. Only the outline appears while dragging; the filled mask has sharp edges.
+- **Esc** cancels an unfinished lasso. Changing image, tool, mode or zoom also discards it. Tiny or line-only paths do nothing. Paths extending outside the image are clipped to its bounds.
+- The latest operation wins: red replaces green, green replaces red, and Paint and Lasso can overwrite each other.
 - Drag without Option to pan. Scroll or pinch to zoom.
-- **Command-Option-drag** erases the selected mask type.
-- **Edit → Undo Mask Change** (Command-Z) undoes the last source-mask change for the selected image.
+- **Command-Option-drag** removes masking in the painted or lassoed area.
+- **Edit → Undo Mask Change** (Command-Z) undoes the last source-mask change for the selected image. Each completed lasso is one undo operation.
 - **Clear** removes the selected image's current mask type: Exclude or Include.
 
 Keep masks small. Exclude unwanted content only where another source offers replacement coverage. If holes remain, reduce exclusion or supply a suitable source photograph.

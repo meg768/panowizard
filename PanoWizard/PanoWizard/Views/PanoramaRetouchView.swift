@@ -550,23 +550,25 @@ struct AIRetouchSheet: View {
 
                     Spacer(minLength: 12)
 
-                    Button {
-                        mode = .replace
-                    } label: {
-                        Label("Replace", systemImage: "paintbrush.pointed")
-                    }
-                    .buttonStyle(AIRetouchModeButtonStyle(isSelected: mode == .replace))
-                    .accessibilityAddTraits(mode == .replace ? .isSelected : [])
-                    .accessibilityIdentifier("ai-retouch-mode-replace")
+                    HStack(spacing: 8) {
+                        Button {
+                            mode = .replace
+                        } label: {
+                            Label("Replace", systemImage: "paintbrush.pointed")
+                        }
+                        .buttonStyle(AIRetouchModeButtonStyle(isSelected: mode == .replace))
+                        .accessibilityAddTraits(mode == .replace ? .isSelected : [])
+                        .accessibilityIdentifier("ai-retouch-mode-replace")
 
-                    Button {
-                        mode = .repair
-                    } label: {
-                        Label("Repair", systemImage: "wrench.adjustable")
+                        Button {
+                            mode = .repair
+                        } label: {
+                            Label("Repair", systemImage: "wrench.adjustable")
+                        }
+                        .buttonStyle(AIRetouchModeButtonStyle(isSelected: mode == .repair))
+                        .accessibilityAddTraits(mode == .repair ? .isSelected : [])
+                        .accessibilityIdentifier("ai-retouch-mode-repair")
                     }
-                    .buttonStyle(AIRetouchModeButtonStyle(isSelected: mode == .repair))
-                    .accessibilityAddTraits(mode == .repair ? .isSelected : [])
-                    .accessibilityIdentifier("ai-retouch-mode-repair")
                 }
             }
 
