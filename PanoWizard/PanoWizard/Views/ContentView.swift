@@ -344,13 +344,13 @@ struct ContentView: View {
                 Button {
                     model.sourceMaskTool = .lasso
                 } label: {
-                    Label("Lasso", systemImage: "lasso")
+                    Label("Lasso", systemImage: "point.3.connected.trianglepath.dotted")
                 }
                 .buttonStyle(MaskToolbarButtonStyle(
                     isSelected: model.sourceMaskTool == .lasso,
                     showsTitle: true
                 ))
-                .help("Option-drag to outline an area; release to fill")
+                .help("Option-click or drag to outline; Return, double-click or click the first point to fill; Backspace removes the last step; Esc cancels")
             }
 
             maskToolbarDivider

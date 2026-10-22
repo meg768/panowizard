@@ -116,6 +116,10 @@ private struct SourceMaskEditor: View {
     @State private var maskImage: CGImage?
     @State private var protectedMaskImage: CGImage?
     @State private var activeStroke: [MaskPoint] = []
+    // Each click/drag is one editable step, even when it contains many freehand samples.
+    @State private var lassoSegmentStarts: [Int] = []
+    @State private var lassoIsDragging = false
+    @State private var lassoPointerStart: MaskPoint?
     @State private var circleStart: MaskPoint?
     @State private var circleEnd: MaskPoint?
     @State private var zoomAnchor = UnitPoint.center
@@ -246,10 +250,19 @@ private struct SourceMaskEditor: View {
                                 path.move(to: points[0])
                                 points.dropFirst().forEach { path.addLine(to: $0) }
                                 if maskTool == .lasso {
+                                    if pointerGesture == nil, let lastHoverPoint {
+                                        path.addLine(to: lastHoverPoint)
+                                    }
                                     // Canvas is laid out in screen points, never scaled as a layer.
                                     // The contrasting outline stays 2 physical pixels wide at any zoom.
                                     context.stroke(path, with: .color(.black), lineWidth: 4 / backingScale)
                                     context.stroke(path, with: .color(.white), lineWidth: 2 / backingScale)
+                                    let firstVertex = Path(ellipseIn: CGRect(
+                                        x: points[0].x - 4, y: points[0].y - 4,
+                                        width: 8, height: 8
+                                    ))
+                                    context.stroke(firstVertex, with: .color(.black), lineWidth: 3)
+                                    context.stroke(firstVertex, with: .color(.white), lineWidth: 1)
                                     return
                                 }
                                 let style = StrokeStyle(
@@ -330,9 +343,10 @@ private struct SourceMaskEditor: View {
                         .frame(width: displaySize.width, height: displaySize.height)
                         .background {
                             NativeImagePanMonitor(
+                                onEditPointer: lassoPointerHandler,
                                 onScrollZoom: { delta, _ in
                                     pendingZoomAnchor = nil
-                                    setZoom(zoom * exp(-delta * 0.006))
+                                    setZoom(zoom * exp(Double(-delta * 0.006)))
                                 },
                                 onZoomIn: {
                                     prepareZoomAnchor(
@@ -367,6 +381,7 @@ private struct SourceMaskEditor: View {
                             DragGesture(minimumDistance: 0)
                                 .updating($isPointerDown) { _, isDown, _ in isDown = true }
                                 .onChanged { value in
+                                    guard maskTool != .lasso else { return }
                                     if pointerGesture == nil {
                                         let interaction = ImageSurfaceInteraction(
                                             modifierFlags: NSEvent.modifierFlags
@@ -377,8 +392,7 @@ private struct SourceMaskEditor: View {
                                             return
                                         case .edit, .remove:
                                             pointerGesture = .edit
-                                            activeGestureErases =
-                                                interaction == .remove
+                                            activeGestureErases = interaction == .remove
                                         }
                                     }
                                     guard case .edit = pointerGesture else { return }
@@ -392,26 +406,14 @@ private struct SourceMaskEditor: View {
                                             circleStart = point
                                         }
                                         circleEnd = point
-                                    } else {
-                                        if maskTool == .lasso, activeStroke.isEmpty {
-                                            activeStroke.append(MaskPoint(
-                                                x: value.startLocation.x / displaySize.width,
-                                                y: value.startLocation.y / displaySize.height
-                                            ))
-                                        }
-                                        if activeStroke.last != point { activeStroke.append(point) }
+                                    } else if activeStroke.last != point {
+                                        activeStroke.append(point)
                                     }
                                 }
-                                .onEnded { value in
+                                .onEnded { _ in
+                                    guard maskTool != .lasso else { return }
                                     if case .edit = pointerGesture {
-                                        if maskTool == .lasso {
-                                            let end = MaskPoint(
-                                                x: value.location.x / displaySize.width,
-                                                y: value.location.y / displaySize.height
-                                            )
-                                            if activeStroke.last != end { activeStroke.append(end) }
-                                            commitLasso(sourceImage: sourceImage)
-                                        } else if maskTool == .rectangle {
+                                        if maskTool == .rectangle {
                                             commitShape(sourceImage: sourceImage)
                                         } else {
                                             commitStroke(
@@ -451,6 +453,9 @@ private struct SourceMaskEditor: View {
                     .onScrollGeometryChange(for: ScrollGeometry.self) { geometry in
                         geometry
                     } action: { _, geometry in
+                        if scrollGeometry?.visibleRect != geometry.visibleRect {
+                            clearHoverFeedback()
+                        }
                         scrollGeometry = geometry
                         if !applyPendingZoomAnchor(using: geometry, displaySize: displaySize) {
                             updateViewport(using: geometry)
@@ -475,7 +480,7 @@ private struct SourceMaskEditor: View {
                             }
                     )
                     .onChange(of: zoom) {
-                        _ = cancelLasso()
+                        clearHoverFeedback()
                         if let scrollGeometry {
                             _ = applyPendingZoomAnchor(using: scrollGeometry, displaySize: displaySize)
                         }
@@ -488,7 +493,11 @@ private struct SourceMaskEditor: View {
         }
         .background(.background)
         .background {
-            ImageSurfaceModifierMonitor(onCancel: cancelLasso) { interaction in
+            ImageSurfaceModifierMonitor(
+                onCancel: cancelLasso,
+                onComplete: completeLasso,
+                onDelete: removeLastLassoSegment
+            ) { interaction in
                 modifierInteraction = interaction
                 updateCursorFeedback()
             }
@@ -502,6 +511,9 @@ private struct SourceMaskEditor: View {
             maskImage = Self.loadImage(data: maskData)
             protectedMaskImage = Self.loadImage(data: protectedMaskData)
             activeStroke = []
+            lassoSegmentStarts = []
+            lassoIsDragging = false
+            lassoPointerStart = nil
             circleStart = nil
             circleEnd = nil
             pointerGesture = nil
@@ -518,6 +530,9 @@ private struct SourceMaskEditor: View {
         .onChange(of: maskTool) { previous, _ in
             if previous == .lasso, pointerGesture != nil { pointerGesture = .cancelled }
             activeStroke = []
+            lassoSegmentStarts = []
+            lassoIsDragging = false
+            lassoPointerStart = nil
             circleStart = nil
             circleEnd = nil
             updateCursorFeedback()
@@ -525,7 +540,7 @@ private struct SourceMaskEditor: View {
         .onChange(of: maskIntent) { _ = cancelLasso() }
         .onChange(of: isPointerDown) {
             // GestureState resets on cancellation as well as on a normal mouse-up.
-            if !isPointerDown, maskTool == .lasso || pointerGesture == .cancelled {
+            if !isPointerDown, maskTool != .lasso, pointerGesture == .cancelled {
                 activeStroke = []
                 pointerGesture = nil
                 activeGestureErases = false
@@ -540,12 +555,98 @@ private struct SourceMaskEditor: View {
         }
     }
 
+    private var lassoPointerHandler: ((NSEvent, MaskPoint, CGSize) -> Void)? {
+        guard maskTool == .lasso else { return nil }
+        return { event, point, size in
+            handleLassoPointer(event, point: point, displaySize: size)
+        }
+    }
+
+    private func handleLassoPointer(_ event: NSEvent, point: MaskPoint, displaySize: CGSize) {
+        let location = CGPoint(x: point.x * displaySize.width, y: point.y * displaySize.height)
+        lastHoverPoint = location
+        hoverPoint = location
+        switch event.type {
+        case .leftMouseDown:
+            // The first click already added the final vertex (or closed at the first).
+            if event.clickCount >= 2 {
+                _ = completeLasso()
+                return
+            }
+            pointerGesture = .edit
+            if activeStroke.isEmpty {
+                activeGestureErases = ImageSurfaceInteraction(modifierFlags: event.modifierFlags) == .remove
+            }
+            lassoSegmentStarts.append(activeStroke.count)
+            lassoPointerStart = point
+            lassoIsDragging = false
+            if activeStroke.last != point { activeStroke.append(point) }
+        case .leftMouseDragged, .leftMouseUp:
+            if case .edit = pointerGesture, let start = lassoPointerStart {
+                if hypot((point.x - start.x) * displaySize.width,
+                         (point.y - start.y) * displaySize.height) >= 3 {
+                    lassoIsDragging = true
+                }
+                if lassoIsDragging, activeStroke.last != point { activeStroke.append(point) }
+                if event.type == .leftMouseUp, !lassoIsDragging,
+                   activeStroke.count >= 3, let first = activeStroke.first,
+                   hypot((start.x - first.x) * displaySize.width,
+                         (start.y - first.y) * displaySize.height) <= 6,
+                   hypot((point.x - first.x) * displaySize.width,
+                         (point.y - first.y) * displaySize.height) <= 6 {
+                    // Snap a closing click to the original vertex, just like Return.
+                    if let segmentStart = lassoSegmentStarts.last {
+                        activeStroke.removeSubrange(segmentStart...)
+                    }
+                    _ = completeLasso()
+                }
+            }
+            if event.type == .leftMouseUp {
+                pointerGesture = nil
+                lassoPointerStart = nil
+                lassoIsDragging = false
+            }
+        default:
+            break
+        }
+    }
+
     @discardableResult
     private func cancelLasso() -> Bool {
-        guard maskTool == .lasso, case .edit = pointerGesture else { return false }
+        guard maskTool == .lasso, !activeStroke.isEmpty else { return false }
         activeStroke = []
-        pointerGesture = .cancelled
+        lassoSegmentStarts = []
+        lassoIsDragging = false
+        activeGestureErases = false
+        if pointerGesture != nil { pointerGesture = .cancelled }
         return true
+    }
+
+    @discardableResult
+    private func completeLasso() -> Bool {
+        guard maskTool == .lasso, !activeStroke.isEmpty, let sourceImage else { return false }
+        commitLasso(sourceImage: sourceImage)
+        lassoSegmentStarts = []
+        lassoIsDragging = false
+        activeGestureErases = false
+        if pointerGesture != nil { pointerGesture = .cancelled }
+        return true
+    }
+
+    @discardableResult
+    private func removeLastLassoSegment() -> Bool {
+        guard maskTool == .lasso, let start = lassoSegmentStarts.popLast() else { return false }
+        activeStroke.removeSubrange(start...)
+        lassoIsDragging = false
+        if activeStroke.isEmpty { activeGestureErases = false }
+        if pointerGesture != nil { pointerGesture = .cancelled }
+        return true
+    }
+
+    private func clearHoverFeedback() {
+        lastHoverPoint = nil
+        hoverPoint = nil
+        showSystemCursor()
     }
 
     private func setZoom(_ zoom: Double) {
@@ -586,8 +687,8 @@ private struct SourceMaskEditor: View {
     }
 
     private var previewIsErasing: Bool {
-        activeGestureErases
-            || modifierInteraction == .remove
+        if maskTool == .lasso, !activeStroke.isEmpty { return activeGestureErases }
+        return activeGestureErases || modifierInteraction == .remove
     }
 
     private var strokeColor: Color {
@@ -805,14 +906,17 @@ private struct SourceMaskEditor: View {
 
 private struct ImageSurfaceModifierMonitor: NSViewRepresentable {
     var onCancel: () -> Bool = { false }
+    var onComplete: () -> Bool = { false }
+    var onDelete: () -> Bool = { false }
     let onChange: (ImageSurfaceInteraction) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onCancel: onCancel, onChange: onChange)
+        Coordinator(onCancel: onCancel, onComplete: onComplete, onDelete: onDelete, onChange: onChange)
     }
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
+        context.coordinator.view = view
         context.coordinator.install()
         return view
     }
@@ -820,21 +924,28 @@ private struct ImageSurfaceModifierMonitor: NSViewRepresentable {
     func updateNSView(_ view: NSView, context: Context) {
         context.coordinator.onChange = onChange
         context.coordinator.onCancel = onCancel
-        context.coordinator.windowNumber = view.window?.windowNumber
+        context.coordinator.onComplete = onComplete
+        context.coordinator.onDelete = onDelete
     }
 
     static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
         coordinator.uninstall()
     }
 
+    @MainActor
     final class Coordinator {
         var onChange: (ImageSurfaceInteraction) -> Void
         var onCancel: () -> Bool
-        var windowNumber: Int?
+        var onComplete: () -> Bool
+        var onDelete: () -> Bool
+        weak var view: NSView?
         private var monitor: Any?
 
-        init(onCancel: @escaping () -> Bool, onChange: @escaping (ImageSurfaceInteraction) -> Void) {
+        init(onCancel: @escaping () -> Bool, onComplete: @escaping () -> Bool,
+             onDelete: @escaping () -> Bool, onChange: @escaping (ImageSurfaceInteraction) -> Void) {
             self.onCancel = onCancel
+            self.onComplete = onComplete
+            self.onDelete = onDelete
             self.onChange = onChange
         }
 
@@ -842,13 +953,21 @@ private struct ImageSurfaceModifierMonitor: NSViewRepresentable {
             monitor = NSEvent.addLocalMonitorForEvents(
                 matching: [.flagsChanged, .keyDown]
             ) { [weak self] event in
-                guard let self,
-                      event.windowNumber == 0
-                        || self.windowNumber == event.windowNumber else {
+                guard let self, let window = self.view?.window,
+                      window.isKeyWindow, event.window == nil || event.window === window else {
                     return event
                 }
                 if event.type == .keyDown {
-                    return event.keyCode == 53 && self.onCancel() ? nil : event
+                    guard event.modifierFlags.intersection([.command, .control]).isEmpty,
+                          !(window.firstResponder is NSTextView) else { return event }
+                    let handled: Bool
+                    switch event.keyCode {
+                    case 53: handled = self.onCancel()
+                    case 36, 76: handled = self.onComplete() // Return and keypad Enter
+                    case 51: handled = self.onDelete() // Backspace
+                    default: handled = false
+                    }
+                    return handled ? nil : event
                 }
                 self.onChange(ImageSurfaceInteraction(
                     modifierFlags: event.modifierFlags
@@ -862,11 +981,11 @@ private struct ImageSurfaceModifierMonitor: NSViewRepresentable {
             monitor = nil
         }
 
-        deinit { uninstall() }
     }
 }
 
 private struct NativeImagePanMonitor: NSViewRepresentable {
+    var onEditPointer: ((NSEvent, MaskPoint, CGSize) -> Void)?
     let onScrollZoom: (CGFloat, UnitPoint) -> Void
     let onZoomIn: () -> Void
     let onZoomOut: () -> Void
@@ -890,6 +1009,7 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             coordinator?.correctZoomPosition()
         }
         context.coordinator.commandView = view
+        context.coordinator.onEditPointer = onEditPointer
         context.coordinator.onScrollZoom = onScrollZoom
         context.coordinator.install()
         return view
@@ -901,6 +1021,7 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         view.onReset = onReset
         context.coordinator.scrollView = view.enclosingScrollView
         context.coordinator.commandView = view
+        context.coordinator.onEditPointer = onEditPointer
         context.coordinator.onScrollZoom = onScrollZoom
     }
 
@@ -949,6 +1070,8 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
     final class Coordinator {
         weak var scrollView: NSScrollView?
         weak var commandView: AttachmentView?
+        var onEditPointer: ((NSEvent, MaskPoint, CGSize) -> Void)?
+        private var isEditing = false
         var onScrollZoom: (CGFloat, UnitPoint) -> Void = { _, _ in }
         private var monitor: Any?
         private var panOrigin: CGPoint?
@@ -983,6 +1106,12 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         }
 
         private func handle(_ event: NSEvent) -> NSEvent? {
+            if isEditing, event.type == .leftMouseDragged || event.type == .leftMouseUp {
+                forwardEditPointer(event)
+                if event.type == .leftMouseUp { isEditing = false }
+                return nil
+            }
+            if event.type == .leftMouseDown { isEditing = false }
             if event.type == .leftMouseUp, panOrigin != nil {
                 finishPan()
                 return nil
@@ -1042,9 +1171,15 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
                     return event
                 }
                 window.makeFirstResponder(commandView)
-                guard ImageSurfaceInteraction(
-                    modifierFlags: event.modifierFlags
-                ) == .navigate else { return event }
+                let interaction = ImageSurfaceInteraction(modifierFlags: event.modifierFlags)
+                if interaction != .navigate, onEditPointer != nil,
+                   let commandView,
+                   commandView.bounds.contains(commandView.convert(event.locationInWindow, from: nil)) {
+                    isEditing = true
+                    forwardEditPointer(event)
+                    return nil
+                }
+                guard interaction == .navigate else { return event }
                 panOrigin = scrollView.contentView.bounds.origin
                 panStart = event.locationInWindow
                 return nil
@@ -1072,6 +1207,15 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             default:
                 return event
             }
+        }
+
+        private func forwardEditPointer(_ event: NSEvent) {
+            guard let commandView,
+                  commandView.bounds.width > 0, commandView.bounds.height > 0 else { return }
+            let point = commandView.convert(event.locationInWindow, from: nil)
+            let x = (point.x - commandView.bounds.minX) / commandView.bounds.width
+            let y = (point.y - commandView.bounds.minY) / commandView.bounds.height
+            onEditPointer?(event, MaskPoint(x: x, y: commandView.isFlipped ? y : 1 - y), commandView.bounds.size)
         }
 
         private func eventIsInsideScrollView(

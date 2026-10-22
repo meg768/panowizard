@@ -26,11 +26,12 @@ Selecting an image or switching Exclude/Include lets you inspect masks without r
 
 - Choose **Paint** (the default) or **Lasso**, independently of **Exclude** / **Include**.
 - With **Paint**, **Option-drag** paints as before; brush size follows the existing zoom behavior.
-- With **Lasso**, **Option-drag** traces a freehand outline. Release to close and fill it with the current mask mode. Only the outline appears while dragging; the filled mask has sharp edges.
-- **Esc** cancels an unfinished lasso. Changing image, tool, mode or zoom also discards it. Tiny or line-only paths do nothing. Paths extending outside the image are clipped to its bounds.
+- With **Lasso**, **Option-click** adds a corner and **Option-drag** traces a freehand segment. Mix straight and curved edges in one selection. Moving the pointer previews the next edge; releasing the mouse keeps the outline open.
+- Press **Return / Enter**, **Option-double-click**, or **Option-click the first point** to close and fill the selection with the current mask mode. Only the outline appears while editing; the filled mask has sharp edges without feathering.
+- **Backspace** removes the last corner or entire freehand segment. **Esc** cancels without changing the mask. Changing image, tool or mask mode also discards an unfinished selection. Zooming and panning preserve it. Tiny or line-only paths do nothing. Paths extending outside the image are clipped to its bounds.
 - The latest operation wins: red replaces green, green replaces red, and Paint and Lasso can overwrite each other.
 - Drag without Option to pan. Scroll or pinch to zoom.
-- **Command-Option-drag** removes masking in the painted or lassoed area.
+- **Command-Option-drag** removes painted masking. To erase a lassoed area, start the selection with **Command-Option-click/drag** and complete it normally.
 - **Edit → Undo Mask Change** (Command-Z) undoes the last source-mask change for the selected image. Each completed lasso is one undo operation.
 - **Clear** removes the selected image's current mask type: Exclude or Include.
 

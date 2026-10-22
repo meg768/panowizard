@@ -117,7 +117,8 @@ struct StatusBar: View {
         if model.sourceMaskTool == .rectangle {
             action = "selects a rectangular area"
         } else if model.sourceMaskTool == .lasso {
-            action = "draws a lasso (release to fill; Esc cancels)"
+            return "Drag to pan · Scroll or pinch to zoom · ⌥-click/drag to outline · "
+                + "Return/double-click/first point fills · ⌫ removes last step · Esc cancels · ⌘⌥ erases"
         } else if model.sourceMaskIntent == .protect {
             action = "paints a green inclusion mask"
         } else {
