@@ -64,9 +64,9 @@ Open **Retouch**, then click the **AI Patch** thumbnail to look down at the mosa
 
 **11 JPEG photographs · 9 Exclude masks · no Include masks · 1 AI patch**
 
-![Example D's stitched panorama of the square and fountain before its saved ground repair](Images/Examples/d-panorama.jpg)
+![Example D open in PanoWizard Preview, showing the square and fountain](Images/Examples/d-preview.jpg)
 
-*The overview shows the stitched panorama before retouching. The missing ground area is repaired by the saved AI patch shown below.*
+*Preview shows the saved panorama with its AI patch enabled. The Before and After images below show the ground repair.*
 
 Explore the square, fountain, and patterned paving in **Preview**. Select the source photographs and choose **Exclude** to inspect the nine saved red masks.
 
@@ -90,7 +90,7 @@ Naming the paving pattern gives AI more useful guidance than simply asking it to
 
 **9 JPEG photographs · 2 Exclude masks · 1 Include mask · 1 manual patch · no AI patches**
 
-![Example E's saved panorama at a snowy ski slope](Images/Examples/e-panorama.jpg)
+![Example E open in PanoWizard Preview, showing the snow-covered restaurant beside the ski slope](Images/Examples/e-preview.jpg)
 
 Explore the ski slope and surrounding buildings in **Preview**. Select `2005-04-06 14-57-30.jpg` or `2005-04-06 14-57-37.jpg` and choose **Exclude** to inspect the red source masks. Select `2005-04-06 14-58-13.jpg` and choose **Include** to inspect the green source mask. See the [Masks guide](HowTo/Masking/index.html) for how these masks guide overlapping image selection.
 
@@ -102,7 +102,7 @@ Open **Retouch** and click the **Manual Patch** thumbnail to locate its area in 
 
 **6 Nikon NEF RAW photographs · no Exclude masks · 1 Include mask · no retouch patches**
 
-![Example F's saved panorama on a snowy outdoor terrace](Images/Examples/f-panorama.jpg)
+![Example F open in PanoWizard Preview, showing the seated people on the snowy terrace and its six NEF source files in the sidebar](Images/Examples/f-preview.jpg)
 
 Explore the terrace, seated people, and surrounding buildings in **Preview**. F uses Nikon D80 NEF RAW source photographs, unlike the JPEG sources in A–E. Keep all six `.NEF` files beside `panorama.pw`.
 
