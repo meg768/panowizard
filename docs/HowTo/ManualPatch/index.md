@@ -32,7 +32,7 @@ Return to PanoWizard, click **Import…**, and select the edited PNG. Compare **
 
 The patch appears in **Patches**. Click its thumbnail to locate it in Preview, use the switch to hide/show it, or choose its pencil/trash button to edit/delete it. Newer patches appear over older ones where they overlap.
 
-Example B also contains a saved manual patch, alongside an AI patch. See [the examples](../../examples.html#example-b).
+[Example B](../../examples.html#example-b) also contains a saved manual patch, alongside an AI patch. For a project with only manual retouching, open [example E — Ski slope](../../examples.html#example-e). Click its **Manual Patch** thumbnail to locate the repair, then toggle it off and on to compare.
 
 Finish source corrections first: changing sources or masks clears retouch patches. Save the project to keep the repair.
 

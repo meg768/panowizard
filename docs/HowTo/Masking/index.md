@@ -49,6 +49,8 @@ For more masks, inspect [example B](../../examples.html#example-b): each of its 
 
 ![An Exclude mask on B's first source photograph](../../Images/Examples/b-exclude.jpg)
 
+[Example E — Ski slope](../../examples.html#example-e) provides another project with both mask types: two Exclude masks and one Include mask across nine source photographs. Its example guide lists the photographs to select. Duplicate the E folder before experimenting; rebuilding clears its saved manual patch.
+
 Next: [Create a manual patch](../ManualPatch/index.html).
 
 [Back to PanoWizard Help](../../index.html)

@@ -6,15 +6,15 @@ Start with a finished panorama, then inspect how its source photographs, masks, 
 
 1. Choose **Help → Download Examples…** in PanoWizard, or download [examples.zip](https://github.com/meg768/panowizard/releases/download/examples/examples.zip). No development tools are required.
 2. Double-click **examples.zip** in Finder and open the extracted **examples** folder.
-3. Launch PanoWizard. Choose **File → Open…**, then select **panorama.pw** inside A, B, C, or D.
-4. If prompted, select that same A, B, C, or D folder and click **Grant Access**. This lets macOS read the source photographs.
+3. Launch PanoWizard. Choose **File → Open…**, then select **panorama.pw** inside A, B, C, D, or E.
+4. If prompted, select that same A, B, C, D, or E folder and click **Grant Access**. This lets macOS read the source photographs.
 5. Choose **Panorama → Preview**. Drag to look around; scroll or pinch to zoom.
 
 Keep each entire example folder together: the source JPEGs belong beside `panorama.pw`, not inside it. Moving the whole folder preserves the relative source references. Check the sidebar against the image counts below. See [File Access](file-access.html) if photographs are unavailable.
 
 The saved panoramas and patches are ready to explore. No API key is needed to view or toggle existing AI patches. Only generating new AI results requires your own OpenAI API key and separately billed API usage.
 
-**Before experimenting, duplicate the entire A, B, C, or D folder in Finder and open the copy.** Changing sources or source masks clears the panorama, patches, and adjustments; rebuilding also clears patches and resets adjustments.
+**Before experimenting, duplicate the entire A, B, C, D, or E folder in Finder and open the copy.** Changing sources or source masks clears the panorama, patches, and adjustments; rebuilding also clears patches and resets adjustments.
 
 <a id="example-a"></a>
 
@@ -67,6 +67,18 @@ Open **Retouch**, then click the **AI Patch** thumbnail to look down at the mosa
 Explore the square, fountain, and patterned paving in **Preview**. Select the source photographs and choose **Exclude** to inspect the nine saved red masks.
 
 Open **Retouch** and click the saved **AI Patch** thumbnail to locate its area in Preview. Toggle the patch off and on to compare. The saved patch is enabled and can be explored without an API key; generating a new result requires your own API key and separately billed usage. AI retouching is generated content, not recovered source pixels.
+
+<a id="example-e"></a>
+
+## E — Ski slope
+
+**9 JPEG photographs · 2 Exclude masks · 1 Include mask · 1 manual patch · no AI patches**
+
+![Example E's saved panorama at a snowy ski slope](Images/Examples/e-panorama.jpg)
+
+Explore the ski slope and surrounding buildings in **Preview**. Select `2005-04-06 14-57-30.jpg` or `2005-04-06 14-57-37.jpg` and choose **Exclude** to inspect the red source masks. Select `2005-04-06 14-58-13.jpg` and choose **Include** to inspect the green source mask. See the [Masks guide](HowTo/Masking/index.html) for how these masks guide overlapping image selection.
+
+Open **Retouch** and click the **Manual Patch** thumbnail to locate its area in Preview. Toggle the patch off and on to compare the saved repair. E provides another example of [manual retouching](HowTo/ManualPatch/index.html), without AI-generated patches.
 
 ## Try the next step
 

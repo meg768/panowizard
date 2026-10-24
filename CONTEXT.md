@@ -2,6 +2,32 @@
 
 Senast uppdaterad: 2026-10-16.
 
+## Aktuellt publiceringsläge — 2026-10-24
+
+PanoWizard **1.2 (202610240249)** är inskickad till App Review och statusen
+**Waiting for Review** är verifierad i App Store Connect. Submission ID:
+`17a31abe-65ac-4c62-b0b4-da16b4eec9c9`, inskickad 2026-10-24 kl. 03:00 svensk tid.
+Magnus valde uttryckligen att ersätta den godkända men opublicerade 1.1-releasen;
+den avbröts innan versionsposten ändrades till 1.2. Det nya bygget är valt och
+Review Notes uppdaterade för lassomaskning och exempel A–D. Export compliance
+är besvarad för det nya bygget. Manuell publicering efter godkännande är kvar.
+Inget nytt avtal accepterades av assistenten; inskickningen lyckades trots
+att en generell avtalsnotis tidigare visats.
+
+Aktivt repository på Mac mini är nu `/Users/magnus/GitHub/panowizard`, utanför
+Dokument/iCloud. Signerat arkiv:
+`~/Library/Developer/Xcode/Archives/2026-10-24/PanoWizard-1.2.xcarchive`.
+Arkivsignatur och uppladdning verifierade; endast 11 kända OpenCV-dSYM-varningar.
+Efter ett separat misslyckat GUI-bygge ändrades fyra ARCHS_STANDARD-overrides
+till arm64 eftersom de medföljande OpenCV-biblioteken endast stöder arm64.
+Genererade arkivproduktlänkar som blockerade Release-byggmappen flyttades till
+`~/Library/Developer/Xcode/BuildLinkBackups/20261024`; inga målfiler raderades.
+Signerat vanligt Release-bygge lyckades därefter. Dessa lokala projektinställningar
+och denna kontext är ännu inte committade eller pushade.
+
+Denna status ersätter äldre publiceringsstatus nedan. Vänta på Apples besked;
+skicka inte in ett nytt bygge eller ändra inskickningen utan Magnus instruktion.
+
 ## Aktuellt publiceringsläge — läs först (2026-10-16)
 
 PanoWizard **1.1**, build **202610162112**, är **inskickad till App Review**.

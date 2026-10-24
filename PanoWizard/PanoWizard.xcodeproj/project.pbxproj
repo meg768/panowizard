@@ -458,6 +458,7 @@
 		3E2B7A81B6C2435FBE1EF6A6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
@@ -472,6 +473,7 @@
 		6ADABD15324645E5A7BF8741 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
@@ -642,6 +644,7 @@
 		F734988D307406FE00FD790F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = PanoWizard/PanoWizard.entitlements;
@@ -686,6 +689,7 @@
 		F734988E307406FE00FD790F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = PanoWizard/PanoWizard.entitlements;

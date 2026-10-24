@@ -4,7 +4,7 @@
 
 ## 1. Open a finished example
 
-[Download the four example panoramas](examples.html), then open **A/panorama.pw** with **File → Open…**. If asked for access, choose the A folder and click **Grant Access**. The sidebar should show nine source photographs.
+[Download the five example panoramas](examples.html), then open **A/panorama.pw** with **File → Open…**. If asked for access, choose the A folder and click **Grant Access**. The sidebar should show nine source photographs.
 
 ![Example A with its finished panorama open](Images/Examples/a-preview.jpg)
 
