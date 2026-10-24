@@ -1,6 +1,6 @@
 # PanoWizard Help
 
-![Example A: a complete panorama of a church square](Images/Examples/a-panorama.jpg)
+![Example D: the fountain and patterned paving in the city square](Images/Examples/d-hero.jpg)
 
 Turn one horizontal ring of overlapping fisheye photographs into a complete **360° × 180° panorama**. Inspect the result, guide stitching with masks, repair local details, and export a panorama, an interactive viewer, or a Little Planet.
 
