@@ -206,9 +206,9 @@
     "whites" : 0
   },
   "previewViewpoint" : {
-    "pitchRadians" : 0.021230757236480713,
-    "verticalFieldOfViewDegrees" : 95.3398208618164,
-    "yawRadians" : -5.840945720672607
+    "pitchRadians" : -0.033110253512859344,
+    "verticalFieldOfViewDegrees" : 95.33982849121094,
+    "yawRadians" : -5.78743314743042
   },
   "retouchPatches" : [
     {
