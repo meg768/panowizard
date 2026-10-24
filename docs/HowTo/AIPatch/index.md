@@ -44,6 +44,22 @@ When editing an existing patch, its selected mode and both instructions are rest
 
 Click **AI Retouch** to generate a preview. A mask and a nonempty active instruction are required; generation may take a while and can be cancelled.
 
+## Write a useful instruction
+
+Use the mask to identify **where** to edit and the instruction to explain **what should appear there**. “Remove artifacts” is often too vague: name the unwanted object or defect, such as a tripod, a doubled edge, or a broken paving pattern.
+
+A useful instruction covers three things:
+
+- **What to remove or correct:** the tripod, camera support, seam, or distorted detail inside the mask.
+- **What should replace it:** the surrounding paving, floorboards, grass, sky, or another specific surface.
+- **What to preserve:** the direction of lines, repeating patterns, perspective, texture, lighting, and color.
+
+For example: “Replace the camera support inside the mask with wooden flooring. Continue the existing boards and their seams in the same direction and perspective. Match the grain, lighting, and color, and preserve the unmasked surroundings.”
+
+[Example D](../../examples.html#example-d) shows why specific details help: the replacement paving needs to continue the curved boundaries between dark and light stones. Its guide includes a prompt you can adapt. You can keep the default instruction and add this kind of scene-specific guidance to it.
+
+Inspect the result for the details you requested. If a curve or seam is wrong, describe that specific correction before choosing **Try Again**, rather than only asking for a “better” result. Each new attempt generates a new result and incurs API usage.
+
 ## Review and apply
 
 Inspect lines, textures, color, and the repair boundary in **After**. AI can invent plausible but incorrect details. Choose **Try Again** for another attempt, or **Apply** to keep the result.

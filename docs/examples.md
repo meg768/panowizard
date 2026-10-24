@@ -72,9 +72,17 @@ Explore the square, fountain, and patterned paving in **Preview**. Select the so
 
 Open **Retouch** and click the saved **AI Patch** thumbnail to locate its area in Preview. Toggle the patch off and on to compare. The saved patch is enabled and can be explored without an API key; generating a new result requires your own API key and separately billed usage. AI retouching is generated content, not recovered source pixels.
 
-![Example D's saved AI patch reconstructing the patterned stone paving, with feathered edges](Images/Examples/d-ai-patch.jpg)
+| Before | After |
+| --- | --- |
+| ![Example D before AI retouching, with the tripod area marked by a red mask](Images/Examples/d-ai-before.png) | ![Example D after AI retouching, with the stone paving reconstructed](Images/Examples/d-ai-after.png) |
 
-*The saved AI patch reconstructs the paving below the camera. Its feathered edges blend into the panorama when the patch is enabled.*
+*Before (left): the red mask marks the tripod area. After (right): AI removes the tripod and reconstructs the curved boundaries between the dark and light stones, continuing the surrounding paving pattern. The reconstructed area is AI-generated content.*
+
+To make a similar repair, mask the unwanted object or artifact and choose **Replace**. Describe the surface that should take its place and the details that must continue across the repair. For example:
+
+> Remove the tripod and its support inside the masked area. Replace them with stone paving that continues the surrounding pattern. Follow the curved boundaries between the dark and light stones, keeping their width, direction, and perspective consistent. Match the surrounding stone size, texture, lighting, and color. Preserve the unmasked surroundings.
+
+Naming the paving pattern gives AI more useful guidance than simply asking it to “remove artifacts.” See [Write a useful instruction](HowTo/AIPatch/index.html#write-a-useful-instruction) for more examples.
 
 <a id="example-e"></a>
 
