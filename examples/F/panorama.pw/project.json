@@ -1,0 +1,132 @@
+{
+  "createdAt" : "2026-09-27T17:26:51Z",
+  "formatVersion" : 10,
+  "id" : "065755A9-B22A-41E9-9DDB-73EB523345DA",
+  "images" : [
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2008-02-23T13:46:14Z",
+      "direction" : "horizontal",
+      "id" : "1BEB35A4-6A1D-480F-AE3C-ED1DDFE722B8",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 2592,
+      "pixelWidth" : 3872,
+      "role" : "automatic",
+      "rotation" : 1,
+      "url" : "2008-02-23%2014-46-14.NEF"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2008-02-23T13:46:22Z",
+      "direction" : "horizontal",
+      "id" : "3A7BB8BC-FF85-408E-BF7E-C34FA90B10F2",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 2592,
+      "pixelWidth" : 3872,
+      "role" : "automatic",
+      "rotation" : 1,
+      "url" : "2008-02-23%2014-46-22.NEF"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2008-02-23T13:46:32Z",
+      "direction" : "horizontal",
+      "id" : "DF6746FF-AB78-462D-8711-2861957C0002",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 2592,
+      "pixelWidth" : 3872,
+      "role" : "automatic",
+      "rotation" : 1,
+      "url" : "2008-02-23%2014-46-32.NEF"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2008-02-23T13:46:40Z",
+      "direction" : "horizontal",
+      "id" : "E24A14C6-E431-421B-9BC7-A52C50C7855B",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 2592,
+      "pixelWidth" : 3872,
+      "role" : "automatic",
+      "rotation" : 1,
+      "url" : "2008-02-23%2014-46-40.NEF"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2008-02-23T13:47:03Z",
+      "direction" : "horizontal",
+      "id" : "E3083F4F-CB55-45BD-85B6-6789B6F33D6D",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 2592,
+      "pixelWidth" : 3872,
+      "role" : "automatic",
+      "rotation" : 1,
+      "url" : "2008-02-23%2014-47-03.NEF"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2008-02-23T13:47:40Z",
+      "direction" : "horizontal",
+      "id" : "DB2E0E1F-8985-4D35-A78F-F42DA24E2CB6",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 2592,
+      "pixelWidth" : 3872,
+      "role" : "automatic",
+      "rotation" : 1,
+      "url" : "2008-02-23%2014-47-40.NEF"
+    }
+  ],
+  "modifiedAt" : "2026-09-27T17:27:23Z",
+  "panoramaAdjustments" : {
+    "blacks" : 0,
+    "brightness" : 0,
+    "contrast" : 0,
+    "exposure" : 0,
+    "highlights" : 0,
+    "saturation" : 0,
+    "shadows" : 0,
+    "temperature" : 0,
+    "tint" : 0,
+    "vibrance" : 0,
+    "whites" : 0
+  },
+  "previewViewpoint" : {
+    "pitchRadians" : -0.002524346113204956,
+    "verticalFieldOfViewDegrees" : 80.2137680053711,
+    "yawRadians" : 12.744802474975586
+  },
+  "retouchPatches" : [
+
+  ],
+  "title" : "23 Feb 2008"
+}

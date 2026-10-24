@@ -51,6 +51,8 @@ For more masks, inspect [example B](../../examples.html#example-b): each of its 
 
 [Example E — Ski slope](../../examples.html#example-e) provides another project with both mask types: two Exclude masks and one Include mask across nine source photographs. Its example guide lists the photographs to select. Duplicate the E folder before experimenting; rebuilding clears its saved manual patch.
 
+[Example F — Snowy outdoor terrace](../../examples.html#example-f) uses six Nikon NEF RAW files. The tripod is hidden using only a green Include mask, with no AI or retouch patches. Select `2008-02-23 14-47-40.NEF` and choose **Include** to inspect it. The mask favors existing source pixels from that photograph during stitching.
+
 Next: [Create a manual patch](../ManualPatch/index.html).
 
 [Back to PanoWizard Help](../../index.html)
