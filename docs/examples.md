@@ -64,9 +64,17 @@ Open **Retouch**, then click the **AI Patch** thumbnail to look down at the mosa
 
 **11 JPEG photographs · 9 Exclude masks · no Include masks · 1 AI patch**
 
+![Example D's stitched panorama of the square and fountain before its saved ground repair](Images/Examples/d-panorama.jpg)
+
+*The overview shows the stitched panorama before retouching. The missing ground area is repaired by the saved AI patch shown below.*
+
 Explore the square, fountain, and patterned paving in **Preview**. Select the source photographs and choose **Exclude** to inspect the nine saved red masks.
 
 Open **Retouch** and click the saved **AI Patch** thumbnail to locate its area in Preview. Toggle the patch off and on to compare. The saved patch is enabled and can be explored without an API key; generating a new result requires your own API key and separately billed usage. AI retouching is generated content, not recovered source pixels.
+
+![Example D's saved AI patch reconstructing the patterned stone paving, with feathered edges](Images/Examples/d-ai-patch.jpg)
+
+*The saved AI patch reconstructs the paving below the camera. Its feathered edges blend into the panorama when the patch is enabled.*
 
 <a id="example-e"></a>
 
