@@ -1,14 +1,39 @@
 # PanoWizard — projekt- och utvecklingskontext
 
-Senast uppdaterad: 2026-10-16.
+Senast uppdaterad: 2026-10-28.
 
-## Aktuell version — 2026-10-28
+## Lokalt bygge — 2026-10-28
 
-Magnus bekräftar att aktuell version är **1.3**. Uppgifterna nedan om 1.2 är
-historiska; aktuell build och App Review-/publiceringsstatus för 1.3 är inte
-bekräftade i denna konversation.
+Magnus visade efter första bygget att 1.3 redan väntar på App Review.
+Före den andra datorns check-in stod lokal projektfil och origin/main på 1.2;
+den inskickade versionens höjning hade alltså inte sparats där.
+Första lokala bygget 1.3 (202610280135) ersattes därför med nästa version:
+MARKETING_VERSION är nu **1.4** i Debug och Release.
+Vanligt signerat Release-bygge lyckades och kopierades till
+`/Applications/PanoWizard.app` enligt projektets installationsrutin.
+Installerad version **1.4 (202610280137)**; versionsmetadata och
+`codesign --verify --deep --strict` verifierade för byggd och installerad app.
+Projektfilens plist-kontroll och `git diff --check` godkända.
+Efter check-in på andra Macen hämtades `7adbccd` med versionsgrund 1.3.
+Committen ändrar bara versionsnummer och kontext; lokala 1.4 behölls.
+Inga regressionstester körda enligt projektets testpreferens. Ingen omstart av
+appen, arkivering, uppladdning, App Review-ändring, commit eller push utförd.
 
-## Aktuellt publiceringsläge — 2026-10-24
+## Aktuellt publiceringsläge — 2026-10-28
+
+Magnus screenshot bekräftar **macOS 1.3 — Waiting for Review** i App Store
+Connect. Detta ersätter publiceringsstatus 1.2 nedan. Byggnummer och
+inskickningsdatum för 1.3 har inte verifierats. Versionshöjningen finns nu i Git
+efter andra Macens check-in; byggplatsen har inte verifierats. Kontrollera både Git-läge och
+senast verifierade inskickade version före nästa versionshöjning.
+
+## Synkad versionsgrund — 2026-10-28
+
+Andra Macens check-in `7adbccd` sparar version **1.3** i Git. Lokalt nästa
+bygge är **1.4** enligt avsnittet ovan; App Review-status 1.3 har nu
+bekräftats med Magnus screenshot. Äldre uppgifter om 1.2 är historiska.
+
+## Historiskt publiceringsläge — 2026-10-24
 
 PanoWizard **1.2 (202610240249)** är inskickad till App Review och statusen
 **Waiting for Review** är verifierad i App Store Connect. Submission ID:
