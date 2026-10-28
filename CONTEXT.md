@@ -2,6 +2,21 @@
 
 Senast uppdaterad: 2026-10-28.
 
+## Exempel G och hjälp — 2026-10-28
+
+Magnus lade till `examples/G`: sex Nikon D7200 NEF-bilder, inga källmasker och
+två aktiva AI-patchar i Replace-läge. Ingen separat nadir- eller zenitbild finns;
+AI rekonstruerar gräs/löv nedåt och grenar/löv uppåt. Hjälpens exempelöversikt,
+AI-guide, startsida och öppningsinstruktioner samt båda README-filerna beskriver
+nu A–G. Fem hjälpbilder togs i appen från en tillfällig projektkopia: översikt samt
+före/efter för nadir och zenit. Patchordning och jämförelseflöde verifierades
+manuellt. Hjälpbilder granskade; 128 lokala länkar/bildreferenser och
+`git diff --check` godkända. Originalprojektet och källbilderna är oförändrade
+(verifierat mot arbetskopian). Magnus begärde därefter check-in med commit, tidsstämpeltagg och push.
+Även exempelpaketets automatiska releasebeskrivning uppdaterades till A–G.
+GitHub Pages bygger från main/docs och exempelworkflow paketerar examples/
+automatiskt vid push. Ingen appkod ändrades eller nytt appbygge behövdes.
+
 ## Lokalt bygge — 2026-10-28
 
 Magnus visade efter första bygget att 1.3 redan väntar på App Review.

@@ -1,0 +1,157 @@
+{
+  "createdAt" : "2026-10-11T16:40:25Z",
+  "formatVersion" : 10,
+  "id" : "F7C16EBA-ADC6-4BF3-9CC9-B67F571F697F",
+  "images" : [
+    {
+      "cameraModel" : "NIKON D7200",
+      "captureDate" : "2026-10-27T22:23:13Z",
+      "direction" : "horizontal",
+      "id" : "2CA41B3F-BC7C-42F4-9F83-94D7D2354DE1",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 6000,
+      "pixelWidth" : 4000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "DSC_0442.NEF"
+    },
+    {
+      "cameraModel" : "NIKON D7200",
+      "captureDate" : "2026-10-27T22:23:24Z",
+      "direction" : "horizontal",
+      "id" : "A4F2B0BF-9E37-48BC-9FD4-CBA963CDD006",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 6000,
+      "pixelWidth" : 4000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "DSC_0443.NEF"
+    },
+    {
+      "cameraModel" : "NIKON D7200",
+      "captureDate" : "2026-10-27T22:23:33Z",
+      "direction" : "horizontal",
+      "id" : "C31BAB03-1550-4441-B03E-5D4C2795328A",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 6000,
+      "pixelWidth" : 4000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "DSC_0444.NEF"
+    },
+    {
+      "cameraModel" : "NIKON D7200",
+      "captureDate" : "2026-10-27T22:23:42Z",
+      "direction" : "horizontal",
+      "id" : "EF2BB7AD-EB7F-4AB8-A25D-E3C74229292B",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 6000,
+      "pixelWidth" : 4000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "DSC_0445.NEF"
+    },
+    {
+      "cameraModel" : "NIKON D7200",
+      "captureDate" : "2026-10-27T22:23:50Z",
+      "direction" : "horizontal",
+      "id" : "5AA41360-A51B-46C0-A1E1-D2DAC63ABF70",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 6000,
+      "pixelWidth" : 4000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "DSC_0446.NEF"
+    },
+    {
+      "cameraModel" : "NIKON D7200",
+      "captureDate" : "2026-10-27T22:23:59Z",
+      "direction" : "horizontal",
+      "id" : "FC409E91-D24B-48C3-B8BB-E4D0BB02EE61",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 6000,
+      "pixelWidth" : 4000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "DSC_0447.NEF"
+    }
+  ],
+  "modifiedAt" : "2026-10-28T17:08:59Z",
+  "panoramaAdjustments" : {
+    "blacks" : 4,
+    "brightness" : 0,
+    "contrast" : 0,
+    "exposure" : 1.4500000000000002,
+    "highlights" : 0,
+    "saturation" : 10,
+    "shadows" : 0,
+    "temperature" : 0,
+    "tint" : 0,
+    "vibrance" : 22,
+    "whites" : 0
+  },
+  "previewViewpoint" : {
+    "pitchRadians" : 0.01124745886772871,
+    "verticalFieldOfViewDegrees" : 112.16214752197266,
+    "yawRadians" : 35.49346160888672
+  },
+  "retouchPatches" : [
+    {
+      "aiRetouchMode" : "replace",
+      "id" : "B40C374F-6A50-4D2A-99D2-1FCDBA120245",
+      "isEnabled" : true,
+      "kind" : "ai",
+      "repairPrompt" : "This is a flat view of part of a 360° panorama. The mask identifies the area that needs repair. The original pixels remain visible and should be used as a reference.\n\nRepair the marked area photorealistically while preserving as much of the original content as possible. Correct visible defects and reconstruct only what is necessary.\n\nPreserve existing objects, structures, geometry, perspective, and textures. Maintain continuity with the surrounding image.\n\nMatch the surrounding image's color, exposure, sharpness, texture, and noise. Avoid visible seams, abrupt transitions, or mask-shaped changes.\n\nDo not modify unrelated areas or apply global image adjustments.",
+      "replacePrompt" : "This is a flat view of part of a 360° panorama. The mask marks the area to retouch. Its original pixels are visible and may be used as a reference while making the requested repair.\n\nFill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.\n\nThe reconstruction must blend seamlessly with the surrounding original image. Locally match exposure, brightness, hue, white balance, contrast, sharpness, texture, and noise so that no visible boundary or tonal edge appears around the reconstructed area.\n\nThe transition between reconstructed and original image content must be smooth and gradual. Avoid a uniformly bounded or mask-shaped change in light or color.\n\nPreserve the image's existing geometry and perspective. Do not alter objects or structures that do not need to be reconstructed to fill the missing area.\n\nDo not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.\n\nThis is a nadir image of grass and leaves.",
+      "viewpoint" : {
+        "pitchRadians" : 1.570796251296997,
+        "verticalFieldOfViewDegrees" : 102.88026428222656,
+        "yawRadians" : 17.738962173461914
+      }
+    },
+    {
+      "aiRetouchMode" : "replace",
+      "id" : "C632BA0B-48E9-4597-890E-BCCA6B41154E",
+      "isEnabled" : true,
+      "kind" : "ai",
+      "repairPrompt" : "This is a flat view of part of a 360° panorama. The mask identifies the area that needs repair. The original pixels remain visible and should be used as a reference.\n\nRepair the marked area photorealistically while preserving as much of the original content as possible. Correct visible defects and reconstruct only what is necessary.\n\nPreserve existing objects, structures, geometry, perspective, and textures. Maintain continuity with the surrounding image.\n\nMatch the surrounding image's color, exposure, sharpness, texture, and noise. Avoid visible seams, abrupt transitions, or mask-shaped changes.\n\nDo not modify unrelated areas or apply global image adjustments.",
+      "replacePrompt" : "This is a flat view of part of a 360° panorama. The mask marks the area to retouch. Its original pixels are visible and may be used as a reference while making the requested repair.\n\nFill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.\n\nThe reconstruction must blend seamlessly with the surrounding original image. Locally match exposure, brightness, hue, white balance, contrast, sharpness, texture, and noise so that no visible boundary or tonal edge appears around the reconstructed area.\n\nThe transition between reconstructed and original image content must be smooth and gradual. Avoid a uniformly bounded or mask-shaped change in light or color.\n\nPreserve the image's existing geometry and perspective. Do not alter objects or structures that do not need to be reconstructed to fill the missing area.\n\nDo not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.\n\nThis is a zenit image and need to render the branches and leaves.",
+      "viewpoint" : {
+        "pitchRadians" : -1.5613430738449097,
+        "verticalFieldOfViewDegrees" : 77.44091033935547,
+        "yawRadians" : 20.745302200317383
+      }
+    }
+  ],
+  "title" : "20 Feb 2008"
+}

@@ -6,15 +6,15 @@ Start with a finished panorama, then inspect how its source photographs, masks, 
 
 1. Choose **Help → Download Examples…** in PanoWizard, or download [examples.zip](https://github.com/meg768/panowizard/releases/download/examples/examples.zip). No development tools are required.
 2. Double-click **examples.zip** in Finder and open the extracted **examples** folder.
-3. Launch PanoWizard. Choose **File → Open…**, then select **panorama.pw** inside A, B, C, D, E, or F.
-4. If prompted, select that same A, B, C, D, E, or F folder and click **Grant Access**. This lets macOS read the source photographs.
+3. Launch PanoWizard. Choose **File → Open…**, then select **panorama.pw** inside A, B, C, D, E, F, or G.
+4. If prompted, select that same A, B, C, D, E, F, or G folder and click **Grant Access**. This lets macOS read the source photographs.
 5. Choose **Panorama → Preview**. Drag to look around; scroll or pinch to zoom.
 
 Keep each entire example folder together: the source photographs belong beside `panorama.pw`, not inside it. Moving the whole folder preserves the relative source references. Check the sidebar against the image counts below. See [File Access](file-access.html) if photographs are unavailable.
 
 The saved panoramas and patches are ready to explore. No API key is needed to view or toggle existing AI patches. Only generating new AI results requires your own OpenAI API key and separately billed API usage.
 
-**Before experimenting, duplicate the entire A, B, C, D, E, or F folder in Finder and open the copy.** Changing sources or source masks clears the panorama, patches, and adjustments; rebuilding also clears patches and resets adjustments.
+**Before experimenting, duplicate the entire A, B, C, D, E, F, or G folder in Finder and open the copy.** Changing sources or source masks clears the panorama, patches, and adjustments; rebuilding also clears patches and resets adjustments.
 
 <a id="example-a"></a>
 
@@ -109,6 +109,36 @@ Explore the terrace, seated people, and surrounding buildings in **Preview**. F 
 **No AI was used in F.** The tripod is hidden using only a green **Include** mask, which favors existing pixels from an overlapping source photograph. There are no manual or AI retouch patches.
 
 Select `2008-02-23 14-47-40.NEF` and choose **Include** to inspect that saved green source mask. See the [Masks guide](HowTo/Masking/index.html) for how Include masks influence seam selection.
+
+<a id="example-g"></a>
+
+## G — Autumn garden
+
+**6 Nikon NEF RAW photographs · no source masks · 2 AI patches · no manual patches**
+
+![Example G open in PanoWizard Preview, showing an autumn garden and six NEF source photographs](Images/Examples/g-preview.jpg)
+
+G shows how AI retouching can complete both ends of a panorama from a single horizontal ring of photographs. There is **no separate nadir photograph** looking straight down and **no separate zenith photograph** looking straight up. Two saved AI patches in **Replace** mode reconstruct those areas: grass and fallen leaves below the camera, and branches and leaves above it.
+
+### Nadir — looking straight down
+
+| Before | After |
+| --- | --- |
+| ![Example G looking down with the nadir AI patch disabled, showing missing coverage in the ground](Images/Examples/g-nadir-before.jpg) | ![The same nadir view with the saved AI patch enabled, continuing the grass and fallen leaves](Images/Examples/g-nadir-after.jpg) |
+
+### Zenith — looking straight up
+
+| Before | After |
+| --- | --- |
+| ![Example G looking up with the zenith AI patch disabled, showing missing coverage in the tree canopy](Images/Examples/g-zenith-before.jpg) | ![The same zenith view with the saved AI patch enabled, continuing branches and autumn leaves](Images/Examples/g-zenith-after.jpg) |
+
+*Before: missing source coverage appears as a dark gap. After: the saved AI patches complete the ground and tree canopy. The reconstructed areas contain generated content.*
+
+Open **Retouch** to find the two **AI Patch** entries. The first is the nadir repair; the second is the zenith repair. Click each thumbnail to locate its area in **Preview**. Return to Retouch, switch that patch off, and click its thumbnail again to inspect the same view before retouching. Repeat with the switch on. The patches can be toggled independently, and viewing the saved results requires no API key.
+
+To inspect a saved mask and instruction, click the patch’s pencil button and choose **Cancel** when finished. Both patches use the default **Replace** instruction with a short description of the scene: grass and leaves for the nadir, branches and leaves for the zenith. See [AI Retouch](HowTo/AIPatch/index.html) to try this on a copy of the project.
+
+G demonstrates reconstruction of missing coverage at both poles, beyond removing a small object. Stitching itself does not create that content; AI retouching adds it afterward.
 
 ## Try the next step
 

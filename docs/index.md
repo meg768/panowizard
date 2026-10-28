@@ -8,7 +8,7 @@ New to PanoWizard? Start with the [illustrated Getting Started guide](getting-st
 
 ## Start
 
-- **[Example Panoramas](examples.html)** — Download A, B, C, D, E, and F; explore saved masks, manual patches, and AI repairs without creating a new panorama.
+- **[Example Panoramas](examples.html)** — Download A, B, C, D, E, F, and G; explore saved masks, manual patches, and AI repairs, including G’s reconstructed nadir and zenith, without creating a new panorama.
 
 - **[Getting Started](getting-started.html)** — Follow a complete project from source photographs to export.
 - **[Creating and Opening Projects](projects.html)** — Start, reopen, and save your work.

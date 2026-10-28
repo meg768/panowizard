@@ -18,6 +18,14 @@ An AI patch changes a small area of an otherwise finished panorama. The captured
 
 Viewing and toggling the saved patch requires no API key and makes no generation request. To inspect its saved mask and instruction, click its pencil button; choose **Cancel** to leave it unchanged. Do not choose **Try Again** unless you intend to generate a new result.
 
+## Complete a missing nadir and zenith: example G
+
+[Example G — Autumn garden](../../examples.html#example-g) contains six Nikon NEF RAW photographs from a horizontal ring, with no separate photograph looking straight down (**nadir**) or straight up (**zenith**). Both areas are completed by saved AI patches in **Replace** mode: grass and fallen leaves below the camera, and branches and leaves above it.
+
+This demonstrates how AI retouching can reconstruct missing coverage at both poles, as well as remove unwanted objects. Open **Retouch** and click each patch thumbnail to locate its view in **Preview**. Return to Retouch to switch that patch off, then click its thumbnail again to compare the same view. Repeat with the switch on. The first patch repairs the nadir; the second repairs the zenith. No API key is needed to explore the saved results. The [example guide](../../examples.html#example-g) shows both patches.
+
+The saved instructions add a short scene description to the default Replace text: grass and leaves for the nadir, and branches and leaves for the zenith. To try a similar repair, use **Replace** and describe what should continue into the missing area. Inspect the saved masks and instructions with the pencil button; choose **Cancel** to keep the example unchanged.
+
 ## Before generating a new repair
 
 AI retouch requires internet access and your own OpenAI API key. API usage is billed separately by OpenAI; it is not included in a ChatGPT or Codex subscription.
