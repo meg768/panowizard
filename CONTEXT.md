@@ -2,6 +2,83 @@
 
 Senast uppdaterad: 2026-10-28.
 
+## Checkpoint — 2026-10-28 21:01 Europe/Stockholm
+
+Magnus begärde check-in av samtliga väntande ändringar: isolerade temporära
+arbetsfiler, bibehållen retusch vid återimport utan nya bilder, lasso i
+bildmarginalerna och dokumenterade arbets-/versionsrutiner. Källkod och kontext
+granskade; senaste Release-bygget lyckades, installerad signatur och
+git diff --check godkända. Inga ytterligare kodändringar eller versionshöjningar
+gjordes vid incheckningen. Commit, ny tidsstämpeltagg och push ingår i begäran.
+
+## Lasso vid bildkanter — 2026-10-28
+
+På Magnus instruktion utökades lassots klick- och hovringsyta till hela
+bildens visningsområde, inklusive marginalerna. Kontur och markör ritas där;
+befintlig rasterisering klipper masken vid bildkanten utan att begränsa
+polygonens hörnpunkter. Penselns hovring och gest ligger kvar på bilden.
+Ändringen finns endast i PanoramaPreview.swift; projektformatet är oförändrat.
+
+Signerat Release-bygge lyckades. Installerad app är 1.4 (202610282048),
+kontrollerad med codesign --verify --deep --strict. I isolerad G-kopia
+verifierades Exclude/Include över samtliga fyra kanter och korrekt klippning;
+även hörnsuddning, lasso vid förstoring och panorering kontrollerades under
+arbetet. Penseldragning med modifierartangent återstår att prova manuellt.
+Kontrollkopian stängdes utan att spara. Inga automatiska regressionstester,
+commit, tagg eller push utförda.
+
+## Två fixar efter kodgranskning — 2026-10-28
+
+På Magnus instruktion ändrades endast AppModel.swift: varje modellinstans får
+en egen arbetskatalog under macOS temp/PanoWizard/projektUUID/tempUUID för
+återställt panorama, patchbilder, retuschkomposit och patchdialogernas filer.
+Import utan nytillkomna bild-URL:er uppdaterar räknaren för överhoppade filer
+men behåller panorama, retusch, justeringar och valt arbetsläge.
+Mall, projektformat och versionsnummer är oförändrade.
+
+Signerat Release-bygge lyckades, kopierades till /Applications/PanoWizard.app
+och kontrollerades med codesign --verify --deep --strict. Installerad version
+är 1.4 (202610282006). Manuell kontroll i två isolerade G-kopior med samma
+projekt-ID: återimport av befintlig bild behöll allt; efter Save var panorama,
+patchbilder, patchmasker och retuschmetadata identiska med ursprunget.
+En ny bild gav fortsatt avsedd nollställning i ena kopian, medan andra kopians
+AI-patch kunde öppnas utan fel och sparas med samtliga bilddata intakta.
+Kontrollkopiorna stängdes. Inga nya AI-anrop eller automatiska regressionstester
+kördes. Ingen commit, tagg eller push utförd för dessa ändringar.
+
+## Riktad kodgranskning — 2026-10-28
+
+Projekt-/retuschflöden granskade utan kodändringar eller automatiska
+regressionstester. Två fel verifierades manuellt i isolerade kopior av G med
+ett nytt projekt-ID: (1) återimport av en befintlig bild nollställer panorama,
+patchar och justeringar trots oförändrat bildurval; (2) samtidigt öppna kopior
+med samma projekt-ID delar återställda temporära panorama-/patchfiler i
+AppModel.init. Nollställning i ena fönstret raderade patchfiler som andra
+fönstret behövde; Edit visade "The patch image could not be read." Felen var
+orättade vid granskningen; de rättades senare enligt avsnittet ovan.
+Granskningskopiorna stängdes utan att spara. Separat har Magnus
+valt att behålla dagens nollställning vid borttagning av källbild.
+
+## Mallbaserat arbetsflöde — 2026-10-28
+
+Magnus använder en mall `panorama.pw` som kopieras till varje nytt panorama.
+Kopiorna behåller mallens projekt-ID. Kollisionen mellan temporära arbetsfiler
+ovan är därför relevant i normalt arbete när flera sådana projekt öppnas
+samtidigt, även om de innehåller olika panoraman. Magnus godkände därefter
+en unik arbetsmapp per öppnat dokument, utan ändring av mall/projektformat;
+lösningen är implementerad och verifierad enligt avsnittet ovan.
+
+## Versionsrutin — 2026-10-28
+
+Magnus ändrar själv appens versionsnummer (`MARKETING_VERSION`) manuellt,
+endast inför publicering, före arkivering/uppladdning till App Store Connect.
+Agenten får inte ändra versionsnumret på eget initiativ, vare sig vid lokala
+byggen, check-in eller publiceringsförberedelser. Versionshöjningen
+checkas in tillsammans med koden som skickas till Apple. Använd dessa
+versionsgränser i Git för att ta fram ändringstext; separat changelog behövs inte.
+Byggnummer är separata från denna rutin och fortsätter genereras automatiskt
+av det befintliga byggsteget.
+
 ## Exempel G och hjälp — 2026-10-28
 
 Magnus lade till `examples/G`: sex Nikon D7200 NEF-bilder, inga källmasker och

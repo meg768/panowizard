@@ -47,6 +47,7 @@ final class AppModel {
     private let grouper: any PanoramaGrouping
     private let panoramaEngine: any PanoramaEngine
     private let exporter: any PanoramaExporting
+    private let workingDirectory: URL
     private var stitchTask: Task<Void, Never>?
     private var stitchOperationID = UUID()
     private var maskUndoHistory: [UUID: [MaskSnapshot]] = [:]
@@ -88,6 +89,11 @@ final class AppModel {
         retouchPatchData: [UUID: Data] = [:],
         aiRetouchMaskData: [UUID: Data] = [:]
     ) {
+        let workingDirectory = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizard/\(project.id)/\(UUID())",
+            directoryHint: .isDirectory
+        )
+        self.workingDirectory = workingDirectory
         self.project = project
         self.importer = importer
         self.grouper = grouper
@@ -98,7 +104,7 @@ final class AppModel {
         aiRetouchMaskDataByPatchID = aiRetouchMaskData
         panoramaViewpoint = project.previewViewpoint ?? PanoramaViewpoint()
         stitchedResultURL = panoramaData.flatMap {
-            Self.restoreData($0, filename: "\(project.id)-panorama.png")
+            Self.restoreData($0, filename: "panorama.png", in: workingDirectory)
         }
         selection = stitchedResultURL != nil
             ? .panorama
@@ -107,7 +113,8 @@ final class AppModel {
             retouchPatchData.compactMap { id, data in
                 Self.restoreData(
                     data,
-                    filename: "\(project.id)-retouch-patch-\(id).png"
+                    filename: "retouch-patch-\(id).png",
+                    in: workingDirectory
                 ).map { (id, $0) }
             }
         )
@@ -211,10 +218,14 @@ final class AppModel {
                 },
                 uniquingKeysWith: { current, _ in current }
             ).map(\.value)
+            skippedFileCount += result.skippedFiles
+            guard unique.count != project.images.count else {
+                phase = .ready
+                return
+            }
             let images = grouper.group(unique).flatMap(\.images)
             project.replaceImages(images)
             retainMasks(for: images)
-            skippedFileCount += result.skippedFiles
             invalidatePanorama()
             selection = images.first.map { .source($0.id) }
             phase = .ready
@@ -474,8 +485,8 @@ final class AppModel {
             basePanoramaURL = currentPanoramaURL ?? stitchedResultURL
             sourcePatches = []
         }
-        let directory = FileManager.default.temporaryDirectory.appending(
-            path: "PanoWizard/RetouchPatch/\(project.id)/\(UUID())",
+        let directory = workingDirectory.appending(
+            path: "RetouchPatch/\(UUID())",
             directoryHint: .isDirectory
         )
         let sourceURL = directory.appending(path: "source.png")
@@ -768,8 +779,8 @@ final class AppModel {
     }
 
     private var retouchDirectory: URL {
-        FileManager.default.temporaryDirectory.appending(
-            path: "PanoWizard/Retouch/\(project.id)",
+        workingDirectory.appending(
+            path: "Retouch",
             directoryHint: .isDirectory
         )
     }
@@ -852,11 +863,11 @@ final class AppModel {
         panoramaRevision += 1
     }
 
-    private static func restoreData(_ data: Data, filename: String) -> URL? {
-        let directory = FileManager.default.temporaryDirectory.appending(
-            path: "PanoWizard/Projects",
-            directoryHint: .isDirectory
-        )
+    private static func restoreData(
+        _ data: Data,
+        filename: String,
+        in directory: URL
+    ) -> URL? {
         let url = directory.appending(path: filename)
         do {
             try FileManager.default.createDirectory(

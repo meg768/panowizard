@@ -163,6 +163,10 @@ private struct SourceMaskEditor: View {
                     width: fitSize.width * zoom,
                     height: fitSize.height * zoom
                 )
+                let imageOrigin = CGPoint(
+                    x: max((geometry.size.width - displaySize.width) / 2, 0),
+                    y: max((geometry.size.height - displaySize.height) / 2, 0)
+                )
                 let displayScale = displaySize.width / imageSize.width
                 let displayedBrushRadius = screenBrushDiameter / 2
 
@@ -239,7 +243,7 @@ private struct SourceMaskEditor: View {
                                     )
                                     return
                                 }
-                                guard !activeStroke.isEmpty else { return }
+                                guard maskTool != .lasso, !activeStroke.isEmpty else { return }
                                 let points = activeStroke.map {
                                     CGPoint(
                                         x: $0.x * displaySize.width,
@@ -249,22 +253,6 @@ private struct SourceMaskEditor: View {
                                 var path = Path()
                                 path.move(to: points[0])
                                 points.dropFirst().forEach { path.addLine(to: $0) }
-                                if maskTool == .lasso {
-                                    if pointerGesture == nil, let lastHoverPoint {
-                                        path.addLine(to: lastHoverPoint)
-                                    }
-                                    // Canvas is laid out in screen points, never scaled as a layer.
-                                    // The contrasting outline stays 2 physical pixels wide at any zoom.
-                                    context.stroke(path, with: .color(.black), lineWidth: 4 / backingScale)
-                                    context.stroke(path, with: .color(.white), lineWidth: 2 / backingScale)
-                                    let firstVertex = Path(ellipseIn: CGRect(
-                                        x: points[0].x - 4, y: points[0].y - 4,
-                                        width: 8, height: 8
-                                    ))
-                                    context.stroke(firstVertex, with: .color(.black), lineWidth: 3)
-                                    context.stroke(firstVertex, with: .color(.white), lineWidth: 1)
-                                    return
-                                }
                                 let style = StrokeStyle(
                                     lineWidth: max(displayedBrushRadius * 2, 1),
                                     lineCap: .round, lineJoin: .round
@@ -284,51 +272,6 @@ private struct SourceMaskEditor: View {
                                         style: style
                                     )
                                 }
-                            }
-                            .allowsHitTesting(false)
-
-                            Canvas { context, _ in
-                                guard let hoverPoint else { return }
-                                if maskTool == .rectangle || maskTool == .lasso {
-                                    let arm: CGFloat = 8
-                                    var crosshair = Path()
-                                    crosshair.move(to: CGPoint(x: hoverPoint.x - arm, y: hoverPoint.y))
-                                    crosshair.addLine(to: CGPoint(x: hoverPoint.x + arm, y: hoverPoint.y))
-                                    crosshair.move(to: CGPoint(x: hoverPoint.x, y: hoverPoint.y - arm))
-                                    crosshair.addLine(to: CGPoint(x: hoverPoint.x, y: hoverPoint.y + arm))
-                                    context.stroke(crosshair, with: .color(.black), lineWidth: 3)
-                                    context.stroke(crosshair, with: .color(.white), lineWidth: 1)
-                                    drawMaskOperationIndicator(
-                                        in: context,
-                                        center: hoverPoint,
-                                        radius: 6,
-                                        isRemoving: previewIsErasing
-                                    )
-                                    return
-                                }
-                                let diameter = max(displayedBrushRadius * 2, 1)
-                                let cursorRect = CGRect(
-                                    x: hoverPoint.x - displayedBrushRadius,
-                                    y: hoverPoint.y - displayedBrushRadius,
-                                    width: diameter,
-                                    height: diameter
-                                )
-                                context.stroke(
-                                    Path(ellipseIn: cursorRect),
-                                    with: .color(.black.opacity(0.8)),
-                                    lineWidth: 3
-                                )
-                                context.stroke(
-                                    Path(ellipseIn: cursorRect),
-                                    with: .color(.white),
-                                    lineWidth: 1
-                                )
-                                drawMaskOperationIndicator(
-                                    in: context,
-                                    center: hoverPoint,
-                                    radius: displayedBrushRadius * 0.55,
-                                    isRemoving: previewIsErasing
-                                )
                             }
                             .allowsHitTesting(false)
 
@@ -427,6 +370,7 @@ private struct SourceMaskEditor: View {
                                 }
                         )
                         .onContinuousHover { phase in
+                            guard maskTool != .lasso else { return }
                             switch phase {
                             case .active(let location):
                                 modifierInteraction = ImageSurfaceInteraction(
@@ -435,15 +379,97 @@ private struct SourceMaskEditor: View {
                                 lastHoverPoint = location
                                 updateCursorFeedback()
                             case .ended:
-                                lastHoverPoint = nil
-                                hoverPoint = nil
-                                showSystemCursor()
+                                clearHoverFeedback()
                             }
                         }
                         .frame(
                             minWidth: geometry.size.width,
                             minHeight: geometry.size.height
                         )
+                        .overlay {
+                            Canvas { context, _ in
+                                context.translateBy(x: imageOrigin.x, y: imageOrigin.y)
+                                if maskTool == .lasso, !activeStroke.isEmpty {
+                                    let points = activeStroke.map {
+                                        CGPoint(x: $0.x * displaySize.width, y: $0.y * displaySize.height)
+                                    }
+                                    var path = Path()
+                                    path.move(to: points[0])
+                                    points.dropFirst().forEach { path.addLine(to: $0) }
+                                    if pointerGesture == nil, let lastHoverPoint {
+                                        path.addLine(to: lastHoverPoint)
+                                    }
+                                    // Canvas is laid out in screen points, never scaled as a layer.
+                                    // The contrasting outline stays 2 physical pixels wide at any zoom.
+                                    context.stroke(path, with: .color(.black), lineWidth: 4 / backingScale)
+                                    context.stroke(path, with: .color(.white), lineWidth: 2 / backingScale)
+                                    let firstVertex = Path(ellipseIn: CGRect(
+                                        x: points[0].x - 4, y: points[0].y - 4,
+                                        width: 8, height: 8
+                                    ))
+                                    context.stroke(firstVertex, with: .color(.black), lineWidth: 3)
+                                    context.stroke(firstVertex, with: .color(.white), lineWidth: 1)
+                                }
+                                guard let hoverPoint else { return }
+                                if maskTool == .rectangle || maskTool == .lasso {
+                                    let arm: CGFloat = 8
+                                    var crosshair = Path()
+                                    crosshair.move(to: CGPoint(x: hoverPoint.x - arm, y: hoverPoint.y))
+                                    crosshair.addLine(to: CGPoint(x: hoverPoint.x + arm, y: hoverPoint.y))
+                                    crosshair.move(to: CGPoint(x: hoverPoint.x, y: hoverPoint.y - arm))
+                                    crosshair.addLine(to: CGPoint(x: hoverPoint.x, y: hoverPoint.y + arm))
+                                    context.stroke(crosshair, with: .color(.black), lineWidth: 3)
+                                    context.stroke(crosshair, with: .color(.white), lineWidth: 1)
+                                    drawMaskOperationIndicator(
+                                        in: context,
+                                        center: hoverPoint,
+                                        radius: 6,
+                                        isRemoving: previewIsErasing
+                                    )
+                                    return
+                                }
+                                let diameter = max(displayedBrushRadius * 2, 1)
+                                let cursorRect = CGRect(
+                                    x: hoverPoint.x - displayedBrushRadius,
+                                    y: hoverPoint.y - displayedBrushRadius,
+                                    width: diameter,
+                                    height: diameter
+                                )
+                                context.stroke(
+                                    Path(ellipseIn: cursorRect),
+                                    with: .color(.black.opacity(0.8)),
+                                    lineWidth: 3
+                                )
+                                context.stroke(
+                                    Path(ellipseIn: cursorRect),
+                                    with: .color(.white),
+                                    lineWidth: 1
+                                )
+                                drawMaskOperationIndicator(
+                                    in: context,
+                                    center: hoverPoint,
+                                    radius: displayedBrushRadius * 0.55,
+                                    isRemoving: previewIsErasing
+                                )
+                            }
+                            .contentShape(Rectangle())
+                            .onContinuousHover { phase in
+                                switch phase {
+                                case .active(let location):
+                                    modifierInteraction = ImageSurfaceInteraction(
+                                        modifierFlags: NSEvent.modifierFlags
+                                    )
+                                    lastHoverPoint = CGPoint(
+                                        x: location.x - imageOrigin.x,
+                                        y: location.y - imageOrigin.y
+                                    )
+                                    updateCursorFeedback()
+                                case .ended:
+                                    clearHoverFeedback()
+                                }
+                            }
+                            .allowsHitTesting(maskTool == .lasso)
+                        }
                     }
                     .scrollIndicators(.visible)
                     .scrollDisabled(
@@ -1167,14 +1193,13 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             case .leftMouseDown:
                 guard event.window === window,
                       hitRect.contains(event.locationInWindow),
-                      eventIsInsideScrollView(event, window: window, scrollView: scrollView) else {
+                      onEditPointer != nil
+                        || eventIsInsideScrollView(event, window: window, scrollView: scrollView) else {
                     return event
                 }
                 window.makeFirstResponder(commandView)
                 let interaction = ImageSurfaceInteraction(modifierFlags: event.modifierFlags)
-                if interaction != .navigate, onEditPointer != nil,
-                   let commandView,
-                   commandView.bounds.contains(commandView.convert(event.locationInWindow, from: nil)) {
+                if interaction != .navigate, onEditPointer != nil {
                     isEditing = true
                     forwardEditPointer(event)
                     return nil
