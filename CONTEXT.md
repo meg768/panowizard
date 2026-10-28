@@ -2,6 +2,12 @@
 
 Senast uppdaterad: 2026-10-16.
 
+## Aktuell version — 2026-10-28
+
+Magnus bekräftar att aktuell version är **1.3**. Uppgifterna nedan om 1.2 är
+historiska; aktuell build och App Review-/publiceringsstatus för 1.3 är inte
+bekräftade i denna konversation.
+
 ## Aktuellt publiceringsläge — 2026-10-24
 
 PanoWizard **1.2 (202610240249)** är inskickad till App Review och statusen
