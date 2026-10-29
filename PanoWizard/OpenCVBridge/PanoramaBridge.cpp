@@ -1687,12 +1687,14 @@ void buildPanoramaMapping(
     cv::Mat &mapX,
     cv::Mat &mapY,
     cv::Mat &valid,
-    cv::Mat &score
+    cv::Mat &score,
+    cv::Rect viewport = cv::Rect()
 ) {
-    mapX.create(height, width, CV_32F);
-    mapY.create(height, width, CV_32F);
-    cv::Mat inside(height, width, CV_8U, cv::Scalar(0));
-    score.create(height, width, CV_32F);
+    if (viewport.empty()) viewport = cv::Rect(0, 0, width, height);
+    mapX.create(viewport.size(), CV_32F);
+    mapY.create(viewport.size(), CV_32F);
+    cv::Mat inside(viewport.size(), CV_8U, cv::Scalar(0));
+    score.create(viewport.size(), CV_32F);
     const double scale = std::hypot(sourceSize.width, sourceSize.height) / 2.0;
     const double radiusMaximum = std::max({
         std::hypot(lens.cx, lens.cy),
@@ -1701,16 +1703,16 @@ void buildPanoramaMapping(
         std::hypot(sourceSize.width - lens.cx, sourceSize.height - lens.cy)
     }) / scale;
     const cv::Matx33d inverseRotation = rotation.t();
-    for (int y = 0; y < height; ++y) {
+    for (int y = 0; y < viewport.height; ++y) {
         float *xRow = mapX.ptr<float>(y);
         float *yRow = mapY.ptr<float>(y);
         float *scoreRow = score.ptr<float>(y);
         unsigned char *insideRow = inside.ptr<unsigned char>(y);
-        const double latitude = (0.5 - (y + 0.5) / height) * pi;
+        const double latitude = (0.5 - (viewport.y + y + 0.5) / height) * pi;
         const double cosine = std::cos(latitude);
         const double worldY = std::sin(latitude);
-        for (int x = 0; x < width; ++x) {
-            const double longitude = ((x + 0.5) / width - 0.5) * 2.0 * pi;
+        for (int x = 0; x < viewport.width; ++x) {
+            const double longitude = ((viewport.x + x + 0.5) / width - 0.5) * 2.0 * pi;
             const cv::Vec3d world(
                 std::sin(longitude) * cosine,
                 worldY,
@@ -3542,11 +3544,47 @@ std::vector<Warp> applySeamLocalRadiometry(
     return correctedWarps;
 }
 
-std::pair<double, int> renderPanorama(
+struct RenderAnalysis {
+    cv::Mat image;
+    cv::Mat coverage;
+    std::vector<cv::Mat> corrections;
+    std::vector<cv::Mat> weights;
+    cv::Mat blendCorrection;
+};
+
+int nativePanoramaWidth(const cv::Size &sourceSize, const Lens &lens) {
+    // At the optical axis, theta = k1 * radius and radius is measured in
+    // half-diagonal units. Match that source sampling over a full revolution.
+    const double scale = std::hypot(sourceSize.width, sourceSize.height) / 2.0;
+    const double pixelsPerRadian = scale / lens.k1
+        * std::max(1.0, 1.0 / (1.0 + lens.aspect));
+    const double width = 2.0 * std::ceil(pi * pixelsPerRadian);
+    if (!std::isfinite(width) || width < 512.0
+        || width > std::numeric_limits<int>::max() - 1.0) {
+        throw std::runtime_error("The calibrated lens does not give a valid panorama resolution.");
+    }
+    return int(width);
+}
+
+cv::Mat analysisFeatherWeight(const Warp &warp, const cv::Mat &labels, int index) {
+    cv::Mat ownership = labels == index;
+    ownership.convertTo(ownership, CV_32F, 1.0 / 255.0);
+    const int width = labels.cols;
+    cv::Mat tiled;
+    cv::hconcat(std::vector<cv::Mat>{warp.mask, warp.mask, warp.mask}, tiled);
+    cv::Mat distance;
+    cv::distanceTransform(tiled, distance, cv::DIST_L2, 5);
+    cv::Mat edgeFade = distance.colRange(width, 2 * width).clone() / 1.5;
+    cv::min(edgeFade, 1.0, edgeFade);
+    return periodicBlur(ownership, 1.0).mul(edgeFade);
+}
+
+// Analysis keeps the established seam/radiometry/blend decisions at <=4096 px.
+// Only compact correction/ownership maps survive into the native render.
+RenderAnalysis analyzePanorama(
     const std::vector<Source> &sources,
     const Alignment &alignment,
     const cv::Mat &detectedOpticalMask,
-    const std::string &outputPath,
     int width
 ) {
     const int height = width / 2;
@@ -3639,8 +3677,6 @@ std::pair<double, int> renderPanorama(
     cv::Mat labels = graphCutLabels(
         compensatedLayers.compositing, seamMasks, width, height, conflictMask
     );
-    const int holes = cv::countNonZero(labels < 0);
-    const double coverage = 100.0 * (1.0 - holes / double(width * height));
     RadiometryLayers acceptedLayers = applySpatialRadiometryAcceptance(
         projectedLayers, compensatedLayers, width
     );
@@ -3652,22 +3688,210 @@ std::pair<double, int> renderPanorama(
     cv::Mat result = contentAdaptiveBlend(
         warps, labels, conflictMask, width, height
     );
-    cv::Mat alpha;
-    cv::compare(labels, 0, alpha, cv::CMP_GE);
-    cv::flip(result, result, 1);
-    cv::flip(alpha, alpha, 1);
+    RenderAnalysis analysis;
+    analysis.image = result;
+    cv::compare(labels, 0, analysis.coverage, cv::CMP_GE);
+    // Keep the low-frequency blend intact while adding source detail at
+    // native sampling. Never upscale the analysis image as the final result.
+    cv::Mat narrow = featherComposite(warps, labels, 1.0);
+    cv::subtract(result, narrow, analysis.blendCorrection, cv::noArray(), CV_32FC3);
+    for (int index = 0; index < int(warps.size()); ++index) {
+        cv::Mat correction;
+        cv::subtract(
+            warps[index].image, projectedLayers.compositing[index].image,
+            correction, cv::noArray(), CV_32FC3
+        );
+        analysis.corrections.push_back(std::move(correction));
+        analysis.weights.push_back(analysisFeatherWeight(warps[index], labels, index));
+    }
+    return analysis;
+}
+
+struct NativeSource {
+    cv::Mat color;
+    cv::Mat validity;
+    cv::Mat mask;
+};
+
+cv::Mat renderNativePanorama(
+    const std::vector<Source> &sources,
+    const Alignment &alignment,
+    const cv::Mat &detectedOpticalMask,
+    const RenderAnalysis &analysis,
+    int width
+) {
+    const int height = width / 2;
+    cv::Mat opticalMask;
+    cv::bitwise_and(
+        detectedOpticalMask, fittedOpticalMask(sources.front().image.size(), alignment.lens),
+        opticalMask
+    );
+    std::vector<NativeSource> prepared(sources.size());
+    for (int index = 0; index < int(sources.size()); ++index) {
+        checkCancellation();
+        if (cv::countNonZero(analysis.weights[index]) == 0) continue;
+        NativeSource &source = prepared[index];
+        cv::bitwise_and(opticalMask, sources[index].userMask, source.mask);
+        cv::Mat gained = sources[index].image.clone();
+        for (int y = 0; y < gained.rows; ++y) {
+            cv::Vec3b *row = gained.ptr<cv::Vec3b>(y);
+            for (int x = 0; x < gained.cols; ++x) {
+                for (int channel = 0; channel < 3; ++channel) {
+                    row[x][channel] = cv::saturate_cast<unsigned char>(
+                        row[x][channel] * alignment.gains.at<double>(index, channel)
+                    );
+                }
+            }
+        }
+        gained.setTo(cv::Scalar(0, 0, 0), source.mask == 0);
+        gained.convertTo(source.color, CV_32FC3);
+        source.mask.convertTo(source.validity, CV_32F, 1.0 / 255.0);
+    }
+
+    // Only the final 8-bit RGBA canvas is full-sized. Projection coordinates,
+    // interpolation and float blending are bounded to one block at a time.
+    cv::Mat output(height, width, CV_8UC4, cv::Scalar(0, 0, 0, 0));
+    constexpr int blockWidth = 1024;
+    constexpr int blockHeight = 256;
+    const double scaleX = double(analysis.image.cols) / width;
+    const double scaleY = double(analysis.image.rows) / height;
+    for (int top = 0; top < height; top += blockHeight) {
+        reportProgress(
+            "Rendering full-resolution panorama…",
+            0.95 + 0.04 * double(top) / height
+        );
+        for (int left = 0; left < width; left += blockWidth) {
+            checkCancellation();
+            const cv::Rect block(
+                left, top, std::min(blockWidth, width - left),
+                std::min(blockHeight, height - top)
+            );
+            cv::Mat analysisX(block.size(), CV_32F);
+            cv::Mat analysisY(block.size(), CV_32F);
+            for (int y = 0; y < block.height; ++y) {
+                float *xRow = analysisX.ptr<float>(y);
+                float *yRow = analysisY.ptr<float>(y);
+                const float sampleY = float(std::clamp(
+                    (top + y + 0.5) * scaleY - 0.5,
+                    0.0, double(analysis.image.rows - 1)
+                ));
+                for (int x = 0; x < block.width; ++x) {
+                    xRow[x] = float((left + x + 0.5) * scaleX - 0.5);
+                    yRow[x] = sampleY;
+                }
+            }
+            cv::Mat accumulator(block.size(), CV_32FC3, cv::Scalar(0, 0, 0));
+            cv::Mat total(block.size(), CV_32F, cv::Scalar(0));
+            for (int index = 0; index < int(sources.size()); ++index) {
+                const NativeSource &source = prepared[index];
+                if (source.color.empty()) continue;
+                cv::Mat weight;
+                cv::remap(
+                    analysis.weights[index], weight, analysisX, analysisY,
+                    cv::INTER_LINEAR, cv::BORDER_WRAP
+                );
+                if (cv::countNonZero(weight > 1e-8f) == 0) continue;
+                cv::Mat mapX, mapY, valid, score;
+                buildPanoramaMapping(
+                    width, height, alignment.rotations[index], sources[index].image.size(),
+                    alignment.lens, source.mask, mapX, mapY, valid, score, block
+                );
+                cv::Mat color, validity;
+                cv::remap(
+                    source.color, color, mapX, mapY, cv::INTER_LANCZOS4,
+                    cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0)
+                );
+                cv::remap(
+                    source.validity, validity, mapX, mapY, cv::INTER_LANCZOS4,
+                    cv::BORDER_CONSTANT, cv::Scalar(0)
+                );
+                weight.setTo(0.0f, (valid == 0) | (validity <= 1e-4f));
+                cv::Mat correction;
+                cv::remap(
+                    analysis.corrections[index], correction, analysisX, analysisY,
+                    cv::INTER_LINEAR, cv::BORDER_WRAP
+                );
+                for (int y = 0; y < block.height; ++y) {
+                    const cv::Vec3f *colors = color.ptr<cv::Vec3f>(y);
+                    const float *validities = validity.ptr<float>(y);
+                    const float *weights = weight.ptr<float>(y);
+                    const cv::Vec3f *corrections = correction.ptr<cv::Vec3f>(y);
+                    cv::Vec3f *sums = accumulator.ptr<cv::Vec3f>(y);
+                    float *totals = total.ptr<float>(y);
+                    for (int x = 0; x < block.width; ++x) {
+                        const float w = weights[x];
+                        if (w <= 1e-8f) continue;
+                        const cv::Vec3f value = colors[x] / validities[x] + corrections[x];
+                        sums[x] += value * w;
+                        totals[x] += w;
+                    }
+                }
+            }
+            cv::Mat blendCorrection;
+            cv::remap(
+                analysis.blendCorrection, blendCorrection, analysisX, analysisY,
+                cv::INTER_LINEAR, cv::BORDER_WRAP
+            );
+            for (int y = 0; y < block.height; ++y) {
+                const cv::Vec3f *sums = accumulator.ptr<cv::Vec3f>(y);
+                const float *totals = total.ptr<float>(y);
+                const cv::Vec3f *corrections = blendCorrection.ptr<cv::Vec3f>(y);
+                cv::Vec4b *row = output.ptr<cv::Vec4b>(top + y) + left;
+                for (int x = 0; x < block.width; ++x) {
+                    if (totals[x] <= 1e-8f) continue;
+                    const cv::Vec3f value = sums[x] / totals[x] + corrections[x];
+                    row[x] = cv::Vec4b(
+                        cv::saturate_cast<unsigned char>(value[0]),
+                        cv::saturate_cast<unsigned char>(value[1]),
+                        cv::saturate_cast<unsigned char>(value[2]), 255
+                    );
+                }
+            }
+        }
+    }
+    return output;
+}
+
+std::pair<double, int> renderPanorama(
+    const std::vector<Source> &sources,
+    const Alignment &alignment,
+    const cv::Mat &detectedOpticalMask,
+    const std::string &outputPath,
+    int requestedWidth
+) {
+    const int width = requestedWidth == 0
+        ? nativePanoramaWidth(sources.front().image.size(), alignment.lens)
+        : requestedWidth;
+    const int analysisWidth = std::min(4096, width);
+    std::fprintf(stderr, "[PanoWizard] Rendering %d x %d; analysis %d x %d\n",
+        width, width / 2, analysisWidth, analysisWidth / 2);
+    RenderAnalysis analysis = analyzePanorama(
+        sources, alignment, detectedOpticalMask, analysisWidth
+    );
+    cv::Mat result;
+    if (width == analysisWidth) {
+        std::vector<cv::Mat> channels;
+        cv::split(analysis.image, channels);
+        channels.push_back(analysis.coverage);
+        cv::merge(channels, result);
+    } else {
+        result = renderNativePanorama(sources, alignment, detectedOpticalMask, analysis, width);
+    }
+    checkCancellation();
     std::vector<cv::Mat> channels;
     cv::split(result, channels);
-    channels.push_back(alpha);
-    cv::merge(channels, result);
-    const std::vector<int> parameters = {
-        cv::IMWRITE_PNG_COMPRESSION, 3
-    };
-    if (!cv::imwrite(outputPath, result, parameters)) {
+    const int valid = cv::countNonZero(channels[3]);
+    const int holes = int(result.total()) - valid;
+    const double coverage = 100.0 * valid / double(result.total());
+    channels.clear();
+    cv::flip(result, result, 1);
+    reportProgress("Saving full-resolution panorama…", 0.99);
+    if (!cv::imwrite(outputPath, result, {cv::IMWRITE_PNG_COMPRESSION, 3})) {
         throw std::runtime_error("The panorama engine could not write the panorama image.");
     }
     return {coverage, holes};
 }
+
 
 } // namespace
 
@@ -3701,8 +3925,8 @@ int PWStitchPanorama(
         if (imagePaths == nullptr || outputPath == nullptr || imageCount < 2) {
             throw std::runtime_error("The panorama engine requires at least two source images.");
         }
-        if (outputWidth < 512 || outputWidth % 2 != 0) {
-            throw std::runtime_error("The panorama width must be an even number of at least 512 pixels.");
+        if (outputWidth != 0 && (outputWidth < 512 || outputWidth % 2 != 0)) {
+            throw std::runtime_error("The panorama width must be zero (automatic), or an even number of at least 512 pixels.");
         }
         std::vector<Source> sources;
         std::vector<unsigned char> resolvedRoles(imageCount, 0);

@@ -22,7 +22,7 @@ The right preview shows the result. The slider changes composition, not image re
 
 ## Export the image
 
-Click **Export…** and save the PNG. The default filename is `little-planet.png`. A new 4096 × 2048 panorama produces a **2048 × 2048** planet image.
+Click **Export…** and save the PNG. The default filename is `little-planet.png`. The planet image side matches the panorama height: for example, a 4096 × 2048 panorama produces a **2048 × 2048** planet image. Full-resolution panoramas can produce larger planet images.
 
 ![A Little Planet exported from example A](../../Images/Examples/a-little-planet.jpg)
 

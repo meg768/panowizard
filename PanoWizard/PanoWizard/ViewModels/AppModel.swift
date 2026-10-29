@@ -50,6 +50,7 @@ final class AppModel {
     private let workingDirectory: URL
     private var stitchTask: Task<Void, Never>?
     private var stitchOperationID = UUID()
+    private var retouchRenderID = UUID()
     private var maskUndoHistory: [UUID: [MaskSnapshot]] = [:]
 
     var project: PanoProject
@@ -118,7 +119,18 @@ final class AppModel {
                 ).map { (id, $0) }
             }
         )
-        try? rebuildRetouchedPanorama()
+        if project.retouchPatches.contains(where: \.isEnabled) {
+            phase = .retouching
+            Task { [weak self] in
+                guard let self else { return }
+                do {
+                    try await rebuildRetouchedPanorama()
+                    if phase == .retouching { phase = .ready }
+                } catch {
+                    phase = .failed(error.localizedDescription)
+                }
+            }
+        }
     }
 
     static func live(
@@ -616,7 +628,7 @@ final class AppModel {
         repairPrompt: String,
         maskData: Data,
         replacing existingPatch: RetouchPatch? = nil
-    ) throws {
+    ) async throws {
         let patch = RetouchPatch(
             id: existingPatch?.id ?? UUID(),
             kind: .ai,
@@ -626,7 +638,7 @@ final class AppModel {
             replacePrompt: replacePrompt,
             repairPrompt: repairPrompt
         )
-        try storeRetouchPatch(
+        try await storeRetouchPatch(
             patch,
             imageURL: preview.preparedURL,
             maskData: maskData,
@@ -638,14 +650,14 @@ final class AppModel {
         from importedURL: URL,
         viewpoint: PanoramaViewpoint,
         replacing existingPatch: RetouchPatch? = nil
-    ) throws {
+    ) async throws {
         let patch = RetouchPatch(
             id: existingPatch?.id ?? UUID(),
             kind: .manual,
             viewpoint: viewpoint,
             isEnabled: existingPatch?.isEnabled ?? true
         )
-        try storeRetouchPatch(
+        try await storeRetouchPatch(
             patch,
             imageURL: importedURL,
             maskData: nil,
@@ -661,7 +673,8 @@ final class AppModel {
         try? FileManager.default.removeItem(at: preview.directoryURL)
     }
 
-    func toggleRetouchPatch(_ id: UUID) {
+    func toggleRetouchPatch(_ id: UUID) async {
+        guard phase == .ready else { return }
         guard let index = project.retouchPatches.firstIndex(where: {
             $0.id == id
         }) else { return }
@@ -670,7 +683,7 @@ final class AppModel {
         updatedPatches[index].isEnabled.toggle()
         project.setRetouchPatches(updatedPatches)
         do {
-            try rebuildRetouchedPanorama()
+            try await rebuildRetouchedPanorama()
             panoramaRevision += 1
         } catch {
             project.setRetouchPatches(previousPatches)
@@ -678,7 +691,8 @@ final class AppModel {
         }
     }
 
-    func removeRetouchPatch(_ id: UUID) {
+    func removeRetouchPatch(_ id: UUID) async {
+        guard phase == .ready else { return }
         guard project.retouchPatches.contains(where: { $0.id == id }) else {
             return
         }
@@ -687,7 +701,7 @@ final class AppModel {
         let removedURL = retouchPatchURLs.removeValue(forKey: id)
         let removedMask = aiRetouchMaskDataByPatchID.removeValue(forKey: id)
         do {
-            try rebuildRetouchedPanorama()
+            try await rebuildRetouchedPanorama()
             if let removedURL { try? FileManager.default.removeItem(at: removedURL) }
             panoramaRevision += 1
         } catch {
@@ -703,7 +717,12 @@ final class AppModel {
         selection = .panorama
     }
 
-    func exportHTML(to destinationURL: URL, initialViewpoint: PanoramaViewpoint) {
+    func exportHTML(
+        to destinationURL: URL,
+        initialViewpoint: PanoramaViewpoint,
+        size: HTMLPanoramaSize = .medium,
+        jpegQuality: Double = 0.82
+    ) {
         guard let panoramaURL = currentPanoramaURL, canExportHTML else { return }
         phase = .exporting
         Task {
@@ -713,6 +732,8 @@ final class AppModel {
                     adjustments: panoramaAdjustments,
                     title: project.title,
                     initialViewpoint: initialViewpoint,
+                    size: size,
+                    jpegQuality: jpegQuality,
                     to: destinationURL
                 )
                 phase = .ready
@@ -732,7 +753,7 @@ final class AppModel {
         imageURL: URL,
         maskData: Data?,
         replacing patchID: RetouchPatch.ID?
-    ) throws {
+    ) async throws {
         let destination = retouchDirectory.appending(
             path: "patch-\(patch.id)-\(UUID()).png"
         )
@@ -764,7 +785,7 @@ final class AppModel {
         retouchPatchURLs[patch.id] = destination
         aiRetouchMaskDataByPatchID[patch.id] = maskData
         do {
-            try rebuildRetouchedPanorama()
+            try await rebuildRetouchedPanorama()
             if let oldURL, oldURL != destination {
                 try? FileManager.default.removeItem(at: oldURL)
             }
@@ -785,7 +806,9 @@ final class AppModel {
         )
     }
 
-    private func rebuildRetouchedPanorama() throws {
+    private func rebuildRetouchedPanorama() async throws {
+        let operationID = UUID()
+        retouchRenderID = operationID
         guard let stitchedResultURL else {
             retouchedPanoramaURL = nil
             return
@@ -807,11 +830,31 @@ final class AppModel {
         let destination = retouchDirectory.appending(
             path: "composite-\(UUID().uuidString).png"
         )
-        try RetouchPatchService().render(
-            panoramaURL: stitchedResultURL,
-            patches: active,
-            to: destination
-        )
+        let previousPhase = phase
+        phase = .retouching
+        defer {
+            if retouchRenderID == operationID, phase == .retouching {
+                phase = previousPhase
+            }
+        }
+        do {
+            try await Task.detached(priority: .userInitiated) {
+                try RetouchPatchService().render(
+                    panoramaURL: stitchedResultURL,
+                    patches: active,
+                    to: destination
+                )
+            }.value
+        } catch {
+            try? FileManager.default.removeItem(at: destination)
+            guard retouchRenderID == operationID else { return }
+            throw error
+        }
+        guard retouchRenderID == operationID,
+              self.stitchedResultURL == stitchedResultURL else {
+            try? FileManager.default.removeItem(at: destination)
+            return
+        }
         let oldURL = retouchedPanoramaURL
         retouchedPanoramaURL = destination
         if let oldURL, oldURL != destination {
@@ -820,6 +863,8 @@ final class AppModel {
     }
 
     private func clearRetouchPatches() {
+        retouchRenderID = UUID()
+        if phase == .retouching { phase = .ready }
         let urls = Array(retouchPatchURLs.values)
         if let retouchedPanoramaURL {
             try? FileManager.default.removeItem(at: retouchedPanoramaURL)

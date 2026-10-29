@@ -18,7 +18,7 @@
       "pixelWidth" : 4000,
       "role" : "automatic",
       "rotation" : 0,
-      "url" : "DSC_0442.NEF"
+      "url" : "DSC_0442.JPG"
     },
     {
       "cameraModel" : "NIKON D7200",
@@ -35,7 +35,7 @@
       "pixelWidth" : 4000,
       "role" : "automatic",
       "rotation" : 0,
-      "url" : "DSC_0443.NEF"
+      "url" : "DSC_0443.JPG"
     },
     {
       "cameraModel" : "NIKON D7200",
@@ -52,7 +52,7 @@
       "pixelWidth" : 4000,
       "role" : "automatic",
       "rotation" : 0,
-      "url" : "DSC_0444.NEF"
+      "url" : "DSC_0444.JPG"
     },
     {
       "cameraModel" : "NIKON D7200",
@@ -69,7 +69,7 @@
       "pixelWidth" : 4000,
       "role" : "automatic",
       "rotation" : 0,
-      "url" : "DSC_0445.NEF"
+      "url" : "DSC_0445.JPG"
     },
     {
       "cameraModel" : "NIKON D7200",
@@ -86,7 +86,7 @@
       "pixelWidth" : 4000,
       "role" : "automatic",
       "rotation" : 0,
-      "url" : "DSC_0446.NEF"
+      "url" : "DSC_0446.JPG"
     },
     {
       "cameraModel" : "NIKON D7200",
@@ -103,53 +103,53 @@
       "pixelWidth" : 4000,
       "role" : "automatic",
       "rotation" : 0,
-      "url" : "DSC_0447.NEF"
+      "url" : "DSC_0447.JPG"
     }
   ],
-  "modifiedAt" : "2026-10-28T17:08:59Z",
+  "modifiedAt" : "2026-10-29T20:29:25Z",
   "panoramaAdjustments" : {
-    "blacks" : 4,
+    "blacks" : 2,
     "brightness" : 0,
-    "contrast" : 0,
-    "exposure" : 1.4500000000000002,
-    "highlights" : 0,
-    "saturation" : 10,
+    "contrast" : 1,
+    "exposure" : 1.05,
+    "highlights" : -66,
+    "saturation" : 4,
     "shadows" : 0,
     "temperature" : 0,
     "tint" : 0,
-    "vibrance" : 22,
-    "whites" : 0
+    "vibrance" : 25,
+    "whites" : 22
   },
   "previewViewpoint" : {
-    "pitchRadians" : 0.01124745886772871,
-    "verticalFieldOfViewDegrees" : 112.16214752197266,
-    "yawRadians" : 35.49346160888672
+    "pitchRadians" : 0.2088032215833664,
+    "verticalFieldOfViewDegrees" : 62.31482696533203,
+    "yawRadians" : 45.635799407958984
   },
   "retouchPatches" : [
     {
       "aiRetouchMode" : "replace",
-      "id" : "B40C374F-6A50-4D2A-99D2-1FCDBA120245",
+      "id" : "3A2D943E-BF53-4D71-8A17-AD157962F652",
       "isEnabled" : true,
       "kind" : "ai",
       "repairPrompt" : "This is a flat view of part of a 360° panorama. The mask identifies the area that needs repair. The original pixels remain visible and should be used as a reference.\n\nRepair the marked area photorealistically while preserving as much of the original content as possible. Correct visible defects and reconstruct only what is necessary.\n\nPreserve existing objects, structures, geometry, perspective, and textures. Maintain continuity with the surrounding image.\n\nMatch the surrounding image's color, exposure, sharpness, texture, and noise. Avoid visible seams, abrupt transitions, or mask-shaped changes.\n\nDo not modify unrelated areas or apply global image adjustments.",
-      "replacePrompt" : "This is a flat view of part of a 360° panorama. The mask marks the area to retouch. Its original pixels are visible and may be used as a reference while making the requested repair.\n\nFill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.\n\nThe reconstruction must blend seamlessly with the surrounding original image. Locally match exposure, brightness, hue, white balance, contrast, sharpness, texture, and noise so that no visible boundary or tonal edge appears around the reconstructed area.\n\nThe transition between reconstructed and original image content must be smooth and gradual. Avoid a uniformly bounded or mask-shaped change in light or color.\n\nPreserve the image's existing geometry and perspective. Do not alter objects or structures that do not need to be reconstructed to fill the missing area.\n\nDo not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.\n\nThis is a nadir image of grass and leaves.",
+      "replacePrompt" : "This is a flat view of part of a 360° panorama. The mask marks the area to retouch. Its original pixels are visible and may be used as a reference while making the requested repair.\n\nFill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.\n\nThe reconstruction must blend seamlessly with the surrounding original image. Locally match exposure, brightness, hue, white balance, contrast, sharpness, texture, and noise so that no visible boundary or tonal edge appears around the reconstructed area.\n\nThe transition between reconstructed and original image content must be smooth and gradual. Avoid a uniformly bounded or mask-shaped change in light or color.\n\nPreserve the image's existing geometry and perspective. Do not alter objects or structures that do not need to be reconstructed to fill the missing area.\n\nDo not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.",
       "viewpoint" : {
-        "pitchRadians" : 1.570796251296997,
-        "verticalFieldOfViewDegrees" : 102.88026428222656,
-        "yawRadians" : 17.738962173461914
+        "pitchRadians" : 1.5645853281021118,
+        "verticalFieldOfViewDegrees" : 85.6915054321289,
+        "yawRadians" : 36.682682037353516
       }
     },
     {
       "aiRetouchMode" : "replace",
-      "id" : "C632BA0B-48E9-4597-890E-BCCA6B41154E",
+      "id" : "48878661-3CCF-41A5-AC80-15D1EFEB4F4F",
       "isEnabled" : true,
       "kind" : "ai",
       "repairPrompt" : "This is a flat view of part of a 360° panorama. The mask identifies the area that needs repair. The original pixels remain visible and should be used as a reference.\n\nRepair the marked area photorealistically while preserving as much of the original content as possible. Correct visible defects and reconstruct only what is necessary.\n\nPreserve existing objects, structures, geometry, perspective, and textures. Maintain continuity with the surrounding image.\n\nMatch the surrounding image's color, exposure, sharpness, texture, and noise. Avoid visible seams, abrupt transitions, or mask-shaped changes.\n\nDo not modify unrelated areas or apply global image adjustments.",
-      "replacePrompt" : "This is a flat view of part of a 360° panorama. The mask marks the area to retouch. Its original pixels are visible and may be used as a reference while making the requested repair.\n\nFill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.\n\nThe reconstruction must blend seamlessly with the surrounding original image. Locally match exposure, brightness, hue, white balance, contrast, sharpness, texture, and noise so that no visible boundary or tonal edge appears around the reconstructed area.\n\nThe transition between reconstructed and original image content must be smooth and gradual. Avoid a uniformly bounded or mask-shaped change in light or color.\n\nPreserve the image's existing geometry and perspective. Do not alter objects or structures that do not need to be reconstructed to fill the missing area.\n\nDo not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.\n\nThis is a zenit image and need to render the branches and leaves.",
+      "replacePrompt" : "This is a flat view of part of a 360° panorama. The mask marks the area to retouch. Its original pixels are visible and may be used as a reference while making the requested repair.\n\nFill the missing area photorealistically based on the surrounding image. Continue existing structures, lines, patterns, seams, and textures with correct geometry and perspective.\n\nThe reconstruction must blend seamlessly with the surrounding original image. Locally match exposure, brightness, hue, white balance, contrast, sharpness, texture, and noise so that no visible boundary or tonal edge appears around the reconstructed area.\n\nThe transition between reconstructed and original image content must be smooth and gradual. Avoid a uniformly bounded or mask-shaped change in light or color.\n\nPreserve the image's existing geometry and perspective. Do not alter objects or structures that do not need to be reconstructed to fill the missing area.\n\nDo not apply global image processing. All color, tone, and exposure adjustments must be local and limited to what is required to make the reconstruction invisible.",
       "viewpoint" : {
-        "pitchRadians" : -1.5613430738449097,
-        "verticalFieldOfViewDegrees" : 77.44091033935547,
-        "yawRadians" : 20.745302200317383
+        "pitchRadians" : -1.570796251296997,
+        "verticalFieldOfViewDegrees" : 85.6915054321289,
+        "yawRadians" : 36.91714859008789
       }
     }
   ],

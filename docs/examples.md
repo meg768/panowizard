@@ -114,9 +114,11 @@ Select `2008-02-23 14-47-40.NEF` and choose **Include** to inspect that saved gr
 
 ## G — Autumn garden
 
-**6 Nikon NEF RAW photographs · no source masks · 2 AI patches · no manual patches**
+**6 full-resolution JPEG photographs · no source masks · 2 AI patches · no manual patches**
 
-![Example G open in PanoWizard Preview, showing an autumn garden and six NEF source photographs](Images/Examples/g-preview.jpg)
+![Example G open in PanoWizard Preview, showing an autumn garden and six source photographs](Images/Examples/g-preview.jpg)
+
+G uses full-resolution JPEG sources converted from Nikon NEF originals. Keep all six `.JPG` files beside `panorama.pw`. The saved G panorama is **12288 × 6144 pixels**; its source JPEGs retain their full **4000 × 6000** resolution.
 
 G shows how AI retouching can complete both ends of a panorama from a single horizontal ring of photographs. There is **no separate nadir photograph** looking straight down and **no separate zenith photograph** looking straight up. Two saved AI patches in **Replace** mode reconstruct those areas: grass and fallen leaves below the camera, and branches and leaves above it.
 

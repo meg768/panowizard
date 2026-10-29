@@ -29,7 +29,7 @@ int PWStitchPanorama(
     int imageCount,
     const char *alignmentCachePath,
     const char *outputPath,
-    int outputWidth,
+    int outputWidth, // 0 selects native resolution from the calibrated lens.
     void *callbackContext,
     PWProgressCallback progressCallback,
     PWCancellationCallback cancellationCallback,

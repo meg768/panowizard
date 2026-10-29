@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import MetalKit
 import simd
 import SwiftUI
@@ -338,15 +339,47 @@ private final class SphericalPanoramaRenderer: NSObject, MTKViewDelegate {
     }
 
     func loadTexture(panoramaURL: URL) {
-        let loader = MTKTextureLoader(device: device)
-        texture = try? loader.newTexture(
-            URL: panoramaURL,
-            options: [
-                .SRGB: false,
-                .origin: MTKTextureLoader.Origin.topLeft,
-                .textureUsage: MTLTextureUsage.shaderRead.rawValue
-            ]
+        guard let source = CGImageSourceCreateWithURL(panoramaURL as CFURL, nil),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceThumbnailMaxPixelSize: 4096,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceShouldCacheImmediately: true
+              ] as CFDictionary) else {
+            texture = nil
+            return
+        }
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba8Unorm,
+            width: image.width,
+            height: image.height,
+            mipmapped: false
         )
+        descriptor.usage = .shaderRead
+        descriptor.storageMode = .shared
+        let previewTexture = device.makeTexture(descriptor: descriptor)
+        var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
+        let loaded = pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(
+                data: buffer.baseAddress,
+                width: image.width,
+                height: image.height,
+                bitsPerComponent: 8,
+                bytesPerRow: image.width * 4,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                    | CGBitmapInfo.byteOrder32Big.rawValue
+            ), let previewTexture else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            previewTexture.replace(
+                region: MTLRegionMake2D(0, 0, image.width, image.height),
+                mipmapLevel: 0,
+                withBytes: buffer.baseAddress!,
+                bytesPerRow: image.width * 4
+            )
+            return true
+        }
+        texture = loaded ? previewTexture : nil
         reportViewpoint()
         view?.setNeedsDisplay(view?.bounds ?? .zero)
     }

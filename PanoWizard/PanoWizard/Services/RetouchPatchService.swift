@@ -291,7 +291,7 @@ struct RetouchPatchService: Sendable {
         expectedPatchSize: Int = Self.patchSize
     ) throws {
         var panorama = try RGBAImage(contentsOf: panoramaURL)
-        let active: [(PanoramaViewpoint, RGBAImage)] = try patches.compactMap {
+        let active: [(cosYaw: Double, sinYaw: Double, cosPitch: Double, sinPitch: Double, tangent: Double, image: RGBAImage)] = try patches.compactMap {
             patch, url in
             guard patch.isEnabled else { return nil }
             let image = try RGBAImage(contentsOf: url)
@@ -303,40 +303,39 @@ struct RetouchPatchService: Sendable {
                     height: image.height
                 )
             }
-            return (patch.viewpoint, image)
+            let viewpoint = patch.viewpoint
+            return (
+                cos(viewpoint.yawRadians), sin(viewpoint.yawRadians),
+                cos(viewpoint.pitchRadians), sin(viewpoint.pitchRadians),
+                tan(viewpoint.verticalFieldOfViewDegrees * .pi / 360), image
+            )
         }
 
+        let longitudes = (0..<panorama.width).map { x in
+            let angle = ((Double(x) + 0.5) / Double(panorama.width) - 0.5) * 2 * .pi
+            return (sin: sin(angle), cos: cos(angle))
+        }
         for y in 0..<panorama.height {
             if Task.isCancelled { throw CancellationError() }
             let latitude = (0.5 - (Double(y) + 0.5) / Double(panorama.height)) * .pi
             let worldY = sin(latitude)
             let horizontalRadius = cos(latitude)
             for x in 0..<panorama.width {
-                let longitude = (
-                    (Double(x) + 0.5) / Double(panorama.width) - 0.5
-                ) * 2 * .pi
-                let worldX = sin(longitude) * horizontalRadius
-                let worldZ = cos(longitude) * horizontalRadius
+                let worldX = longitudes[x].sin * horizontalRadius
+                let worldZ = longitudes[x].cos * horizontalRadius
                 var pixel = panorama.pixel(x: x, y: y)
 
-                for (viewpoint, patchImage) in active {
-                    let cosYaw = cos(viewpoint.yawRadians)
-                    let sinYaw = sin(viewpoint.yawRadians)
-                    let yawX = worldX * cosYaw - worldZ * sinYaw
-                    let yawZ = worldX * sinYaw + worldZ * cosYaw
-                    let cosPitch = cos(viewpoint.pitchRadians)
-                    let sinPitch = sin(viewpoint.pitchRadians)
-                    let localY = worldY * cosPitch + yawZ * sinPitch
-                    let localZ = -worldY * sinPitch + yawZ * cosPitch
+                for patch in active {
+                    let yawX = worldX * patch.cosYaw - worldZ * patch.sinYaw
+                    let yawZ = worldX * patch.sinYaw + worldZ * patch.cosYaw
+                    let localY = worldY * patch.cosPitch + yawZ * patch.sinPitch
+                    let localZ = -worldY * patch.sinPitch + yawZ * patch.cosPitch
                     guard localZ > 0.000_1 else { continue }
-                    let tangent = tan(
-                        viewpoint.verticalFieldOfViewDegrees * .pi / 360
-                    )
-                    let ndcX = yawX / localZ / tangent
-                    let ndcY = localY / localZ / tangent
+                    let ndcX = yawX / localZ / patch.tangent
+                    let ndcY = localY / localZ / patch.tangent
                     guard (-1...1).contains(ndcX),
                           (-1...1).contains(ndcY) else { continue }
-                    let overlay = patchImage.sample(
+                    let overlay = patch.image.sample(
                         x: (ndcX + 1) / 2,
                         y: (1 - ndcY) / 2
                     )

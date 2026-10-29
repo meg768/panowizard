@@ -67,9 +67,9 @@ struct PanoramaAdjustmentProcessorTests {
             withIntermediateDirectories: true
         )
         defer { try? FileManager.default.removeItem(at: directory) }
-        let panoramaURL = directory.appending(path: "panorama.jpg")
+        let panoramaURL = directory.appending(path: "panorama.png")
         let htmlURL = directory.appending(path: "panorama.html")
-        try Data([0xFF, 0xD8, 0xFF, 0xD9]).write(to: panoramaURL)
+        try RGBAImage(width: 4, height: 2).writePNG(to: panoramaURL)
 
         try await FilePanoramaExporter().exportHTML(
             panoramaURL: panoramaURL,

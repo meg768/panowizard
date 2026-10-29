@@ -18,8 +18,13 @@ enum PanoramaAdjustmentProcessor {
         adjustments: PanoramaAdjustments,
         to destinationURL: URL
     ) throws {
-        var image = try RGBAImage(contentsOf: sourceURL)
         let settings = adjustments.sanitized
+        if settings.isNeutral {
+            try Data(contentsOf: sourceURL, options: .mappedIfSafe)
+                .write(to: destinationURL, options: .atomic)
+            return
+        }
+        var image = try RGBAImage(contentsOf: sourceURL)
         for y in 0..<image.height {
             if Task.isCancelled { throw CancellationError() }
             for x in 0..<image.width {

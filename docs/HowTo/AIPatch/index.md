@@ -20,7 +20,7 @@ Viewing and toggling the saved patch requires no API key and makes no generation
 
 ## Complete a missing nadir and zenith: example G
 
-[Example G — Autumn garden](../../examples.html#example-g) contains six Nikon NEF RAW photographs from a horizontal ring, with no separate photograph looking straight down (**nadir**) or straight up (**zenith**). Both areas are completed by saved AI patches in **Replace** mode: grass and fallen leaves below the camera, and branches and leaves above it.
+[Example G — Autumn garden](../../examples.html#example-g) contains six JPEG photographs, converted from Nikon NEF originals, from a horizontal ring, with no separate photograph looking straight down (**nadir**) or straight up (**zenith**). Both areas are completed by saved AI patches in **Replace** mode: grass and fallen leaves below the camera, and branches and leaves above it.
 
 This demonstrates how AI retouching can reconstruct missing coverage at both poles, as well as remove unwanted objects. Open **Retouch** and click each patch thumbnail to locate its view in **Preview**. Return to Retouch to switch that patch off, then click its thumbnail again to compare the same view. Repeat with the switch on. The first patch repairs the nadir; the second repairs the zenith. No API key is needed to explore the saved results. The [example guide](../../examples.html#example-g) shows both patches.
 

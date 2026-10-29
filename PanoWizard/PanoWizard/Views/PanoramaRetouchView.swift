@@ -176,13 +176,14 @@ struct PanoramaRetouchView: View {
 
             Toggle("Enabled", isOn: Binding(
                 get: { patch.isEnabled },
-                set: { _ in model.toggleRetouchPatch(patch.id) }
+                set: { _ in Task { await model.toggleRetouchPatch(patch.id) } }
             ))
             .labelsHidden()
             .toggleStyle(.switch)
             .controlSize(.small)
             .focusable(false)
             .help(patch.isEnabled ? "Disable patch" : "Enable patch")
+            .disabled(model.phase != .ready)
 
             Button("Edit Patch", systemImage: "pencil") {
                 presentPatch(RetouchPatchPresentation(
@@ -196,11 +197,12 @@ struct PanoramaRetouchView: View {
             .disabled(model.phase != .ready)
 
             Button("Delete Patch", systemImage: "trash", role: .destructive) {
-                model.removeRetouchPatch(patch.id)
+                Task { await model.removeRetouchPatch(patch.id) }
             }
             .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
         }
+        .disabled(model.phase != .ready)
     }
 }
 
@@ -300,7 +302,7 @@ struct ManualRetouchSheet: View {
                     .disabled(isWorking)
                 Button("Import…") { importPatch() }
                     .disabled(source == nil || isWorking)
-                Button("Apply") { applyPatch() }
+                Button("Apply") { Task { await applyPatch() } }
                     .keyboardShortcut(.defaultAction)
                     .disabled(importedURL == nil || isWorking)
             }
@@ -388,12 +390,12 @@ struct ManualRetouchSheet: View {
         }
     }
 
-    private func applyPatch() {
+    private func applyPatch() async {
         guard let importedURL, let source else { return }
         isWorking = true
         defer { isWorking = false }
         do {
-            try model.applyManualRetouchPatch(
+            try await model.applyManualRetouchPatch(
                 from: importedURL,
                 viewpoint: source.viewpoint,
                 replacing: replacingPatch
@@ -602,7 +604,7 @@ struct AIRetouchSheet: View {
                     .disabled(isWorking || !canGenerate)
 
                     Button("Apply") {
-                        applyPreview()
+                        Task { await applyPreview() }
                     }
                     .keyboardShortcut(.defaultAction)
                     .disabled(isWorking)
@@ -825,10 +827,12 @@ struct AIRetouchSheet: View {
         }
     }
 
-    private func applyPreview() {
+    private func applyPreview() async {
+        isWorking = true
+        defer { isWorking = false }
         guard let preview, let maskData else { return }
         do {
-            try model.applyAIRetouchPreview(
+            try await model.applyAIRetouchPreview(
                 preview,
                 mode: mode,
                 replacePrompt: replacePrompt,

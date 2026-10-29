@@ -3,7 +3,8 @@ import Foundation
 import OpenCVBridge
 
 struct OpenCVPanoramaEngine: PanoramaEngine {
-    static let outputWidth = 4096
+    // Zero asks the bridge to derive native angular sampling from its fitted lens.
+    static let outputWidth = 0
     // These on-disk identifiers must remain stable so a source-only rename
     // does not invalidate previously verified alignment caches.
     static let alignmentCacheFormatKey = "automatic-ring-core-v1-supplemental-weak-edges-v1"

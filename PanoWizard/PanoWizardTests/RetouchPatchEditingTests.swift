@@ -7,7 +7,7 @@ import Testing
 struct RetouchPatchEditingTests {
     @Test("Editing replaces patches in place and preserves their state")
     @MainActor
-    func replacesPatchesInPlace() throws {
+    func replacesPatchesInPlace() async throws {
         let directory = FileManager.default.temporaryDirectory.appending(
             path: "PanoWizard-Patch-Edit-Test-\(UUID())",
             directoryHint: .isDirectory
@@ -41,7 +41,7 @@ struct RetouchPatchEditingTests {
         let replacementURL = directory.appending(path: "replacement.png")
         try patchPNGData().write(to: replacementURL)
 
-        try model.applyManualRetouchPatch(
+        try await model.applyManualRetouchPatch(
             from: replacementURL,
             viewpoint: manualPatch.viewpoint,
             replacing: manualPatch
@@ -55,7 +55,7 @@ struct RetouchPatchEditingTests {
             compositedURL: replacementURL
         )
         let newMask = Data([9, 8, 7])
-        try model.applyAIRetouchPreview(
+        try await model.applyAIRetouchPreview(
             preview,
             mode: .repair,
             replacePrompt: "Updated replacement instruction",

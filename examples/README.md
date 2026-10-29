@@ -10,11 +10,11 @@ Seven complete examples for App Store Review and learning PanoWizard. Each folde
 | D | City square and fountain | 11 JPEGs | One saved AI patch | `D/panorama.pw` |
 | E | Ski slope | 9 JPEGs | One saved manual patch | `E/panorama.pw` |
 | F | Snowy outdoor terrace | 6 Nikon NEF RAW files | No retouch patches | `F/panorama.pw` |
-| G | Autumn garden | 6 Nikon NEF RAW files | AI nadir and zenith reconstruction | `G/panorama.pw` |
+| G | Autumn garden | 6 full-resolution JPEGs | AI nadir and zenith reconstruction | `G/panorama.pw` |
 
 F uses NEF RAW source files and no AI. Its tripod is hidden using only a green Include mask that favors existing source pixels during stitching.
 
-G has no separate downward-facing (nadir) or upward-facing (zenith) source photograph. Two saved AI patches in Replace mode reconstruct the grass and fallen leaves below the camera and the branches and leaves above it. Toggle each patch in Retouch and click its thumbnail to compare the same area in Preview. No API key is needed to explore the saved results.
+G uses JPEG sources converted from Nikon NEF originals, at their full 4000 × 6000 resolution. Its saved panorama is 12288 × 6144 pixels to keep the example file size manageable. G has no separate downward-facing (nadir) or upward-facing (zenith) source photograph. Two saved AI patches in Replace mode reconstruct the grass and fallen leaves below the camera and the branches and leaves above it. Toggle each patch in Retouch and click its thumbnail to compare the same area in Preview. No API key is needed to explore the saved results.
 
 Keep each example folder intact. Its source photographs must stay beside
 `panorama.pw`. You can move or copy the whole A, B, C, D, E, F, or G folder anywhere on your Mac.

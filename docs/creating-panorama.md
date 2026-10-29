@@ -2,7 +2,9 @@
 
 Click **Create Panorama** in the sidebar or choose **Panorama → Create**. You can also click **Create** in an empty Retouch, Preview, or Export view. PanoWizard analyzes the overlapping images, aligns them, and stitches the panorama in one operation. There is no separate Analyze step.
 
-The progress dialog shows the current stage. Creation can take a few minutes; **Cancel** stops the operation. When complete, **Preview** opens. The current application creates a **4096 × 2048** panorama.
+The progress dialog shows the current stage. Creation can take a few minutes; **Cancel** stops the operation. When complete, **Preview** opens. PanoWizard calculates the full-resolution panorama size from the source image dimensions and calibrated lens. It renders and saves that result during Create; export does not stitch it again.
+
+Preview uses a smaller display image, up to 4096 pixels wide. This does not limit the saved panorama or the **Original** export size. Larger source images produce larger project files and can take more time to create.
 
 Practice with the photographs from [example A](examples.html#example-a) in a new project. Opening the saved `panorama.pw` lets you inspect its finished result without creating again.
 

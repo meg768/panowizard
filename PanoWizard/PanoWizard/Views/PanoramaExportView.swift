@@ -8,10 +8,13 @@ import UniformTypeIdentifiers
 final class PanoramaExportController {
     var jpegQuality = 0.98
     var maximumWidth = 0
+    var htmlSize = HTMLPanoramaSize.medium
+    var htmlJPEGQuality = 0.82
     var errorMessage: String?
+    var isExporting = false
 }
 
-enum PanoramaImageFormat: String, CaseIterable {
+enum PanoramaImageFormat: String, CaseIterable, Sendable {
     case jpeg = "JPEG"
     case png = "PNG"
 
@@ -81,6 +84,7 @@ struct PanoramaExportView: View {
                         }
                     }
                     .buttonStyle(WorkspaceToolbarPillStyle())
+                    .disabled(model.phase != .ready || controller.isExporting)
                 }
 
                 Section("Interactive Panorama") {
@@ -89,6 +93,19 @@ struct PanoramaExportView: View {
                             + "web browser without any additional files."
                     )
                     .foregroundStyle(.secondary)
+
+                    Picker("Size", selection: $controller.htmlSize) {
+                        ForEach(HTMLPanoramaSize.allCases, id: \.self) { size in
+                            Text(size.rawValue).tag(size)
+                        }
+                    }
+                    .help("Small: 4096 px · Medium: 8192 px · Large: 12288 px · Original: saved panorama size")
+
+                    Picker("JPEG Quality", selection: $controller.htmlJPEGQuality) {
+                        Text("Normal").tag(0.82)
+                        Text("High").tag(0.92)
+                        Text("Maximum").tag(0.98)
+                    }
 
                     Toggle("Drag to turn the camera", isOn: $invertDragDirection)
                         .toggleStyle(.switch)
@@ -199,7 +216,12 @@ extension PanoramaExportController {
         panel.title = "Export Interactive Panorama"
         panel.prompt = "Export"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        model.exportHTML(to: url, initialViewpoint: viewpoint)
+        model.exportHTML(
+            to: url,
+            initialViewpoint: viewpoint,
+            size: htmlSize,
+            jpegQuality: htmlJPEGQuality
+        )
     }
 
     func exportImage(
@@ -210,6 +232,7 @@ extension PanoramaExportController {
         projectTitle: String,
         projectDirectoryURL: URL?
     ) {
+        guard !isExporting else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [format.contentType]
         panel.canCreateDirectories = true
@@ -227,7 +250,9 @@ extension PanoramaExportController {
         }
         let maximumWidth = maximumWidth
         let quality = jpegQuality
+        isExporting = true
         Task {
+            defer { isExporting = false }
             do {
                 let exportSourceURL = FileManager.default.temporaryDirectory
                     .appending(path: "\(UUID().uuidString)-rendered-panorama.png")
@@ -240,21 +265,21 @@ extension PanoramaExportController {
                         adjustments: adjustments,
                         to: exportSourceURL
                     )
+                    try Self.writeImage(
+                        from: exportSourceURL,
+                        to: destinationURL,
+                        format: format,
+                        maximumWidth: maximumWidth,
+                        quality: quality
+                    )
                 }.value
-                try Self.writeImage(
-                    from: exportSourceURL,
-                    to: destinationURL,
-                    format: format,
-                    maximumWidth: maximumWidth,
-                    quality: quality
-                )
             } catch {
                 errorMessage = error.localizedDescription
             }
         }
     }
 
-    private static func writeImage(
+    private nonisolated static func writeImage(
         from sourceURL: URL,
         to destinationURL: URL,
         format: PanoramaImageFormat,

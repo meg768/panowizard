@@ -25,7 +25,8 @@ preview, retouching, and export in one project.
 - Apply non-destructive global light and color adjustments after retouching.
 - Create a configurable Little Planet image from the completed panorama.
 - Export the finished panorama as JPEG or PNG, or as a self-contained
-  interactive HTML file.
+  interactive HTML file with JPEG compression and Small, Medium, Large, or
+  Original image size.
 
 PanoWizard never synthesizes missing scene content during stitching. Areas with
 no valid source coverage remain empty until they are repaired or retouched.
@@ -45,7 +46,10 @@ no valid source coverage remain empty until they are repaired or retouched.
 5. If necessary, rotate the selected source image counterclockwise in
    90-degree steps with the rotation button at the end of the mask toolbar.
 6. Choose **Create Panorama** and inspect the equirectangular result in the
-   interactive 360° preview.
+   interactive 360° preview. Create calculates and saves the full-resolution
+   panorama from the source dimensions and calibrated lens. Preview uses a
+   smaller display image; Original export uses the saved full-resolution result
+   without stitching again.
 7. Optionally add AI or manually edited patches to local panorama areas.
 8. Open the Adjustments panel in Preview to tune the finished panorama's
    light and color non-destructively.

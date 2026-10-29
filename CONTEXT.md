@@ -2,6 +2,158 @@
 
 Senast uppdaterad: 2026-10-29.
 
+## Godkänd exempelstorlek och check-in — 2026-10-29
+
+Magnus godkände att använda 12288 × 6144-varianten som sparad panoramabild
+i exempel G och slutföra check-in. result.png är nu 97191998 byte (92,7 MiB),
+under GitHubs filgräns. Käll-JPEG behåller 4000 × 6000; bildreferenser,
+retuschpatchar och justeringar är bevarade. Hjälp och exempel-README anger
+den sparade exempelstorleken. Fullstorleksoriginalet finns säkerhetskopierat
+lokalt utanför repot. Appens Create och projektformat ändras inte av detta.
+
+Check-in omfattar samtliga väntande ändringar, inklusive högupplöst Create,
+Preview/retusch/export, HTML-storlek och JPEG Quality, hjälp samt G:s JPEG-källor,
+nya patchar och borttagna HTML-export. Ingen Git LFS införs. Senaste signerade
+Release är 1.4 (202610291952), tidigare praktiskt verifierad. Commit, ny
+Stockholmstidsstämpeltagg och push till main ingår i Magnus godkännande.
+Slutkontroll: G öppnar till Ready med alla sex JPEG-källor och retusch.
+Samtliga väntande filer är under 100 MiB; 69 dokumentationslänkar, patch- och
+källreferenser, installerad kodsignatur och git diff --check är godkända.
+Inga automatiska regressionstester kördes vid denna check-in.
+
+## Uppmätta PNG-alternativ för G — 2026-10-29
+
+För att undersöka GitHub-hindret skapades separata kandidater utan att ändra
+G:s original. Förlustfri OpenCV PNG-komprimering nivå 9 med adaptiva filter
+gav 165546270 byte (157,9 MiB) vid 16914 × 8457; identiska avkodade pixlar
+verifierades. Det räcker inte för GitHubs filgräns. En nedskalad kandidat
+12288 × 6144 med samma PNG-kodning blev 97191998 byte (92,7 MiB).
+Nedskalning minskar upplösningen; JPEG-källorna behåller 4000 × 6000.
+Förslag: använd 12288-varianten endast som sparad exempelbild i G och behåll
+fullstorleksoriginal lokalt. Förslaget godkändes senare och applicerades enligt avsnittet ovan.
+Originalets byteidentitet och lokal säkerhetskopia verifierade; inget incheckat.
+
+## JPEG-källbilder i exempel G — 2026-10-29
+
+På Magnus instruktion ersattes G:s sex NEF-källor med DSC_0442.JPG–DSC_0447.JPG.
+JPEG-kvalitet 98 %, oförändrade orienterade mått 4000 × 6000; ImageIO använder
+samma orienterade avkodning som appens källbildsläsning. Kamera, objektiv och
+fotograferingstid verifierades efter kodningen. Källornas totalstorlek minskade
+från 194,8 MB till 43,9 MB (77,5 %). NEF-originalen säkerhetskopierades lokalt
+utanför repot innan de togs bort ur G.
+
+Endast bild-URL:er och modifiedAt ändrades i G:s projektmetadata; bild-ID:n,
+rotationer, mått, retusch och justeringar behölls. Befintlig folder-bookmark
+täcker även JPEG-filerna. Sparat panorama, patchbilder, patchmasker och HTML
+är oförändrade byte för byte. Hjälp och exempel-README beskriver nu JPEG i G;
+F behåller NEF. Appen öppnade G med alla sex JPEG-källor, källbildsvisning och
+Preview/retusch till Ready. Ingen ny generering eller appkodändring gjordes.
+
+Källbytet löser inte check-in-hindret: G:s panorama/result.png är fortfarande
+180988415 byte (172,6 MiB). Ingen commit, tagg eller push gjordes.
+
+## Check-in och stor fil i G — 2026-10-29
+
+Magnus bekräftade nöjdhet med fullstor HTML på cirka 43 MB jämfört med
+240 MB och begärde check-in av alla ändringar. Kod/dokumentation granskade;
+senaste Release-bygge/signatur, 24 lokala dokumentationslänkar, projektets
+nya G-patchreferenser och git diff --check godkända. Inga fynd vid riktad
+kontroll av credential-mönster. main och origin/main är synkade före commit.
+
+G:s nya panorama/result.png är 180988415 byte (172,6 MiB), över GitHubs
+100 MiB-gräns för vanliga Git-filer. Ingen LFS-spårning är konfigurerad i
+repot; nuvarande exempelworkflow använder git archive. Val mellan Git LFS
+med anpassad exempelpaketering och att lämna hela G-projektets ändringar
+lokalt har begärts. Ingen commit, tagg eller push gjord före det valet.
+
+## JPEG Quality för HTML — 2026-10-29
+
+På Magnus begäran tillkom JPEG Quality under Interactive Panorama, med
+Normal (82 %, standard), High (92 %) och Maximum (98 %), samma nivåer som
+bildexporten. HTML har ett separat kvalitetsval som skickas genom AppModel
+till JPEG-kodningen. Detta ersätter den fasta HTML-kvaliteten 80 % nedan.
+Hjälpen är uppdaterad. Praktiska Small-exporter av samma G-bild gav 5,55/
+6,75/7,23 MB; olika JPEG-kvantisering verifierades för de tre nivåerna.
+Installerad UI visar alla val och standard Normal; tidigare öppet G-projekt
+återöppnades på Export med HTML-storlek Original som före uppdateringen.
+
+Release-bygge lyckades och installerades som **1.4 (202610291952)** i
+/Applications/PanoWizard.app. Installerad signatur och git diff --check
+godkända. Inga automatiska regressionstester skapade/körda. Inget incheckat.
+
+## JPEG och storleksval för HTML — 2026-10-29
+
+Magnus godkände JPEG-only för den interaktiva HTML-exporten och valen
+Small/Medium/Large/Original. Implementerat med maxbredder 4096/8192/12288/
+sparad originalbredd, fast JPEG-kvalitet 80 % och Medium som standard.
+Mindre källpanoraman förstoras inte. HTML:s val påverkar inte projektets
+sparade original eller de separata bildexportvalen. Hjälp och README uppdaterade.
+
+Praktiska exporter av justerat G: Small 5,4 MB, Medium 17,1 MB, Large 31,8 MB,
+Original 52,3 MB; inbäddad JPEG och respektive bildmått verifierade. Mindre A
+behöll 4096 × 2048 även med Medium. Medium granskades i Safari; Small exporterades
+även genom appen från G med sparade patchar/justeringar (4,6 MB och 4096 × 2048).
+Storlekar varierar med motiv och justeringar. Inga automatiska regressionstester
+körda; befintligt HTML-test fick en giltig bildfil eftersom export nu avkodar bilden.
+
+Release-bygge lyckades och installerades i /Applications/PanoWizard.app:
+**1.4 (202610291940)**. Installerad signatur och git diff --check godkända.
+Ändringarna är fortsatt oincheckade. Redan ändrade originalfiler i examples/G
+lämnades orörda under detta arbete; praktisk appkontroll gjordes i isolerad kopia.
+
+## HTML-filens storlek — 2026-10-29
+
+Magnus bedömer cirka 240 MB per HTML-panorama som för stort. HTML-exporten
+behöver kunna minska filstorleken utan att sänka projektets sparade original.
+Provkomprimering av färgjusterat G med ImageIO/JPEG kvalitet 0,80 gav
+beräknad självständig HTML: 4096 px cirka 5,4 MB, 8192 px 17,1 MB,
+12288 px 31,8 MB och original 16914 px 52,3 MB. Detta är JPEG-mätningar
+med beräknad base64-overhead; storlekarna varierar med motivet.
+Förslag: egna val för HTML-bredd och JPEG-kvalitet, standard 8192 px/80 %.
+Förslaget är senare godkänt och implementerat enligt avsnittet ovan.
+
+## Fullupplöst panoramagenerering — 2026-10-29
+
+Create beräknar nu panoramabredden från originalmått och kalibrerad lins
+(vinkelupplösningen vid optiska axeln, med aspektkorrektion). Geometri och
+sömmar/färg/blending analyseras med högst 4096 px bredd; slutbildens detaljer
+projiceras direkt från originalen i mindre block. Fullupplöst 2:1 PNG sparas
+i projektet. Preview laddar högst 4096 px med explicit RGBA-textur; export
+använder det sparade resultatet utan ny stitching. Projektformat och
+MARKETING_VERSION är oförändrade; äldre projekt behåller sina sparade mått.
+
+Retuschkompositer och bildexport körs nu i bakgrunden. Invalidering av
+panoramat lämnar inte kvar retuschens busy-status. HTML använder WebGL 2
+med texturdelar för att kunna visa bilder bredare än GPU:ns enskilda textur.
+PNG-data bäddas in i små separata dataelement och läses som Blob; en enda
+cirka 230 MB lång script-token gav orimlig inläsningstid i Safari.
+HTML är fortsatt självständig och förlustfri men kan bli mycket stor.
+
+Verifiering slutförd efter föregående chatts avbrott: isolerad G-kopia har
+16914 × 8457 px i sparat projekt samt Original-JPEG och Original-PNG.
+Båda befintliga patchbilderna och maskerna bevarades byte för byte efter
+Save/återöppning. Preview, retusch, justeringar och HTML-export från den
+installerade appen kontrollerades visuellt; Safari visade full upplösning
+med panorering/zoom samt retusch och justeringar. Ändring av källbild under
+retuschberäkning återställde arbetsläget; kontrolländringen kastades.
+Originalexemplen är oförändrade. Hjälpen beskriver det nya flödet.
+
+Signerat Release-bygge lyckades och installerades i /Applications/PanoWizard.app:
+**1.4 (202610291911)**, deep/strict-signatur och git diff --check godkända.
+Inga automatiska regressionstester körda; befintliga testanrop/förväntningar
+är anpassade till async-retusch och automatisk storlek. Ingen bred genomgång
+av alla exempel eller andra webbläsare utförd. Ändringarna är oincheckade;
+ingen commit, tagg, push, arkivering eller Apple-uppladdning utförd.
+
+## Krav på generering, preview och export — 2026-10-29
+
+Magnus preciserade flödet: Create Panorama ska generera och spara panoramat
+i maximal upplösning utifrån källbilderna. Export ska använda det redan
+högupplösta resultatet; ingen ny panoramagenerering vid export. En mindre
+visningskopia för Preview accepteras om den förenklar implementationen.
+Detta ersätter förslaget att rendera hög upplösning först vid export.
+Implementerat och verifierat enligt avsnittet ovan.
+
 ## Fast panoramaupplösning — 2026-10-29
 
 Utredning av detaljförlust i exempel G: OpenCVPanoramaEngine.outputWidth är
@@ -11,8 +163,8 @@ ImageIO-läsning som appen använder verifierades till 4000 × 6000 efter
 orientering. Exportens Original behåller panoramats befintliga storlek.
 Högre detaljupplösning kräver ny generering med större utdatamått.
 Ingen funktionell ändring eller nytt panorama gjordes under utredningen.
-Magnus valde att diskutera lösningen vidare innan implementation. Ingen
-upplösningsändring är beslutad. Check-in omfattar utredningen och den
+Magnus valde då att diskutera lösningen vidare innan implementation;
+senare preciserade krav står ovan. Check-in omfattade utredningen och den
 fristående HTML-exporten examples/G/panorama.html (4096 × 2048).
 
 ## Checkpoint — 2026-10-28 21:01 Europe/Stockholm

@@ -4,6 +4,8 @@ Drag to look around. Scroll or pinch to zoom without a modifier. **View → Zoom
 
 ![The panorama in the current Preview workspace](Images/Examples/a-preview.jpg)
 
+Preview uses a display image up to 4096 pixels wide. The full-resolution panorama remains stored in your project and is used for Original exports.
+
 Use the sidebar button in the toolbar to hide or show the sidebar. Zoom commands are available when the current workspace has an image to navigate.
 
 Look all the way around, then up at the sky or ceiling (**zenith**) and down at the ground (**nadir**). Check seams, straight lines, moving subjects, and missing coverage. A stretched flat export is normal; Preview shows the image as a sphere.

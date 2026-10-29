@@ -1,9 +1,27 @@
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 struct PanoramaViewpoint: Codable, Equatable, Sendable {
     var yawRadians = 0.0
     var pitchRadians = 0.0
     var verticalFieldOfViewDegrees = 75.0
+}
+
+enum HTMLPanoramaSize: String, CaseIterable, Sendable {
+    case small = "Small"
+    case medium = "Medium"
+    case large = "Large"
+    case original = "Original"
+
+    var maximumWidth: Int {
+        switch self {
+        case .small: 4_096
+        case .medium: 8_192
+        case .large: 12_288
+        case .original: 0
+        }
+    }
 }
 
 protocol PanoramaExporting: Sendable {
@@ -12,6 +30,8 @@ protocol PanoramaExporting: Sendable {
         adjustments: PanoramaAdjustments,
         title: String,
         initialViewpoint: PanoramaViewpoint,
+        size: HTMLPanoramaSize,
+        jpegQuality: Double,
         to destinationURL: URL
     ) async throws
 }
@@ -27,6 +47,8 @@ struct FilePanoramaExporter: PanoramaExporting {
         adjustments: PanoramaAdjustments,
         title: String,
         initialViewpoint: PanoramaViewpoint,
+        size: HTMLPanoramaSize = .medium,
+        jpegQuality: Double = 0.82,
         to destinationURL: URL
     ) async throws {
         let dragDirection = UserDefaults.standard.bool(
@@ -36,7 +58,15 @@ struct FilePanoramaExporter: PanoramaExporting {
             forKey: HTMLNavigationPreferences.invertScrollZoom
         ) ? -1 : 1
         try await Task.detached(priority: .userInitiated) {
-            let panorama = try Data(contentsOf: panoramaURL).base64EncodedString()
+            let data = try Self.jpegData(from: panoramaURL, size: size, quality: jpegQuality)
+            // Separate small data elements avoid one enormous HTML script token.
+            // Decode into a Blob instead of a full-resolution data URL.
+            let chunkSize = 49_152
+            let panorama = stride(from: 0, to: data.count, by: chunkSize).map { offset in
+                let end = min(offset + chunkSize, data.count)
+                return "<script type=\"application/octet-stream\" class=\"panorama-chunk\">"
+                    + data.subdata(in: offset..<end).base64EncodedString() + "</script>"
+            }.joined(separator: "\n")
             let safeTitle = title
                 .replacingOccurrences(of: "&", with: "&amp;")
                 .replacingOccurrences(of: "<", with: "&lt;")
@@ -44,7 +74,7 @@ struct FilePanoramaExporter: PanoramaExporting {
                 .replacingOccurrences(of: "\"", with: "&quot;")
             let html = Self.html(
                 title: safeTitle,
-                panoramaBase64: panorama,
+                panoramaChunks: panorama,
                 adjustments: adjustments.sanitized,
                 initialViewpoint: initialViewpoint,
                 dragDirection: dragDirection,
@@ -58,9 +88,43 @@ struct FilePanoramaExporter: PanoramaExporting {
         }.value
     }
 
+    private static func jpegData(
+        from sourceURL: URL,
+        size: HTMLPanoramaSize,
+        quality: Double
+    ) throws -> Data {
+        guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+                as? [CFString: Any],
+              let sourceWidth = properties[kCGImagePropertyPixelWidth] as? Int
+        else { throw CocoaError(.fileReadCorruptFile) }
+        let image: CGImage?
+        if size == .original {
+            image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        } else {
+            image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceThumbnailMaxPixelSize: min(size.maximumWidth, sourceWidth),
+                kCGImageSourceCreateThumbnailWithTransform: true
+            ] as CFDictionary)
+        }
+        let data = NSMutableData()
+        guard let image,
+              let destination = CGImageDestinationCreateWithData(
+                data, UTType.jpeg.identifier as CFString, 1, nil
+              ) else { throw CocoaError(.fileReadCorruptFile) }
+        CGImageDestinationAddImage(destination, image, [
+            kCGImageDestinationLossyCompressionQuality: quality
+        ] as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        return data as Data
+    }
+
     private static func html(
         title: String,
-        panoramaBase64: String,
+        panoramaChunks: String,
         adjustments: PanoramaAdjustments,
         initialViewpoint: PanoramaViewpoint,
         dragDirection: Int,
@@ -80,12 +144,27 @@ struct FilePanoramaExporter: PanoramaExporting {
         </style>
         </head>
         <body><canvas id="view"></canvas>
+        \(panoramaChunks)
         <script>
-        const panoramaSource="data:image/jpeg;base64,\(panoramaBase64)";
-        const canvas=document.querySelector("#view"),gl=canvas.getContext("webgl");
-        if(!gl)document.body.innerHTML="<p>WebGL is required to view this panorama.</p>";
-        const vertex=`attribute vec2 p;varying vec2 n;void main(){n=p;gl_Position=vec4(p,0.,1.);}`;
-        const fragment=`precision highp float;varying vec2 n;uniform sampler2D pano;
+        const panoramaChunks=[...document.querySelectorAll(".panorama-chunk")];
+        const panoramaSource=URL.createObjectURL(new Blob(panoramaChunks.map(chunk=>{
+        const decoded=atob(chunk.textContent),bytes=new Uint8Array(decoded.length);chunk.textContent="";chunk.remove();
+        for(let i=0;i<decoded.length;i++)bytes[i]=decoded.charCodeAt(i);return bytes}),{type:"image/jpeg"}));
+        const canvas=document.querySelector("#view"),gl=canvas.getContext("webgl2");
+        function showError(message){document.body.textContent=message}
+        if(!gl){showError("WebGL 2 is required to view this panorama.");throw new Error("WebGL 2 unavailable")}
+        let panoramaLoaded=false;
+        const vertex=`#version 300 es
+        in vec2 p;out vec2 n;void main(){n=p;gl_Position=vec4(p,0.,1.);}`;
+        const fragment=`#version 300 es
+        precision highp float;precision highp sampler2DArray;
+        in vec2 n;out vec4 fragmentColor;uniform sampler2DArray pano;
+        uniform vec2 panoramaSize;uniform float tileSide,tileStride,tileColumns;
+        vec4 samplePanorama(vec2 uv){
+        vec2 pixel=clamp(uv*panoramaSize,vec2(0.),panoramaSize);
+        vec2 tile=min(floor(pixel/tileStride),ceil(panoramaSize/tileStride)-vec2(1.));
+        vec2 local=(pixel-tile*tileStride+vec2(1.))/tileSide;
+        return texture(pano,vec3(local,tile.y*tileColumns+tile.x));}
         uniform float yaw,pitch,fov,aspect;
         uniform float exposure,brightness,contrast,highlights,shadows,whites,blacks,temperature,tint,vibrance,saturation;
         const float PI=3.141592653589793;
@@ -104,8 +183,8 @@ struct FilePanoramaExporter: PanoramaExporting {
         float cp=cos(pitch),sp=sin(pitch);d=vec3(d.x,d.y*cp-d.z*sp,d.y*sp+d.z*cp);
         float cy=cos(yaw),sy=sin(yaw);d=vec3(d.x*cy+d.z*sy,d.y,-d.x*sy+d.z*cy);
         vec2 uv=vec2(fract(.5+atan(d.x,d.z)/(2.*PI)),.5-asin(clamp(d.y,-1.,1.))/PI);
-        vec4 c=texture2D(pano,uv);
-        gl_FragColor=vec4(adjust(c.rgb,uv),1.);}`;
+        vec4 c=samplePanorama(uv);
+        fragmentColor=vec4(adjust(c.rgb,uv),1.);}`;
         function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);
         gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(s);return s}
         const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vertex));
@@ -114,14 +193,45 @@ struct FilePanoramaExporter: PanoramaExporting {
         gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
         const position=gl.getAttribLocation(program,"p");gl.enableVertexAttribArray(position);
         gl.vertexAttribPointer(position,2,gl.FLOAT,false,0,0);
-        function texture(unit,source){const tex=gl.createTexture();gl.activeTexture(gl.TEXTURE0+unit);
-        gl.bindTexture(gl.TEXTURE_2D,tex);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-        const image=new Image();image.onload=()=>{gl.activeTexture(gl.TEXTURE0+unit);
-        gl.bindTexture(gl.TEXTURE_2D,tex);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
-        gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);draw()};image.src=source}
+        function texture(unit,source){
+        const tex=gl.createTexture();gl.activeTexture(gl.TEXTURE0+unit);
+        gl.bindTexture(gl.TEXTURE_2D_ARRAY,tex);
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+        const image=new Image();image.onerror=()=>{URL.revokeObjectURL(source);showError("The panorama image could not be read.")};
+        image.onload=()=>{try{
+        const maximum=gl.getParameter(gl.MAX_TEXTURE_SIZE),layers=gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS);
+        let side=Math.min(2048,maximum),stride=side-2;
+        while(Math.ceil(image.width/stride)*Math.ceil(image.height/stride)>layers&&side<maximum){
+        side=Math.min(side*2,maximum);stride=side-2}
+        const columns=Math.ceil(image.width/stride),rows=Math.ceil(image.height/stride);
+        if(columns*rows>layers)throw new Error("This device cannot display all panorama tiles.");
+        gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D_ARRAY,tex);
+        gl.texStorage3D(gl.TEXTURE_2D_ARRAY,1,gl.RGBA8,side,side,columns*rows);
+        const tile=document.createElement("canvas");tile.width=side;tile.height=side;
+        const context=tile.getContext("2d");context.imageSmoothingEnabled=false;
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+        for(let row=0;row<rows;row++)for(let column=0;column<columns;column++){
+        context.clearRect(0,0,side,side);
+        const left=column*stride,top=row*stride,sx=Math.max(0,left-1),sy=Math.max(0,top-1);
+        const sw=Math.min(image.width-sx,side-(sx-left+1)),sh=Math.min(image.height-sy,side-(sy-top+1));
+        context.drawImage(image,sx,sy,sw,sh,sx-left+1,sy-top+1,sw,sh);
+        if(column===0)context.drawImage(image,image.width-1,sy,1,sh,0,sy-top+1,1,sh);
+        if(left+stride>=image.width)context.drawImage(image,0,sy,1,sh,1+image.width-left,sy-top+1,1,sh);
+        if(row===0)context.drawImage(tile,0,1,side,1,0,0,side,1);
+        if(top+stride>=image.height){const edge=1+image.height-top;
+        context.drawImage(tile,0,edge-1,side,1,0,edge,side,1)}
+        gl.texSubImage3D(gl.TEXTURE_2D_ARRAY,0,0,0,row*columns+column,side,side,1,gl.RGBA,gl.UNSIGNED_BYTE,tile);
+        if(gl.getError()!==gl.NO_ERROR)throw new Error("The device could not load the panorama textures.");
+        }
+        gl.uniform2f(gl.getUniformLocation(program,"panoramaSize"),image.width,image.height);
+        gl.uniform1f(gl.getUniformLocation(program,"tileSide"),side);
+        gl.uniform1f(gl.getUniformLocation(program,"tileStride"),stride);
+        gl.uniform1f(gl.getUniformLocation(program,"tileColumns"),columns);
+        panoramaLoaded=true;draw();
+        }catch(error){showError(error.message)}finally{URL.revokeObjectURL(source)}};image.src=source}
         texture(0,panoramaSource);
         gl.uniform1i(gl.getUniformLocation(program,"pano"),0);
         gl.uniform1f(gl.getUniformLocation(program,"exposure"),\(adjustments.exposure));
@@ -144,7 +254,7 @@ struct FilePanoramaExporter: PanoramaExporting {
         wheelZoom=null,wheelZoomTimer=null;
         function resize(){const d=devicePixelRatio||1,w=innerWidth*d,h=innerHeight*d;
         if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h)}}
-        function draw(){resize();gl.uniform1f(gl.getUniformLocation(program,"yaw"),y);
+        function draw(){resize();if(!panoramaLoaded)return;gl.uniform1f(gl.getUniformLocation(program,"yaw"),y);
         gl.uniform1f(gl.getUniformLocation(program,"pitch"),p);gl.uniform1f(gl.getUniformLocation(program,"fov"),f);
         gl.uniform1f(gl.getUniformLocation(program,"aspect"),canvas.width/canvas.height);
         gl.drawArrays(gl.TRIANGLES,0,6)}
