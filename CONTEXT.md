@@ -1,6 +1,19 @@
 # PanoWizard — projekt- och utvecklingskontext
 
-Senast uppdaterad: 2026-10-28.
+Senast uppdaterad: 2026-10-29.
+
+## Fast panoramaupplösning — 2026-10-29
+
+Utredning av detaljförlust i exempel G: OpenCVPanoramaEngine.outputWidth är
+hårdkodad till 4096 för alla genereringar. Sparad panorama/result.png i G är
+4096 × 2048 (8,4 MP över hela sfären). NEF-källorna är 24 MP; samma
+ImageIO-läsning som appen använder verifierades till 4000 × 6000 efter
+orientering. Exportens Original behåller panoramats befintliga storlek.
+Högre detaljupplösning kräver ny generering med större utdatamått.
+Ingen funktionell ändring eller nytt panorama gjordes under utredningen.
+Magnus valde att diskutera lösningen vidare innan implementation. Ingen
+upplösningsändring är beslutad. Check-in omfattar utredningen och den
+fristående HTML-exporten examples/G/panorama.html (4096 × 2048).
 
 ## Checkpoint — 2026-10-28 21:01 Europe/Stockholm
 
