@@ -2630,7 +2630,11 @@ cv::Mat contentAdaptiveBlend(
     }
     if (cv::countNonZero(userExclusions) > 0) {
         // A manual exclusion is an explicit request to remove content.
-        // Wide blending must not re-introduce its detail.
+        // Keep narrow source detail, but retain the existing low-frequency
+        // seam correction. Restoring narrow alone would also restore a hard
+        // colour boundary along the painted mask. The correction is computed
+        // from valid source pixels, so excluded pixels cannot contribute.
+        // Neither broad detail nor the minimum-feather fallback belongs here.
         std::vector<cv::Mat> tiledPieces = {
             userExclusions, userExclusions, userExclusions
         };
@@ -2650,7 +2654,7 @@ cv::Mat contentAdaptiveBlend(
         std::vector<cv::Mat> exclusionChannels(3, exclusionAlpha);
         cv::Mat colorExclusionAlpha;
         cv::merge(exclusionChannels, colorExclusionAlpha);
-        result = narrow.mul(colorExclusionAlpha)
+        result = seamDetailed.mul(colorExclusionAlpha)
             + result.mul(one - colorExclusionAlpha);
     }
 
@@ -3429,7 +3433,10 @@ std::vector<Warp> applySeamLocalRadiometry(
                 && medianAfter <= medianBefore - 0.75
                 && medianAfter <= 0.85 * medianBefore
                 && p90After <= 0.95 * p90Before
-                && p90After <= 12.0
+                // A large initial mismatch may retain a larger residual only
+                // when its tail error is at least halved. Keep the independent
+                // median, mean, support and clipping guards unchanged.
+                && p90After <= std::max(12.0, 0.5 * p90Before)
                 && meanAfter <= 0.85 * meanBefore
                 && clippedCorrectionFraction <= 0.01;
             if (!improved) {

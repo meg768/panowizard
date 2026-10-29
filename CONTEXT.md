@@ -1,6 +1,104 @@
 # PanoWizard — projekt- och utvecklingskontext
 
-Senast uppdaterad: 2026-10-29.
+Senast uppdaterad: 2026-10-30.
+
+## Check-in av blendningsfix — 2026-10-30
+
+Magnus begärde check-in av samtliga väntande ändringar: endast blendningsfixen
+i PanoramaBridge.cpp och denna kontext. Sidopanelen är helt återställd till
+föregående commit; knappfelet är olöst. Senaste signerade Release-bygge är
+1.4 (202610300018), installerat med ursprunglig sidopanel. Bygge, strict/deep
+kodsignatur och git diff --check godkända. Praktisk verifiering omfattar
+Toscana och exempel A; hela A–Z är inte genomgånget. Inga automatiska tester
+körda. Commit, ny Stockholmstidsstämpeltagg och push till main ingår i begäran.
+Felsökningsregeln finns även i den gemensamma globala AGENTS.md i iCloud.
+
+## Bestående felsökningsregel — 2026-10-30
+
+Magnus kräver att den utdragna, gissningsbaserade knappfelsökningen inte
+upprepas. Återskapa felet och skilj verifierade fakta från hypoteser före
+produktändring. Pröva en avgränsad hypotes med ett tydligt förväntat utfall.
+Om försöket inte stöder hypotesen: backa försöket och återgå till diagnos,
+inte en serie nya kodgissningar, ombyggen eller omstarter. Bredda inte
+uppgiften till layout eller annan funktion utan belägg för att det behövs.
+Vid utebliven framdrift, stanna upp och redovisa vad som är känt och okänt.
+
+## Knappfelsökning avbruten och sidopanel återställd — 2026-10-30
+
+Magnus uppgav att problemet tycks inträffa efter maskning. I en isolerad
+A-kopia kunde lasso → färdig mask → utebliven sidoknappsåtgärd återskapas,
+samtidigt som Panorama → Create startade. Genereringen avbröts. Den tidigare
+förebyggande ändringen nedan löste inte detta. Försök med radidentitet och
+separat placering gav inte tillräcklig verifiering av vanliga musklick.
+Magnus invände mot den utökade felsökningen/layoutändringen. Försöken stoppade;
+PanoramaSidebar.swift återställd helt till HEAD. Inga knapp-/layoutändringar
+ska räknas som lösta eller behållna. Blendningsfixen i C++ är kvar.
+Kontrollkopians osparade mask kastad; originalprojekt är orörda. Inget incheckat.
+
+## Intermittent Create-knapp — 2026-10-29
+
+Magnus rapporterade att sidopanelens Create Panorama ibland inte reagerar,
+medan Panorama → Create fungerar. Båda använder samma canStitch och stitch();
+sidoknappen ligger i List(selection:). Det ursprungliga intermittenta felet
+kunde inte återskapas i en isolerad A-kopia. Minimal förebyggande ändring i
+PanoramaSidebar.swift: selectionDisabled() på åtgärdsraden och
+allowsWindowActivationEvents() för klicket som aktiverar ett inaktivt fönster.
+Krav på bildantal/phase och menykommandot är oförändrade.
+
+Release-bygge/signatur och git diff --check godkända, installerad version
+1.4 (202610292352). Praktiskt verifierat: tomt projekt startar inte Create;
+sidoknappen öppnar retuschbekräftelsen från Preview, Retouch och källbild,
+även koordinatklick på knappens vänstra del. Samtliga bekräftelser avbröts;
+ingen ny generering eller ändring av originalprojekt. Kontrollkopian stängd
+utan att sparas; appen står på Untitled. Inga automatiska tester körda och
+ingen commit/tagg/push. Fortsatt användning behöver bekräfta att det
+intermittenta beteendet har försvunnit. Fråga om normal eller nedtonad knapp
+ställdes asynkront; inget svar kom före denna anteckning.
+
+## Mjukare färgövergång vid exklusionsmasker — 2026-10-29
+
+Magnus godkände förslaget från Toscana-utredningen. Endast PanoramaBridge.cpp
+ändrades: maskskyddet använder befintlig seamDetailed (smal källdetalj plus
+lågfrekvent, konsistensbegränsad färgkorrigering) i stället för enbart narrow.
+Ingen bred bilddetalj eller minimum-feather återförs i skyddsområdet; beräkningen
+använder fortsatt bara giltiga källpixlar. Lokal radiometri tillåter p90-restfel
+över 12 endast om det ursprungliga p90-felet minst halveras. Övriga median-,
+medel-, underlags- och klippningskrav är oförändrade; ingen motivspecifik kod.
+
+Praktisk rendering med samma Toscana-geometri/sömmar ger 8486 × 4243, samma
+täckning och samtliga åtta källmasker byte/pixelmässigt lika i analysen.
+Maskkantens lokala färgsprång minskade 22→4/255 med samma 53 kantprover.
+Lodrät färgsöm kvarstår delvis. Före/efter-renderingar av exempel A vid 4096 px
+granskades manuellt: fotografen fortsatt bortmaskad, ingen synlig återkomst,
+identisk alpha/täckning. Inga automatiska regressionstester körda.
+
+Signerat Release-bygge lyckades, installerat som 1.4 (202610292319), strict/deep
+kodsignatur och git diff --check godkända. Appen öppnade en isolerad Toscana-kopia
+med det nya fullstora resultatet till Preview/Ready, alla åtta källbilder och
+befintlig röd mask. Kontrollkopian ligger öppen i denna chatts work/toscana-blend/
+verification/Toscana; källmappens alla 12 filer är hashverifierat oförändrade.
+Originalprojekt behöver Create Panorama igen för att få den nya blendningen.
+Ingen versionshöjning, commit, tagg, push, arkivering eller Apple-uppladdning.
+
+## Utredning av blendning i Toscana/På utflykt — 2026-10-29
+
+Åtta JPEG-källor och panorama.pw i iCloud/Mina filer/Panorama/2006/Toscana/
+På utflykt granskades utan ändring. Sparat panorama 8486 × 4243 återskapades
+pixelidentiskt med aktuell motor, samma ImageIO-maskade TIFF och befintlig
+alignment-cache 09aede8d…. Den blågröna fläckens rundade kant följer den röda
+masken på nadirbilden 13.24.55; ersättande stenläggning kommer från 13.24.27.
+Två samverkande regler verifierades: contentAdaptiveBlend återställer narrow
+nära userExclusions och stänger därmed av tonal utjämning; lokal radiometri
+för bildpar 2–7 avvisas trots median 9→3,787 och p90 29→13,567 eftersom
+absolut p90-gräns är 12. Exponeringen varierar även mellan källorna (f/7,1–13
+vid 1/250 s). Separat diagnostik med samma geometri och sömmar visar att
+tillåten korrigering plus utjämning minskar det lokala färgsprånget längs
+maskkanten från 22 till 4,5/255 (median största RGB-kanal, 53 kantprover).
+Lodrät söm kvarstår delvis; detta är ingen färdig eller generellt verifierad fix.
+Rekommenderad riktning: behåll bortmaskat innehåll borta men tillåt säker
+lågfrekvent färgutjämning och bedöm radiometrins förbättring lokalt. Ingen
+appkod, installation eller projektfil ändrad; inga regressionstester körda.
+Diagnostik och jämförelse finns i denna chatts work/toscana-blend och outputs/.
 
 ## Dokumentationsgranskning efter check-in — 2026-10-29
 
