@@ -4,7 +4,7 @@
 
 ## 1. Open a finished example
 
-[Download the six example panoramas](examples.html), then open **A/panorama.pw** with **File → Open…**. If asked for access, choose the A folder and click **Grant Access**. The sidebar should show nine source photographs.
+[Download the seven example panoramas](examples.html), then open **A/panorama.pw** with **File → Open…**. If asked for access, choose the A folder and click **Grant Access**. The sidebar should show nine source photographs.
 
 ![Example A with its finished panorama open](Images/Examples/a-preview.jpg)
 
@@ -18,7 +18,7 @@ The [Masks guide](HowTo/Masking/index.html) explains A's red and green source ma
 
 ## 3. Export
 
-Select **Export**, then **Save JPEG…** for an image or **Save HTML…** for an interactive panorama you can open in a browser. **Size: Original** keeps the saved panorama's dimensions.
+Select **Export**, then **Save JPEG…** for an image or **Save HTML…** for an interactive panorama you can open in a browser. **Size: Original** keeps the saved panorama's dimensions. For HTML, choose **Small**, **Medium**, **Large**, or **Original**, and set **JPEG Quality** independently of the image export. See [Export](export.html) for the sizes and quality levels.
 
 ![Export controls for example A](Images/Examples/a-export.jpg)
 

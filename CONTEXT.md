@@ -2,6 +2,20 @@
 
 Senast uppdaterad: 2026-10-29.
 
+## Dokumentationsgranskning efter check-in — 2026-10-29
+
+Check-in cffc2ca och tagg 2026-10-29-21-32 är pushade. GitHubs workflow för
+exempelpaket och Pages avslutades båda med success. Huvudändringarna i hjälpen
+följde med denna commit. Efter Magnus fråga kompletterades Getting Started
+(sju exempel och HTML-storlek/kvalitet), README:s kvalitetsval samt G:s aktuella
+standardprompt och F:s jämförelse med JPEG-exemplen. Nya skärmbilder från den
+installerade appen visar exportens separata HTML-kvalitet och G:s JPEG-källor.
+Bilderna granskades visuellt; lokala dokumentationslänkar/bildreferenser och
+git diff --check godkända. A/G-projekten öppnades utan att sparas; inga ändringar
+i examples/. Ingen appkod ändrad eller nytt bygge behövt. Samtliga 129 lokala
+länkar/bildreferenser är kontrollerade. Magnus begärde därefter check-in av
+kompletteringarna med commit, ny tidsstämpeltagg och push till main.
+
 ## Godkänd exempelstorlek och check-in — 2026-10-29
 
 Magnus godkände att använda 12288 × 6144-varianten som sparad panoramabild

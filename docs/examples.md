@@ -104,7 +104,7 @@ Open **Retouch** and click the **Manual Patch** thumbnail to locate its area in 
 
 ![Example F open in PanoWizard Preview, showing the seated people on the snowy terrace and its six NEF source files in the sidebar](Images/Examples/f-preview.jpg)
 
-Explore the terrace, seated people, and surrounding buildings in **Preview**. F uses Nikon D80 NEF RAW source photographs, unlike the JPEG sources in A–E. Keep all six `.NEF` files beside `panorama.pw`.
+Explore the terrace, seated people, and surrounding buildings in **Preview**. F uses Nikon D80 NEF RAW source photographs, unlike the JPEG sources in A–E and G. Keep all six `.NEF` files beside `panorama.pw`.
 
 **No AI was used in F.** The tripod is hidden using only a green **Include** mask, which favors existing pixels from an overlapping source photograph. There are no manual or AI retouch patches.
 
@@ -138,7 +138,7 @@ G shows how AI retouching can complete both ends of a panorama from a single hor
 
 Open **Retouch** to find the two **AI Patch** entries. The first is the nadir repair; the second is the zenith repair. Click each thumbnail to locate its area in **Preview**. Return to Retouch, switch that patch off, and click its thumbnail again to inspect the same view before retouching. Repeat with the switch on. The patches can be toggled independently, and viewing the saved results requires no API key.
 
-To inspect a saved mask and instruction, click the patch’s pencil button and choose **Cancel** when finished. Both patches use the default **Replace** instruction with a short description of the scene: grass and leaves for the nadir, branches and leaves for the zenith. See [AI Retouch](HowTo/AIPatch/index.html) to try this on a copy of the project.
+To inspect a saved mask and instruction, click the patch’s pencil button and choose **Cancel** when finished. Both saved patches use the default **Replace** instruction. See [AI Retouch](HowTo/AIPatch/index.html) to try this on a copy of the project.
 
 G demonstrates reconstruction of missing coverage at both poles, beyond removing a small object. Stitching itself does not create that content; AI retouching adds it afterward.
 

@@ -26,7 +26,7 @@ preview, retouching, and export in one project.
 - Create a configurable Little Planet image from the completed panorama.
 - Export the finished panorama as JPEG or PNG, or as a self-contained
   interactive HTML file with JPEG compression and Small, Medium, Large, or
-  Original image size.
+  Original image size, plus independent Normal, High, or Maximum JPEG quality.
 
 PanoWizard never synthesizes missing scene content during stitching. Areas with
 no valid source coverage remain empty until they are repaired or retouched.
