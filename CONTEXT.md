@@ -2,6 +2,107 @@
 
 Senast uppdaterad: 2026-10-30.
 
+## Check-in med extra feather avstängd — 2026-10-30
+
+Magnus begärde check-in av samtliga väntande ändringar: fast linjär
+feather-implementation med bredd 0 px och nollhantering samt denna kontext.
+D:s verifierade sömfix är oförändrad. Aktuell installerad Release är
+1.4 (202610302154); bygge och strict/deep-signatur godkända. Slutgranskning,
+git diff --check och credential-kontroll godkända; main/origin synkade före
+commit. Tidigare 32 px-renderings- och maskkontroller dokumenterade nedan;
+ingen separat rendering eller ny testsvit för 0 px körd vid check-in.
+Commit, ny Stockholmstidsstämpeltagg och push av main samt taggen ingår.
+
+## Extra linjär feather satt till 0 px — 2026-10-30
+
+Magnus begärde 0 px och nytt bygge. Breddkonstanten är 0.0; en nödvändig
+nollhantering i analysisFeatherWeight returnerar ownership × edgeFade vid
+featherWidth ≤ 0 och undviker division med noll. Övrig kod hashverifierad
+mot samma implementation som tidigare. Befintliga ton-/blendkomponenter
+behålls; den extra linjära övergången är avstängd. Signerad Release 1.4
+(202610302154) installerad i Applications och startad; strict/deep-signatur
+och binärhash mot byggresultat godkända. 100 px-appen sparad i
+work/m-fixed-feather/PanoWizard-100px.app. Ingen commit, tagg eller push.
+
+## Publicerad 1.3 enligt Magnus — 2026-10-30
+
+Magnus refererar nu till sin publicerade App Store-version 1.3; tidigare
+Waiting for Review-anteckning är historisk. Exakt publiceringsdatum,
+Apple-byggnummer och uppladdad kod-SHA är inte sparade här. Jämförelsen med
+senare utveckling utgår från Git-grunden 7adbccd (versionssättning till 1.3).
+Vid jämförelsen kördes lokal 1.4 (202610302114), med fast 100 px-feather.
+
+## Fast feather nedjusterad till 100 px — 2026-10-30
+
+Magnus begärde 200→100 px. Endast breddkonstanten ändrad; all övrig C++
+hashverifierad mot samma 32 px-bas som tidigare. Signerad Release 1.4
+(202610302114) byggd och installerad i Applications; strict/deep-signatur
+och binärhash mot byggresultatet verifierade. Appen avslutades normalt före
+installation och startades igen. 200 px-versionen sparad i
+work/m-fixed-feather/PanoWizard-200px.app. Ingen commit, tagg eller push.
+
+## Fast feather ändrad till 200 px för egen testning — 2026-10-30
+
+På Magnus instruktion ändrades endast 64.0→200.0 i feather-breddens konstant.
+Övrig C++ verifierad identisk med tidigare implementation via blob 85112447…
+efter omvänd konstantändring. Signerad Release 1.4 (202610302109) byggd,
+installerad i Applications och startad. Strict/deep-signatur och installerad
+binär mot byggresultatet verifierade. 64 px-appen sparad i
+work/m-fixed-feather/PanoWizard-64px.app. Magnus testar manuellt efter ny
+Create Panorama. Ingen commit, tagg eller push; inga nya renderingstester.
+
+## Fast feather ändrad till 64 px för egen testning — 2026-10-30
+
+På Magnus instruktion ändrades endast konstanten 32.0→64.0 i anropet till
+analysisFeatherWeight. All övrig C++ är byteidentisk med 32 px-implementationen
+(verifierat genom omvänd konstantändring mot blob 85112447…). D-fixen kvar.
+Signerad Release 1.4 (202610302103) byggd och installerad i Applications,
+strict/deep-signatur och binärhash mot byggresultatet verifierade, app startad.
+32 px-appen sparad i work/m-fixed-feather/PanoWizard-32px.app. Inga nya
+renderingstester; Magnus testar M/A/D manuellt efter Create Panorama igen.
+Ingen commit, tagg eller push.
+
+## Exakt 32 px-feather återinförd och installerad — 2026-10-30
+
+Magnus begärde samma implementation för egen testning, utan vidare experiment.
+Återapplicerade sparad work/m-fixed-feather/experiment.patch; C++-blobben är
+exakt 851124479560a9dd6201ca83a98a8ba082d80aa9, samma som försöket. D:s
+sömbegränsning verifierad oförändrad. Ingen ny UI eller annan förbättring.
+Release 1.4 (202610302053) byggd, strict/deep-signatur verifierad, installerad
+i /Applications/PanoWizard.app och startad. Installerad binär hashidentisk
+med byggresultatet. Föregående D-verifierade app är säkerhetskopierad i
+work/m-fixed-feather/PanoWizard-before-install.app. Inga nya renderingstester;
+tidigare M/D/A- och maskkontroller återanvänds. Panorama måste skapas om för
+att visa feathern. Källkod och kontext oincheckade; ingen commit/tagg/push.
+
+## Reviderad visuell bedömning av A:s featherförsök — 2026-10-30
+
+Magnus granskade visade före/efter-utsnitt och bedömer inte skillnaden som
+en försämring för en människa. Det är takdekoration, inte text/skylt.
+Assistentens tidigare visuella underkännande av A var för strängt och ska
+inte behandlas som en verifierad praktisk kvalitetsregression. Stor maximal
+pixeldifferens ensam är inget underlag för sådan slutsats. M:s uppmätta
+förbättring och D:s hela räcken kvarstår som testresultat. Produktionskoden
+är fortfarande återställd; ingen ny implementation/installation utförd.
+
+## Fast 32-pixelsfeather för M återställt — 2026-10-30
+
+Magnus återupptog arbetet för ett separat, tidsbegränsat featherförsök.
+Prövade linjär vikt från signerat avstånd till befintligt ägarskap, totalt
+32 px (±16) vid renderad utstorlek. Befintliga masker och tonkomponenter
+behölls; ingen släthetsstyrning, registrering, radiometri eller sömändring.
+Temporär ändring: analysisFeatherWeight samt viktackumulering/utstorlek i
+analyzePanorama/renderPanorama (+35/−5 rader). M:s 314 träprov förbättrades
+median 15→6, p90 27→10/255 vid native-rendering 6614 × 3307; polygonkanter
+visuellt mjukare. D:s räcken hela vid 8410 × 4205. A-kontrollen vid 2048 px
+visade mjukare/suddigare tak- och skyltkonturer (maxdiff 127/255), vilket
+räknades som försämring och utlöste återställning enligt Magnus villkor.
+Ägarskap och radiometriloggar identiska för M/D/A. Maskvikter exakt 0 för
+ogiltiga pixlar; magenta sentinel utanför mask gav maxdiff 0 i fixed blend.
+Hela produktionskoden är byteidentiskt återställd; D-fixen kvar. Ingen
+appinstallation, commit eller push. Underlag och patch i work/m-fixed-feather.
+Stopp efter test; inget ytterligare försök utan ny instruktion.
+
 ## M avslutat för kvällen — 2026-10-30
 
 Magnus avslutade arbetet. Ingen säker förbättring är identifierad. Båda

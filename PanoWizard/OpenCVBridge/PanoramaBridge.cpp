@@ -3573,7 +3573,8 @@ int nativePanoramaWidth(const cv::Size &sourceSize, const Lens &lens) {
     return int(width);
 }
 
-cv::Mat analysisFeatherWeight(const Warp &warp, const cv::Mat &labels, int index) {
+cv::Mat analysisFeatherWeight(const Warp &warp, const cv::Mat &labels, int index,
+                            double featherWidth) {
     cv::Mat ownership = labels == index;
     ownership.convertTo(ownership, CV_32F, 1.0 / 255.0);
     const int width = labels.cols;
@@ -3583,7 +3584,21 @@ cv::Mat analysisFeatherWeight(const Warp &warp, const cv::Mat &labels, int index
     cv::distanceTransform(tiled, distance, cv::DIST_L2, 5);
     cv::Mat edgeFade = distance.colRange(width, 2 * width).clone() / 1.5;
     cv::min(edgeFade, 1.0, edgeFade);
-    return periodicBlur(ownership, 1.0).mul(edgeFade);
+    if (featherWidth <= 0.0) return ownership.mul(edgeFade);
+    cv::Mat owned = labels == index;
+    cv::Mat tiledOwned;
+    cv::hconcat(std::vector<cv::Mat>{owned, owned, owned}, tiledOwned);
+    cv::Mat inside, outside;
+    cv::distanceTransform(tiledOwned, inside, cv::DIST_L2, 5);
+    cv::bitwise_not(tiledOwned, tiledOwned);
+    cv::distanceTransform(tiledOwned, outside, cv::DIST_L2, 5);
+    cv::Mat signedDistance = inside.colRange(width, 2 * width)
+        - outside.colRange(width, 2 * width);
+    signedDistance += 0.5 - ownership;
+    cv::Mat weight = 0.5 + signedDistance / featherWidth;
+    cv::max(weight, 0.0, weight);
+    cv::min(weight, 1.0, weight);
+    return weight.mul(edgeFade);
 }
 
 // Analysis keeps the established seam/radiometry/blend decisions at <=4096 px.
@@ -3592,7 +3607,8 @@ RenderAnalysis analyzePanorama(
     const std::vector<Source> &sources,
     const Alignment &alignment,
     const cv::Mat &detectedOpticalMask,
-    int width
+    int width,
+    int outputWidth
 ) {
     const int height = width / 2;
     cv::Mat fittedMask = fittedOpticalMask(
@@ -3717,6 +3733,8 @@ RenderAnalysis analyzePanorama(
     // native sampling. Never upscale the analysis image as the final result.
     cv::Mat narrow = featherComposite(warps, labels, 1.0);
     cv::subtract(result, narrow, analysis.blendCorrection, cv::noArray(), CV_32FC3);
+    cv::Mat featherSum(height, width, CV_32FC3, cv::Scalar(0, 0, 0));
+    cv::Mat featherTotal(height, width, CV_32F, cv::Scalar(0));
     for (int index = 0; index < int(warps.size()); ++index) {
         cv::Mat correction;
         cv::subtract(
@@ -3724,8 +3742,21 @@ RenderAnalysis analyzePanorama(
             correction, cv::noArray(), CV_32FC3
         );
         analysis.corrections.push_back(std::move(correction));
-        analysis.weights.push_back(analysisFeatherWeight(warps[index], labels, index));
+        cv::Mat weight = analysisFeatherWeight(
+            warps[index], labels, index, 0.0 * width / outputWidth
+        );
+        analysis.weights.push_back(weight);
+        cv::Mat colorWeight, source;
+        cv::merge(std::vector<cv::Mat>{weight, weight, weight}, colorWeight);
+        warps[index].image.convertTo(source, CV_32FC3);
+        featherSum += source.mul(colorWeight);
+        featherTotal += weight;
     }
+    cv::max(featherTotal, 1e-6, featherTotal);
+    cv::Mat colorTotal;
+    cv::merge(std::vector<cv::Mat>{featherTotal, featherTotal, featherTotal}, colorTotal);
+    cv::Mat featherResult = featherSum / colorTotal + analysis.blendCorrection;
+    featherResult.convertTo(analysis.image, CV_8UC3);
     return analysis;
 }
 
@@ -3888,7 +3919,7 @@ std::pair<double, int> renderPanorama(
     std::fprintf(stderr, "[PanoWizard] Rendering %d x %d; analysis %d x %d\n",
         width, width / 2, analysisWidth, analysisWidth / 2);
     RenderAnalysis analysis = analyzePanorama(
-        sources, alignment, detectedOpticalMask, analysisWidth
+        sources, alignment, detectedOpticalMask, analysisWidth, width
     );
     cv::Mat result;
     if (width == analysisWidth) {
