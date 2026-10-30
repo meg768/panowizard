@@ -2,6 +2,41 @@
 
 Senast uppdaterad: 2026-10-30.
 
+## M avslutat för kvällen — 2026-10-30
+
+Magnus avslutade arbetet. Ingen säker förbättring är identifierad. Båda
+försöken nedan är helt återställda; upprepa dem inte utan ny hypotes och
+nytt underlag. Tidigare förslag om dessa försök är därmed överspelade.
+Slutkontroll: all produktionskod är identisk med incheckade 76b747d;
+D:s verifierade sömfix finns kvar. Vid avslutningen återstod endast avsiktlig
+dokumentation i CONTEXT.md; inga byggen, commits eller pushar utfördes då.
+Magnus begärde därefter check-in av dokumentationen med ny tagg och push.
+
+- **Bred blendning inom Exclude:** blandade seamDetailed/broad med befintlig
+  släthet och kant-/konfliktskydd. Samma 314 träprov i M: median 15→14,
+  p90 27→26/255; skarvarna fortsatt tydliga. Avbrutet för otillräcklig effekt.
+  D pixelidentiskt; A maxdiff 1/255 vid 2048 px. Exkluderade warppixlar gav
+  inget bidrag i sentinelkontrollen. Underlag: work/m-blend-experiment.
+- **Lokalt dämpad radiometri:** 23 tillfälliga rader i applySeamLocalRadiometry,
+  fältvikt headroom/(headroom+|delta|) före befintlig confidence/korridor.
+  Taken ±12/±24 och alla säkerhetsgränser behölls. M:s median 15→16,
+  p90 27→31/255; 62 nytillkomna mättade kanalvärden i ägda källområden.
+  Avbrutet för sämre resultat och informationsförlust. D:s räcken hela,
+  maxdiff 3/255; A maxdiff 4/255 vid 2048 px, ingen uppenbar försämring i
+  översikt. Underlag: work/m-local-damping.
+
+Gemensamt: identiska bilder, masker och registreringscache; oförändrat
+bildägarskap. Inget av försöken installerades. Installerad app är fortsatt
+D-verifierade 1.4 (202610301723), med fullupplösningsrendering.
+
+Belagd diagnos: M återskapat pixelidentiskt (6614 × 3307), cache 4eb36269….
+Lokala restskillnader vid träets sömmar är 35/43 nivåer i största RGB-kanalen.
+Par 3–6 avvisas p.g.a. mättat korrigeringsfält (2884/265446 = 1,086 % >1 %),
+inte direkt uppmätt 0/255-klippning. Isolerad full korrigering riskerar dock
+att klippa 163 kanalvärden med information till svart i bild 6:s ägda områden.
+Att bara släppa igenom paret eller höja skyddsgränserna är därför inte belagt
+säkert. Analysunderlag: work/m-tonal-analysis och work/m-radiometry-analysis.
+
 ## Check-in av D:s sömfix — 2026-10-30
 
 Efter Magnus verifiering begärdes check-in av samtliga väntande ändringar:
