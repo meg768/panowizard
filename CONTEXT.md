@@ -2,6 +2,84 @@
 
 Senast uppdaterad: 2026-10-30.
 
+## Check-in av D:s sömfix — 2026-10-30
+
+Efter Magnus verifiering begärdes check-in av samtliga väntande ändringar:
+sömfixens 17 C++-rader och denna kontext. Release 1.4 (202610301723),
+strict/deep signatur, isolerad D-regression och korta A/Toscana-kontroller
+godkända enligt nedan. Slutgranskning, git diff --check och riktad kontroll
+av credential-mönster godkända; main och origin/main synkade före commit.
+Inga ytterligare byggen eller testsviter behövdes. Commit, ny tagg i
+Stockholmstid och push av main samt den nya taggen ingår i begäran.
+
+## D verifierat av Magnus och orsaksanalys — 2026-10-30
+
+Magnus bekräftar att installerad 1.4 (202610301723) fungerar som tidigare.
+Belagd orsak för D: a90d020 förenklade till gemensamt sömval och tog bort
+den särskilda kandidatbegränsningen för nadir/Repair. Handhållen nadir kunde
+därefter äga närliggande räcken utanför Include; växling mot ringbildernas
+förskjutna avbildning gav brotten. Samma geometri och masker gav fel före
+den isolerade sömfixen och hela räcken efter, med oförändrad blendningskod.
+Fullupplösningsrenderingen behålls. D med handhållen nadir och närliggande
+räcken är ett konkret regressionsfall för framtida ändringar i sömval/blendning.
+
+## Testbygge av D:s sömbegränsning — 2026-10-30
+
+På Magnus begäran byggdes signerad Release 1.4 (202610301723) med den
+experimentella ändringen nedan och installerades i /Applications/PanoWizard.app.
+Bygge, strict/deep kodsignatur och installerad binär mot byggresultat godkända.
+Appen startad. Föregående installation kopierad till denna chatts
+work/d-seam-experiment/PanoWizard-before.app. Originalprojekt orörda;
+D behöver Create Panorama igen för att visa ändringen. Ingen commit/push.
+
+## Experimentell sömbegränsning för D — 2026-10-30
+
+Isolerat före/efter-test med identiska RAW-raster, Include och låst cache
+bekräftade räckesregressionen i a90d020. På Magnus begäran återinfördes endast
+sömkandidatbegränsningen i analyzePanorama: role 2, eller role 0 med minst tre
+horisontella vyer (|axel-Y| < 0,65) och nadiraxel-Y < −0,8, använder
+protectedMask före preferCentralCoverage. Två rader håller renderingsrollerna
+synkade när överhoppade bilder filtreras. Totalt 17 nya C++-rader; blendning,
+registrering och Include-semantik oförändrade. Ändringen är experimentell.
+
+D omrenderad 8410 × 4205 med samma indata/cache: referensen pixelidentisk med
+sparat original, båda räckena sammanhängande efter ändringen, 100 % täckning.
+Nadirägarskap utanför grönt vid 4096-analysen minskar 1405682 → 152 pixlar.
+Kort A/Toscana-jämförelse vid 2048 px: oförändrad alpha/täckning, ändrat sömval
+och tonövergångar på marken, inga uppenbara nya geometriska fel i översikt.
+Endast fristående testmotorer kompilerade; installerad app oförändrad.
+git diff --check godkänd. Inga originalprojekt ändrade, ingen commit/push.
+Underlag i denna chatts work/d-seam-experiment. Stopp efter test enligt Magnus.
+
+## Kort regressionsanalys av Desktop/Panorama/D — 2026-10-30
+
+Räckesbrotten syns i sparat result.png (8410 × 4205), inte bara i Preview.
+Fem NEF, grön mask på sista bilden, inga röda masker. Projektets cachehash
+verifierad till fc2af58a…; fyra horisontella vyer och sista optiska axelns Y
+−0,999 uppfyller den tidigare automatiska nadirregeln. Starkaste kandidaten
+är a90d020 (13/10), som tog bort nadir/fillOnly-begränsningen till protectedMask
+vid sömval och begränsningen i bred blendning. Registrering oförändrad i de
+två senaste motorändringarna; cffc2ca ändrade fullupplösningsrendering och
+93bc378 radiometri/blendning. Ingen A/B-rendering utförd, orsaken inte bevisad.
+Nästa föreslagna steg: isolerad jämförelse före/efter a90d020 med samma geometri
+och masker samt inspektion av bildägarskap vid räckena. Ingen kod, mask eller
+projektfil ändrad, inget bygge/testpaket. Magnus kräver stopp efter rapport.
+
+## Grön mask och Repair Image i M — 2026-10-30
+
+Magnus vill att bild 6 i Desktop/Panorama/M endast ersätter stativet inom
+grönmålat område. Sparat projekt bekräftar fillOnly på bild 6 och grön mask.
+Nuvarande Include prioriterar området vid sömval men begränsar inte bildens
+övriga användning; Repair Image avser separat registrering utan att styra
+ringgeometrin. Ingen produktkod eller panoramafil ändrad vid genomgången.
+
+Magnus provade röd mask utanför ersättningsområdet och visade att bild 6
+sedan hoppas över med Insufficient overlap matches. Kodgranskning bekräftar
+att röd mask appliceras före extractFeatures och tar bort registreringsunderlag;
+rådet att rödmaska resten är därför otillräckligt. Föreslagen riktning för
+Repair Image med grön mask: behåll registreringsunderlaget men begränsa
+bildbidraget vid sammanfogning till grönt. Ännu inte implementerat eller testat.
+
 ## Check-in av blendningsfix — 2026-10-30
 
 Magnus begärde check-in av samtliga väntande ändringar: endast blendningsfixen

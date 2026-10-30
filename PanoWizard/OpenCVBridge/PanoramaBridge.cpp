@@ -3676,6 +3676,21 @@ RenderAnalysis analyzePanorama(
     std::vector<cv::Mat> redundantMasks = suppressRedundantViews(
         alignment.rotations, compensatedLayers.compositing
     );
+    const int horizontalViews = int(std::count_if(
+        alignment.rotations.begin(), alignment.rotations.end(),
+        [](const cv::Matx33d &rotation) {
+            return std::abs((rotation * cv::Vec3d(0.0, 0.0, 1.0))[1]) < 0.65;
+        }
+    ));
+    for (int index = 0; index < int(redundantMasks.size()); ++index) {
+        const unsigned char role = alignment.resolvedRoles[index];
+        const cv::Vec3d axis = alignment.rotations[index] * cv::Vec3d(0.0, 0.0, 1.0);
+        const bool automaticNadirFill = role == 0
+            && horizontalViews >= 3 && axis[1] < -0.8;
+        if (role == 2 || automaticNadirFill) {
+            redundantMasks[index] = compensatedLayers.compositing[index].protectedMask.clone();
+        }
+    }
     const std::vector<cv::Mat> seamMasks = preferCentralCoverage(
         compensatedLayers.compositing, redundantMasks
     );
@@ -4074,6 +4089,7 @@ int PWStitchPanorama(
         std::vector<Source> renderSources;
         Alignment renderAlignment = alignment;
         renderAlignment.rotations.clear();
+        renderAlignment.resolvedRoles.clear();
         renderAlignment.gains = cv::Mat(0, 3, CV_64F);
         std::vector<unsigned char> wasSkipped(imageCount, 0);
         for (const auto &[index, reason] : skippedImages) {
@@ -4084,6 +4100,7 @@ int PWStitchPanorama(
             if (wasSkipped[index]) continue;
             renderSources.push_back(sources[index]);
             renderAlignment.rotations.push_back(alignment.rotations[index]);
+            renderAlignment.resolvedRoles.push_back(resolvedRoles[index]);
             renderAlignment.gains.push_back(alignment.gains.row(index));
         }
         const auto [coverage, holes] = renderPanorama(
