@@ -2,6 +2,31 @@
 
 Senast uppdaterad: 2026-10-30.
 
+## Outside-feather 50 px: verifierat skydd men avbrutet försök — 2026-10-30
+
+Legoland Hell finns enligt Magnus i Desktop/Panorama/F och G. Provade
+ensidig linjär 50 px-feather i PanoramaBridge.cpp; befintliga söm-/tonbeslut
+behölls. Include låstes vid native-projektionen till en giltig korrigerad
+källa, utan annan källas blendCorrection; senare giltig Include vann överlapp.
+Fullupplösning med identiska raster/masker/låsta registreringscacher:
+F 8402×4201, 4 548 474 gröna pixlar; G 8580×4290, 666 222 gröna pixlar.
+Alla gröna pixlar exakt lika mellan nya 0/50; utanför grönt nya 0 pixelidentisk
+med gamla 0. Sömval och slutrenderingens radiometriloggar identiska F/G/D.
+D 8410×4205: båda räckena hela, D-fixen kvar. Men G fick tydlig NY spökbild
+utanför grönt vid påsen och mjukare dubbla motivgränser: fast utåtriktad
+blandning skyddar grönt men blandar fortfarande rörliga motiv utanför masken.
+Kravet på inga nya spökbilder är inte uppfyllt. Ingen adaptiv metod tillagd.
+22 befintliga Swift-tester samt nya fristående native-kontroller för 0/50,
+utstorlek, Include-isolering/överlapp och Exclude passerade; signerad Release
+1.4 (202610302249) byggd men INTE installerad. A testades inte efter G-fyndet.
+Hela produktförsöket och tillhörande produktdokumentation/testtillägg återställda
+till HEAD 894b0fa; endast denna kontext kvar. Installerad app fortsatt
+202610302154 (0 px). Återapplicerbar patch och före/efter-bilder finns i
+chatten 2026-10-30/fo/outputs/outside-feather; testapp i work/outside-feather.
+Inga originalpanoraman ändrade, ingen commit/tagg/push. Upprepa inte samma
+fasta feather med oförändrade masker i G och förvänta frånvaro av spökbilder.
+Magnus begärde därefter check-in av dokumentationen; ingen produktkod ingår.
+
 ## Check-in med extra feather avstängd — 2026-10-30
 
 Magnus begärde check-in av samtliga väntande ändringar: fast linjär
