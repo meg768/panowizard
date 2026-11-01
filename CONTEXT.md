@@ -1,6 +1,22 @@
 # PanoWizard — projekt- och utvecklingskontext
 
-Senast uppdaterad: 2026-10-30.
+Senast uppdaterad: 2026-11-01.
+
+## Check-in av återställningskontext — 2026-11-01
+
+Magnus begärde check-in av samtliga väntande ändringar. Endast kontexten om
+återställningen och Release 1.4 (202610310014) ingår; ingen produktkod ändrad.
+Granskning, git diff --check och credential-kontroll godkända; main/origin/main
+synkade före commit. Inget nytt bygge eller test behövs för dokumentationen.
+Commit, ny Stockholmstidsstämpeltagg och push av main samt den nya taggen ingår.
+
+## Återställt bygge före absolut grönt — 2026-10-31
+
+Magnus avbröt försöket med absolut grönt i slutrenderingen. Kod och testtillägg
+återställda till Before-red-light-green-light (de834e7). På följande instruktion
+byggdes signerad Release 1.4 (202610310014); build och strict/deep-signatur
+passerade. 0 px extra feather och D-fixen kvar. Ingen installation, commit
+eller push. Applications fortsatt 202610302154.
 
 ## Outside-feather 50 px: verifierat skydd men avbrutet försök — 2026-10-30
 
