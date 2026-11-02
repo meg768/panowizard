@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: 8 October 2026
+Last updated: 2 November 2026
 
 PanoWizard is developed by Magnus Egelberg. This policy describes how the app handles your information.
 
@@ -19,6 +19,12 @@ AI retouching uses OpenAI and requires your own OpenAI API key. When you request
 The developer does not operate an intermediary server for these requests. OpenAI processes the submitted data under its applicable terms and data policies. See [OpenAI's API data documentation](https://platform.openai.com/docs/guides/your-data). Do not submit images or instructions that you are not permitted to share with OpenAI.
 
 You can use the local panorama tools without using AI retouching.
+
+## Optional web publishing
+
+When you choose Publish, PanoWizard uploads the exported interactive panorama HTML and, if enabled, a JPEG thumbnail directly to the SFTP server you specify. The developer does not operate an intermediary server or provide hosting. Your chosen hosting provider handles the uploaded files under its own terms and policies. Files placed in a public website directory may be accessible to anyone who knows their URLs.
+
+The app remembers your SFTP connection details, including the password and trusted server public key, in local application preferences. The password is stored without Keychain encryption. Connection credentials are not included in the panorama HTML, JPEG thumbnail, or `.pw` project. The project can store the publishing path and filename. Selecting View Panorama opens your configured public URL in the default browser.
 
 ## Local settings and temporary files
 

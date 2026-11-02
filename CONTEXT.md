@@ -2,6 +2,44 @@
 
 Senast uppdaterad: 2026-11-02.
 
+## App Store-validering 1.4 godkänd — 2026-11-02
+
+Magnus godkände själv nya utvecklaravtalet i Safari. Kontosidan visar åter
+Certificates/Identifiers/Profiles och avtalsvarningen är borta. Validate App
+kördes om för samma arkiv 1.4 (202611022209): Organizer visar Validation
+succeeded och Validated 22:19 Europe/Stockholm. Elva kända OpenCV-dSYM-varningar
+kvar; appens egen dSYM matchar. Certifikatfelet återkom inte efter godkänt avtal;
+ingen separat certifikatåtgärd eller ny credential skapades av agenten.
+Detta ersätter föregående blockeringsstatus. Ingen upload eller App Review-
+inskickning gjord. Dokumentändringarna är fortfarande lokala och ocommittade.
+
+## App Store 1.4 förberedd, validering blockerad — 2026-11-02
+
+Arkiv av incheckad appkod ea529a69f48a0b5bf55fa68031bcdf3bc1647770:
+/Users/magnus/Library/Developer/Xcode/Archives/2026-11-02/PanoWizard-1.4-20261102-2209.xcarchive.
+Version 1.4 (202611022209), arm64; archive lyckades. Strict/deep-signatur,
+sandbox/network.client och matchande app/dSYM-UUID verifierade. Arkivappen
+installerad i Applications; tidigare app sparad i
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-store-archive-20261102-221049.app.
+Validate App körd i Xcode Organizer: stoppad av PLA Update available (senaste
+Program License Agreement måste godkännas av kontoinnehavaren) och saknat
+Mac Installer Distribution-certifikat med privat nyckel för team 52A6FA9VB5.
+Arkivets Apple Development-signatur är inte färdig distributionssignering.
+Ingen uppladdning, inskickning, avtalsacceptans, commit eller push utförd.
+Magnus loggade in; rätt sida hittades i Safari. Befintlig Rejected-post 1.3
+ändrad till 1.4; beskrivning med SFTP/thumbnail och Review Notes för Guideline
+4.0 sparade och verifierade efter omladdning. Rejected är ärvd status, inget
+nytt avslag på 1.4. Äldre build 1.3 (202610242148) är fortfarande kopplad och
+måste ersättas med rätt 1.4-build efter uppladdning. Automatically release this
+version är verifierat valt och lämnat oförändrat. Inget What’s New-fält visades;
+versionsnyheter finns lokalt. Kontaktuppgifter och screenshot bevarade.
+docs/privacy.md beskriver nu frivillig SFTP-publicering och
+lokal lösenordslagring; docs/export.md använder Save… och samlar Publish-hjälpen.
+Dessa dokumentändringar behöver publiceras före inskickning. SFTP innehåller
+standardkryptering via Citadel/SwiftNIO SSH/SwiftCrypto; besvara Apples nya
+export compliance-frågor utifrån detta, anta inte tidigare HTTPS-only-undantag.
+Ingen exemptionsflagga eller App Privacy-deklaration ändrad.
+
 ## Gemensam check-in — 2026-11-02
 
 Magnus har uttryckligen godkänt commit, tidsstämpeltagg och push för både
