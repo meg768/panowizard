@@ -2,6 +2,14 @@
 
 Senast uppdaterad: 2026-11-02.
 
+## Nästa utvecklingsversion 1.5 — 2026-11-02
+
+På Magnus instruktion höjdes MARKETING_VERSION till 1.5 i både Debug och
+Release. Byggnummer genereras fortsatt med befintlig tidsstämpel vid bygge.
+Projekt/plist och båda versionsinställningarna verifierade. Ingen ny build,
+installation eller App Store-ändring ingår; installerad och inskickad app är
+fortsatt 1.4 (202611022209).
+
 ## Automatisk publicering godkänd — 2026-11-02
 
 Magnus instruerade Kör automatisk publicering. Automatically release this
