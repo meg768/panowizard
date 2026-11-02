@@ -2,6 +2,24 @@
 
 Senast uppdaterad: 2026-11-02.
 
+## Extra kontroll före App Review — 2026-11-02
+
+Add Build-dialogen verifierar att 1.4 (202611022209) är valbar trots Missing
+Compliance. Endast en osparad fältändring användes för att visa väljaren;
+Cancel/omladdning återställde befintlig 1.3-koppling och Save är disabled.
+Frankrike: Available on App Release. Fastlandskina: enda Not Available.
+Citadel har AES128CTR med CCryptoBoringSSL; arkivbinären innehåller aes128-ctr
+och BoringSSL-typnamn. OS-only-krypteringsundantag kan inte antas. Apples
+export-compliance-tabell anger fransk deklaration för standardkryptering utanför
+OS när Frankrike ingår; ingen deklaration eller landinställning ändrad.
+Publika privacy/export/examples/support returnerar 200, exempel-ZIP byte-range
+206. Privacy saknar fortfarande SFTP-tillägget: lokala dokumentcommits behöver
+pushas före submission. AI-kodkontroll: OpenAI-information före explicit
+AI Retouch/Try Again; ingen automatisk generation från dialogens task.
+App Privacy i Connect är inte omdeklarerad eller slutligt verifierad här.
+Connects startsida visade även uppdaterad Paid Applications Schedule; eventuell
+påverkan på gratisappen är inte fastställd. Ingen rebuild, review eller release.
+
 ## App Store 1.4 uppladdad och bearbetad — 2026-11-02
 
 På Magnus uttryckliga instruktion granskades och committades dokumentändringarna
