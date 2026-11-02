@@ -2,6 +2,24 @@
 
 Senast uppdaterad: 2026-11-02.
 
+## App Store 1.4 klar för nästa granskningssteg — 2026-11-02
+
+Dokumentcommits till och med 4d4b7eb pushade till main; GitHub Pages byggd och
+publik privacy/export verifierade med SFTP-information respektive Save….
+Rätt build 1.4 (202611022209) vald och sparad på versionsposten, som nu visar
+Prepare for Submission. Magnus godkände uttryckligen pausad distribution i
+Frankrike: bortvalet bekräftat/sparat, 173 länder/regioner kvar; fastlandskina
+fortsatt bortvalt. Apple anger att tillgänglighetsändringen kan ta 24 timmar.
+Export compliance sparad: standardkryptering utanför OS, ingen distribution i
+Frankrike. Missing Compliance borta; TestFlight visar Ready to Submit för
+202611022209. Ingen fransk dokumentation uppladdad, ingen Info.plist-ändring.
+Free Apps Agreement verifierat Active. Paid Apps Agreement är också Active
+men har en separat uppdatering tillgänglig; inga avtal godkända av agenten.
+App Privacy-deklarationen har inte ändrats eller slutligt verifierats här.
+Arkiv/källkod/version oförändrade; inga nya byggen. Ingen App Review-inskickning
+eller release utförd. Magnus godkänner slutlig inskickning separat.
+Detta ersätter tidigare väntande compliance-, buildkopplings- och pushstatus.
+
 ## Extra kontroll före App Review — 2026-11-02
 
 Add Build-dialogen verifierar att 1.4 (202611022209) är valbar trots Missing
