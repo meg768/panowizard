@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A30000000000000000000001 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = A30000000000000000000002 /* Citadel */; };
 		000C85383CCB4E229F728A14 /* Vendor/OpenCV/lib/libopencv_photo.500.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 02DCFC88F83045958E37BA70 /* Vendor/OpenCV/lib/libopencv_photo.500.dylib */; };
 		00454D872C7A4E998B2FA4D7 /* Vendor/OpenCV/lib/libopencv_imgproc.500.dylib in Embed OpenCV Libraries */ = {isa = PBXBuildFile; fileRef = 946CB43764E7415A9D210836 /* Vendor/OpenCV/lib/libopencv_imgproc.500.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		0166FB5A9702487781550106 /* Vendor/OpenCV/lib/libopencv_objdetect.500.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = F1BFCD7E88C44B3BA9FB5F92 /* Vendor/OpenCV/lib/libopencv_objdetect.500.dylib */; };
@@ -167,6 +168,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A30000000000000000000001 /* Citadel in Frameworks */,
 				CD5DB05841F040108A9A91C7 /* libOpenCVBridge.a in Frameworks */,
 				24665B846CF64BB99FF705D1 /* Vendor/OpenCV/lib/libopencv_calib.500.dylib in Frameworks */,
 				453E2BA59F684FFFA2701D81 /* Vendor/OpenCV/lib/libopencv_core.500.dylib in Frameworks */,
@@ -304,6 +306,7 @@
 			);
 			name = PanoWizard;
 			packageProductDependencies = (
+				A30000000000000000000002 /* Citadel */,
 			);
 			productName = PanoWizard;
 			productReference = F7349881307406FD00FD790F /* PanoWizard.app */;
@@ -337,6 +340,7 @@
 			);
 			mainGroup = F7349878307406FD00FD790F;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (A30000000000000000000003 /* Citadel */);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F7349882307406FD00FD790F /* Products */;
 			projectDirPath = "";
@@ -425,6 +429,12 @@
 		};
 /* End PBXTargetDependency section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+        A30000000000000000000003 /* Citadel */ = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/orlandos-nl/Citadel.git"; requirement = {kind = exactVersion; version = 0.12.1; }; };
+/* End XCRemoteSwiftPackageReference section */
+/* Begin XCSwiftPackageProductDependency section */
+        A30000000000000000000002 /* Citadel */ = {isa = XCSwiftPackageProductDependency; package = A30000000000000000000003; productName = Citadel; };
+/* End XCSwiftPackageProductDependency section */
 /* Begin XCBuildConfiguration section */
 		04AFA0F23D824FF89563E91D /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -548,7 +558,6 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CONFIGURATION_BUILD_DIR = "$(HOME)/Library/Developer/Xcode/PanoWizardBuilds/$(CONFIGURATION)";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 52A6FA9VB5;
@@ -615,7 +624,6 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CONFIGURATION_BUILD_DIR = "$(HOME)/Library/Developer/Xcode/PanoWizardBuilds/$(CONFIGURATION)";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 52A6FA9VB5;

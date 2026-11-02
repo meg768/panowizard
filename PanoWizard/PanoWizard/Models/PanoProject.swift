@@ -55,6 +55,8 @@ struct PanoProject: Codable, Equatable, Sendable {
     var retouchPatches: [RetouchPatch]
     var previewViewpoint: PanoramaViewpoint?
     var panoramaAdjustments: PanoramaAdjustments
+    var publishPath: String?
+    var publishFilename: String?
 
     init(
         formatVersion: Int = Self.currentFormatVersion,
@@ -65,7 +67,9 @@ struct PanoProject: Codable, Equatable, Sendable {
         images: [SourceImage] = [],
         retouchPatches: [RetouchPatch] = [],
         previewViewpoint: PanoramaViewpoint? = nil,
-        panoramaAdjustments: PanoramaAdjustments = .neutral
+        panoramaAdjustments: PanoramaAdjustments = .neutral,
+        publishPath: String? = nil,
+        publishFilename: String? = nil
     ) {
         self.formatVersion = formatVersion
         self.id = id
@@ -76,6 +80,8 @@ struct PanoProject: Codable, Equatable, Sendable {
         self.retouchPatches = retouchPatches
         self.previewViewpoint = previewViewpoint
         self.panoramaAdjustments = panoramaAdjustments
+        self.publishPath = publishPath
+        self.publishFilename = publishFilename
     }
 
     var panorama: PanoramaSet {
@@ -119,6 +125,13 @@ struct PanoProject: Codable, Equatable, Sendable {
         let sanitized = adjustments.sanitized
         guard panoramaAdjustments != sanitized else { return }
         panoramaAdjustments = sanitized
+        touch()
+    }
+
+    mutating func setPublishDestination(path: String, filename: String) {
+        guard publishPath != path || publishFilename != filename else { return }
+        publishPath = path
+        publishFilename = filename
         touch()
     }
 

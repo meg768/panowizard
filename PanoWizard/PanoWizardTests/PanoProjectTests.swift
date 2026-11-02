@@ -31,6 +31,50 @@ struct PanoProjectTests {
         #expect(decoded.panoramaAdjustments == adjustments)
     }
 
+    @Test("Publish destination travels with a saved project without connection credentials")
+    func publishDestinationRoundTrip() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "publish-project-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let originalURL = root.appending(path: "Original.pw")
+        let copiedURL = root.appending(path: "Copied.pw")
+        var project = PanoProject(modifiedAt: Date(timeIntervalSince1970: 0))
+        let before = project
+        project.setPublishDestination(path: "2004/Öland", filename: "tunaparken.html")
+        #expect(project != before)
+        #expect(project.modifiedAt > before.modifiedAt)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try PanoProjectDocument(project: project).writeAtomically(to: originalURL)
+        try FileManager.default.copyItem(at: originalURL, to: copiedURL)
+        let restored = try PanoProjectDocument(contentsOf: copiedURL)
+        #expect(restored.project.publishPath == "2004/Öland")
+        #expect(restored.project.publishFilename == "tunaparken.html")
+        #expect(restored.project == project)
+        let data = try Data(contentsOf: copiedURL.appending(path: "project.json"))
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(json["password"] == nil)
+        #expect(json["hostname"] == nil)
+
+        var cleared = restored.project
+        cleared.setPublishDestination(path: "", filename: "panorama.html")
+        #expect(cleared.publishPath == "")
+    }
+
+    @Test("Older projects without publishing fields remain readable")
+    func legacyPublishDestination() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let original = PanoProject()
+        var json = try #require(JSONSerialization.jsonObject(with: encoder.encode(original)) as? [String: Any])
+        json.removeValue(forKey: "publishPath")
+        json.removeValue(forKey: "publishFilename")
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let restored = try decoder.decode(PanoProject.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(restored == original)
+        #expect(restored.publishPath == nil)
+        #expect(restored.publishFilename == nil)
+    }
+
     @Test("Project reader rejects noncurrent formats")
     func rejectsNoncurrentFormat() throws {
         let directory = FileManager.default.temporaryDirectory.appending(

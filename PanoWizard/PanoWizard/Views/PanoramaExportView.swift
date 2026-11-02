@@ -8,7 +8,6 @@ import UniformTypeIdentifiers
 final class PanoramaExportController {
     var jpegQuality = 0.98
     var maximumWidth = 0
-    var htmlSize = HTMLPanoramaSize.medium
     var htmlJPEGQuality = 0.82
     var errorMessage: String?
     var isExporting = false
@@ -34,10 +33,15 @@ enum PanoramaImageFormat: String, CaseIterable, Sendable {
 }
 
 struct PanoramaExportView: View {
+    @AppStorage("PanoWizard.HTMLExport.size")
+    private var htmlSize = HTMLPanoramaSize.original
+
     @AppStorage(HTMLNavigationPreferences.invertDragDirection)
     private var invertDragDirection = false
     @AppStorage(HTMLNavigationPreferences.invertScrollZoom)
     private var invertScrollZoom = false
+
+    @State private var showingPublish = false
 
     @Bindable var model: AppModel
     @Bindable var controller: PanoramaExportController
@@ -94,7 +98,7 @@ struct PanoramaExportView: View {
                     )
                     .foregroundStyle(.secondary)
 
-                    Picker("Size", selection: $controller.htmlSize) {
+                    Picker("Size", selection: $htmlSize) {
                         ForEach(HTMLPanoramaSize.allCases, id: \.self) { size in
                             Text(size.rawValue).tag(size)
                         }
@@ -112,21 +116,34 @@ struct PanoramaExportView: View {
                     Toggle("Scroll down to zoom in", isOn: $invertScrollZoom)
                         .toggleStyle(.switch)
 
-                    Button {
-                        controller.exportHTML(
-                            model: model,
-                            projectName: projectName,
-                            projectDirectoryURL: projectDirectoryURL,
-                            viewpoint: model.panoramaViewpoint
-                        )
-                    } label: {
-                        Label(
-                            "Save HTML…",
-                            systemImage: "square.and.arrow.down"
-                        )
+                    HStack(spacing: 8) {
+                        Button {
+                            controller.exportHTML(
+                                model: model,
+                                projectName: projectName,
+                                projectDirectoryURL: projectDirectoryURL,
+                                viewpoint: model.panoramaViewpoint,
+                                size: htmlSize
+                            )
+                        } label: {
+                            Label(
+                                "Save…",
+                                systemImage: "square.and.arrow.down"
+                            )
+                        }
+                        .buttonStyle(WorkspaceToolbarPillStyle())
+                        .disabled(!model.canExportHTML)
+
+                        Button { showingPublish = true } label: {
+                            Label("Publish…", systemImage: "square.and.arrow.up")
+                        }
+                        .buttonStyle(WorkspaceToolbarPillStyle())
+                        .disabled(!model.canExportHTML || controller.isExporting)
+                        .sheet(isPresented: $showingPublish) {
+                            PanoramaPublishView(model: model, projectName: projectName,
+                                                size: htmlSize, jpegQuality: controller.htmlJPEGQuality)
+                        }
                     }
-                    .buttonStyle(WorkspaceToolbarPillStyle())
-                    .disabled(!model.canExportHTML)
                 }
 
                 Section("Little Planet") {
@@ -201,7 +218,8 @@ extension PanoramaExportController {
         model: AppModel,
         projectName: String?,
         projectDirectoryURL: URL?,
-        viewpoint: PanoramaViewpoint
+        viewpoint: PanoramaViewpoint,
+        size: HTMLPanoramaSize
     ) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.html]
@@ -219,7 +237,7 @@ extension PanoramaExportController {
         model.exportHTML(
             to: url,
             initialViewpoint: viewpoint,
-            size: htmlSize,
+            size: size,
             jpegQuality: htmlJPEGQuality
         )
     }

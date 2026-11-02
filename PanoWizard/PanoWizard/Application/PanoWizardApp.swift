@@ -179,6 +179,10 @@ private final class PanoWizardApplicationDelegate: NSObject, NSApplicationDelega
         false
     }
 
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
+    }
+
     func applicationShouldTerminate(
         _ sender: NSApplication
     ) -> NSApplication.TerminateReply {

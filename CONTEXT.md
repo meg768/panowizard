@@ -1,6 +1,247 @@
 # PanoWizard — projekt- och utvecklingskontext
 
-Senast uppdaterad: 2026-11-01.
+Senast uppdaterad: 2026-11-02.
+
+## Gemensam check-in — 2026-11-02
+
+Magnus har uttryckligen godkänt commit, tidsstämpeltagg och push för både
+PanoWizard och Panorama Browser. PanoWizard-kontrollpunkten samlar SFTP Publish,
+valfri companion-JPEG, sparad publiceringsdestination och HTML-storlek,
+Save…-texten samt avslut efter sista fönstret. Tillfälliga byggloggar och
+disponibla projektkopior i /work/ ignoreras av Git och behålls lokalt.
+Ingen App Store-uppladdning eller inskickning ingår.
+Verifiering: 21 riktade projekt-/SFTP-/WebKit-tester godkända; ett lokalt
+SFTP-integrationstest överhoppat eftersom testservern inte körs. Release 1.4
+(202611022151) byggd, installerad och verifierad med strict/deep-signatur och
+identisk binär. Normal start och avslut med stängknappen verifierade igen.
+Licensfiler behåller originalens whitespace; övrig staged whitespace-kontroll
+och credentials-mönsterkontroll godkända. Föregående app sparad i
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-checkin-20261102-215125.app.
+
+## Avsluta efter sista stängda fönstret — 2026-11-02
+
+App Store-avslag för 1.3 (Guideline 4.0): fönsterstängning lämnade processen
+igång utan återöppning. Reproducerat lokalt. Application-delegaten returnerar
+nu true från applicationShouldTerminateAfterLastWindowClosed. Befintlig
+sparfråga och Cmd+Q-hantering oförändrade; inga nya menyer eller fönsterflöden.
+Installerad signerad Release 1.4 (202611022135), strict/deep-signatur och binär
+mot byggresultatet verifierade. Manuella tester med disponibla projekt:
+normal stängknapp avslutar processen; osparat + Cancel behåller projektet;
+Don't Save avslutar; Save skriver .pw och avslutar; avbruten Save-dialog
+behåller projektet. Cmd+Q verifierat utan ändringar samt med osparat + Cancel
+och Don't Save. git diff --check godkänd. Tidigare app sparad i
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-window-closing-20261102-213617.app.
+Ingen App Store-uppladdning, versionsändring, commit eller push.
+
+## Save… i Interactive Panorama — 2026-11-02
+
+Endast knapptexten Save HTML… ändrad till Save… i PanoramaExportView.
+Publish…, exportfunktioner, dialoger och övrig UI oförändrade. Signerad Release
+1.4 (202611022122) byggd och installerad i /Applications/PanoWizard.app;
+strict/deep-signatur och installerad binär mot byggresultatet verifierade.
+Installerad Export-vy kontrollerad med disponibel projektkopia: Save… och
+Publish… syns, Save JPEG…/Save PNG… kvar. Inga nya tester för textändringen;
+bygge, exakt ensträngsdiff och git diff --check godkända. Backup:
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-save-label-20261102-212324.app.
+Tidigare arbetskopieändringar bevarade. Ingen commit/push.
+
+## Återkommande macOS-startfel och Mountain Duck — 2026-11-02
+
+Både PanoWizard och Messenger blockerades. CoreServicesUIAgent (PID 9630)
+hade 256 öppna FD, varav 253 kataloger; systemets globala filgräns var långt
+ifrån nådd. macOS-loggen visade POSIX 24 medan agenten följde återkommande
+proc/task/cwd/root-sökvägar i Mountain Ducks pi-kato-montering. Det pekar på
+rekursiv traversering av den monterade serverns /proc som utlösande orsak.
+Båda apparnas kodsignaturer verifierade. Riktad SIGKILL av den låsta agenten
+återställde normal start; båda appfönstren verifierade. Ny agent hade bara
+3 öppna FD och inga kataloger. Ingen appkod, filgräns eller säkerhetsinställning
+ändrad. Att begränsa servermonteringen till en vanlig datakatalog undviker
+att exponera /proc för samma traversering; monteringen ändrades inte här.
+
+## Ikonstart blockerad av macOS filgräns — 2026-11-02
+
+Normal appstart reproducerade POSIX 24, Too many open files, vid translocation.
+CoreServicesUIAgent (PID 602) hade exakt 256 öppna FD (253 kataloger), medan
+systemets totala filgräns inte var nådd. Signaturen var giltig och ingen ny
+appkrasch fanns. Normal SIGTERM hjälpte inte; riktad SIGKILL av den egna
+CoreServicesUIAgent lät macOS starta om processen. Därefter öppnade normal
+appstart /Applications/PanoWizard.app och dess Untitled-fönster verifierades.
+Ingen produktkod, filgräns eller säkerhetsinställning ändrades.
+
+## Lokalt Release-bygge — 2026-11-02
+
+På Magnus begäran byggdes aktuell arbetskopia som signerad Release 1.4
+(202611020050) och installerades i /Applications/PanoWizard.app. Strict/deep-
+signatur, installerad version/byggnummer och binärhash mot byggresultatet
+verifierade. Föregående app sparad i
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-build-20261102-005045.app.
+Ingen produktkod ändrad och ingen commit/push gjordes.
+
+## Interactive Panorama: Original och sparat storleksval — 2026-11-01
+
+Magnus begärde Original som standard för Interactive Panorama Size och att valet
+sparas i appen. Storleken ligger nu i native AppStorage/UserDefaults med nyckeln
+PanoWizard.HTMLExport.size, standard Original. Delas mellan projekt/fönster och
+behålls mellan starter; Save HTML och Publish använder samma val. JPEG-kvalitet,
+bildexportens storlek och projektformat oförändrade. Hjälpen uppdaterad.
+Signerad Release 1.4 (202611012218) byggd och installerad i Applications;
+strict/deep-signatur, byggnummer och binärhash verifierade. Föregående app:
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-original-html-size-20261101-221923.app.
+Inga nya tester för standard-API-inställningen; git diff --check godkänd. Ingen commit/push.
+
+## Nytt lokalt Release-bygge — 2026-11-01
+
+Magnus begärde bygge av aktuell kod. Signerad Release 1.4 (202611012204)
+byggd och installerad i Applications enligt sparad rutin; strict/deep-signatur,
+byggnummer och binärhash verifierade. Föregående app sparad i /Users/magnus/Library/Developer/Xcode/PanoWizard-before-build-20261101-220706.app.
+Appen användes under installationen; öppet projekt lämnades kvar och det nya
+bygget används efter omstart. Ingen produktkod ändrad, inga nya tester,
+ingen commit/push.
+
+## Publiceringssökväg och filnamn i projektfilen — 2026-11-01
+
+Magnus begärde att Path och Filename ska sparas i själva projektet. PanoProject
+har nu valfria publishPath/publishFilename i project.json. Befintliga projekt
+utan fälten läses fortsatt som format 10. Dialogen prioriterar projektvärden;
+tidigare lokalt sparade värden kopieras till modellen när dialogen öppnas om
+projektfälten saknas. Inga nya Path/Filename skrivs till UserDefaults.
+Publish uppdaterar modellens destination och modifiedAt. Vanlig Spara/Spara som
+skriver värdena i .pw och ändringen ger normal osparad-status. Close fortsätter
+att kasta ännu opublicerade fältändringar. Anslutning/lösenord förblir lokala.
+16 projekt-/pakettester passerade, inklusive verklig skrivning/kopiering/
+återöppning, äldre JSON utan fälten och att credentials inte finns i projektet.
+Hjälpen uppdaterad. Signerad Release 1.4 (202611012203) byggd och installerad;
+strict/deep-signatur, byggnummer och binärhash verifierade. Föregående app sparad
+i /Users/magnus/Library/Developer/Xcode/PanoWizard-before-project-publish-destination-20261101-220412.app.
+Ingen commit/push.
+
+## Länktext View Panorama — 2026-11-01
+
+Endast synlig länktext i framgångsmeddelandet ändrad till View Panorama.
+Den faktiska URL:en och dess native öppning i standardwebbläsaren behålls;
+utan konfigurerad basadress visas endast Uploaded successfully. Ingen annan
+produktändring. Signerad Release 1.4 (202611012140) byggd och installerad;
+strict/deep-signatur, byggnummer och binärhash verifierade. Inga nya tester för
+textändringen; git diff --check godkänd. Föregående app sparad i /Users/magnus/Library/Developer/Xcode/PanoWizard-before-view-panorama-label-20261101-214046.app.
+Ingen commit/push.
+
+## Public Base URL valfri — 2026-11-01
+
+Magnus begärde endast att Public Base URL ska vara valfri. Tom eller enbart
+whitespace ger ingen URL-validering och vanlig SFTP-publicering med meddelandet
+Uploaded successfully. Angiven adress valideras och ger samma klickbara länk
+som tidigare. Fält, sparande, övrig UI och SFTP-flöde oförändrade. Framgång
+lagras separat från valfri URL så att även uppladdning utan länk bekräftas.
+Riktade tester för tom/whitespace, angivna URL:er, kodning och sparade uppgifter
+passerade (fyra körda, SFTP-integrationstest avsiktligt överhoppat; transportkod
+oförändrad). Hjälpen uppdaterad. Signerad Release 1.4 (202611012107)
+byggd och installerad i Applications; strict/deep-signatur, byggnummer och
+binärhash verifierade. Föregående app sparad i /Users/magnus/Library/Developer/Xcode/PanoWizard-before-optional-public-url-20261101-210819.app.
+Ingen commit/push.
+
+## Klickbar webblänk i publiceringsbekräftelsen — 2026-11-01
+
+På Magnus nya instruktion finns åter ett enda sparat Public Base URL-fält i
+anslutningsformuläret. Det valideras före publicering och sparas automatiskt med
+anslutningen. Äldre sparad konfiguration utan fältet behåller sina credentials.
+Ingen återinförd Save Connection, Copy URL, webblänksdialog eller extra knapp.
+Befintlig framgångsrad visar Uploaded successfully. följt av en klickbar URL;
+native SwiftUI Text/AttributedString-link öppnar standardwebbläsaren.
+
+URL består av basadress + valfri Path + Filename. Varje tillagd komponent
+UTF-8/percentkodas separat; befintlig kodning i basadressen behålls. HTTP/HTTPS
+krävs; query, fragment och credentials i bas-URL avvisas. Ingen gissning från
+SFTP-host/katalog. Renderingsmotor, HTML-generator och uppladdningskod orörda.
+Tio riktade tester via normal xcodebuild-teststart godkända, inklusive svenska
+tecken, mellanslag, #/?/%, tom undersökväg, flernivåsökväg, avslutande slash,
+redan kodad basadress, persistens/migrering, befintlig HTML-export och lokal SFTP.
+Det tidigare LaunchServices-felet inträffade inte i denna testomgång.
+Signerad Release 1.4 (202611012057) byggd och installerad i Applications;
+strict/deep-signatur, byggnummer och binärhash verifierade. Reservkopia:
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-publish-url-20261101-205818.app.
+Appen startad normalt; testserver stoppad. Ingen commit/push.
+
+## En enda Publish-dialog med valfri undersökväg — 2026-11-01
+
+Magnus bekräftade lyckad uppladdning till sin server och beställde därefter
+förenklingen: alltid synliga anslutningsfält, valfri Path och separat Filename;
+endast Close/Publish. Save Connection, anslutningsmellansteget och hela Web Link/
+Copy URL/Open in Browser borttagna. Publish validerar och sparar anslutningen
+automatiskt; Close sparar inte fältändringar. Filnamn och Path sparas lokalt per
+projekt-ID; filnamnets befintliga standard behålls. Äldre sparad anslutning med
+publicBaseURL kan läsas utan att credentials tappas; den egenskapen ignoreras.
+
+Path är relativt befintlig Remote Directory. Saknade kataloger skapas stegvis,
+även 2019/Toscana och A/B/C/D; befintliga återanvänds. Absoluta sökvägar, . och ..,
+backslash/kontrolltecken avvisas. Serverns kanoniska sökvägar kontrolleras för att
+stoppa symlänkar utanför baskatalogen. Befintlig överskrivningsfråga kvar.
+HTML-generator och renderingsmotor är oförändrade; hjälpen uppdaterad.
+
+Nio riktade tester passerade med samma byggda testpaket direkt via XCTest:
+legacy-inställningar, värdnamn, sökvägar, befintlig HTML-export och verklig lokal
+SFTP med skapande/återanvändning av flernivåkataloger, filnamn och mottagna bytes,
+avböjd/godkänd överskrivning, nekad katalogrättighet, fil i katalogväg,
+symlänk utanför basen, fel lösenord och otillgänglig port. Testserver stoppad.
+Normal xcodebuild-teststart blockerades av LaunchServices "Too many open files";
+samma fel reproducerades med open för BÅDE gamla installerade appen och Debug.
+Ingen systeminställning ändrad och ingen produktkod anpassad för detta miljöfel.
+
+Signerad Release 1.4 (202611012026) byggd och installerad i Applications;
+strict/deep-signatur och binärhash verifierade. Startad direkt via appens binär
+förbi LaunchServices. Manuell kontroll av själva Publish-dialogen återstår.
+Föregående app: ~/Library/Developer/Xcode/PanoWizard-before-publish-path-20261101-202843.app.
+Ingen commit, push eller Apple-uppladdning.
+
+## Förenklad SFTP-konfiguration — 2026-11-01
+
+Magnus bad om förenkling och ifrågasatte Public Base URL. Webbadressen är nu
+valfri under Web Link (Optional); SFTP-uppladdning kräver den inte. Ingen
+webbadress gissas från serverns katalog. Utan URL visas Uploaded successfully
+utan Copy URL/Open in Browser. Befintliga sparade webbadresser fungerar fortsatt.
+Hostname accepterar inklistrad http/https-adress och normaliseras till värdnamn
+vid Save Connection samt anslutning. HTML-generator och renderingsmotor orörda.
+Nio riktade tester passerar, inklusive uppladdning utan publik URL mot lokal
+SFTP-server och normalisering av värdnamn. Hjälpen uppdaterad. Signerad Release
+1.4 (202611011955) byggd, installerad i Applications och startad enligt
+byggrutinen; strict/deep-signatur och binärhash verifierade. Föregående app sparad
+i /Users/magnus/Library/Developer/Xcode/PanoWizard-before-optional-web-link-20261101-195608.app. Testserver stoppad. Ingen commit/push.
+
+## SFTP-bygge installerat — 2026-11-01
+
+På Magnus begäran byggdes signerad Release 1.4 (202611011943), installerades i
+/Applications/PanoWizard.app och startades enligt sparad byggrutin. Strict/deep-
+signatur, installerat byggnummer och binärhash mot byggresultatet verifierade.
+Föregående app sparad i ~/Library/Developer/Xcode/PanoWizard-before-SFTP-20261101-194411.app.
+Inga nya produktändringar, tester, commits eller pushar i denna byggomgång.
+
+## SFTP-publicering av interaktivt panorama — 2026-11-01
+
+Magnus beställde Publish… bredvid Save HTML…: en lokalt sparad SFTP-anslutning
+(host/port/användare/lösenord/katalog/publik bas-URL), redigerbara inställningar,
+filnamn, busy-indikator, överskrivningsfråga samt Copy URL/Open in Browser.
+Implementerat med exakt Citadel 0.12.1 och versionslåsta transitiva Swift-paket;
+licenser medföljer. Använder befintlig FilePanoramaExporter, ingen andra
+HTML-generator eller ändring i renderingsmotorn. Lösenord sparas i lokala
+UserDefaults utan Keychain enligt uttryckligt krav. Första SSH-servernyckeln
+måste godkännas och sparas; ändrad nyckel stoppar anslutningen.
+
+Den gamla CONFIGURATION_BUILD_DIR-överskrivningen kolliderade verifierat med
+Swift-paketens resursbundlar. Borttagen till förmån för Xcodes vanliga DerivedData;
+bygg utanför iCloud. README uppdaterad; gamla Build-länken kan visa äldre appar.
+Signerat Release-bygge och strict/deep-signatur godkända i
+~/Library/Developer/Xcode/PanoWizardSFTP/Build/Products/Release/PanoWizard.app;
+sandbox och network.client verifierade. Ingen installation eller Apple-uppladdning.
+Åtta riktade tester godkända: första lokala konfigurationen, återläsning/ersättning
+av sparade credentials, URL-kodning, befintlig HTML-export och SFTP-integration
+mot lokal Paramiko-server med ECDSA-nyckel (ny fil, avböjd/godkänd överskrivning,
+fel lösenord, otillgänglig port). Mottaget filinnehåll kontrollerat. Testernas
+temporära scheme-ändring återställd; integrationstest kräver explicit
+PANOWIZARD_SFTP_TEST=1 och testserver på localhost:22229; reproducerbar fixture
+finns i PanoWizard/TestSupport/sftp_server.py (Paramiko endast för utveckling).
+Testservern är stoppad. Verklig webbserver,
+manuell genomgång av publiceringsdialogen och App Store-validering återstår.
+Äldre RSA-only-server gav algoritmförhandlingsfel; moderna ECDSA-testservern
+fungerade utan att försvaga protokollinställningarna. Ingen commit/push.
 
 ## Check-in av återställningskontext — 2026-11-01
 
@@ -2673,3 +2914,27 @@ Published help verified over HTTPS: examples, getting-started, Masking and AI Pa
 ## Checkpoint — 2026-10-16 21:07 Europe/Stockholm
 
 User requested commit/tag/push after confirming the updated A download and help changes. Checkpoint includes all pending navigation polish and zoom-anchor changes, tests and accumulated context. User verified source zoom and 360 zoom locally; latest installed local Release is 1.1 (202610162048). Five focused interaction tests previously passed; subsequent local Release builds/signature checks passed. Help and example packaging have already been published and verified. The uploaded Apple build 202610161844 predates these app changes; a new archive/upload is needed before submitting the current app. No Apple submission was performed.
+
+## Publicering med valfri thumbnail — 2026-11-02
+
+Generate thumbnail är nu en AppStorage-sparad kryssruta direkt under Filename,
+standard på. Ny PublishThumbnailRenderer använder systemets WKWebView och exakt
+exporterad HTML, initial kamera/FOV, 640x360 perspektiv, canvas JPEG quality 0.8.
+Save HTML/JPEG/PNG och Panorama Browser är oförändrade. SFTPPublisher har valfri
+JPEG-väg med dold staging, bekräftad ersättning och backup/återställning.
+HTML-framgång följd av JPEG-fel/avbrott rapporteras som partiellt resultat.
+11 tester körda och godkända (1 äldre lokal Paramiko-integration skippad): verklig
+WebKit-kameraprojektion vid två FOV, HTML-export och SFTP mot sparad server,
+HTML-only, JPEG, nekad/godkänd JPEG-ersättning och saknad lokal JPEG.
+Browser verifierade båda UTF-8-testpubliceringarna och avkodade JPEG 640x360.
+Automattestfiler borttagna, browser åter 36. Inga nya beroenden.
+Signerad Release 1.4 (202611021747) installerad och binär/signatur verifierade.
+Backup: /Users/magnus/Library/Developer/Xcode/PanoWizard-before-publish-thumbnail-20261102-174828.app.
+Native dialog kontrollerad på disponibel kopia work/thumbnail-ui-A; kryssrutan
+visas som checkbox direkt under Filename, standard på. Manuell Publish startad
+med 2008/zz-ui-thumbnail-20261102-1749-med.html; kontroll/städning av den pågår.
+Ingen commit/push. Tidigare ändringar i arbetskopian bevarade.
+Native Publish med kryssrutan på slutfördes med Uploaded successfully och både
+HTML och JPEG fanns på servern. Dessa två temporära UI-testfiler är också
+borttagna. Av-läget testades genom den automatiserade SFTP-kedjan, inte genom
+ett andra manuellt knapptryck. Testprojektet är en disponibel kopia.

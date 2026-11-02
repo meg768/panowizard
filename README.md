@@ -182,11 +182,14 @@ xcodebuild -project PanoWizard/PanoWizard.xcodeproj \
   -destination 'platform=macOS,arch=arm64' build
 ```
 
-The latest successful app builds are available at `Build/Debug/PanoWizard.app`
-and `Build/Release/PanoWizard.app` through the repository’s Git-ignored `Build` link.
-Xcode stores the products in `~/Library/Developer/Xcode/PanoWizardBuilds` to keep
-iCloud metadata from invalidating code signing. On a new checkout, create a
-`Build` symlink to that directory if desired.
+Xcode uses its standard DerivedData product directories so the app and Swift
+package resource bundles share one output location. Use **Product → Show Build
+Folder in Finder** to locate the app, or provide `-derivedDataPath` outside iCloud
+(for example under `~/Library/Developer/Xcode`) when using `xcodebuild`. The old
+repository `Build` symlink may still point to earlier builds.
+
+SFTP publishing uses Citadel 0.12.1 and its resolved Swift package dependencies.
+Their licenses are included in `PanoWizard/Resources/ThirdPartyLicenses/SFTP`.
 
 Archive and distribute using Xcode's standard Organizer workflow. This repository
 has no Swift package manifest or custom bundle/signing/distribution scripts.
