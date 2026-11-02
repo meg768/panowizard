@@ -2,6 +2,30 @@
 
 Senast uppdaterad: 2026-11-02.
 
+## Automatisk publicering godkänd — 2026-11-02
+
+Magnus instruerade Kör automatisk publicering. Automatically release this
+version valt och sparat för 1.4 (202611022209); verifierat efter omladdning
+(Save disabled, automatisk radio vald). Waiting for Review kvarstår.
+Detta ersätter den manuella publiceringsinställningen från inskickningen.
+Appen får nu publiceras automatiskt efter Apples godkännande. Inga ändringar
+i build, granskningsärende eller landsurval. Frankrike fortsatt pausat.
+
+## App Store 1.4 inskickad till granskning — 2026-11-02
+
+Magnus gav uttryckligt slutgodkännande: Submit. App Privacy läst: publicerad
+policy-URL korrekt, Photos or Videos, Other User Content och User ID deklarerade
+för App Functionality och kopplade till användaren; inga deklarationer ändrade.
+Versionspostens beskrivning, granskningstext, exempel-URL och vald build granskade.
+Manually release this version valt och sparat före inskickning för att respektera
+tidigare instruktion att inte släppa appen. Detta ersätter äldre automatisk
+release-inställning. Update Review följt av Resubmit to App Review utfört.
+Apple bekräftar Waiting for Review för 1.4 (202611022209), inskickad 2 november
+2026 kl. 23:02 Europe/Stockholm. Submission ID:
+c5c10c97-d367-4412-a117-a6a3e3cc732d. Frankrike fortsatt pausat.
+Ingen rebuild, kod-/versionsändring, release eller separat meddelande till Apple.
+Skärmbild sparad i uppdragsmappens outputs/PanoWizard-1.4-submitted.png.
+
 ## App Store 1.4 klar för nästa granskningssteg — 2026-11-02
 
 Dokumentcommits till och med 4d4b7eb pushade till main; GitHub Pages byggd och
