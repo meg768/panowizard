@@ -2,6 +2,24 @@
 
 Senast uppdaterad: 2026-11-02.
 
+## App Store 1.4 uppladdad och bearbetad — 2026-11-02
+
+På Magnus uttryckliga instruktion granskades och committades dokumentändringarna
+i f5df89f; arbetskopian verifierades ren före uppladdningen. Samma validerade
+arkiv 1.4 (202611022209) laddades upp via Xcode Organizer, Uploaded 22:25
+Europe/Stockholm. Ingen rebuild, nytt arkiv, källkods- eller versionsändring.
+Appbinärens SHA-256 före/efter identisk:
+a70fbed2ab9d3fc4dccbdadc005227e61ef30c69c77dda8d851d3191f6b2cbf0.
+Upload completed with warnings: endast de elva kända OpenCV-dSYM-varningarna.
+Connect Build Uploads visar rätt version/build och Complete; TestFlight listar
+202611022209 under Version 1.4 med Missing Compliance. Manage-formuläret
+frågar vilken typ av krypteringsalgoritmer appen implementerar; inga svar sparade.
+Bygget är färdigbearbetat men inte bekräftat klart för App Review-val medan
+compliance återstår. Befintlig 1.3-buildkoppling lämnad orörd; ersätt med rätt
+1.4-build inför granskning. Ingen Submit/Update Review, release, Git-push eller
+taggning utförd. Dokumentcommits är lokala; push behövs för publicerad hjälp.
+Magnus godkänner eventuell slutlig inskickning separat.
+
 ## App Store-validering 1.4 godkänd — 2026-11-02
 
 Magnus godkände själv nya utvecklaravtalet i Safari. Kontosidan visar åter
