@@ -1,0 +1,219 @@
+{
+  "createdAt" : "2026-09-28T22:13:02Z",
+  "formatVersion" : 10,
+  "id" : "B47AA53E-4A20-4BAF-9330-594C156A908F",
+  "images" : [
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-06-23T18:29:47Z",
+      "direction" : "horizontal",
+      "id" : "4F96B007-491B-4923-86E4-B914EF31262C",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-06-23%2020-29-47.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-06-23T18:29:58Z",
+      "direction" : "horizontal",
+      "id" : "B37C71CC-6DE0-459B-A595-B223E17406BD",
+      "isEnabled" : false,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-06-23%2020-29-58.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-06-23T18:30:01Z",
+      "direction" : "horizontal",
+      "id" : "25769000-F88D-4B26-B4D1-98D8246E73BE",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-06-23%2020-30-01.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-06-23T18:30:03Z",
+      "direction" : "horizontal",
+      "id" : "0F83CC61-4094-4B65-AF8A-D06A7EAB9A27",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-06-23%2020-30-03.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-06-23T18:30:05Z",
+      "direction" : "horizontal",
+      "id" : "69D6541E-B2BC-4F8E-901C-9C4F0DCBAB7E",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-06-23%2020-30-05.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-06-23T18:30:12Z",
+      "direction" : "horizontal",
+      "id" : "62B64D2E-50B3-4E0F-AFE8-3F0207114C3E",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-06-23%2020-30-12.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-06-23T18:30:20Z",
+      "direction" : "horizontal",
+      "id" : "7744DFCA-859C-4369-A0C9-58EABE236751",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-06-23%2020-30-20.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-06-23T18:30:25Z",
+      "direction" : "horizontal",
+      "id" : "C4004A9F-BDA4-48DB-8FB1-8B1CFF1654E6",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-06-23%2020-30-25.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-06-23T18:30:31Z",
+      "direction" : "horizontal",
+      "id" : "1FF4F77D-6840-4DE0-85F7-BC216F59B922",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-06-23%2020-30-31.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D80",
+      "captureDate" : "2009-06-23T18:30:36Z",
+      "direction" : "horizontal",
+      "id" : "E99053BA-DA01-4D14-92CD-C46592AFA7BD",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 8,
+        "kind" : "fisheye",
+        "model" : "Sigma 8mm F3.5 EX Circular Fisheye"
+      },
+      "pixelHeight" : 3872,
+      "pixelWidth" : 2592,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2009-06-23%2020-30-36.jpg"
+    }
+  ],
+  "modifiedAt" : "2026-11-06T19:58:18Z",
+  "panoramaAdjustments" : {
+    "blacks" : 0,
+    "brightness" : 0,
+    "contrast" : 0,
+    "exposure" : 0,
+    "highlights" : 0,
+    "saturation" : 0,
+    "shadows" : 0,
+    "temperature" : 0,
+    "tint" : 0,
+    "vibrance" : 0,
+    "whites" : 0
+  },
+  "previewViewpoint" : {
+    "pitchRadians" : 0.15919055044651031,
+    "verticalFieldOfViewDegrees" : 76.75331115722656,
+    "yawRadians" : 30.877376556396484
+  },
+  "retouchPatches" : [
+    {
+      "id" : "90642CCD-7D35-4450-B055-68D3BE65A324",
+      "isEnabled" : true,
+      "kind" : "manual",
+      "viewpoint" : {
+        "pitchRadians" : -1.570796251296997,
+        "verticalFieldOfViewDegrees" : 92.56697082519531,
+        "yawRadians" : 25.02194595336914
+      }
+    },
+    {
+      "id" : "2A1EC88D-A34C-406B-A12E-71605ADE6C33",
+      "isEnabled" : true,
+      "kind" : "manual",
+      "viewpoint" : {
+        "pitchRadians" : 1.5546634197235107,
+        "verticalFieldOfViewDegrees" : 92.56697082519531,
+        "yawRadians" : 25.065269470214844
+      }
+    }
+  ],
+  "title" : "23 Jun 2009"
+}

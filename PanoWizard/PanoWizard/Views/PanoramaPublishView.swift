@@ -6,7 +6,6 @@ struct PanoramaPublishView: View {
     let model: AppModel
     let size: HTMLPanoramaSize
     let jpegQuality: Double
-    @AppStorage("PanoWizard.Publish.generateThumbnail") private var generateThumbnail = true
     @State private var connection = SFTPConnection.load()
     @State private var filename: String
     @State private var subdirectory: String
@@ -38,7 +37,6 @@ struct PanoramaPublishView: View {
                 TextField("Path (Optional)", text: $subdirectory, prompt: Text("2019/Toscana"))
                     .help("Subfolders inside Remote Directory. Missing folders are created automatically.")
                 TextField("Filename", text: $filename)
-                Toggle("Generate thumbnail", isOn: $generateThumbnail)
             }
             .onChange(of: connection.hostname) { publishedURL = nil; uploadSucceeded = false }
             .onChange(of: connection.port) { publishedURL = nil; uploadSucceeded = false }
@@ -47,7 +45,6 @@ struct PanoramaPublishView: View {
             .onChange(of: connection.remoteDirectory) { publishedURL = nil; uploadSucceeded = false }
             .onChange(of: connection.publicBaseURL) { publishedURL = nil; uploadSucceeded = false }
             .onChange(of: filename) { publishedURL = nil; uploadSucceeded = false }
-            .onChange(of: generateThumbnail) { publishedURL = nil; uploadSucceeded = false }
             .onChange(of: subdirectory) { publishedURL = nil; uploadSucceeded = false }
             Text("Connection details are remembered when you publish. The password is stored locally without Keychain encryption.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -73,8 +70,10 @@ struct PanoramaPublishView: View {
         .disabled(busy)
         .interactiveDismissDisabled(busy)
         .onAppear {
-            // Preserve destinations saved locally by earlier builds when moving them into the document.
             let defaults = UserDefaults.standard
+            // Publishing always includes the JPEG; discard the retired optional setting.
+            defaults.removeObject(forKey: "PanoWizard.Publish.generateThumbnail")
+            // Preserve destinations saved locally by earlier builds when moving them into the document.
             if (model.project.publishFilename == nil && defaults.string(forKey: "sftpPublishFilename.\(model.project.id)") != nil)
                 || (model.project.publishPath == nil && defaults.string(forKey: "sftpPublishPath.\(model.project.id)") != nil) {
                 model.project.setPublishDestination(path: subdirectory, filename: filename)
@@ -106,7 +105,6 @@ struct PanoramaPublishView: View {
         let settings = connection
         let name = filename
         let path = subdirectory
-        let includeThumbnail = generateThumbnail
         let adjustments = model.panoramaAdjustments
         let title = model.project.title
         let viewpoint = model.panoramaViewpoint
@@ -126,10 +124,8 @@ struct PanoramaPublishView: View {
                     panoramaURL: source, adjustments: adjustments, title: title,
                     initialViewpoint: viewpoint, size: size, jpegQuality: jpegQuality, to: temporary
                 )
-                if includeThumbnail {
-                    status = "Generating thumbnail…"
-                    try await PublishThumbnailRenderer.render(htmlURL: temporary, to: jpeg)
-                }
+                status = "Generating thumbnail…"
+                try await PublishThumbnailRenderer.render(htmlURL: temporary, to: jpeg)
                 status = "Connecting and uploading…"
                 let verifyHost: @Sendable (String) async throws -> Void = { key in
                         try await MainActor.run {
@@ -163,15 +159,13 @@ struct PanoramaPublishView: View {
                     verifyHost: verifyHost, confirmOverwrite: { await confirm(name) }
                 )
                 htmlUploaded = true
-                if includeThumbnail {
-                    status = "Uploading thumbnail…"
-                    let jpegName = String(name.dropLast(5)) + ".jpg"
-                    try await SFTPPublisher.upload(
-                        localURL: jpeg, connection: settings, filename: name, subdirectory: path,
-                        thumbnail: true, verifyHost: verifyHost,
-                        confirmOverwrite: { await confirm(jpegName) }
-                    )
-                }
+                status = "Uploading thumbnail…"
+                let jpegName = String(name.dropLast(5)) + ".jpg"
+                try await SFTPPublisher.upload(
+                    localURL: jpeg, connection: settings, filename: name, subdirectory: path,
+                    thumbnail: true, verifyHost: verifyHost,
+                    confirmOverwrite: { await confirm(jpegName) }
+                )
                 connection = SFTPConnection.load()
                 publishedURL = publicURL
                 uploadSucceeded = true

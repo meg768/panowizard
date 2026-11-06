@@ -6,15 +6,15 @@ Start with a finished panorama, then inspect how its source photographs, masks, 
 
 1. Choose **Help → Download Examples…** in PanoWizard, or download [examples.zip](https://github.com/meg768/panowizard/releases/download/examples/examples.zip). No development tools are required.
 2. Double-click **examples.zip** in Finder and open the extracted **examples** folder.
-3. Launch PanoWizard. Choose **File → Open…**, then select **panorama.pw** inside A, B, C, D, E, F, or G.
-4. If prompted, select that same A, B, C, D, E, F, or G folder and click **Grant Access**. This lets macOS read the source photographs.
+3. Launch PanoWizard. Choose **File → Open…**, then select **panorama.pw** inside any example folder (A–H).
+4. If prompted, select the same example folder and click **Grant Access**. This lets macOS read the source photographs.
 5. Choose **Panorama → Preview**. Drag to look around; scroll or pinch to zoom.
 
 Keep each entire example folder together: the source photographs belong beside `panorama.pw`, not inside it. Moving the whole folder preserves the relative source references. Check the sidebar against the image counts below. See [File Access](file-access.html) if photographs are unavailable.
 
 The saved panoramas and patches are ready to explore. No API key is needed to view or toggle existing AI patches. Only generating new AI results requires your own OpenAI API key and separately billed API usage.
 
-**Before experimenting, duplicate the entire A, B, C, D, E, F, or G folder in Finder and open the copy.** Changing sources or source masks clears the panorama, patches, and adjustments; rebuilding also clears patches and resets adjustments.
+**Before experimenting, duplicate the entire example folder in Finder and open the copy.** Changing sources or source masks clears the panorama, patches, and adjustments; rebuilding also clears patches and resets adjustments.
 
 <a id="example-a"></a>
 
@@ -104,7 +104,7 @@ Open **Retouch** and click the **Manual Patch** thumbnail to locate its area in 
 
 ![Example F open in PanoWizard Preview, showing the seated people on the snowy terrace and its six NEF source files in the sidebar](Images/Examples/f-preview.jpg)
 
-Explore the terrace, seated people, and surrounding buildings in **Preview**. F uses Nikon D80 NEF RAW source photographs, unlike the JPEG sources in A–E and G. Keep all six `.NEF` files beside `panorama.pw`.
+Explore the terrace, seated people, and surrounding buildings in **Preview**. F uses Nikon D80 NEF RAW source photographs, unlike the JPEG sources in A–E, G, and H. Keep all six `.NEF` files beside `panorama.pw`.
 
 **No AI was used in F.** The tripod is hidden using only a green **Include** mask, which favors existing pixels from an overlapping source photograph. There are no manual or AI retouch patches.
 
@@ -141,6 +141,22 @@ Open **Retouch** to find the two **AI Patch** entries. The first is the nadir re
 To inspect a saved mask and instruction, click the patch’s pencil button and choose **Cancel** when finished. Both saved patches use the default **Replace** instruction. See [AI Retouch](HowTo/AIPatch/index.html) to try this on a copy of the project.
 
 G demonstrates reconstruction of missing coverage at both poles, beyond removing a small object. Stitching itself does not create that content; AI retouching adds it afterward.
+
+<a id="example-h"></a>
+
+## H — Handheld panorama
+
+**10 JPEG photographs · 2 Exclude masks · 2 Include masks · 2 manual patches**
+
+The photographs were taken handheld, and people appear in different positions across overlapping frames. The red **Exclude** mask tells PanoWizard to leave out the boy in the red shirt from one frame. The green **Include** mask favors pixels from the frame where he appears in the preferred position.
+
+| Red Exclude on `2009-06-23 20-30-20.jpg` | Green Include on `2009-06-23 20-30-31.jpg` |
+| --- | --- |
+| ![Red Exclude mask covering a person in a fisheye photograph](Images/Examples/h-exclude.jpg) | ![Green Include mask covering a person in a different fisheye photograph](Images/Examples/h-include.jpg) |
+
+Open **H/panorama.pw** and select those photographs in the sidebar. Choose **Exclude** or **Include** to inspect the corresponding mask. A second green mask is saved on `2009-06-23 20-30-03.jpg`. The second red mask is on `2009-06-23 20-29-58.jpg`, which is disabled in the saved project.
+
+Explore the saved result in **Preview**. In **Retouch**, click the manual patch thumbnails to look straight down and nearly straight up. For mask controls and safe rebuilding, see the [Masks guide](HowTo/Masking/index.html).
 
 ## Try the next step
 

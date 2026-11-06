@@ -1,6 +1,54 @@
 # PanoWizard — projekt- och utvecklingskontext
 
-Senast uppdaterad: 2026-11-02.
+Senast uppdaterad: 2026-11-06.
+
+## Handhållet exempel H i hjälpen — 2026-11-06
+
+H i repot har tio JPEG-källor, två Exclude-masker (en på en avstängd
+källa), två Include-masker och två manuella patchar. Exempelguiden visar
+röd och grön mask på samma person i olika källbilder, med illustrationer
+från de sparade maskerna. Maskguiden länkar till H.
+Det distribuerade H-projektet använder relativa bildreferenser. Ett lokalt
+säkerhetsbokmärke sparades utanför de versionshanterade exemplen.
+
+## JPEG-källor i privata testprojektet G — 2026-11-06
+
+På iCloud-skrivbordet ligger det öppningsbara JPEG-projektet under
+`Panorama/G/JPEG/panorama.pw`. PanoWizard 1.5 visade Ready med alla tio
+JPEG-källor. Bild-ID:n, inställningar, masker och sparat panorama bevarades.
+Projektformat 10 läser masker och sparat panorama som interna PNG-filer.
+Det privata originalprojektet och G i repots exempel är separata.
+
+## Release 1.5 installerad — 2026-11-03
+
+På Magnus instruktion byggdes Release 1.5 (202611030044) och installerades i
+/Applications/PanoWizard.app. Strict/deep-signatur och identisk binär + Info.plist
+mot byggresultatet verifierade. Native start och Om-dialog verifierar 1.5,
+Build 2026-11-03 00:44; appen lämnad öppen. Befintliga actor-isoleringsvarningar
+och AppIntents-metadata-varning kvar. Föregående installerade 1.4 bevarad i
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-mandatory-thumbnail-7il5dqc4/PanoWizard.app.
+App Store-arkiv och inskickad 1.4 orörda. Ingen commit eller push utförd.
+
+## Publicering kräver HTML och thumbnail — 2026-11-03
+
+PanoWizard 1.5 har inget Generate thumbnail-val eller AppStorage för det.
+Gammal PanoWizard.Publish.generateThumbnail-nyckel tas bort när dialogen öppnas;
+tidigare false ignoreras. Render och JPEG-upload körs alltid; framgång sätts
+först efter båda uppladdningarna. Befintlig 640x360/JPEG80-rendering, kamera,
+filnamn, överskrivningsskydd, dold staging och partiell feltext oförändrade.
+Exporthjälp och integritetspolicy uppdaterade; opt-in livetest publicerar nu
+ett HTML/JPEG-par i stället för ett separat HTML-only-läge.
+Verifiering: fem riktade tester godkända (bl.a. riktig WebKit-render vid två
+FOV); ett lokalt SFTP-test skippat utan fixture-server. Release 1.5
+(202611030035) byggd och strict/deep-signatur godkänd. Befintliga varningar i
+PanoWizardApp.swift om actor-isolering samt AppIntents-metadata kvar.
+Manuellt test i byggd Debug-app på disponibel projektkopia med gammal false:
+kryssruta saknas, gamla nyckeln rensad, HTML + JPEG med UTF-8-namn publicerade
+i 2008; remote JPEG verifierad 640x360. HTML-ersättning godkänd och JPEG-
+ersättning avbruten: tydligt partiellt resultat, JPEG SHA256 oförändrad.
+Båda temporära serverfilerna borttagna och frånvaro verifierad. Testappen stängd.
+Ingen installation i /Applications, App Store-åtgärd, commit eller push ingår;
+installerad app och inskickat arkiv 1.4 bevarade. Hjälpen är ändrad lokalt.
 
 ## Nästa utvecklingsversion 1.5 — 2026-11-02
 

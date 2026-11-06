@@ -33,10 +33,10 @@ struct PublishThumbnailRendererTests {
 }
 
 struct PublishThumbnailLiveTests {
-    @Test("Publish HTML only and HTML with an atomic companion JPEG to the configured gallery",
+    @Test("Publish HTML with an atomic companion JPEG to the configured gallery",
           .enabled(if: ProcessInfo.processInfo.environment["PANOWIZARD_PUBLISH_LIVE_TEST"] == "1"))
     @MainActor
-    func publishBothModes() async throws {
+    func publishPair() async throws {
         let connection = SFTPConnection.load()
         guard ["panorama.egelberg.se", "server.egelberg.se"].contains(URL(string: connection.publicBaseURL)?.host ?? ""),
               connection.remoteDirectory.hasSuffix("/panorama"), let trusted = connection.hostKey else {
@@ -59,13 +59,10 @@ struct PublishThumbnailLiveTests {
             guard key == trusted else { throw PublishError.message("Unexpected live server host key") }
         }
         let token = UUID().uuidString
-        let without = "zz-publish-test-\(token)-utan-åäö.html"
-        let with = "zz-publish-test-\(token)-med-åäö.html"
-        for name in [without, with] {
-            try await SFTPPublisher.upload(localURL: html, connection: connection, filename: name,
-                subdirectory: "2008", verifyHost: verify, confirmOverwrite: { false })
-        }
+        let with = "zz-publish-test-\(token)-åäö.html"
         try await PublishThumbnailRenderer.render(htmlURL: html, to: jpg)
+        try await SFTPPublisher.upload(localURL: html, connection: connection, filename: with,
+            subdirectory: "2008", verifyHost: verify, confirmOverwrite: { false })
         try await SFTPPublisher.upload(localURL: jpg, connection: connection, filename: with,
             subdirectory: "2008", thumbnail: true, verifyHost: verify, confirmOverwrite: { false })
         do {
@@ -81,6 +78,6 @@ struct PublishThumbnailLiveTests {
                 verifyHost: verify, confirmOverwrite: { true })
             Issue.record("Missing local JPEG reported success")
         } catch { #expect(error.localizedDescription.contains("SFTP upload failed")) }
-        for name in [without, with] { print("PUBLISH_LIVE_FILE=\(name)") }
+        print("PUBLISH_LIVE_FILE=\(with)")
     }
 }
