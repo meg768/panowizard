@@ -4,15 +4,18 @@ Open **Export** and choose:
 
 - **Save JPEG…** for a compact panorama image.
 - **Save PNG…** for a lossless panorama image.
+- **Save PSD…** for a layered panorama in Photoshop format.
 - **Save…** for a self-contained interactive 360° viewer.
 
 ![Current export options](Images/Examples/a-export.jpg)
 
 ## Image size and quality
 
-JPEG and PNG use the **2:1 equirectangular** format: the whole sphere laid out as a rectangle. It looks stretched in an ordinary image viewer.
+JPEG, PNG and PSD use the **2:1 equirectangular** format: the whole sphere laid out as a rectangle. It looks stretched in an ordinary image viewer.
 
 **Size: Original** preserves the full-resolution panorama created and stored in your project. Export applies your patches and adjustments without stitching again. **4096 px** and **2048 px** produce smaller image exports. **JPEG Quality** affects JPEG only.
+
+In the PSD, the stitched panorama is the bottom layer and each retouch patch has its own transparent layer. Disabled patches start hidden. Adjustments are baked into the layers. Choose a smaller size if the export exceeds the PSD size limit.
 
 Older projects keep their existing panorama dimensions. To obtain more detail from their source images, create the panorama again. A new Create clears existing patches and resets adjustments, so preserve a copy of a finished project before doing so.
 

@@ -16,11 +16,13 @@ final class PanoramaExportController {
 enum PanoramaImageFormat: String, CaseIterable, Sendable {
     case jpeg = "JPEG"
     case png = "PNG"
+    case psd = "PSD"
 
     var contentType: UTType {
         switch self {
         case .jpeg: .jpeg
         case .png: .png
+        case .psd: UTType(importedAs: "com.adobe.photoshop-image")
         }
     }
 
@@ -28,6 +30,7 @@ enum PanoramaImageFormat: String, CaseIterable, Sendable {
         switch self {
         case .jpeg: "jpg"
         case .png: "png"
+        case .psd: "psd"
         }
     }
 }
@@ -50,7 +53,7 @@ struct PanoramaExportView: View {
     let presentLittlePlanet: () -> Void
 
     var body: some View {
-        if let panoramaURL = model.currentPanoramaURL {
+        if model.currentPanoramaURL != nil {
             Form {
                 Section("Panorama Image") {
                     LabeledContent("Format", value: "Equirectangular · 2:1")
@@ -73,10 +76,8 @@ struct PanoramaExportView: View {
                             Button {
                                 controller.exportImage(
                                     format: format,
-                                    from: panoramaURL,
-                                    adjustments: model.panoramaAdjustments,
+                                    model: model,
                                     projectName: projectName,
-                                    projectTitle: model.project.title,
                                     projectDirectoryURL: projectDirectoryURL
                                 )
                             } label: {
@@ -244,10 +245,8 @@ extension PanoramaExportController {
 
     func exportImage(
         format: PanoramaImageFormat,
-        from sourceURL: URL,
-        adjustments: PanoramaAdjustments,
+        model: AppModel,
         projectName: String?,
-        projectTitle: String,
         projectDirectoryURL: URL?
     ) {
         guard !isExporting else { return }
@@ -258,7 +257,7 @@ extension PanoramaExportController {
         panel.directoryURL = projectDirectoryURL
         let name = defaultName(
             projectName: projectName,
-            projectTitle: projectTitle
+            projectTitle: model.project.title
         )
         panel.nameFieldStringValue = "\(name).\(format.filenameExtension)"
         panel.title = "Save Panorama as \(format.rawValue)"
@@ -266,12 +265,32 @@ extension PanoramaExportController {
         guard panel.runModal() == .OK, let destinationURL = panel.url else {
             return
         }
+        guard let sourceURL = model.currentPanoramaURL, model.phase == .ready else { return }
+        let adjustments = model.panoramaAdjustments
         let maximumWidth = maximumWidth
         let quality = jpegQuality
         isExporting = true
         Task {
             defer { isExporting = false }
             do {
+                if format == .psd {
+                    guard let baseURL = model.stitchedResultURL else {
+                        throw CocoaError(.fileNoSuchFile)
+                    }
+                    let patches = try model.retouchPatches.map { patch in
+                        guard let url = model.retouchPatchURLs[patch.id] else {
+                            throw RetouchPatchError.patchUnavailable
+                        }
+                        return (patch, url)
+                    }
+                    try await Task.detached(priority: .userInitiated) {
+                        try LayeredPSDExporter.write(
+                            baseURL: baseURL, compositeURL: sourceURL, patches: patches,
+                            adjustments: adjustments, maximumWidth: maximumWidth, to: destinationURL
+                        )
+                    }.value
+                    return
+                }
                 let exportSourceURL = FileManager.default.temporaryDirectory
                     .appending(path: "\(UUID().uuidString)-rendered-panorama.png")
                 defer {

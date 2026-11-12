@@ -34,43 +34,43 @@ struct PanoramaSidebar: View {
                         ) { index, image in
                             sourceRow(index: index, image: image)
                         }
+
+                        Button {
+                            model.stitch()
+                        } label: {
+                            Label("Create Panorama", systemImage: "pano")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(WorkspaceToolbarPillStyle())
+                        .disabled(!model.canStitch)
+                        .listRowSeparator(.hidden)
                     }
 
-                        Section {
-                            Button {
-                                model.stitch()
-                            } label: {
-                                Label("Create Panorama", systemImage: "pano")
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(WorkspaceToolbarPillStyle())
-                            .disabled(!model.canStitch)
-                            .listRowSeparator(.hidden)
-
-                            navigationRow(
-                                "Retouch",
-                                systemImage: "paintbrush.pointed",
-                                selection: .retouch
-                            )
-                            navigationRow(
-                                "Preview",
-                                systemImage: "eye",
-                                selection: .panorama
-                            )
-                            navigationRow(
-                                "Export",
-                                systemImage: "square.and.arrow.up",
-                                selection: .export
-                            )
-                        } header: {
-                            Text("Panorama")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
+                    Section {
+                        navigationRow(
+                            "Retouch",
+                            systemImage: "paintbrush.pointed",
+                            selection: .retouch
+                        )
+                        navigationRow(
+                            "Preview",
+                            systemImage: "eye",
+                            selection: .panorama
+                        )
+                        navigationRow(
+                            "Export",
+                            systemImage: "square.and.arrow.up",
+                            selection: .export
+                        )
+                    } header: {
+                        Text("Panorama")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
                             .textCase(nil)
                             .padding(.leading, 4)
                             .padding(.trailing, 14)
                             .padding(.vertical, 4)
-                        }
+                    }
                 }
                 .contentMargins(.horizontal, 16, for: .scrollContent)
                 .contentMargins(.top, 8, for: .scrollContent)

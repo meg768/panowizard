@@ -31,7 +31,7 @@ Choose **File → New** for an empty project.
 ![An empty PanoWizard window with Add Images and Open Existing Panorama](Images/Examples/welcome.jpg)
 
 1. Click **Add Images…** and select all nine JPEGs in a copy of the A folder. Do not select `panorama.pw`.
-2. Click **Create Panorama** under **Panorama** in the sidebar, or choose **Panorama → Create**.
+2. Click **Create Panorama** below the source images in the sidebar, or choose **Panorama → Create**.
 3. Wait while the images are aligned and stitched. **Preview** opens when creation finishes.
 4. Save your new project beside the photographs using a different name, such as `practice.pw`.
 

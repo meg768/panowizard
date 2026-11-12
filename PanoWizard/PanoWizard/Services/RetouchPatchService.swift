@@ -291,66 +291,103 @@ struct RetouchPatchService: Sendable {
         expectedPatchSize: Int = Self.patchSize
     ) throws {
         var panorama = try RGBAImage(contentsOf: panoramaURL)
-        let active: [(cosYaw: Double, sinYaw: Double, cosPitch: Double, sinPitch: Double, tangent: Double, image: RGBAImage)] = try patches.compactMap {
+        let active: [PatchProjection] = try patches.compactMap {
             patch, url in
             guard patch.isEnabled else { return nil }
-            let image = try RGBAImage(contentsOf: url)
-            guard image.width == expectedPatchSize,
-                  image.height == expectedPatchSize else {
+            return try PatchProjection(patch, url: url, expectedSize: expectedPatchSize)
+        }
+
+        try Self.forEachDirection(width: panorama.width, height: panorama.height) {
+            x, y, worldX, worldY, worldZ in
+            var pixel = panorama.pixel(x: x, y: y)
+            for patch in active {
+                guard let overlay = patch.sample(worldX, worldY, worldZ) else { continue }
+                pixel = Self.blend(overlay, over: pixel)
+            }
+            panorama.setPixel(pixel, x: x, y: y)
+        }
+        try panorama.writePNG(to: destinationURL)
+    }
+
+    func projectedLayer(
+        for patch: RetouchPatch,
+        at url: URL,
+        width: Int,
+        height: Int
+    ) throws -> (image: RGBAImage, bounds: CGRect) {
+        let projection = try PatchProjection(patch, url: url, expectedSize: Self.patchSize)
+        var layer = RGBAImage(width: width, height: height)
+        var left = width, top = height, right = 0, bottom = 0
+        try Self.forEachDirection(width: width, height: height) { x, y, worldX, worldY, worldZ in
+            guard let pixel = projection.sample(worldX, worldY, worldZ),
+                  pixel.a >= 0.5 / 255 else { return }
+            layer.setPixel(pixel, x: x, y: y)
+            left = min(left, x)
+            top = min(top, y)
+            right = max(right, x + 1)
+            bottom = max(bottom, y + 1)
+        }
+        let bounds = right > left && bottom > top
+            ? CGRect(x: left, y: top, width: right - left, height: bottom - top)
+            : CGRect(x: 0, y: 0, width: 1, height: 1)
+        return (layer, bounds)
+    }
+
+    private static func forEachDirection(
+        width: Int,
+        height: Int,
+        _ body: (Int, Int, Double, Double, Double) -> Void
+    ) throws {
+        let longitudes = (0..<width).map { x in
+            let angle = ((Double(x) + 0.5) / Double(width) - 0.5) * 2 * .pi
+            return (sin: sin(angle), cos: cos(angle))
+        }
+        for y in 0..<height {
+            try Task.checkCancellation()
+            let latitude = (0.5 - (Double(y) + 0.5) / Double(height)) * .pi
+            let worldY = sin(latitude)
+            let horizontalRadius = cos(latitude)
+            for x in 0..<width {
+                body(x, y, longitudes[x].sin * horizontalRadius, worldY,
+                     longitudes[x].cos * horizontalRadius)
+            }
+        }
+    }
+
+    private struct PatchProjection {
+        let cosYaw: Double
+        let sinYaw: Double
+        let cosPitch: Double
+        let sinPitch: Double
+        let tangent: Double
+        let image: RGBAImage
+
+        init(_ patch: RetouchPatch, url: URL, expectedSize: Int) throws {
+            image = try RGBAImage(contentsOf: url)
+            guard image.width == expectedSize, image.height == expectedSize else {
                 throw RetouchPatchError.invalidDimensions(
-                    expected: expectedPatchSize,
-                    width: image.width,
-                    height: image.height
+                    expected: expectedSize, width: image.width, height: image.height
                 )
             }
             let viewpoint = patch.viewpoint
-            return (
-                cos(viewpoint.yawRadians), sin(viewpoint.yawRadians),
-                cos(viewpoint.pitchRadians), sin(viewpoint.pitchRadians),
-                tan(viewpoint.verticalFieldOfViewDegrees * .pi / 360), image
-            )
+            cosYaw = cos(viewpoint.yawRadians)
+            sinYaw = sin(viewpoint.yawRadians)
+            cosPitch = cos(viewpoint.pitchRadians)
+            sinPitch = sin(viewpoint.pitchRadians)
+            tangent = tan(viewpoint.verticalFieldOfViewDegrees * .pi / 360)
         }
 
-        let longitudes = (0..<panorama.width).map { x in
-            let angle = ((Double(x) + 0.5) / Double(panorama.width) - 0.5) * 2 * .pi
-            return (sin: sin(angle), cos: cos(angle))
+        func sample(_ worldX: Double, _ worldY: Double, _ worldZ: Double) -> Pixel? {
+            let yawX = worldX * cosYaw - worldZ * sinYaw
+            let yawZ = worldX * sinYaw + worldZ * cosYaw
+            let localY = worldY * cosPitch + yawZ * sinPitch
+            let localZ = -worldY * sinPitch + yawZ * cosPitch
+            guard localZ > 0.000_1 else { return nil }
+            let ndcX = yawX / localZ / tangent
+            let ndcY = localY / localZ / tangent
+            guard (-1...1).contains(ndcX), (-1...1).contains(ndcY) else { return nil }
+            return image.sample(x: (ndcX + 1) / 2, y: (1 - ndcY) / 2)
         }
-        for y in 0..<panorama.height {
-            if Task.isCancelled { throw CancellationError() }
-            let latitude = (0.5 - (Double(y) + 0.5) / Double(panorama.height)) * .pi
-            let worldY = sin(latitude)
-            let horizontalRadius = cos(latitude)
-            for x in 0..<panorama.width {
-                let worldX = longitudes[x].sin * horizontalRadius
-                let worldZ = longitudes[x].cos * horizontalRadius
-                var pixel = panorama.pixel(x: x, y: y)
-
-                for patch in active {
-                    let yawX = worldX * patch.cosYaw - worldZ * patch.sinYaw
-                    let yawZ = worldX * patch.sinYaw + worldZ * patch.cosYaw
-                    let localY = worldY * patch.cosPitch + yawZ * patch.sinPitch
-                    let localZ = -worldY * patch.sinPitch + yawZ * patch.cosPitch
-                    guard localZ > 0.000_1 else { continue }
-                    let ndcX = yawX / localZ / patch.tangent
-                    let ndcY = localY / localZ / patch.tangent
-                    guard (-1...1).contains(ndcX),
-                          (-1...1).contains(ndcY) else { continue }
-                    let overlay = patch.image.sample(
-                        x: (ndcX + 1) / 2,
-                        y: (1 - ndcY) / 2
-                    )
-                    let inverseAlpha = 1 - overlay.a
-                    pixel = Pixel(
-                        r: overlay.r + pixel.r * inverseAlpha,
-                        g: overlay.g + pixel.g * inverseAlpha,
-                        b: overlay.b + pixel.b * inverseAlpha,
-                        a: overlay.a + pixel.a * inverseAlpha
-                    )
-                }
-                panorama.setPixel(pixel, x: x, y: y)
-            }
-        }
-        try panorama.writePNG(to: destinationURL)
     }
 }
 
@@ -372,10 +409,10 @@ struct RGBAImage {
         bytes = Array(repeating: 0, count: width * height * 4)
     }
 
-    init(contentsOf url: URL) throws {
+    init(contentsOf url: URL, maximumWidth: Int = 0) throws {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil)
         else { throw RetouchPatchError.unreadableImage }
-        try self.init(source: source)
+        try self.init(source: source, maximumWidth: maximumWidth)
     }
 
     init(data: Data) throws {
@@ -384,9 +421,18 @@ struct RGBAImage {
         try self.init(source: source)
     }
 
-    private init(source: CGImageSource) throws {
-        guard let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-        else { throw RetouchPatchError.unreadableImage }
+    private init(source: CGImageSource, maximumWidth: Int = 0) throws {
+        let image: CGImage?
+        if maximumWidth > 0 {
+            image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceThumbnailMaxPixelSize: maximumWidth,
+                kCGImageSourceCreateThumbnailWithTransform: true
+            ] as CFDictionary)
+        } else {
+            image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        }
+        guard let image else { throw RetouchPatchError.unreadableImage }
         width = image.width
         height = image.height
         bytes = Array(repeating: 0, count: width * height * 4)
@@ -405,6 +451,36 @@ struct RGBAImage {
             return true
         }
         guard rendered else { throw RetouchPatchError.unreadableImage }
+    }
+
+    func channelData(_ channel: Int, in bounds: CGRect, matteOnWhite: Bool = false) -> Data {
+        let left = Int(bounds.minX)
+        let top = Int(bounds.minY)
+        let columns = Int(bounds.width)
+        let rows = Int(bounds.height)
+        var data = Data(count: columns * rows)
+        bytes.withUnsafeBufferPointer { source in
+            data.withUnsafeMutableBytes { (output: UnsafeMutableRawBufferPointer) in
+                for y in 0..<rows {
+                    var offset = ((top + y) * width + left) * 4
+                    for x in 0..<columns {
+                        let alpha = Int(source[offset + 3])
+                        let value = Int(source[offset + channel])
+                        let component: Int
+                        if channel == 3 {
+                            component = alpha
+                        } else if matteOnWhite {
+                            component = value + 255 - alpha
+                        } else {
+                            component = alpha == 0 ? 0 : (value * 255 + alpha / 2) / alpha
+                        }
+                        output[y * columns + x] = UInt8(clamping: component)
+                        offset += 4
+                    }
+                }
+            }
+        }
+        return data
     }
 
     func pixel(x: Int, y: Int) -> Pixel {

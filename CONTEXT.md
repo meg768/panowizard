@@ -1,6 +1,31 @@
 # PanoWizard — projekt- och utvecklingskontext
 
-Senast uppdaterad: 2026-11-06.
+Senast uppdaterad: 2026-11-12.
+
+## Create Panorama under Images — 2026-11-12
+
+Vänsterpanelen visar Create Panorama som sista rad under Images. Panorama
+samlar Retouch, Preview och Export. Placeringen verifierades med en kopia
+av exempel H i installerad, signerad Release 1.5 (202611122030).
+Magnus valde denna version som grund för fortsatt arbete. Kontrollpunkten
+innehåller även PSD-export och exempel H:s sparade startvy. H:s lokala
+säkerhetsbokmärke ligger kvar utanför Git.
+
+## PSD med retuschlager — 2026-11-12
+
+Save PSD… exporterar 8-bitars sRGB i vald storlek med grundpanoramat som
+bottenlager och varje projicerad retuschpatch i eget lager. Avstängda
+patchar är dolda. Justeringar appliceras på lagren och på den sammanslagna
+förhandsbilden. Signerad Release 1.5 (202611122003) installerad och verifierad.
+12 riktade tester passerade. Export av en kopia av H i installerad app
+verifierades med en oberoende PSD-läsare: 8592 × 4296, tre lager, ett dolt.
+
+## App Store-status verifierad — 2026-11-12
+
+App Store Connect visar fortfarande Waiting for Review för macOS 1.4.
+Senaste statusändringen i historiken är inskickningen 2 november kl. 23:02
+Stockholmstid. Den publika svenska butikssidan för appens Apple-ID svarade
+404. Exakt datum för eventuell tidigare publik tillgänglighet är obekräftat.
 
 ## Handhållet exempel H i hjälpen — 2026-11-06
 
