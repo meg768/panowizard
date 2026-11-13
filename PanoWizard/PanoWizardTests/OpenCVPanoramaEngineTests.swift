@@ -287,6 +287,127 @@ struct OpenCVPanoramaEngineTests {
         #expect(!FileManager.default.fileExists(atPath: cache.path))
     }
 
+    @Test("A red mask excludes repair image control points")
+    func redMaskExcludesRepairControlPoints() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizard-Repair-Mask-Test-\(UUID())"
+        )
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let url = directory.appending(path: "source.jpg")
+        try writeTexturedImage(to: url)
+        let size = 512
+        let images = (0..<4).map { index in
+            SourceImage(
+                url: url, captureDate: nil, pixelWidth: size, pixelHeight: size,
+                cameraModel: nil,
+                lens: LensDescription(model: nil, focalLengthIn35mm: nil, kind: .fisheye),
+                role: index == 3 ? .fillOnly : .alignment
+            )
+        }
+        let repair = images[3]
+        let red = try #require(SourceMaskRasterizer.applyingCircle(
+            center: MaskPoint(x: 0.5, y: 0.5), radius: CGFloat(size),
+            erasing: false, to: nil, width: size, height: size
+        ))
+        let engine = OpenCVPanoramaEngine()
+        let panorama = PanoramaSet(images: images)
+        let unmasked = try await engine.stitch(panorama, masks: [:], protectedMasks: [:]) { _, _ in }
+        #expect(unmasked.usedSupplementalImageCount == 1)
+        #expect(unmasked.warningMessage == nil)
+
+        let masked = try await engine.stitch(panorama, masks: [repair.id: red], protectedMasks: [:]) { _, _ in }
+        #expect(masked.ringImageCount == 3)
+        #expect(masked.usedSupplementalImageCount == 0)
+        #expect(masked.warningMessage?.contains("Insufficient overlap matches") == true)
+        #expect(!masked.usedAlignmentCache)
+    }
+
+    @Test("A rejected local repair factor uses neutral when the global factor is worse")
+    func repairRejectsWorseGlobalColorFactor() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(
+            path: "PanoWizard-Repair-Color-Test-\(UUID())"
+        )
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let size = 512
+        let ring = directory.appending(path: "ring.pgm")
+        let repair = directory.appending(path: "repair.pgm")
+        let mask = directory.appending(path: "green.pgm")
+        let cache = directory.appending(path: "alignment.yml")
+        let output = directory.appending(path: "result.png")
+        let header = Data("P5\n\(size) \(size)\n255\n".utf8)
+        try (header + Data(repeating: 200, count: size * size)).write(to: ring)
+        var repairImage = header
+        var maskImage = header
+        for y in 0..<size {
+            for x in 0..<size {
+                let marked = (206..<306).contains(x) && (206..<306).contains(y)
+                let center = (230..<282).contains(x) && (230..<282).contains(y)
+                // A single local factor cannot improve both sides of the overlap.
+                repairImage.append(center ? 185 : (x < 276 ? 190 : 220))
+                maskImage.append(marked ? 255 : 0)
+            }
+        }
+        try repairImage.write(to: repair)
+        try maskImage.write(to: mask)
+
+        // Fix the geometry and the global gain so this tests the renderer's decision.
+        try """
+        %YAML:1.2
+        ---
+        version: 7
+        imageCount: 3
+        width: 512
+        height: 512
+        rotations: !!opencv-matrix
+          rows: 3
+          cols: 9
+          dt: d
+          data: [1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1]
+        roles: !!opencv-matrix
+          rows: 1
+          cols: 3
+          dt: u
+          data: [1, 1, 2]
+        lens: !!opencv-matrix
+          rows: 1
+          cols: 6
+          dt: d
+          data: [1.7, 0, 0, 256, 256, 0]
+        gains: !!opencv-matrix
+          rows: 3
+          cols: 3
+          dt: d
+          data: [1, 1, 1, 1, 1, 1, 1.4, 1.4, 1.4]
+        """.write(to: cache, atomically: true, encoding: .utf8)
+
+        let paths = [ring, ring, repair, mask].map { strdup($0.path(percentEncoded: false)) }
+        defer { paths.forEach { free($0) } }
+        let sources = paths.prefix(3).map { $0.map { UnsafePointer($0) } }
+        let masks: [UnsafePointer<CChar>?] = [nil, nil, paths[3].map { UnsafePointer($0) }]
+        var report = PWStitchReport()
+        var error: UnsafeMutablePointer<CChar>?
+        defer { PWFreeString(error) }
+        defer { PWFreeString(report.skippedImageDetails) }
+        let succeeded = PWStitchPanorama(
+            sources, masks, nil, 3, cache.path(percentEncoded: false),
+            output.path(percentEncoded: false), Int32(size), nil, nil, nil, &report, &error
+        )
+
+        try #require(succeeded == 1, Comment(rawValue: error.map { String(cString: $0) } ?? ""))
+        #expect(report.usedAlignmentCache == 1)
+        #expect(report.usedSupplementalImageCount == 1)
+        let bitmap = try #require(NSBitmapImageRep(data: Data(contentsOf: output)))
+        let center = try #require(bitmap.colorAt(x: size / 2, y: size / 4))
+        #expect(center.alphaComponent == 1)
+        #expect(abs(center.redComponent * 255 - 185) < 1)
+        #expect(abs(center.greenComponent * 255 - 185) < 1)
+        #expect(abs(center.blueComponent * 255 - 185) < 1)
+    }
+
     @Test("Skipped supplemental image warning names the source and reason")
     func skippedImageWarningNamesImageAndReason() throws {
         let first = image(enabled: true)

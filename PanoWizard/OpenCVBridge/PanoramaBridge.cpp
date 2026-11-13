@@ -25,7 +25,7 @@
 namespace {
 
 constexpr double pi = 3.14159265358979323846;
-constexpr int alignmentCacheFormatVersion = 5;
+constexpr int alignmentCacheFormatVersion = 7;
 
 struct Lens {
     double k1 = pi / 2.0;
@@ -40,6 +40,7 @@ struct Source {
     cv::Mat image;
     cv::Mat userMask;
     cv::Mat protectedMask;
+    bool hasProtectedMask = false;
 };
 
 struct Features {
@@ -282,6 +283,7 @@ Source readSource(const char *imagePath, const char *protectedPath) {
         } else {
             result.protectedMask = protectedImage > 0;
         }
+        result.hasProtectedMask = cv::countNonZero(result.protectedMask) != 0;
         cv::bitwise_and(result.protectedMask, result.userMask, result.protectedMask);
     }
     return result;
@@ -346,13 +348,16 @@ OpticalSupport commonOpticalSupport(const std::vector<Source> &sources) {
 
 std::vector<Features> extractFeatures(
     const std::vector<Source> &sources,
-    const cv::Mat &opticalMask
+    const cv::Mat &opticalMask,
+    const std::vector<unsigned char> &roles
 ) {
     const cv::Size size = sources.front().image.size();
     const double factor = std::min(1.0, 1450.0 / std::max(size.width, size.height));
     cv::Ptr<cv::SIFT> sift = cv::SIFT::create(16000, 3, 0.016, 14);
     std::vector<Features> result;
-    for (const Source &source : sources) {
+    for (size_t index = 0; index < sources.size(); ++index) {
+        checkCancellation();
+        const Source &source = sources[index];
         cv::Mat small;
         cv::resize(source.image, small, cv::Size(), factor, factor, cv::INTER_AREA);
         cv::Mat gray;
@@ -364,7 +369,11 @@ std::vector<Features> extractFeatures(
         cv::Mat descriptors;
         sift->detectAndCompute(gray, usable, keypoints, descriptors);
         if (descriptors.empty() || keypoints.size() < 20) {
-            throw std::runtime_error("A source image contains too few usable image features.");
+            if (roles[index] == 1) {
+                throw std::runtime_error("A source image contains too few usable image features.");
+            }
+            result.emplace_back();
+            continue;
         }
         Features features;
         features.descriptors = descriptors;
@@ -409,6 +418,7 @@ std::vector<std::pair<int, int>> mutualMatches(
     const Features &first,
     const Features &second
 ) {
+    if (first.descriptors.empty() || second.descriptors.empty()) return {};
     cv::BFMatcher matcher(cv::NORM_L2);
     std::vector<std::vector<cv::DMatch>> forward;
     std::vector<std::vector<cv::DMatch>> reverse;
@@ -1437,6 +1447,28 @@ void classifyAutomaticRingViews(
         // Explicit Panorama Ring selections are never demoted. The later
         // connectivity check still reports an invalid manual ring.
         if (roles[index] == 0 && !inRing[index]) roles[index] = 2;
+    }
+}
+
+void classifyAutomaticNadirViews(
+    std::vector<unsigned char> &roles, const std::vector<Edge> &edges
+) {
+    std::vector<int> indices;
+    for (int index = 0; index < int(roles.size()); ++index) {
+        if (roles[index] != 2) indices.push_back(index);
+    }
+    if (indices.size() < 4) return;
+    const auto ringEdges = subsetEdges(edges, indices, int(roles.size()));
+    if (!isGraphConnected(int(indices.size()), ringEdges)) return;
+    const auto rotations = levelRotations(buildInitialRotations(int(indices.size()), ringEdges));
+    const auto horizontal = std::count_if(rotations.begin(), rotations.end(), [](const auto &rotation) {
+        return std::abs(rotation(1, 2)) < 0.65;
+    });
+    if (horizontal < 3) return;
+    for (size_t index = 0; index < indices.size(); ++index) {
+        if (roles[indices[index]] == 0 && rotations[index](1, 2) < -0.8) {
+            roles[indices[index]] = 2;
+        }
     }
 }
 
@@ -2664,6 +2696,11 @@ cv::Mat contentAdaptiveBlend(
     return result;
 }
 
+bool usableRadiometryChannel(int first, int second) {
+    return first > 10 && first < 245 && second > 10 && second < 245
+        && std::abs(first - second) < 55;
+}
+
 struct RadiometryObservation {
     int first = 0;
     int second = 0;
@@ -2739,11 +2776,7 @@ RadiometryLayers compensateRadiometry(
                     bool usable = false;
                     for (int channel = 0; channel < 3; ++channel) {
                         usable = usable || (
-                            one[x][channel] > 10 && one[x][channel] < 245
-                            && two[x][channel] > 10 && two[x][channel] < 245
-                            && std::abs(
-                                int(one[x][channel]) - int(two[x][channel])
-                            ) < 55
+                            usableRadiometryChannel(one[x][channel], two[x][channel])
                         );
                     }
                     if (usable) {
@@ -2764,9 +2797,7 @@ RadiometryLayers compensateRadiometry(
                 const cv::Vec3b two = images[second].at<cv::Vec3b>(point);
                 for (int channel = 0; channel < 3; ++channel) {
                     observation.valid[channel] =
-                        one[channel] > 10 && one[channel] < 245
-                        && two[channel] > 10 && two[channel] < 245
-                        && std::abs(int(one[channel]) - int(two[channel])) < 55;
+                        usableRadiometryChannel(one[channel], two[channel]);
                     observation.value[channel] = std::log(
                         (double(two[channel]) + 2.0) / (double(one[channel]) + 2.0)
                     );
@@ -3255,11 +3286,7 @@ std::vector<Warp> applySeamLocalRadiometry(
                     std::array<unsigned char, 3> usable = {0, 0, 0};
                     for (int channel = 0; channel < 3; ++channel) {
                         usable[channel] =
-                            one[x][channel] > 10 && one[x][channel] < 245
-                            && two[x][channel] > 10 && two[x][channel] < 245
-                            && std::abs(
-                                int(one[x][channel]) - int(two[x][channel])
-                            ) < 55;
+                            usableRadiometryChannel(one[x][channel], two[x][channel]);
                     }
                     if (!usable[0] && !usable[1] && !usable[2]) continue;
                     const int cellX = x / cellSize;
@@ -3905,6 +3932,191 @@ cv::Mat renderNativePanorama(
     return output;
 }
 
+double correctedRepairChannel(unsigned char value, double gain) {
+    return std::clamp(value * gain, 0.0, 255.0);
+}
+
+cv::Vec3d repairColorGains(
+    const Source &source, const cv::Mat &opticalMask,
+    const cv::Matx33d &rotation, const Lens &lens, const RenderAnalysis &ring,
+    const cv::Vec3d &globalGains
+) {
+    cv::Vec3d gains(1.0, 1.0, 1.0);
+    const int width = std::min(1536, ring.image.cols);
+    const cv::Size size(width, width / 2);
+    cv::Mat reference, coverage;
+    cv::resize(ring.image, reference, size, 0, 0, cv::INTER_AREA);
+    cv::resize(ring.coverage, coverage, size, 0, 0, cv::INTER_NEAREST);
+
+    cv::Mat usable;
+    cv::bitwise_and(opticalMask, source.userMask, usable);
+    cv::Mat mapX, mapY, valid, score;
+    buildPanoramaMapping(width, size.height, rotation, source.image.size(),
+                         lens, usable, mapX, mapY, valid, score);
+    cv::Mat marked;
+    cv::remap(source.protectedMask, marked, mapX, mapY, cv::INTER_NEAREST,
+              cv::BORDER_CONSTANT, cv::Scalar(0));
+    cv::bitwise_and(marked, valid, marked);
+    if (cv::countNonZero(marked) == 0) return gains;
+
+    // The ring under the patch may contain the object being replaced.
+    const int radius = std::max(4, width / 85);
+    cv::Mat overlap = valid & coverage;
+    cv::erode(overlap, overlap, cv::Mat::ones(5, 5, CV_8U));
+    overlap &= periodicExpand(marked, radius) & ~periodicExpand(marked, 1);
+    const cv::Mat repair = projectValidityNormalized(source.image, usable, mapX, mapY);
+
+    auto gradient = [](const cv::Mat &image) {
+        cv::Mat gray, x, y, magnitude;
+        cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
+        cv::Sobel(gray, x, CV_32F, 1, 0, 3);
+        cv::Sobel(gray, y, CV_32F, 0, 1, 3);
+        cv::magnitude(x, y, magnitude);
+        return magnitude;
+    };
+    const cv::Mat referenceGradient = gradient(reference);
+    const cv::Mat repairGradient = gradient(repair);
+    std::array<std::vector<double>, 3> training;
+    std::array<std::vector<cv::Vec2b>, 3> validation;
+    for (int y = 0; y < size.height; ++y) {
+        for (int x = 0; x < size.width; ++x) {
+            if (!overlap.at<unsigned char>(y, x)
+                || referenceGradient.at<float>(y, x) >= 28.0f
+                || repairGradient.at<float>(y, x) >= 28.0f) continue;
+            const cv::Vec3b a = repair.at<cv::Vec3b>(y, x);
+            const cv::Vec3b b = reference.at<cv::Vec3b>(y, x);
+            const auto aSum = double(a[0]) + a[1] + a[2];
+            const auto bSum = double(b[0]) + b[1] + b[2];
+            if (aSum < 45 || bSum < 45) continue;
+            double chromaDifference = 0.0;
+            for (int channel = 0; channel < 3; ++channel) {
+                chromaDifference += std::abs(a[channel] / aSum - b[channel] / bSum);
+            }
+            if (chromaDifference > 0.12) continue;
+            const bool heldOut = (x / 8 + 2 * (y / 8)) % 5 == 0;
+            for (int channel = 0; channel < 3; ++channel) {
+                // A clipped source highlight can still be mapped down to a valid
+                // reference level. Keep it out of the fit if both sides clip.
+                if (usableRadiometryChannel(a[channel], b[channel])
+                    || (a[channel] >= 245 && b[channel] >= 190 && b[channel] < 245)) {
+                    if (heldOut) {
+                        validation[channel].emplace_back(a[channel], b[channel]);
+                    } else {
+                        training[channel].push_back(std::log((b[channel] + 2.0) / (a[channel] + 2.0)));
+                    }
+                }
+            }
+        }
+    }
+    for (int channel = 0; channel < 3; ++channel) {
+        const auto &samples = validation[channel];
+        if (samples.size() < 20) continue;
+        if (training[channel].size() >= 60) {
+            const double correction = std::clamp(median(training[channel]), -0.30, 0.30);
+            std::vector<double> before, after;
+            for (const auto &sample : samples) {
+                const double value = std::log((sample[1] + 2.0) / (sample[0] + 2.0));
+                before.push_back(std::abs(value));
+                after.push_back(std::abs(value - correction));
+            }
+            if (median(after) < 0.85 * median(before)
+                && percentile(after, 0.90) <= percentile(before, 0.90)) {
+                gains[channel] = std::exp(correction);
+                continue;
+            }
+        }
+
+        // Compare the fallback with the unchanged channel in rendered intensity units.
+        std::vector<double> neutralErrors, globalErrors;
+        for (const auto &sample : samples) {
+            neutralErrors.push_back(std::abs(double(sample[0]) - sample[1]));
+            globalErrors.push_back(std::abs(correctedRepairChannel(sample[0], globalGains[channel]) - sample[1]));
+        }
+        const double neutralMedian = median(neutralErrors);
+        const double globalMedian = median(globalErrors);
+        const double neutralP90 = percentile(neutralErrors, 0.90);
+        const double globalP90 = percentile(globalErrors, 0.90);
+        if (globalMedian <= neutralMedian && globalP90 <= neutralP90
+            && (globalMedian < neutralMedian || globalP90 < neutralP90)) {
+            gains[channel] = globalGains[channel];
+        }
+    }
+    std::fprintf(stderr, "[PanoWizard] Repair overlap gains BGR %.3f %.3f %.3f\n",
+                 gains[0], gains[1], gains[2]);
+    return gains;
+}
+
+void renderMaskedRepairs(
+    cv::Mat &result, const std::vector<Source> &sources,
+    const Alignment &alignment, const cv::Mat &detectedOpticalMask,
+    const RenderAnalysis &ring
+) {
+    const int width = result.cols;
+    const int height = result.rows;
+    for (int index = 0; index < int(sources.size()); ++index) {
+        const Source &source = sources[index];
+        if (alignment.resolvedRoles[index] != 2 || cv::countNonZero(source.protectedMask) == 0) continue;
+        cv::Mat opticalMask;
+        cv::bitwise_and(detectedOpticalMask, fittedOpticalMask(source.image.size(), alignment.lens), opticalMask);
+        const cv::Mat validity = opticalMask & source.protectedMask;
+        if (cv::countNonZero(validity) == 0) continue;
+
+        // Measure the feather in source pixels so output resolution cannot change it.
+        cv::Mat padded, distance;
+        cv::copyMakeBorder(validity, padded, 1, 1, 1, 1, cv::BORDER_CONSTANT, cv::Scalar(0));
+        cv::distanceTransform(padded, distance, cv::DIST_L2, 5);
+        const cv::Mat innerDistance = distance(cv::Rect(1, 1, validity.cols, validity.rows));
+        const double feather = std::max(2.0, std::min(validity.cols, validity.rows) / 240.0);
+
+        const cv::Vec3d colorGains = repairColorGains(
+            source, opticalMask, alignment.rotations[index], alignment.lens, ring,
+            {alignment.gains.at<double>(index, 0),
+             alignment.gains.at<double>(index, 1),
+             alignment.gains.at<double>(index, 2)}
+        );
+        // Composite last so neither seam fallback nor a feather can spread the repair.
+        // Match the native renderer's bounded projection buffers.
+        for (int top = 0; top < height; top += 256) {
+            for (int left = 0; left < width; left += 1024) {
+                checkCancellation();
+                const cv::Rect block(left, top, std::min(1024, width - left),
+                                     std::min(256, height - top));
+                cv::Mat mapX, mapY, valid, score;
+                buildPanoramaMapping(width, height, alignment.rotations[index], source.image.size(),
+                                     alignment.lens, validity, mapX, mapY, valid, score, block);
+                if (cv::countNonZero(valid) == 0) continue;
+                cv::Mat projected;
+                cv::remap(source.image, projected, mapX, mapY, cv::INTER_NEAREST, cv::BORDER_CONSTANT);
+                cv::Mat edgeDistance;
+                cv::remap(innerDistance, edgeDistance, mapX, mapY, cv::INTER_LINEAR,
+                          cv::BORDER_CONSTANT, cv::Scalar(0));
+                cv::Mat destination = result(block);
+                for (int y = 0; y < block.height; ++y) {
+                    const auto *eligible = valid.ptr<unsigned char>(y);
+                    const auto *depth = edgeDistance.ptr<float>(y);
+                    const auto *color = projected.ptr<cv::Vec3b>(y);
+                    auto *row = destination.ptr<cv::Vec4b>(y);
+                    for (int x = 0; x < block.width; ++x) {
+                        if (!eligible[x]) continue;
+                        double weight = row[x][3] == 0 ? 1.0
+                            : std::clamp((depth[x] - 0.5) / feather, 0.0, 1.0);
+                        weight = weight * weight * (3.0 - 2.0 * weight);
+                        for (int channel = 0; channel < 3; ++channel) {
+                            const double corrected = correctedRepairChannel(
+                                color[x][channel], colorGains[channel]
+                            );
+                            row[x][channel] = cv::saturate_cast<unsigned char>(
+                                (1.0 - weight) * row[x][channel] + weight * corrected
+                            );
+                        }
+                        row[x][3] = 255;
+                    }
+                }
+            }
+        }
+    }
+}
+
 std::pair<double, int> renderPanorama(
     const std::vector<Source> &sources,
     const Alignment &alignment,
@@ -3918,8 +4130,20 @@ std::pair<double, int> renderPanorama(
     const int analysisWidth = std::min(4096, width);
     std::fprintf(stderr, "[PanoWizard] Rendering %d x %d; analysis %d x %d\n",
         width, width / 2, analysisWidth, analysisWidth / 2);
+    std::vector<Source> baseSources;
+    Alignment baseAlignment = alignment;
+    baseAlignment.rotations.clear();
+    baseAlignment.resolvedRoles.clear();
+    baseAlignment.gains = cv::Mat(0, 3, CV_64F);
+    for (int index = 0; index < int(sources.size()); ++index) {
+        if (alignment.resolvedRoles[index] == 2 && sources[index].hasProtectedMask) continue;
+        baseSources.push_back(sources[index]);
+        baseAlignment.rotations.push_back(alignment.rotations[index]);
+        baseAlignment.resolvedRoles.push_back(alignment.resolvedRoles[index]);
+        baseAlignment.gains.push_back(alignment.gains.row(index));
+    }
     RenderAnalysis analysis = analyzePanorama(
-        sources, alignment, detectedOpticalMask, analysisWidth, width
+        baseSources, baseAlignment, detectedOpticalMask, analysisWidth, width
     );
     cv::Mat result;
     if (width == analysisWidth) {
@@ -3928,7 +4152,10 @@ std::pair<double, int> renderPanorama(
         channels.push_back(analysis.coverage);
         cv::merge(channels, result);
     } else {
-        result = renderNativePanorama(sources, alignment, detectedOpticalMask, analysis, width);
+        result = renderNativePanorama(baseSources, baseAlignment, detectedOpticalMask, analysis, width);
+    }
+    if (baseSources.size() != sources.size()) {
+        renderMaskedRepairs(result, sources, alignment, detectedOpticalMask, analysis);
     }
     checkCancellation();
     std::vector<cv::Mat> channels;
@@ -4035,11 +4262,12 @@ int PWStitchPanorama(
             initialLens.cy = sources.front().image.rows / 2.0;
             reportProgress("Detecting image features…", 0.23);
             const std::vector<Features> features = extractFeatures(
-                sources, optical.mask
+                sources, optical.mask, resolvedRoles
             );
             reportProgress("Matching overlapping images…", 0.35);
             const EdgeSets edgeSets = buildEdges(sources, features, initialLens);
             classifyAutomaticRingViews(resolvedRoles, edgeSets.strong);
+            classifyAutomaticNadirViews(resolvedRoles, edgeSets.strong);
 
             std::vector<int> ringIndices;
             std::vector<Source> ringSources;
@@ -4107,6 +4335,10 @@ int PWStitchPanorama(
                 rotation = leveling * rotation;
             }
             alignment.gains = exposureGains(sources, edgeSets.strong);
+            const cv::Mat ringGains = exposureGains(ringSources, ringEdges);
+            for (int index = 0; index < int(ringIndices.size()); ++index) {
+                ringGains.row(index).copyTo(alignment.gains.row(ringIndices[index]));
+            }
             alignment.resolvedRoles = resolvedRoles;
             // A cache made from an incomplete supplemental set would cause a
             // later run to reuse rotations for images that were skipped.
@@ -4133,6 +4365,11 @@ int PWStitchPanorama(
             renderAlignment.rotations.push_back(alignment.rotations[index]);
             renderAlignment.resolvedRoles.push_back(resolvedRoles[index]);
             renderAlignment.gains.push_back(alignment.gains.row(index));
+        }
+        for (int index = 0; index < imageCount; ++index) {
+            std::fprintf(stderr, "[PanoWizard] Source %d role=%s%s\n", index + 1,
+                         resolvedRoles[index] == 2 ? "repair" : "ring",
+                         wasSkipped[index] ? " (skipped)" : "");
         }
         const auto [coverage, holes] = renderPanorama(
             renderSources, renderAlignment, optical.mask,
