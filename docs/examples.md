@@ -4,7 +4,7 @@ Start with a finished panorama, then inspect how its source photographs, masks, 
 
 ## Download and open
 
-1. Choose **Help → Download Examples…** in PanoWizard, or download [examples.zip](https://github.com/meg768/panowizard/releases/download/examples/examples.zip). No development tools are required.
+1. Choose **Help → Download Examples** in PanoWizard, or download [examples.zip](https://github.com/meg768/panowizard/releases/download/examples/examples.zip). No development tools are required.
 2. Double-click **examples.zip** in Finder and open the extracted **examples** folder.
 3. Launch PanoWizard. Choose **File → Open…**, then select **panorama.pw** inside any example folder (A–H).
 4. If prompted, select the same example folder and click **Grant Access**. This lets macOS read the source photographs.

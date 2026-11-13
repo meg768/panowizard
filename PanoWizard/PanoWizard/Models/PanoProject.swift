@@ -57,6 +57,7 @@ struct PanoProject: Codable, Equatable, Sendable {
     var panoramaAdjustments: PanoramaAdjustments
     var publishPath: String?
     var publishFilename: String?
+    let importedPanorama: Bool?
 
     init(
         formatVersion: Int = Self.currentFormatVersion,
@@ -69,7 +70,8 @@ struct PanoProject: Codable, Equatable, Sendable {
         previewViewpoint: PanoramaViewpoint? = nil,
         panoramaAdjustments: PanoramaAdjustments = .neutral,
         publishPath: String? = nil,
-        publishFilename: String? = nil
+        publishFilename: String? = nil,
+        importedPanorama: Bool? = nil
     ) {
         self.formatVersion = formatVersion
         self.id = id
@@ -82,6 +84,7 @@ struct PanoProject: Codable, Equatable, Sendable {
         self.panoramaAdjustments = panoramaAdjustments
         self.publishPath = publishPath
         self.publishFilename = publishFilename
+        self.importedPanorama = importedPanorama
     }
 
     var panorama: PanoramaSet {

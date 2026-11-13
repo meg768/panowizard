@@ -61,23 +61,8 @@ struct PublishThumbnailLiveTests {
         let token = UUID().uuidString
         let with = "zz-publish-test-\(token)-åäö.html"
         try await PublishThumbnailRenderer.render(htmlURL: html, to: jpg)
-        try await SFTPPublisher.upload(localURL: html, connection: connection, filename: with,
+        try await SFTPPublisher.upload(htmlURL: html, thumbnailURL: jpg, connection: connection, filename: with,
             subdirectory: "2008", verifyHost: verify, confirmOverwrite: { false })
-        try await SFTPPublisher.upload(localURL: jpg, connection: connection, filename: with,
-            subdirectory: "2008", thumbnail: true, verifyHost: verify, confirmOverwrite: { false })
-        do {
-            try await SFTPPublisher.upload(localURL: jpg, connection: connection, filename: with,
-                subdirectory: "2008", thumbnail: true, verifyHost: verify, confirmOverwrite: { false })
-            Issue.record("JPEG overwritten without approval")
-        } catch is CancellationError { }
-        try await SFTPPublisher.upload(localURL: jpg, connection: connection, filename: with,
-            subdirectory: "2008", thumbnail: true, verifyHost: verify, confirmOverwrite: { true })
-        do {
-            try await SFTPPublisher.upload(localURL: directory.appendingPathComponent("missing.jpg"),
-                connection: connection, filename: with, subdirectory: "2008", thumbnail: true,
-                verifyHost: verify, confirmOverwrite: { true })
-            Issue.record("Missing local JPEG reported success")
-        } catch { #expect(error.localizedDescription.contains("SFTP upload failed")) }
         print("PUBLISH_LIVE_FILE=\(with)")
     }
 }

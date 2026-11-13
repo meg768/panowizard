@@ -76,7 +76,7 @@ struct RetouchPatchEditingTests {
 
     @Test("Creating a panorama requires confirmation for existing retouch")
     @MainActor
-    func requiresConfirmationBeforeStitching() throws {
+    func requiresConfirmationBeforeStitching() async throws {
         let patch = RetouchPatch(kind: .manual, viewpoint: PanoramaViewpoint(), isEnabled: true)
         let images = (0..<2).map { index in
             SourceImage(
@@ -88,13 +88,15 @@ struct RetouchPatchEditingTests {
         }
         let document = PanoProjectDocument(
             project: PanoProject(images: images, retouchPatches: [patch]),
-            panoramaData: Data([0]), retouchPatchData: [patch.id: Data([1])]
+            panoramaData: try RGBAImage(width: 32, height: 16).pngData(),
+            retouchPatchData: [patch.id: try patchPNGData()]
         )
         let model = AppModel.live(
             project: document.project,
             panoramaData: document.panoramaData,
             retouchPatchData: document.retouchPatchData
         )
+        try await waitForInitialRetouch(model)
         let originalURL = model.stitchedResultURL
         let originalPatches = model.retouchPatches
         model.stitch()
@@ -170,7 +172,7 @@ struct RetouchPatchEditingTests {
             viewpoint: PanoramaViewpoint(),
             prompt: "Remove the lamp"
         )
-        let patchData = Data([1, 3, 5])
+        let patchData = try patchPNGData()
         let maskData = Data([2, 4, 6])
         let model = AppModel(
             project: PanoProject(images: images, retouchPatches: [patch]),
@@ -178,10 +180,11 @@ struct RetouchPatchEditingTests {
             grouper: PanoramaGroupingService(),
             panoramaEngine: FailingPanoramaEngine(),
             exporter: FilePanoramaExporter(),
-            panoramaData: Data([7, 8, 9]),
+            panoramaData: try RGBAImage(width: 32, height: 16).pngData(),
             retouchPatchData: [patch.id: patchData],
             aiRetouchMaskData: [patch.id: maskData]
         )
+        try await waitForInitialRetouch(model)
         let originalPanoramaURL = model.stitchedResultURL
         model.stitch()
         #expect(model.confirmsDiscardRetouchForStitch)
@@ -197,6 +200,15 @@ struct RetouchPatchEditingTests {
         #expect(model.retouchPatches == [patch])
         #expect(model.retouchPatchData == [patch.id: patchData])
         #expect(model.aiRetouchMaskDataByPatchID == [patch.id: maskData])
+    }
+
+    @MainActor
+    private func waitForInitialRetouch(_ model: AppModel) async throws {
+        for _ in 0..<200 {
+            if model.phase != .retouching { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(model.phase == .ready)
     }
 
     private func testSourceImages() -> [SourceImage] {

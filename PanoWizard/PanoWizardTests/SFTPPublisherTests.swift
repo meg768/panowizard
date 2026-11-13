@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 import Citadel
 @testable import PanoWizard
@@ -42,6 +43,31 @@ struct SFTPPublisherTests {
         #expect(SFTPConnection.defaultFilename(" My/Project ") == "My-Project.html")
     }
 
+    @Test("Publish accepts a relative filename and adds .html when omitted")
+    func combinedPublishFilename() throws {
+        let fallback = "My Panorama.html"
+        let nested = try SFTPConnection.publishDestination(
+            "2009/sälen/ski-lodge/hotellrummet", defaultFilename: fallback
+        )
+        #expect(nested.path == "2009/sälen/ski-lodge")
+        #expect(nested.filename == "hotellrummet.html")
+
+        let explicit = try SFTPConnection.publishDestination("hotellrummet.HTML", defaultFilename: fallback)
+        #expect(explicit.path == "")
+        #expect(explicit.filename == "hotellrummet.HTML")
+
+        let empty = try SFTPConnection.publishDestination("  ", defaultFilename: fallback)
+        #expect(empty.path == "")
+        #expect(empty.filename == fallback)
+
+        for invalid in ["/panorama", "2019/Toscana/", "A/../B", "A/.", "A/..",
+                        "A\\B", "A\nB", "2019/Toscana/panorama.jpg"] {
+            #expect(throws: PublishError.self) {
+                try SFTPConnection.publishDestination(invalid, defaultFilename: fallback)
+            }
+        }
+    }
+
     @Test("Pasted web addresses normalize to an SFTP hostname without a public URL")
     func hostname() throws {
         var connection = SFTPConnection()
@@ -82,7 +108,7 @@ struct SFTPPublisherTests {
         }
     }
 
-    @Test("SFTP uploads, rejects bad credentials, asks before replacing and reports unreachable servers",
+    @Test("SFTP uploads to nested destinations and reports invalid paths and connection failures",
           .enabled(if: ProcessInfo.processInfo.environment["PANOWIZARD_SFTP_TEST"] == "1"))
     func localServer() async throws {
         var connection = SFTPConnection()
@@ -91,57 +117,138 @@ struct SFTPPublisherTests {
         connection.username = "publisher"
         connection.password = "test-password"
         connection.remoteDirectory = "/"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).html")
-        defer { try? FileManager.default.removeItem(at: url) }
-        try Data("first panorama".utf8).write(to: url)
-        let name = "test-\(UUID()).html"
-        try await SFTPPublisher.upload(localURL: url, connection: connection, filename: name,
+        let basename = "test-\(UUID())"
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(basename)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let html = directory.appendingPathComponent("new.html")
+        let jpeg = directory.appendingPathComponent("new.jpg")
+        try Data("first panorama".utf8).write(to: html)
+        try Data("thumbnail".utf8).write(to: jpeg)
+        let name = basename + ".html"
+        try await SFTPPublisher.upload(htmlURL: html, thumbnailURL: jpeg, connection: connection, filename: name,
                                       verifyHost: { _ in }, confirmOverwrite: { Issue.record("Unexpected overwrite"); return false })
-        try Data("replacement panorama".utf8).write(to: url)
-        do {
-            try await SFTPPublisher.upload(localURL: url, connection: connection, filename: name,
-                                          verifyHost: { _ in }, confirmOverwrite: { false })
-            Issue.record("Overwrite cancellation did not stop upload")
-        } catch is CancellationError { }
-        try await SFTPPublisher.upload(localURL: url, connection: connection, filename: name,
-                                      verifyHost: { _ in }, confirmOverwrite: { true })
         // A real nested upload must create every missing directory and preserve the filename.
         connection.remoteDirectory = "/base"
         let nested = "2019/Toscana/\(UUID())/A/B/C/D"
-        try await SFTPPublisher.upload(localURL: url, connection: connection, filename: name, subdirectory: nested,
-                                      verifyHost: { _ in }, confirmOverwrite: { false })
+        try await SFTPPublisher.upload(htmlURL: html, thumbnailURL: jpeg, connection: connection, filename: name,
+                                      subdirectory: nested, verifyHost: { _ in }, confirmOverwrite: { false })
         // Reuse all existing directories and overwrite only after confirmation.
-        try await SFTPPublisher.upload(localURL: url, connection: connection, filename: name, subdirectory: nested,
-                                      verifyHost: { _ in }, confirmOverwrite: { true })
+        try Data("replacement panorama".utf8).write(to: html)
+        try await SFTPPublisher.upload(htmlURL: html, thumbnailURL: jpeg, connection: connection, filename: name,
+                                      subdirectory: nested, verifyHost: { _ in }, confirmOverwrite: { true })
         let reader = try await SSHClient.connect(host: connection.hostname, port: connection.port,
             authenticationMethod: .passwordBased(username: connection.username, password: connection.password),
             hostKeyValidator: .acceptAnything(), reconnect: .never)
         do {
             let sftp = try await reader.openSFTP()
-            let data = try await sftp.withFile(filePath: "/base/\(nested)/\(name)", flags: .read) { file in
-                try await file.read(length: 128)
-            }
-            #expect(String(decoding: data.readableBytesView, as: UTF8.self) == "replacement panorama")
+            #expect(try await remoteContents("/base/\(nested)/\(name)", sftp: sftp) == "replacement panorama")
+            #expect(try await remoteContents("/base/\(nested)/\(basename).jpg", sftp: sftp) == "thumbnail")
             try await reader.close()
         } catch { try? await reader.close(); throw error }
         for path in ["denied/child", "not-a-directory/child", "escape/child"] {
             do {
-                try await SFTPPublisher.upload(localURL: url, connection: connection, filename: name, subdirectory: path,
-                                              verifyHost: { _ in }, confirmOverwrite: { false })
+                try await SFTPPublisher.upload(htmlURL: html, thumbnailURL: jpeg, connection: connection, filename: name,
+                                              subdirectory: path, verifyHost: { _ in }, confirmOverwrite: { false })
                 Issue.record("Invalid directory was accepted: \(path)")
             } catch { #expect(error.localizedDescription.contains("SFTP upload failed")) }
         }
         connection.password = "incorrect"
         do {
-            try await SFTPPublisher.upload(localURL: url, connection: connection, filename: name,
+            try await SFTPPublisher.upload(htmlURL: html, thumbnailURL: jpeg, connection: connection, filename: name,
                                           verifyHost: { _ in }, confirmOverwrite: { false })
             Issue.record("Incorrect password was accepted")
         } catch { #expect(error.localizedDescription.contains("Authentication")) }
         connection.port = 22230
         do {
-            try await SFTPPublisher.upload(localURL: url, connection: connection, filename: name,
+            try await SFTPPublisher.upload(htmlURL: html, thumbnailURL: jpeg, connection: connection, filename: name,
                                           verifyHost: { _ in }, confirmOverwrite: { false })
             Issue.record("Unreachable server was accepted")
         } catch { #expect(error.localizedDescription.contains("Could not connect")) }
+    }
+
+    @Test("Only an existing HTML file triggers replacement confirmation",
+          .enabled(if: ProcessInfo.processInfo.environment["PANOWIZARD_SFTP_TEST"] == "1"),
+          arguments: [[], ["html"], ["jpg"], ["html", "jpg"]] as [[String]])
+    func replacePair(existing: [String]) async throws {
+        var connection = SFTPConnection()
+        connection.hostname = "127.0.0.1"
+        connection.port = 22229
+        connection.username = "publisher"
+        connection.password = "test-password"
+        connection.remoteDirectory = "/base"
+
+        let basename = "pair-\(UUID())"
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(basename)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let html = directory.appendingPathComponent("new.html")
+        let jpeg = directory.appendingPathComponent("new.jpg")
+        try Data("new HTML".utf8).write(to: html)
+        try Data("new JPEG".utf8).write(to: jpeg)
+
+        let client = try await SSHClient.connect(host: connection.hostname, port: connection.port,
+            authenticationMethod: .passwordBased(username: connection.username, password: connection.password),
+            hostKeyValidator: .acceptAnything(), reconnect: .never)
+        do {
+            let sftp = try await client.openSFTP()
+            for ext in existing {
+                try await sftp.withFile(filePath: "/base/\(basename).\(ext)", flags: [.write, .create, .forceCreate]) { file in
+                    try await file.write(.init(string: "old \(ext)"))
+                }
+            }
+            let confirmations = Mutex(0)
+            let htmlExists = existing.contains("html")
+            if htmlExists {
+                do {
+                    try await SFTPPublisher.upload(htmlURL: html, thumbnailURL: jpeg,
+                        connection: connection, filename: "\(basename).html", verifyHost: { _ in }, confirmOverwrite: {
+                            confirmations.withLock { $0 += 1 }
+                            return false
+                        })
+                    Issue.record("Upload continued after declining replacement")
+                } catch is CancellationError {}
+                #expect(confirmations.withLock { $0 } == 1)
+                for ext in ["html", "jpg"] {
+                    let value = try await remoteContents("/base/\(basename).\(ext)", sftp: sftp)
+                    #expect(value == (existing.contains(ext) ? "old \(ext)" : nil))
+                }
+                confirmations.withLock { $0 = 0 }
+            }
+            try await SFTPPublisher.upload(htmlURL: html, thumbnailURL: jpeg,
+                connection: connection, filename: "\(basename).html", verifyHost: { _ in }, confirmOverwrite: {
+                    confirmations.withLock { $0 += 1 }
+                    return true
+                })
+            #expect(confirmations.withLock { $0 } == (htmlExists ? 1 : 0))
+            #expect(try await remoteContents("/base/\(basename).html", sftp: sftp) == "new HTML")
+            #expect(try await remoteContents("/base/\(basename).jpg", sftp: sftp) == "new JPEG")
+
+            if existing.count == 2 {
+                do {
+                    try await SFTPPublisher.upload(htmlURL: html, thumbnailURL: directory.appendingPathComponent("missing.jpg"),
+                        connection: connection, filename: "\(basename).html", verifyHost: { _ in }, confirmOverwrite: { true })
+                    Issue.record("Missing local JPEG reported success")
+                } catch {
+                    #expect(error.localizedDescription.contains("HTML published successfully"))
+                    #expect(try await remoteContents("/base/\(basename).jpg", sftp: sftp) == "new JPEG")
+                }
+            }
+            try await client.close()
+        } catch {
+            try? await client.close()
+            throw error
+        }
+    }
+
+    private func remoteContents(_ path: String, sftp: SFTPClient) async throws -> String? {
+        do {
+            let data = try await sftp.withFile(filePath: path, flags: .read) { file in
+                try await file.read(length: 128)
+            }
+            return String(decoding: data.readableBytesView, as: UTF8.self)
+        } catch let status as SFTPMessage.Status where status.errorCode == .noSuchFile {
+            return nil
+        }
     }
 }

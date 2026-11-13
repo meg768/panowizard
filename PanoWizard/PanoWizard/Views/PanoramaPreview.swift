@@ -14,7 +14,6 @@ struct PanoramaPreview: View {
     let maskIntent: AppModel.SourceMaskIntent
     let initialViewpoint: PanoramaViewpoint
     let onViewpointChange: (PanoramaViewpoint) -> Void
-    let addImages: () -> Void
     let canCreate: Bool
     let createPanorama: () -> Void
     let onMasksChange: (Data?, Data?) -> Void
@@ -23,17 +22,17 @@ struct PanoramaPreview: View {
 
     var body: some View {
         Group {
-            if let panorama {
-                if isStitched, let imageURL {
-                    SphericalPanoramaView(
-                        url: imageURL,
-                        adjustments: adjustments,
-                        initialViewpoint: initialViewpoint,
-                        onViewpointChange: onViewpointChange,
-                        addsWorkspacePadding: false,
-                        cornerRadius: 0
-                    )
-                } else if let selectedSource {
+            if isStitched, let imageURL {
+                SphericalPanoramaView(
+                    url: imageURL,
+                    adjustments: adjustments,
+                    initialViewpoint: initialViewpoint,
+                    onViewpointChange: onViewpointChange,
+                    addsWorkspacePadding: false,
+                    cornerRadius: 0
+                )
+            } else if let panorama {
+                if let selectedSource {
                     SourceMaskEditor(
                         image: selectedSource,
                         maskData: maskData,
@@ -66,18 +65,9 @@ struct PanoramaPreview: View {
                 }
             } else {
                 ContentUnavailableView {
-                    Label("No Source Images", systemImage: "photo.badge.plus")
+                    Label("No Panorama to Preview", systemImage: "eye")
                 } description: {
-                    Text("To preview, first add source images and create a panorama.")
-                } actions: {
-                    VStack(spacing: 12) {
-                        Button("Add", action: addImages)
-                            .buttonStyle(WorkspaceToolbarPillStyle())
-                        Text("PanoWizard reads metadata and arranges the images automatically.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .multilineTextAlignment(.center)
-                    }
+                    Text("The panorama image could not be loaded.")
                 }
                 .opticalEmptyState()
             }

@@ -28,6 +28,18 @@ class Files(paramiko.SFTPServerInterface):
     def stat(self,p):
         try: return paramiko.SFTPAttributes.from_stat(self.local(p).stat())
         except OSError as e: return paramiko.SFTPServer.convert_errno(e.errno)
+    def rename(self,oldpath,newpath):
+        target = self.local(newpath)
+        if os.path.lexists(target): return paramiko.SFTP_FAILURE
+        try:
+            self.local(oldpath).rename(target)
+            return paramiko.SFTP_OK
+        except OSError as e: return paramiko.SFTPServer.convert_errno(e.errno)
+    def remove(self,p):
+        try:
+            self.local(p).unlink()
+            return paramiko.SFTP_OK
+        except OSError as e: return paramiko.SFTPServer.convert_errno(e.errno)
     def open(self,p,flags,attr):
         try:
             fd=os.open(self.local(p),flags,0o644)

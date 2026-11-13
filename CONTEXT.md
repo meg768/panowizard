@@ -1,6 +1,88 @@
 # PanoWizard — projekt- och utvecklingskontext
 
-Senast uppdaterad: 2026-11-12.
+Senast uppdaterad: 2026-11-13.
+
+## Maskdiskussion för Panorama M och G — 2026-11-13
+
+Magnus vill placera den handhållna bild #6 i Panorama M med Image Type
+Automatic och välja exakt vilket område bilden får bidra med för att dölja
+stativet. Matchningen behöver använda överlapp även utanför markeringen.
+Dagens röda Exclude kan ta bort det överlappet. Dagens gröna Include styr
+sömvalet kring Graph Cut, vilket i Panorama G hjälper till att välja den
+handfria överlappningen samtidigt som resten av källbilden kan bidra.
+
+Diskuterad toolbar: röd Exclude utesluter markeringen, orange Prefer
+motsvarar dagens sömstyrning och grön Include (”True Cut”) begränsar bildens
+bidrag till markeringen efter placeringen. Gränsen behöver gälla vid
+sömval, blandning och rendering i full upplösning. Bakåtkompatibilitet
+för maskformatet är inget krav. En kryssruta per bild som återanvänder
+den befintliga markeringen diskuterades också. Val av gränssnitt och
+regeln för konkurrerande pixlar innanför markeringen är öppna.
+
+Pausat på Magnus begäran. Vid återupptagning är förslaget en check-in
+med tagg före kodändring, därefter ett isolerat prov på en kopia av M
+med befintlig markering på #6. Kontrollera att Automatic placerar #6,
+att stativet försvinner och att #6 bara bidrar innanför markeringen.
+Använd G för att kontrollera sömstyrningen vid en eventuell produktändring.
+
+Enklare hypotes för M, analyserad samma dag: matcha originalpixlar inom
+objektivets giltiga yta och tillämpa befintlig röd Exclude först vid
+sammanfogningen. Då kan rött utanför önskat område räcka utan en ny masktyp.
+Dagens TIFF har redan masken inbakad i alfa innan OpenCV läser den. Ett prov
+behöver därför läsa bild och röd mask separat och jämföra placering och
+slutresultat. Rött kan också ha hindrat felmatchningar i andra projekt.
+Hypotesen är kodgranskad och oprövad på M.
+
+Magnus jämförde M med stativet rödmålat i ringbilderna. Utan #6 syns en
+avsiktlig lucka vid stativet och handen vid musen ser solid ut. Med omaskad
+Repair Image syns spökbildning vid handen. Grönt på en reparationsbild
+begränsar i dag det första sömvalet. Reservval och blandning kan fortfarande
+använda pixlar utanför markeringen. Magnus föredrar att otäckta områden
+förblir synliga i stället för att fyllas utanför en strikt markering.
+Check-in begärd som kontrollpunkt före ett eventuellt maskexperiment.
+Xcode-testsviten passerade med lokal SFTP. Två äldre retuschtester
+uppdaterades med giltiga PNG-filer och väntar på den första renderingen.
+
+## HTML styr ersättningsfrågan i Publish — 2026-11-13
+
+Publish frågar en gång om HTML-filen redan finns. När publiceringen går
+vidare ersätts en befintlig JPEG-miniatyr automatiskt. Cancel lämnar båda
+filerna orörda.
+SFTPPublisher tar alltid både HTML och JPEG. Den pensionerade
+miniatyrinställningen hanteras inte längre. Alla fyra filkombinationer
+verifierades mot lokal SFTP. Signerad Release 1.5 (202611130005) är installerad
+i Applications.
+
+## Gemensamt Filename-fält i Publish — 2026-11-12
+
+Filename tar en relativ sökväg med valfria undermappar. Saknad filändelse
+får .html, och tomt fält använder projektets standardnamn. Befintliga
+publishPath/publishFilename och tidigare lokalt sparade värden återanvänds.
+Samma normaliserade destination används för HTML, JPEG och publik länk.
+Release 1.5 (202611122343) är signerad och installerad. Sparad destination
+och fel för annan filändelse verifierades i appen. Den riktade testkörningen
+passerade med den valfria lokala SFTP-integrationen överhoppad.
+
+## GitHub-länk i Help — 2026-11-12
+
+Help → View on GitHub ligger efter Download Examples… och öppnar
+projektets GitHub-repo i standardwebbläsaren. Klicket verifierades i
+installerad, signerad Release 1.5 (202611122212).
+Menynamnet Download Examples visas utan ellips från Release 1.5
+(202611122216). Hjälpen och README använder samma namn.
+
+## Nytt projekt från panorama — 2026-11-12
+
+File → New from Panorama… öppnar en ekvirektangulär PNG i exakt 2:1 i
+Preview. PNG-data bäddas in i .pw och ett valfritt projektfält styr
+Images-sektionen. Retouch, Preview och Export använder det befintliga
+grundpanoramat. Signerad Release 1.5 (202611122052) installerad. 30 riktade
+tester passerade. Sparfrågan, byte-identisk PNG i projektpaketet och
+återöppning efter flytt av PNG:n verifierades i installerad app. Vanligt
+källbildsprojekt visade fortfarande Images och Create Panorama.
+Panorama-sektionen visar nu Preview, Retouch och Export i den ordningen.
+Ordningen verifierades med importerat projekt i signerad Release 1.5
+(202611122107), installerad i Applications.
 
 ## Create Panorama under Images — 2026-11-12
 

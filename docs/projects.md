@@ -4,6 +4,12 @@ PanoWizard starts in a normal project window with an empty project. The welcome 
 
 For a finished project to explore, [download the examples](examples.html). Keep the entire example folder together and open its `panorama.pw`. To experiment, duplicate that whole folder first.
 
+## Create a project from a finished panorama
+
+Choose **File → New from Panorama…** and select a full 360° equirectangular PNG with a 2:1 aspect ratio. The new project opens in **Preview**. Use **Retouch** to add patches or **Export** to create an image or publish the interactive panorama.
+
+Save the project as a `.pw` to keep the imported image and any edits together. The project can be reopened after the original PNG is moved.
+
 ## Open recent projects
 
 **File → Open Recent** lists up to 10 recently opened or saved projects, newest first. Each entry shows the shortest trailing part of its path needed to distinguish it from the other entries. For example, two projects named `panorama.pw` can appear as `U/panorama.pw` and `G/panorama.pw`. More parent folders appear only when needed. Hover over an entry to see its full path.

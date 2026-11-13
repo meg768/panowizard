@@ -1,3 +1,4 @@
+import ImageIO
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -46,6 +47,36 @@ struct PanoProjectDocument: FileDocument, Equatable {
 
     init(configuration: ReadConfiguration) throws {
         try self.init(fileWrapper: configuration.file, projectURL: nil)
+    }
+
+    init(importingPanoramaAt url: URL) throws {
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+        let data = try Data(contentsOf: url)
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetType(source) as String? == UTType.png.identifier,
+              CGImageSourceGetStatus(source) == .statusComplete,
+              let image = CGImageSourceCreateImageAtIndex(source, 0, [
+                  kCGImageSourceShouldCacheImmediately: true
+              ] as CFDictionary) else {
+            throw CocoaError(.fileReadCorruptFile, userInfo: [
+                NSLocalizedDescriptionKey: "The PNG image could not be read."
+            ])
+        }
+        guard image.width.isMultiple(of: 2), image.width / 2 == image.height else {
+            throw CocoaError(.fileReadUnknown, userInfo: [
+                NSLocalizedDescriptionKey: "Choose an equirectangular PNG with a 2:1 aspect ratio.",
+                NSLocalizedRecoverySuggestionErrorKey:
+                    "The selected image is \(image.width) × \(image.height) pixels."
+            ])
+        }
+        self.init(
+            project: PanoProject(
+                title: url.deletingPathExtension().lastPathComponent,
+                importedPanorama: true
+            ),
+            panoramaData: data
+        )
     }
 
     init(contentsOf url: URL) throws {

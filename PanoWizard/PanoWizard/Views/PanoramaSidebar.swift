@@ -7,55 +7,59 @@ struct PanoramaSidebar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("Images")
-                .font(.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
-                .frame(height: 44)
-                .background(.bar)
+            if model.canAddSourceImages {
+                Text("Images")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .frame(height: 44)
+                    .background(.bar)
 
-            Button {
-                model.isImporterPresented = true
-            } label: {
-                Label("Add Images…", systemImage: "plus")
-                    .frame(maxWidth: .infinity)
+                Button {
+                    model.isImporterPresented = true
+                } label: {
+                    Label("Add Images…", systemImage: "plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(WorkspaceToolbarPillStyle())
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .help("Add source images")
             }
-            .buttonStyle(WorkspaceToolbarPillStyle())
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
-            .help("Add source images")
 
             ZStack {
                 List(selection: $model.selection) {
-                    Section {
-                        ForEach(
-                            Array(model.project.images.enumerated()),
-                            id: \.element.id
-                        ) { index, image in
-                            sourceRow(index: index, image: image)
-                        }
+                    if model.canAddSourceImages {
+                        Section {
+                            ForEach(
+                                Array(model.project.images.enumerated()),
+                                id: \.element.id
+                            ) { index, image in
+                                sourceRow(index: index, image: image)
+                            }
 
-                        Button {
-                            model.stitch()
-                        } label: {
-                            Label("Create Panorama", systemImage: "pano")
-                                .frame(maxWidth: .infinity)
+                            Button {
+                                model.stitch()
+                            } label: {
+                                Label("Create Panorama", systemImage: "pano")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(WorkspaceToolbarPillStyle())
+                            .disabled(!model.canStitch)
+                            .listRowSeparator(.hidden)
                         }
-                        .buttonStyle(WorkspaceToolbarPillStyle())
-                        .disabled(!model.canStitch)
-                        .listRowSeparator(.hidden)
                     }
 
                     Section {
                         navigationRow(
-                            "Retouch",
-                            systemImage: "paintbrush.pointed",
-                            selection: .retouch
-                        )
-                        navigationRow(
                             "Preview",
                             systemImage: "eye",
                             selection: .panorama
+                        )
+                        navigationRow(
+                            "Retouch",
+                            systemImage: "paintbrush.pointed",
+                            selection: .retouch
                         )
                         navigationRow(
                             "Export",

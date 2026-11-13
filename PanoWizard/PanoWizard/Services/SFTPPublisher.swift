@@ -58,7 +58,7 @@ struct SFTPConnection: Codable, Equatable, Sendable {
               !filename.contains("/"), !filename.contains("\\"),
               !filename.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
               filename.lowercased().hasSuffix(".html") else {
-            throw PublishError.message("Enter a hostname, port (1–65535), username, remote directory and an HTML filename without path separators.")
+            throw PublishError.message("Enter a hostname, port (1–65535), username, remote directory and a valid HTML filename.")
         }
         _ = try Self.subdirectories(subdirectory)
     }
@@ -84,13 +84,33 @@ struct SFTPConnection: Codable, Equatable, Sendable {
     static func subdirectories(_ path: String) throws -> [String] {
         guard !path.hasPrefix("/"), !path.contains("\\"),
               !path.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
-            throw PublishError.message("Path must be relative to Remote Directory, for example 2019/Toscana.")
+            throw PublishError.message("Filename must be relative to Remote Directory. For example, enter 2019/Toscana/panorama.html.")
         }
         let components = path.split(separator: "/").map(String.init)
         guard !components.contains(".."), !components.contains(".") else {
-            throw PublishError.message("Path cannot contain . or .. directory components.")
+            throw PublishError.message("Filename cannot contain . or .. path components.")
         }
         return components
+    }
+
+    static func publishDestination(
+        _ input: String, defaultFilename: String
+    ) throws -> (path: String, filename: String) {
+        let value = input.trimmingCharacters(in: .whitespaces)
+        if value.isEmpty { return ("", defaultFilename) }
+        guard !value.hasSuffix("/") else {
+            throw PublishError.message("Enter a filename after the last slash.")
+        }
+        let components = try subdirectories(value)
+        guard let name = components.last else {
+            throw PublishError.message("Enter a filename.")
+        }
+        let path = components.dropLast().joined(separator: "/")
+        if name.lowercased().hasSuffix(".html") { return (path, name) }
+        guard (name as NSString).pathExtension.isEmpty else {
+            throw PublishError.message("Use the .html file extension or leave it out.")
+        }
+        return (path, name + ".html")
     }
 
     static func defaultFilename(_ title: String) -> String {
@@ -116,9 +136,15 @@ private struct PublishHostValidator: NIOSSHClientServerAuthenticationDelegate {
 }
 
 enum SFTPPublisher {
+    private struct ThumbnailUploadError: LocalizedError {
+        let underlying: any Error
+        var errorDescription: String? {
+            "HTML published successfully, but thumbnail publishing did not complete. \(underlying.localizedDescription)"
+        }
+    }
+
     static func upload(
-        localURL: URL, connection: SFTPConnection, filename: String, subdirectory: String = "",
-        thumbnail: Bool = false,
+        htmlURL: URL, thumbnailURL: URL, connection: SFTPConnection, filename: String, subdirectory: String = "",
         verifyHost: @escaping @Sendable (String) async throws -> Void,
         confirmOverwrite: @escaping @Sendable () async -> Bool
     ) async throws {
@@ -154,71 +180,86 @@ enum SFTPPublisher {
                 let resolved = try await sftp.getRealPath(atPath: next)
                 let prefix = base.hasSuffix("/") ? base : base + "/"
                 guard resolved == base || resolved.hasPrefix(prefix) else {
-                    throw PublishError.message("Path resolves outside Remote Directory. Choose another path.")
+                    throw PublishError.message("The filename resolves outside Remote Directory. Choose another destination.")
                 }
                 let attributes = try await sftp.getAttributes(at: resolved)
                 guard let permissions = attributes.permissions, permissions & 0o170000 == 0o040000 else {
-                    throw PublishError.message("A component of Path is not a directory: \(component)")
+                    throw PublishError.message("“\(component)” in Filename is not a directory.")
                 }
                 directory = resolved
             }
-            let remoteName = thumbnail ? String(filename.dropLast(5)) + ".jpg" : filename
-            let path = (directory.hasSuffix("/") ? directory : directory + "/") + remoteName
-            var exists = false
-            do {
-                _ = try await sftp.getAttributes(at: path)
-                let resolved = try await sftp.getRealPath(atPath: path)
-                let prefix = base.hasSuffix("/") ? base : base + "/"
-                guard resolved.hasPrefix(prefix) else {
-                    throw PublishError.message("Destination resolves outside Remote Directory.")
-                }
-                exists = true
-            }
-            catch let status as SFTPMessage.Status where status.errorCode == .noSuchFile { }
-            if exists, !(await confirmOverwrite()) {
-                try await client.close()
+            let prefix = directory.hasSuffix("/") ? directory : directory + "/"
+            let htmlPath = prefix + filename
+            let jpegPath = prefix + String(filename.dropLast(5)) + ".jpg"
+            let htmlExists = try await remoteFileExists(htmlPath, inside: base, sftp: sftp)
+            if htmlExists, !(await confirmOverwrite()) {
                 throw CancellationError()
             }
-            let staging = thumbnail ? directory + "/.panowizard-" + UUID().uuidString + ".upload" : path
-            let backup = directory + "/.panowizard-" + UUID().uuidString + ".backup"
-            var backedUp = false
+            let jpegExists = try await remoteFileExists(jpegPath, inside: base, sftp: sftp)
+            try await writeFile(htmlURL, to: htmlPath, replacing: htmlExists, sftp: sftp)
             do {
-                let flags: SFTPOpenFileFlags = !thumbnail && exists ? [.write, .create, .truncate] : [.write, .create, .forceCreate]
-                try await sftp.withFile(filePath: staging, flags: flags) { file in
-                    let input = try FileHandle(forReadingFrom: localURL)
-                    defer { try? input.close() }
-                    var offset: UInt64 = 0
-                    while let chunk = try input.read(upToCount: 32_768), !chunk.isEmpty {
-                        try Task.checkCancellation()
-                        try await file.write(ByteBuffer(bytes: chunk), at: offset)
-                        offset += UInt64(chunk.count)
-                    }
-                }
-                if thumbnail {
-                    if exists {
-                        try await sftp.rename(at: path, to: backup)
-                        backedUp = true
-                    }
-                    do { try await sftp.rename(at: staging, to: path) }
-                    catch {
-                        if backedUp {
-                            do { try await sftp.rename(at: backup, to: path); backedUp = false }
-                            catch { throw PublishError.message("Thumbnail replacement failed. The previous JPEG is preserved at \(backup).") }
-                        }
-                        throw error
-                    }
-                    if backedUp { try? await sftp.remove(at: backup) }
-                }
+                try await uploadThumbnail(thumbnailURL, to: jpegPath, directoryPrefix: prefix,
+                                          replacing: jpegExists, sftp: sftp)
             } catch {
-                if thumbnail { try? await sftp.remove(at: staging) }
-                throw error
+                throw ThumbnailUploadError(underlying: error)
             }
             try await sftp.close()
             try await client.close()
         } catch {
             try? await client.close()
-            if error is CancellationError { throw error }
+            if error is CancellationError || error is ThumbnailUploadError { throw error }
             throw PublishError.message("SFTP upload failed. Check the remote directory and write permissions. \(error.localizedDescription)")
+        }
+    }
+
+    private static func remoteFileExists(_ path: String, inside base: String, sftp: SFTPClient) async throws -> Bool {
+        do {
+            _ = try await sftp.getAttributes(at: path)
+            let resolved = try await sftp.getRealPath(atPath: path)
+            let prefix = base.hasSuffix("/") ? base : base + "/"
+            guard resolved.hasPrefix(prefix) else {
+                throw PublishError.message("Destination resolves outside Remote Directory.")
+            }
+            return true
+        } catch let status as SFTPMessage.Status where status.errorCode == .noSuchFile {
+            return false
+        }
+    }
+
+    private static func writeFile(_ localURL: URL, to path: String, replacing: Bool, sftp: SFTPClient) async throws {
+        let flags: SFTPOpenFileFlags = replacing ? [.write, .create, .truncate] : [.write, .create, .forceCreate]
+        try await sftp.withFile(filePath: path, flags: flags) { file in
+            let input = try FileHandle(forReadingFrom: localURL)
+            defer { try? input.close() }
+            var offset: UInt64 = 0
+            while let chunk = try input.read(upToCount: 32_768), !chunk.isEmpty {
+                try Task.checkCancellation()
+                try await file.write(ByteBuffer(bytes: chunk), at: offset)
+                offset += UInt64(chunk.count)
+            }
+        }
+    }
+
+    private static func uploadThumbnail(_ localURL: URL, to path: String, directoryPrefix: String,
+                                        replacing: Bool, sftp: SFTPClient) async throws {
+        let staging = directoryPrefix + ".panowizard-" + UUID().uuidString + ".upload"
+        let backup = directoryPrefix + ".panowizard-" + UUID().uuidString + ".backup"
+        do {
+            try await writeFile(localURL, to: staging, replacing: false, sftp: sftp)
+            if replacing { try await sftp.rename(at: path, to: backup) }
+            do {
+                try await sftp.rename(at: staging, to: path)
+            } catch {
+                if replacing {
+                    do { try await sftp.rename(at: backup, to: path) }
+                    catch { throw PublishError.message("Thumbnail replacement failed. The previous JPEG is preserved at \(backup).") }
+                }
+                throw error
+            }
+            if replacing { try? await sftp.remove(at: backup) }
+        } catch {
+            try? await sftp.remove(at: staging)
+            throw error
         }
     }
 }

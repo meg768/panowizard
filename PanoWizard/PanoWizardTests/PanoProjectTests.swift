@@ -313,6 +313,49 @@ struct PanoProjectTests {
         #expect(model.selection == .panorama)
     }
 
+    @Test("Imported panoramas reopen without the original PNG or source images")
+    @MainActor
+    func importedPanoramaRoundTrip() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let input = directory.appending(path: "Edited Panorama.png")
+        let package = directory.appending(path: "Imported.pw")
+        let png = try RGBAImage(width: 16, height: 8).pngData()
+        try png.write(to: input)
+
+        let document = try PanoProjectDocument(importingPanoramaAt: input)
+        #expect(document.project.title == "Edited Panorama")
+        try document.writeAtomically(to: package)
+        try FileManager.default.removeItem(at: input)
+
+        let reopened = try PanoProjectDocument(contentsOf: package)
+        let model = AppModel.live(project: reopened.project, panoramaData: reopened.panoramaData)
+        #expect(reopened.panoramaData == png)
+        #expect(reopened.project.images.isEmpty)
+        #expect(reopened.sourceAccessBookmarks.isEmpty)
+        #expect(model.isShowingStitchedPanorama)
+        #expect(model.canExportHTML)
+        #expect(!model.canAddSourceImages)
+        #expect(!model.canStitch)
+    }
+
+    @Test("Panorama import rejects invalid PNGs and images that are not exactly 2:1")
+    func invalidPanoramaImport() throws {
+        let input = FileManager.default.temporaryDirectory
+            .appending(path: "\(UUID()).png")
+        defer { try? FileManager.default.removeItem(at: input) }
+        try RGBAImage(width: 17, height: 8).writePNG(to: input)
+        #expect(throws: CocoaError.self) {
+            try PanoProjectDocument(importingPanoramaAt: input)
+        }
+
+        try Data("invalid image".utf8).write(to: input)
+        #expect(throws: CocoaError.self) {
+            try PanoProjectDocument(importingPanoramaAt: input)
+        }
+    }
+
     @Test("Project package keeps patch images and AI masks separate")
     func storesRetouchPatches() throws {
         let directory = FileManager.default.temporaryDirectory.appending(

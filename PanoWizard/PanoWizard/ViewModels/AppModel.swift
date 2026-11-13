@@ -179,8 +179,10 @@ final class AppModel {
         selection == .panorama && currentPanoramaURL != nil
     }
 
+    var canAddSourceImages: Bool { project.importedPanorama != true }
+
     var canStitch: Bool {
-        project.images.filter(\.isEnabled).count >= 2
+        canAddSourceImages && project.images.filter(\.isEnabled).count >= 2
             && (phase == .ready || isStitchFailure)
     }
 
@@ -218,7 +220,7 @@ final class AppModel {
     }
 
     func importURLs(_ urls: [URL]) {
-        guard !urls.isEmpty, phase != .importing else { return }
+        guard canAddSourceImages, !urls.isEmpty, phase != .importing else { return }
         phase = .importing
         Task {
             let accessed = urls.filter { $0.startAccessingSecurityScopedResource() }

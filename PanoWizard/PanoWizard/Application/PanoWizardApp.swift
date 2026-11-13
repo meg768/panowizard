@@ -297,6 +297,7 @@ struct PanoramaCommandActions {
 
 struct ImagesCommandActions {
     let canNavigateImage: Bool
+    let canAddImages: Bool
     let hasImages: Bool
     let addImages: () -> Void
     let removeAllImages: () -> Void
@@ -387,8 +388,13 @@ struct PanoWizardApp: App {
                     ) as? String, let url = URL(string: configuredURL) else { return }
                     NSWorkspace.shared.open(url)
                 }
-                Button("Download Examples…") {
+                Button("Download Examples") {
                     guard let url = URL(string: "https://github.com/meg768/panowizard/releases/download/examples/examples.zip?request=\(UUID().uuidString)") else { return }
+                    NSWorkspace.shared.open(url)
+                }
+                Divider()
+                Button("View on GitHub") {
+                    guard let url = URL(string: "https://github.com/meg768/panowizard") else { return }
                     NSWorkspace.shared.open(url)
                 }
             }
@@ -456,7 +462,7 @@ private struct ImagesMenuCommands: Commands {
     var body: some Commands {
         CommandMenu("Images") {
             Button("Add...") { actions?.addImages() }
-                .disabled(actions == nil)
+                .disabled(actions?.canAddImages != true)
             Button("Remove All…") { actions?.removeAllImages() }
                 .disabled(actions?.hasImages != true)
         }
@@ -466,8 +472,13 @@ private struct ImagesMenuCommands: Commands {
 private struct ProjectDocumentMenuCommands: Commands {
     @FocusedValue(\.projectDocumentCommandActions)
     private var actions
+    @Environment(\.newDocument) private var newDocument
 
     var body: some Commands {
+        CommandGroup(after: .newItem) {
+            Button("New from Panorama…", action: importPanorama)
+        }
+
         CommandGroup(replacing: .saveItem) {
             Menu("Open Recent") {
                 Button("No Recent Documents") {}.disabled(true)
@@ -500,6 +511,27 @@ private struct ProjectDocumentMenuCommands: Commands {
                 actions?.revert()
             }
             .disabled(actions?.canRevert != true)
+        }
+    }
+
+    private func importPanorama() {
+        let panel = NSOpenPanel()
+        panel.title = "New from Panorama"
+        panel.prompt = "Import"
+        panel.allowedContentTypes = [.png]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        Task {
+            do {
+                let document = try await Task.detached(priority: .userInitiated) {
+                    try PanoProjectDocument(importingPanoramaAt: url)
+                }.value
+                newDocument(document)
+            } catch {
+                NSApp.presentError(error)
+            }
         }
     }
 }
@@ -773,6 +805,7 @@ private struct ProjectDocumentView: View {
     }
 
     private var isDirty: Bool {
+        if saveURL == nil, savedDocument.project.importedPanorama == true { return true }
         var document = workingDocument
         // Preview navigation is saved on demand but does not require saving.
         document.project.previewViewpoint = savedDocument.project.previewViewpoint

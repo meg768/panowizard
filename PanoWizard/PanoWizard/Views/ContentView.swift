@@ -80,11 +80,11 @@ struct ContentView: View {
         .focusedSceneValue(
             \.imagesCommandActions,
             ImagesCommandActions(
-                canNavigateImage: !model.project.images.isEmpty
-                    && (model.selection == .retouch
-                        ? model.currentPanoramaURL != nil
-                        : model.selectedPreviewURL != nil),
-                hasImages: !model.project.images.isEmpty,
+                canNavigateImage: model.selection == .retouch
+                    ? model.currentPanoramaURL != nil
+                    : model.selectedPreviewURL != nil,
+                canAddImages: model.canAddSourceImages,
+                hasImages: model.canAddSourceImages && !model.project.images.isEmpty,
                 addImages: { model.isImporterPresented = true },
                 removeAllImages: { confirmsRemoveAllImages = true }
             )
@@ -149,7 +149,8 @@ struct ContentView: View {
             workspaceToolRow
         } content: {
             ZStack {
-                if model.project.images.isEmpty {
+                if model.canAddSourceImages, model.project.images.isEmpty,
+                   model.currentPanoramaURL == nil {
                     EmptyProjectWelcomeView {
                         model.isImporterPresented = true
                     }
@@ -251,7 +252,6 @@ struct ContentView: View {
                 maskIntent: model.sourceMaskIntent,
                 initialViewpoint: model.panoramaViewpoint,
                 onViewpointChange: model.setPanoramaViewpoint,
-                addImages: { model.isImporterPresented = true },
                 canCreate: model.canStitch,
                 createPanorama: model.stitch,
                 onMasksChange: { red, green in

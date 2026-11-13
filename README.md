@@ -240,6 +240,6 @@ regressions remain separate from normal builds.
 
 Edit the projects and photographs in `examples/` and push the changes to `main`.
 GitHub Actions automatically packages the tracked files as `examples.zip` under
-the **Examples** release. The app’s **Help → Download Examples…** command uses
+the **Examples** release. The app’s **Help → Download Examples** command uses
 that fixed download link. Do not commit a ZIP file or maintain a second set of
 examples. The workflow can also be run manually from GitHub Actions.
