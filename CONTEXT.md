@@ -1,6 +1,32 @@
 # PanoWizard — projekt- och utvecklingskontext
 
-Senast uppdaterad: 2026-11-13.
+Senast uppdaterad: 2026-11-14.
+
+## Bildbyte efter lasso — 2026-11-14
+
+Lassots muslyssnare kunde fånga sidopanelens klick medan verktyget var valt.
+Musfångsten följer nu den aktiva gesten och börjar inom bildens scrollvy.
+Slutförande och avbrott nollställer markering, pekartillstånd och markör.
+I ett osparat provprojekt verifierades Return med tillämpad mask, Escape
+utan mask och bildbyte direkt efter båda. Signerad Release 1.5
+(202611142022) installerades i Applications. Bygge 202611141940 finns
+sparat separat. Inga automatiska regressionstester kördes.
+
+## Masker används först vid rendering — 2026-11-14
+
+Ring- och reparationsbilder matchas och positioneras med hela den optiskt
+giltiga bilden. Röda och gröna källmasker läses separat vid rendering och
+ingår inte i registreringscachen. Cacheformat 8 hindrar återbruk av tidigare
+rödmaskad registrering. Grönt prioriterar märkta pixlar vid sömvalet och
+rött utesluter dem från blendningen, med samma maskregler för alla bilder.
+Reparationsbilder använder åter den gemensamma blendningen från 77e7900.
+Geometrisk klassificering och separat registrering av reparationsbilder
+behålls. Utgångsläget är kvar i 3d2a33f och PanoWizard 1.5 (202611132137)
+sparades inför det manuella provet.
+
+Signerad Release 1.5 (202611141940) installerades i Applications från
+panowizard-render-masks. Byggets signatur och installerade binär verifierades.
+Regressions- och panoramasviter kördes inte inför det manuella provet.
 
 ## Vald slutversion för reparationsmasker — 2026-11-13
 

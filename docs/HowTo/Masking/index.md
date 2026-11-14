@@ -2,9 +2,10 @@
 
 A source mask guides which real photograph supplies overlapping pixels. Use [example A](../../examples.html#example-a) to inspect both red and green masks. Its nine source photographs and saved project are included in the download.
 
-On a ring image, green **Include** gives the marked area priority at the seam. On a repair image, green defines the replacement area. The repair takes precedence inside the mark, and only marked pixels can contribute. Red **Exclude** removes pixels even where the marks overlap.
-
-To replace a tripod with a handheld photograph, mark the clean area on that photograph in green and rebuild. Leave a margin of clean overlap around the entire tripod. PanoWizard uses that overlap to match the repair's color and brightness and blends a narrow strip just inside the green edge. The margin keeps the tripod out of that strip. This works with **Repair Image** and with **Automatic** when PanoWizard recognizes the photograph as a supplemental or nadir view. PanoWizard places the repair against the ring using points across the usable photograph. Red **Exclude** removes areas from the point search as well as the result.
+PanoWizard matches and positions every photo using its full usable image area.
+Source masks take effect when rendering. On ring and repair images alike,
+green **Include** gives the marked pixels priority at the seam, while red
+**Exclude** removes pixels from the blend, including where the masks overlap.
 
 ## Inspect the red masks
 

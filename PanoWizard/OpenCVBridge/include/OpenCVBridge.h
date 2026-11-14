@@ -24,6 +24,7 @@ typedef int (*PWCancellationCallback)(void *context);
 
 int PWStitchPanorama(
     const char *const *imagePaths,
+    const char *const *excludedMaskPaths,
     const char *const *protectedMaskPaths,
     const unsigned char *compositionRoles,
     int imageCount,
