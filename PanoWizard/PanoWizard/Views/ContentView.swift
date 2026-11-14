@@ -392,6 +392,14 @@ struct ContentView: View {
             maskToolbarDivider
 
             HStack(spacing: 2) {
+                Button {
+                    model.invertSelectedMask()
+                } label: {
+                    Label("Invert", systemImage: "circle.lefthalf.filled")
+                }
+                .buttonStyle(MaskToolbarButtonStyle(showsTitle: true))
+                .help("Invert the current mask")
+
                 Button(role: .destructive) {
                     model.clearSelectedMask()
                 } label: {

@@ -365,39 +365,36 @@ enum SourceMaskRasterizer {
 
     static func inverted(
         _ existingData: Data?,
-        width: Int,
-        height: Int,
+        width imageWidth: Int,
+        height imageHeight: Int,
         protectedArea: Bool = false
     ) -> Data? {
-        var outputWidth = width
-        var outputHeight = height
-        var existingImage: CGImage?
-        if let existingData,
-           let source = CGImageSourceCreateWithData(existingData as CFData, nil),
-           let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+        let existingImage: CGImage?
+        if let existingData {
+            guard let source = CGImageSourceCreateWithData(existingData as CFData, nil),
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                return existingData
+            }
             existingImage = image
-            outputWidth = image.width
-            outputHeight = image.height
+        } else {
+            existingImage = nil
         }
-        guard outputWidth > 0, outputHeight > 0 else { return existingData }
+        let width = existingImage?.width ?? imageWidth
+        let height = existingImage?.height ?? imageHeight
+        guard width > 0, height > 0 else { return existingData }
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         guard let context = CGContext(
             data: nil,
-            width: outputWidth,
-            height: outputHeight,
+            width: width,
+            height: height,
             bitsPerComponent: 8,
-            bytesPerRow: outputWidth * 4,
+            bytesPerRow: width * 4,
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else {
             return existingData
         }
-        let bounds = CGRect(
-            x: 0,
-            y: 0,
-            width: outputWidth,
-            height: outputHeight
-        )
+        let bounds = CGRect(x: 0, y: 0, width: width, height: height)
         let color = protectedArea
             ? CGColor(red: 0.08, green: 0.9, blue: 0.22, alpha: 1)
             : CGColor(red: 1, green: 0.12, blue: 0.08, alpha: 1)
@@ -406,6 +403,22 @@ enum SourceMaskRasterizer {
         if let existingImage {
             context.setBlendMode(.destinationOut)
             context.draw(existingImage, in: bounds)
+
+            // Rendering treats any nonzero source-mask alpha as marked.
+            // Keep only pixels that were fully transparent before inversion.
+            guard let pixels = context.data?.assumingMemoryBound(to: UInt32.self) else {
+                return existingData
+            }
+            let opaqueAlpha = UInt32(littleEndian: 0xFF00_0000)
+            var hasMarkedPixels = false
+            for index in 0..<(width * height) {
+                if pixels[index] & opaqueAlpha == opaqueAlpha {
+                    hasMarkedPixels = true
+                } else {
+                    pixels[index] = 0
+                }
+            }
+            guard hasMarkedPixels else { return nil }
         }
         guard let image = context.makeImage() else { return existingData }
         let data = NSMutableData()

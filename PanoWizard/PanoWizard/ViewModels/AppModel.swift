@@ -449,15 +449,16 @@ final class AppModel {
     }
 
     func invertSelectedMask() {
-        guard let image = selectedSourceImage,
-              let data = maskData(for: image.id),
-              let inverted = SourceMaskRasterizer.inverted(
-                data,
+        guard let image = selectedSourceImage else { return }
+        setMaskData(
+            SourceMaskRasterizer.inverted(
+                maskData(for: image.id),
                 width: image.orientedPixelWidth,
                 height: image.orientedPixelHeight,
                 protectedArea: activeMaskKind == .protected
-              ) else { return }
-        setMaskData(inverted, for: image.id)
+            ),
+            for: image.id
+        )
     }
 
     var canUndoMask: Bool {

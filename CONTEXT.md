@@ -2,6 +2,20 @@
 
 Senast uppdaterad: 2026-11-14.
 
+## Invertera källmask — 2026-11-14
+
+Invert i maskverktygsraden vänder markerat och omarkerat för aktiv
+Exclude- eller Include-mask på vald bild. Den andra masken sparas som den
+är och rött har företräde vid överlapp. Ångra återställer masken i ett steg.
+För en reparationsbild kan man ringa in ytan som ska behållas med Exclude
+och sedan klicka Invert för att utesluta resten vid blendningen.
+Invert är även aktivt på en tom mask och fyller då hela den valda bilden
+med den aktiva maskfärgen. En andra invertering tömmer masken igen.
+
+Signerad Release 1.5 (202611142138) med stöd för tom mask installerades i
+Applications. Signaturen och binären verifierades mot testbygget.
+Byggena 202611142133 och 202611142022 sparades separat.
+
 ## Bildbyte efter lasso — 2026-11-14
 
 Lassots muslyssnare kunde fånga sidopanelens klick medan verktyget var valt.
