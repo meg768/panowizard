@@ -1,1590 +1,1691 @@
-# PanoWizard — projekt- och utvecklingskontext
+# PanoWizard Project and Development Context
 
-Senast uppdaterad: 2026-11-14.
+Last updated: 2026-11-16.
 
-## Invertera källmask — 2026-11-14
+Write all PanoWizard documentation in English, including future entries in this
+file. Keep technical identifiers, filenames, and original quotations intact.
 
-Invert i maskverktygsraden vänder markerat och omarkerat för aktiv
-Exclude- eller Include-mask på vald bild. Den andra masken sparas som den
-är och rött har företräde vid överlapp. Ångra återställer masken i ett steg.
-För en reparationsbild kan man ringa in ytan som ska behållas med Exclude
-och sedan klicka Invert för att utesluta resten vid blendningen.
-Invert är även aktivt på en tom mask och fyller då hela den valda bilden
-med den aktiva maskfärgen. En andra invertering tömmer masken igen.
+## PanoWizard 1.5 App Store archive — 2026-11-16
 
-Signerad Release 1.5 (202611142138) med stöd för tom mask installerades i
-Applications. Signaturen och binären verifierades mot testbygget.
-Byggena 202611142133 och 202611142022 sparades separat.
+Build 202611161921 was archived from bbe4c92. The signature, sandbox
+entitlements, arm64 architecture, and matching app dSYM were verified.
+Xcode Organizer completed Validate App with the same eleven OpenCV dSYM
+warnings as for 1.4.
+Archive: ~/Library/Developer/Xcode/Archives/2026-11-16/PanoWizard-1.5-20261116-192014.xcarchive.
+The release notes are in work/appstore-1.5-whats-new.txt.
+Magnus requested the upload. Xcode Organizer confirmed that 202611161921
+was uploaded to App Store Connect with eleven symbol warnings. App Review
+is still pending submission.
 
-## Bildbyte efter lasso — 2026-11-14
+## PanoWizard 1.4 published in the Mac App Store — 2026-11-16
 
-Lassots muslyssnare kunde fånga sidopanelens klick medan verktyget var valt.
-Musfångsten följer nu den aktiva gesten och börjar inom bildens scrollvy.
-Slutförande och avbrott nollställer markering, pekartillstånd och markör.
-I ett osparat provprojekt verifierades Return med tillämpad mask, Escape
-utan mask och bildbyte direkt efter båda. Signerad Release 1.5
-(202611142022) installerades i Applications. Bygge 202611141940 finns
-sparat separat. Inga automatiska regressionstester kördes.
+Magnus shared the green Ready for Distribution status for macOS 1.4. The
+public App Store page and Apple's catalog confirmed that 1.4 was available
+in Sweden and the United States. The catalog records a release date of
+November 15, 2026 at 19:02 Stockholm time. The submitted build was
+202611022209, with automatic release enabled.
 
-## Masker används först vid rendering — 2026-11-14
+## Invert a source mask — 2026-11-14
 
-Ring- och reparationsbilder matchas och positioneras med hela den optiskt
-giltiga bilden. Röda och gröna källmasker läses separat vid rendering och
-ingår inte i registreringscachen. Cacheformat 8 hindrar återbruk av tidigare
-rödmaskad registrering. Grönt prioriterar märkta pixlar vid sömvalet och
-rött utesluter dem från blendningen, med samma maskregler för alla bilder.
-Reparationsbilder använder åter den gemensamma blendningen från 77e7900.
-Geometrisk klassificering och separat registrering av reparationsbilder
-behålls. Utgångsläget är kvar i 3d2a33f och PanoWizard 1.5 (202611132137)
-sparades inför det manuella provet.
+Invert in the mask toolbar swaps the marked and unmarked areas of the
+active Exclude or Include mask on the selected photo. It leaves the other
+mask intact. Red takes precedence where the masks overlap. One Undo
+restores the previous mask. For a repair image, outline the area to keep
+with Exclude and click Invert to exclude the rest when blending.
+Invert also works on an empty mask, covering the entire photo with the
+active mask color. Inverting again clears that mask.
 
-Signerad Release 1.5 (202611141940) installerades i Applications från
-panowizard-render-masks. Byggets signatur och installerade binär verifierades.
-Regressions- och panoramasviter kördes inte inför det manuella provet.
+Signed Release 1.5 (202611142138), with support for empty masks, was
+installed in Applications. The signature and binary were checked against
+the test build. Builds 202611142133 and 202611142022 were saved separately.
 
-## Vald slutversion för reparationsmasker — 2026-11-13
+## Switching photos after using the lasso — 2026-11-14
 
-Signerad Release 1.5 (202611132137) byggdes direkt från arbetskopian och
-installerades i Applications. Den har strikt grön reparationsmask, smal
-feather inåt, full reparationsvikt i hål och validerad reservfaktor per
-kanal. Det rumsliga färgfältet och dess lokala validering ligger kvar i
-separata experiment. Signatur, byggkälla och installerad binär verifierades.
+The lasso's mouse monitor could intercept sidebar clicks while the tool
+was selected. Mouse capture now follows the active gesture and begins inside
+the photo's scroll view. Completing or cancelling a selection resets the
+selection, pointer state, and cursor.
+An unsaved test project confirmed that Return applies the mask, Escape
+discards the selection, and users can switch photos immediately afterward.
+Signed Release 1.5 (202611142022) was installed in Applications. Build
+202611141940 was saved separately. No automated regression tests were run.
 
-## Sista featherprovet i M — 2026-11-13
+## Source masks apply during rendering — 2026-11-14
 
-Med den installerade experimentkoden 202611132108 och låsta masker,
-registrering och färgfält jämfördes 8,33, 12,50 och 16,67 källpixlar.
-Medianen i panoramat vid 6606 × 3303 var 10,0, 14,1 och 18,7 pixlar.
-Ingen tydlig visuell förbättring i M. Alla prov gav noll ändrade pixlar
-utanför grönt och fyllde giltiga kanthål i det syntetiska provet.
-Behåll 8,33 källpixlar i M och avsluta featherjusteringen. Bilder och
-rapport finns under repair-spatial/local-validation/feather-test.
+Ring and repair images use the entire optically valid image area for
+matching and alignment. Red and green source masks are read separately
+during rendering and are excluded from the alignment cache. Cache format 8
+prevents reuse of older alignments based on red masks. Green prioritizes
+marked pixels when choosing seams, and red excludes them from blending.
+Both types of images follow the same mask rules.
+Repair images once again use the shared blending logic from 77e7900.
+Geometric classification and separate alignment for repair images remain in
+place. The previous state is preserved in 3d2a33f, and PanoWizard 1.5
+(202611132137) was saved before the manual test.
 
-## Lokal ljus- och färgkontroll, separat experiment — 2026-11-13
+Signed Release 1.5 (202611141940) was installed in Applications from
+panowizard-render-masks. The build signature and installed binary were
+verified. The automated regression and panorama suites were skipped for
+the manual test.
 
-Den andra försöksversionen bedömer median och P90 för både absolut
-ljusresidual och färgresidual utan ljuskomponenten på klippt RGB.
-Överlappande grannskap styr en gemensam mjuk vikt. Efterkontrollen mäter
-det interpolerade fältet och dämpar försämringar. Urvalet är oförändrat.
+## Selected release for repair masks — 2026-11-13
 
-I M vid 6606 × 3303 återgick nedre vänsters ljusmedian från 3,16 till
-nuvarande 1,44. Hela ljusvinsten i övre vänster och på provtagna ytor i
-övre höger fanns kvar, medan förbättringen längs nederkanten försvann.
-Träpartiet med 96 avvisade prov behöll +28,33 i blå medianavvikelse.
-Automatic och Repair Image var byteidentiska i båda storlekarna med noll
-ändrade pixlar utanför grönt. G och D matchade nuvarande motor och 19
-riktade Xcode-tester passerade. Kod och resultat förblir separata under
-work/repair-masks/repair-spatial/local-validation i huvudutcheckningen.
+Signed Release 1.5 (202611132137) was built directly from the worktree and
+installed in Applications. It includes a strict green repair mask, narrow
+inward feathering, full repair weight in coverage gaps, and a validated
+fallback factor per channel. The spatial color field and its local validation
+remain separate experiments. The signature, build source, and installed binary
+were verified.
 
-Signerad Release 1.5 (202611132108) byggdes från den separata
-experimentkopian och installerades i Applications på Magnus begäran.
-Signatur, binär och byggnummer verifierades.
+## Final feathering test in M — 2026-11-13
 
-## Rumsligt färgfält för reparation, separat experiment — 2026-11-13
+The installed experimental build 202611132108 was used to compare widths of
+8.33, 12.50, and 16.67 source pixels with the masks, alignment, and color field
+held constant. The median widths in the 6606 × 3303 panorama were 10.0, 14.1,
+and 18.7 pixels. M showed no clear visual improvement. All three runs produced
+zero changed pixels outside green and filled valid edge gaps in the synthetic
+test. Retain 8.33 source pixels in M and end this tuning. Images and the report
+are under repair-spatial/local-validation/feather-test.
 
-Ett begränsat Gaussfält av tillförlitliga residualer i reparationsbildens
-källkoordinater provades ovanpå nuvarande färgfaktorer. Fältet tonar ned
-där underlaget är glest och kanaler som underkänns på separata kontrollpixlar
-behåller nuvarande metod. Med M:s sparade masker blev flera delar av kanten
-mjukare, men nedre vänster fick större ljusavvikelse och övre höger hade
-fortsatt ett träparti utan giltigt mätstöd. Försökskoden ligger separat under
-work/repair-masks/repair-spatial i huvudutcheckningen.
+## Local luminance and color validation, separate experiment — 2026-11-13
 
-Automatic och Repair Image var byteidentiska vid 1536 × 768 och 6606 × 3303,
-med noll ändrade pixlar utanför grönt. G och D var byteidentiska med
-nuvarande motor i båda provstorlekarna. 19 riktade Xcode-tester och den
-separata kontrollen av färgfältets fallback passerade i experimentkopian.
+The second experiment evaluates the median and P90 for both absolute luminance
+error and the color residual after removing the luminance component from
+clipped RGB. Overlapping neighborhoods determine one smooth weight. A final
+check measures the interpolated field and attenuates corrections that make
+the error worse. Sample selection remained the same.
 
-Uppföljning: I nedre vänster förbättrades grönt och blått separat, men
-deras tidigare negativa fel kompenserade för +12 i röd medianavvikelse.
-Bara fyra av 537 kontrollpixlar hade giltigt rött. Ljusfelet steg från
-1,44 till 3,16. Övre höger avvisade alla 96 par på kromaskillnad. R/G
-klarade kanalvillkoren, medan ringens blå signal var högst 10 i 93 par.
-R/G hade bara åtta undanhållna prov i två celler. Föreslaget nästa prov
-är en mjuk lokal spärr för försämrat ljusfel över det samlade fältet, med
-oförändrat urval. Diagnos och närbilder finns i repair-spatial/lokal-diagnos.
+In M at 6606 × 3303, the median luminance error in the lower left returned
+from 3.16 to the baseline of 1.44. The full luminance improvement remained in
+the upper left and on sampled surfaces in the upper right. The improvement
+along the bottom edge disappeared. The wooden area with 96 rejected samples
+retained a median blue deviation of +28.33. Automatic and Repair Image were
+byte-identical at both sizes with zero changed pixels outside green. G and D
+matched the current engine, and 19 targeted Xcode tests passed. The code and
+results remain separate under work/repair-masks/repair-spatial/local-validation
+in the main checkout.
 
-## Validerat reservvärde för reparationsfärg — 2026-11-13
+Signed Release 1.5 (202611132108) was built from the separate experiment
+worktree and installed in Applications at Magnus's request. The signature,
+binary, and build number were verified.
 
-När en lokal faktor inte godkänns jämförs global och neutral faktor per
-kanal med slutrenderingens klippning på samma kontrollpixlar. Global väljs
-om median eller P90 förbättras utan att det andra måttet försämras. Neutral
-faktor används vid likvärdigt resultat eller färre än 20 kontrollprover.
-Villkoren för lokala faktorer är oförändrade.
+## Spatial color field for repair, separate experiment — 2026-11-13
 
-I M med sparade masker sjönk röd faktor från 1,144 till 1,000 och andelen
-klippta röda värden vid full reparationsvikt från 92,3 till 25,0 procent.
-Automatic och Repair Image blev byteidentiska med varandra och med det
-diagnostiska provet vid 6606 × 3303. Noll ändrade pixlar utanför grönt.
-Tonskillnaden uppe till höger kvarstår. G vid 1536 och 5120 samt D vid
-1536 blev byteidentiska med föregående resultat. 19 riktade Xcode-tester
-passerade. Före/efter-bilder finns under work/repair-masks/repair-fallback
-i huvudutcheckningen.
+A bounded Gaussian field of reliable residuals in repair-image source
+coordinates was tested on top of the current color factors. The field tapers
+where samples are sparse, and channels rejected on separate control pixels
+retain the existing correction. With M's saved masks, several parts of the
+edge became softer. The lower left had a greater luminance error, and the
+upper right still had a wooden area without valid measurement samples.
+The experiment code is separate under work/repair-masks/repair-spatial in
+the main checkout.
 
-Signerad Release 1.5 (202611131831) installerades i Applications på
-Magnus begäran. Signatur, binär och byggnummer verifierades mot bygget.
+Automatic and Repair Image were byte-identical at 1536 × 768 and 6606 × 3303,
+with zero changed pixels outside green. G and D were byte-identical to the
+current engine at both sizes. Nineteen targeted Xcode tests and a separate
+check of the color field fallback passed in the experiment worktree.
 
-## Diagnos av färgkanten i M — 2026-11-13
+In the lower left, the green and blue channels improved individually, but
+their previous negative errors had offset the median red error of +12.
+Only four of 537 control pixels had a valid red channel. The luminance error
+rose from 1.44 to 3.16. In the upper right, all 96 pairs were rejected for a
+chroma difference. Red and green met the channel conditions, while the ring's
+blue signal was at most 10 in 93 pairs. Red and green had only eight held-out
+samples in two cells. The proposed next test is a smooth local limit on
+corrections that increase luminance error, evaluated on the combined field
+with the same sample selection. The diagnosis and close-ups are in
+repair-spatial/lokal-diagnos.
 
-Senast sparade M med grönt på #5 och #6 och utan rött reproducerades
-byteidentiskt vid 6606 × 3303. Lokal röd faktor 0,953 underkändes på P90
-och ersattes av global 1,144. Reservvärdet ökade felet mot ringen och
-klippte rött i 92 procent av pixlarna med full reparationsvikt. Neutral
-röd faktor gav bättre kontrollprov och mindre färgstick med samma feather.
-Övre högra träytan har också en rumslig färgskillnad. Ringen har nästan
-ingen blå kanal där, redan i den dominerande råkällan. Alla 96 provpunkter
-på den ytan avvisades på kromaskillnad. Noll pixlar ändrades utanför grönt.
-Föreslagen första ändring är att jämföra det globala reservvärdet med
-neutral faktor på befintliga kontrollprov. Diagnos och bilder finns under
-work/repair-masks/repair-diagnosis i huvudutcheckningen.
+## Validated fallback for repair color — 2026-11-13
 
-## Färg och mjuk kant för grönmaskad reparation — 2026-11-13
+When a local factor is rejected, compare the global and neutral factors
+per channel on the same control pixels, using the clipping applied by the
+final render. Choose the global factor if either the median or P90 improves
+without worsening the other. Use the neutral factor when the results are
+equivalent or there are fewer than 20 control samples. The conditions for
+accepting a local factor remained the same.
 
-Den separata reparationen passerade tidigare bara global exponering.
-Den matchas nu mot den färdiga ringens färg från jämnt, giltigt överlapp
-strax utanför grönt. Färgprovet använder originalvärden före klippning.
-Kanaljusteringar som saknar stöd i separata kontrollprover hanteras enligt
-reservregeln ovan. Feather ligger innanför den giltiga masken och mäts
-i källpixlar. Där ringen saknar täckning får giltig reparation full vikt.
-Grönt behöver marginal runt motivet som ska ersättas.
+With M's saved masks, the red factor dropped from 1.144 to 1.000, and the share
+of clipped red values at full repair weight dropped from 92.3% to 25.0%.
+Automatic and Repair Image were byte-identical to each other and to the
+diagnostic render at 6606 × 3303. Zero pixels changed outside green.
+The upper-right tone difference remained. G at 1536 and 5120 and D at 1536
+were byte-identical to the previous output. Nineteen targeted Xcode tests
+passed. Before-and-after images are under work/repair-masks/repair-fallback
+in the main checkout.
 
-M gav identiska resultat för Automatic och Repair Image vid 1536 × 768
-och 5120 × 2560, med noll ändrade pixlar utanför grönt mot enbart ringen.
-Färgskillnaden minskade. En reflex i bordet syns fortfarande. Extra grön
-marginal i provet täckte stativresten vid den tidigare maskkanten, med noll
-ändrade pixlar utanför den utökade masken. G gav byteidentiska PNG-filer mot 77e7900
-i båda storlekarna. D:s nadir klassades som reparation utan hål. 18
-riktade Xcode-tester passerade. Provbilder finns under work/repair-masks/
-repair-feather i huvudutcheckningen.
+Signed Release 1.5 (202611131831) was installed in Applications at Magnus's
+request. The signature, binary, and build number were checked against the build.
 
-Signerad Release 1.5 (202611131802) installerades i Applications på
-Magnus begäran. Signatur, binär och byggnummer verifierades mot bygget.
+## Diagnosis of the color transition in M — 2026-11-13
 
-## Strikt grön reparationsmask — 2026-11-13
+M's last saved state, with green on #5 and #6 and no red, was reproduced
+byte-for-byte at 6606 × 3303. The local red factor of 0.953 failed the P90
+check and was replaced by a global factor of 1.144. The fallback increased
+the error against the ring and clipped red in 92% of pixels with full
+repair weight. The neutral red factor performed better on control samples
+and reduced the color cast with the same feathering.
 
-Isolerad arbetskopia från 77e7900. Röd Exclude styr kontrollpunktssökningen
-och slutbilden för både ring- och reparationsbilder. Automatic använder
-de maskade kontrollpunkterna för klassificeringen. Automatiska nadirbilder
-identifieras före slutlig ringoptimering och registreras mot den optimerade
-ringen. Grönmaskad reparation läggs sist med skarp kant inom giltig grön
-yta minus rött. Cacheformat 7 utesluter både äldre och experimentella
-registreringsresultat.
+The upper-right wooden surface also has a spatial color difference. The
+ring already has very little blue there in the dominant raw source. All
+96 samples on that surface were rejected for a chroma difference. Zero
+pixels changed outside green. The first proposed change is to compare the
+global fallback with the neutral factor on existing control samples. The
+diagnosis and images are under work/repair-masks/repair-diagnosis in the
+main checkout.
 
-På M-kopian klassades #6 som reparation med Automatic och Repair Image.
-En extra röd mask sänkte antalet SIFT-punkter inom den markerade ytan från
-1799 till noll och #6 kunde fortfarande placeras. Utan rött på #6 gav båda
-bildtyperna identiskt resultat, med noll ändrade pixlar utanför grönt vid
-1536 × 768 och 5120 × 2560 jämfört med enbart ringen. G gav byteidentiska
-PNG-filer mot 77e7900 i båda storlekarna. D:s automatiska nadirbild blev
-reparation och D renderades utan hål. Cache från experimentversion 6
-avvisades. Ett regressionstest täcker helröd reparation och 18 riktade
-Xcode-tester passerade.
+## Color matching and feathering for green-masked repair — 2026-11-13
 
-Signerad Release 1.5 (202611131738) byggdes från arbetskopian och installerades
-i Applications på Magnus begäran. Strict/deep-signatur, binär och byggnummer
-verifierades mot testbygget.
+The separate repair previously received only global exposure correction.
+Its color is now matched against the finished ring using even, valid
+overlap just outside green. The samples use original values before clipping.
+Channel adjustments that lack support on held-out control samples follow
+the fallback rule above. Feathering stays inside the valid mask and is
+measured in source pixels. Where the ring has no coverage, valid repair
+pixels get full weight. Paint green with a margin around the object to replace.
 
-## Maskdiskussion för Panorama M och G — 2026-11-13
+M gave identical results for Automatic and Repair Image at 1536 × 768 and
+5120 × 2560, with zero changed pixels outside green compared with the ring
+alone. The color difference decreased. A reflection on the table is still
+visible. A wider green margin in the test covered the remaining tripod at the
+former mask edge, with zero changes outside the extended mask. G produced
+byte-identical PNG files compared with 77e7900 at both sizes. D's nadir image
+was classified as repair and had no gaps. Eighteen targeted Xcode tests
+passed. Test images are under work/repair-masks/repair-feather in the main
+checkout.
 
-Magnus vill placera den handhållna bild #6 i Panorama M med Image Type
-Automatic och välja exakt vilket område bilden får bidra med för att dölja
-stativet. Matchningen behöver använda överlapp även utanför markeringen.
-Dagens röda Exclude kan ta bort det överlappet. Dagens gröna Include styr
-sömvalet kring Graph Cut, vilket i Panorama G hjälper till att välja den
-handfria överlappningen samtidigt som resten av källbilden kan bidra.
+Signed Release 1.5 (202611131802) was installed in Applications at Magnus's
+request. The signature, binary, and build number were checked against the build.
 
-Diskuterad toolbar: röd Exclude utesluter markeringen, orange Prefer
-motsvarar dagens sömstyrning och grön Include (”True Cut”) begränsar bildens
-bidrag till markeringen efter placeringen. Gränsen behöver gälla vid
-sömval, blandning och rendering i full upplösning. Bakåtkompatibilitet
-för maskformatet är inget krav. En kryssruta per bild som återanvänder
-den befintliga markeringen diskuterades också. Val av gränssnitt och
-regeln för konkurrerande pixlar innanför markeringen är öppna.
+## Strict green repair mask — 2026-11-13
 
-Pausat på Magnus begäran. Vid återupptagning är förslaget en check-in
-med tagg före kodändring, därefter ett isolerat prov på en kopia av M
-med befintlig markering på #6. Kontrollera att Automatic placerar #6,
-att stativet försvinner och att #6 bara bidrar innanför markeringen.
-Använd G för att kontrollera sömstyrningen vid en eventuell produktändring.
+Isolated worktree from 77e7900. Red Exclude controls control-point detection
+and the final image for both ring and repair images. Automatic uses the masked
+control points for classification. Automatic nadir images are identified
+before final ring optimization and aligned against the optimized ring. A
+green-masked repair is applied last with a hard edge inside the valid green
+region, excluding red. Cache format 7 rejects both earlier and experimental
+alignment results.
 
-Enklare hypotes för M, analyserad samma dag: matcha originalpixlar inom
-objektivets giltiga yta och tillämpa befintlig röd Exclude först vid
-sammanfogningen. Då kan rött utanför önskat område räcka utan en ny masktyp.
-Dagens TIFF har redan masken inbakad i alfa innan OpenCV läser den. Ett prov
-behöver därför läsa bild och röd mask separat och jämföra placering och
-slutresultat. Rött kan också ha hindrat felmatchningar i andra projekt.
-Hypotesen är kodgranskad och oprövad på M.
+In the M copy, #6 was classified as a repair in Automatic and Repair Image.
+An extra red mask reduced the SIFT point count inside the marked area from
+1799 to zero, and #6 still aligned. With no red on #6, both image types
+produced identical output, with zero changed pixels outside green at
+1536 × 768 and 5120 × 2560 compared with the ring alone. G produced
+byte-identical PNG files compared with 77e7900 at both sizes. D's automatic
+nadir was classified as repair and D rendered without gaps. The cache from
+experimental version 6 was rejected. An automated regression test covers
+a fully red-masked repair, and eighteen targeted Xcode tests passed.
 
-Magnus jämförde M med stativet rödmålat i ringbilderna. Utan #6 syns en
-avsiktlig lucka vid stativet och handen vid musen ser solid ut. Med omaskad
-Repair Image syns spökbildning vid handen. Grönt på en reparationsbild
-begränsar i dag det första sömvalet. Reservval och blandning kan fortfarande
-använda pixlar utanför markeringen. Magnus föredrar att otäckta områden
-förblir synliga i stället för att fyllas utanför en strikt markering.
-Check-in begärd som kontrollpunkt före ett eventuellt maskexperiment.
-Xcode-testsviten passerade med lokal SFTP. Två äldre retuschtester
-uppdaterades med giltiga PNG-filer och väntar på den första renderingen.
+Signed Release 1.5 (202611131738) was built from the worktree and installed
+in Applications at Magnus's request. The strict/deep signature, binary, and
+build number were checked against the test build.
 
-## HTML styr ersättningsfrågan i Publish — 2026-11-13
+## Mask discussion for Panorama M and G — 2026-11-13
 
-Publish frågar en gång om HTML-filen redan finns. När publiceringen går
-vidare ersätts en befintlig JPEG-miniatyr automatiskt. Cancel lämnar båda
-filerna orörda.
-SFTPPublisher tar alltid både HTML och JPEG. Den pensionerade
-miniatyrinställningen hanteras inte längre. Alla fyra filkombinationer
-verifierades mot lokal SFTP. Signerad Release 1.5 (202611130005) är installerad
-i Applications.
+Magnus wanted to align handheld image #6 in Panorama M with Image Type set to
+Automatic and choose exactly where it could contribute to hide the tripod.
+Matching needs overlap outside that selection as well. The red Exclude mask
+could remove that overlap. The green Include mask guides Graph Cut seam
+selection. In Panorama G it helps select the overlap without the hand while
+still allowing the rest of the source image to contribute.
 
-## Gemensamt Filename-fält i Publish — 2026-11-12
+The proposed toolbar used red Exclude to remove marked pixels, orange Prefer
+for the existing seam guidance, and green Include (“True Cut”) to restrict the
+image's contribution to the marked region after alignment. The restriction
+would need to apply to seam selection, blending, and full-resolution rendering.
+Backward compatibility for the mask format was unnecessary. The discussion also
+considered a per-image checkbox that would reuse the existing mask. The UI and
+the rule for competing pixels inside the mask remained open.
 
-Filename tar en relativ sökväg med valfria undermappar. Saknad filändelse
-får .html, och tomt fält använder projektets standardnamn. Befintliga
-publishPath/publishFilename och tidigare lokalt sparade värden återanvänds.
-Samma normaliserade destination används för HTML, JPEG och publik länk.
-Release 1.5 (202611122343) är signerad och installerad. Sparad destination
-och fel för annan filändelse verifierades i appen. Den riktade testkörningen
-passerade med den valfria lokala SFTP-integrationen överhoppad.
+Magnus paused the work. On resuming, the proposal was to check in and tag the
+baseline before changing code, then run an isolated test on a copy of M with
+the existing mask on #6. Check that Automatic aligns #6, the tripod disappears,
+and #6 contributes only inside the mask. Use G to verify seam guidance if the
+change goes into the product.
 
-## GitHub-länk i Help — 2026-11-12
+A simpler option came up the same day. Match the original pixels within the
+lens's valid area and apply the existing red Exclude mask during stitching.
+Red outside the desired area might then suffice without adding a mask type.
+The TIFF had the mask baked into its alpha channel before OpenCV read it, so a
+test would need to read the source image and red mask separately and compare
+alignment and final output. Red may also have prevented incorrect matches
+in other projects. The code was reviewed, but this option was untested in M.
 
-Help → View on GitHub ligger efter Download Examples… och öppnar
-projektets GitHub-repo i standardwebbläsaren. Klicket verifierades i
-installerad, signerad Release 1.5 (202611122212).
-Menynamnet Download Examples visas utan ellips från Release 1.5
-(202611122216). Hjälpen och README använder samma namn.
+Magnus compared M after painting the tripod red in the ring images. Without
+#6 there was an intentional gap at the tripod, and the hand by the mouse
+looked solid. With an unmasked Repair Image there was ghosting around the hand.
+Green on a repair image restricted the first seam selection, but fallback
+selection and blending could still use pixels outside the mask. Magnus
+preferred visible gaps to coverage from outside a strict mask. A check-in was
+requested as a checkpoint before any mask experiment. The Xcode suite passed
+with local SFTP. Two older retouch tests were updated to use valid PNG files
+and wait for the first render.
 
-## Nytt projekt från panorama — 2026-11-12
+## HTML controls the overwrite prompt in Publish — 2026-11-13
 
-File → New from Panorama… öppnar en ekvirektangulär PNG i exakt 2:1 i
-Preview. PNG-data bäddas in i .pw och ett valfritt projektfält styr
-Images-sektionen. Retouch, Preview och Export använder det befintliga
-grundpanoramat. Signerad Release 1.5 (202611122052) installerad. 30 riktade
-tester passerade. Sparfrågan, byte-identisk PNG i projektpaketet och
-återöppning efter flytt av PNG:n verifierades i installerad app. Vanligt
-källbildsprojekt visade fortfarande Images och Create Panorama.
-Panorama-sektionen visar nu Preview, Retouch och Export i den ordningen.
-Ordningen verifierades med importerat projekt i signerad Release 1.5
-(202611122107), installerad i Applications.
+Publish asks once if the HTML file already exists. If publishing proceeds,
+the existing JPEG thumbnail is replaced automatically. Cancel leaves both
+files untouched.
+SFTPPublisher always receives both HTML and JPEG. The retired thumbnail
+setting is no longer handled. All four file combinations were verified
+against local SFTP. Signed Release 1.5 (202611130005) is installed in
+Applications.
+
+## Single Filename field in Publish — 2026-11-12
+
+Filename accepts a relative path with optional subfolders. When the extension
+is omitted, the app adds .html. A blank field uses the project's default name.
+Existing publishPath/publishFilename and previously saved local values are
+reused. The same normalized destination is used for HTML, JPEG, and the public
+link. Signed Release 1.5 (202611122343) is installed. The app was checked for
+saved destinations and rejection of other extensions. The targeted tests
+passed with optional local SFTP integration skipped.
+
+## GitHub link in Help — 2026-11-12
+
+Help → View on GitHub appears after Download Examples… and opens the project's
+GitHub repository in the default browser. The action was verified in the
+installed signed Release 1.5 (202611122212).
+The Download Examples label omits the ellipsis as of Release 1.5
+(202611122216). Help and README use the same label.
+
+## New project from a finished panorama — 2026-11-12
+
+File → New from Panorama… opens an equirectangular PNG with an exact 2:1
+aspect ratio in Preview. The PNG data is embedded in the .pw file, and an
+optional project field controls the Images section. Retouch, Preview, and
+Export use the existing base panorama. Signed Release 1.5 (202611122052)
+was installed. Thirty targeted tests passed. The installed app was checked
+for the save prompt, a byte-identical PNG in the project bundle, and
+reopening after moving the original PNG. A regular source-image project
+still showed Images and Create Panorama.
+The Panorama section now shows Preview, Retouch, and Export in that order.
+The order was verified with an imported project in signed Release 1.5
+(202611122107), installed in Applications.
 
 ## Create Panorama under Images — 2026-11-12
 
-Vänsterpanelen visar Create Panorama som sista rad under Images. Panorama
-samlar Retouch, Preview och Export. Placeringen verifierades med en kopia
-av exempel H i installerad, signerad Release 1.5 (202611122030).
-Magnus valde denna version som grund för fortsatt arbete. Kontrollpunkten
-innehåller även PSD-export och exempel H:s sparade startvy. H:s lokala
-säkerhetsbokmärke ligger kvar utanför Git.
+The sidebar shows Create Panorama as the last row under Images. Panorama
+contains Retouch, Preview, and Export. The placement was checked on a copy of
+example H in the installed signed Release 1.5 (202611122030).
+Magnus chose this version for further work. The checkpoint also includes PSD
+export and example H's saved starting view. H's local security bookmark
+remains outside Git.
 
-## PSD med retuschlager — 2026-11-12
+## PSD export with retouch layers — 2026-11-12
 
-Save PSD… exporterar 8-bitars sRGB i vald storlek med grundpanoramat som
-bottenlager och varje projicerad retuschpatch i eget lager. Avstängda
-patchar är dolda. Justeringar appliceras på lagren och på den sammanslagna
-förhandsbilden. Signerad Release 1.5 (202611122003) installerad och verifierad.
-12 riktade tester passerade. Export av en kopia av H i installerad app
-verifierades med en oberoende PSD-läsare: 8592 × 4296, tre lager, ett dolt.
+Save PSD… exports 8-bit sRGB at the selected size. The base panorama is the
+bottom layer, and each projected retouch patch has a separate layer. Disabled
+patches are hidden. Adjustments apply to the layers and to the flattened
+preview. Signed Release 1.5 (202611122003) was installed and verified.
+Twelve targeted tests passed. A PSD exported from a copy of H in the installed
+app was verified with an independent reader at 8592 × 4296, with three layers
+including one hidden layer.
 
-## App Store-status verifierad — 2026-11-12
+## App Store status verified — 2026-11-12
 
-App Store Connect visar fortfarande Waiting for Review för macOS 1.4.
-Senaste statusändringen i historiken är inskickningen 2 november kl. 23:02
-Stockholmstid. Den publika svenska butikssidan för appens Apple-ID svarade
-404. Exakt datum för eventuell tidigare publik tillgänglighet är obekräftat.
+App Store Connect still showed Waiting for Review for macOS 1.4. The latest
+status change in the history was the November 2 submission at 23:02
+Stockholm time. The public Swedish product page for the app's Apple ID
+returned 404. The exact date of any earlier public availability was unknown.
 
-## Handhållet exempel H i hjälpen — 2026-11-06
+## Handheld example H in Help — 2026-11-06
 
-H i repot har tio JPEG-källor, två Exclude-masker (en på en avstängd
-källa), två Include-masker och två manuella patchar. Exempelguiden visar
-röd och grön mask på samma person i olika källbilder, med illustrationer
-från de sparade maskerna. Maskguiden länkar till H.
-Det distribuerade H-projektet använder relativa bildreferenser. Ett lokalt
-säkerhetsbokmärke sparades utanför de versionshanterade exemplen.
+Example H in the repository has ten JPEG sources, two Exclude masks (one on a
+disabled source), two Include masks, and two manual patches. The examples
+guide shows red and green masks on the same person in different source
+images, using illustrations from the saved masks. The masking guide links to H.
+The distributed H project uses relative image references. A local security
+bookmark was saved outside the tracked examples.
 
-## JPEG-källor i privata testprojektet G — 2026-11-06
+## JPEG sources in the private test project G — 2026-11-06
 
-På iCloud-skrivbordet ligger det öppningsbara JPEG-projektet under
-`Panorama/G/JPEG/panorama.pw`. PanoWizard 1.5 visade Ready med alla tio
-JPEG-källor. Bild-ID:n, inställningar, masker och sparat panorama bevarades.
-Projektformat 10 läser masker och sparat panorama som interna PNG-filer.
-Det privata originalprojektet och G i repots exempel är separata.
+In the iCloud desktop, the open JPEG project is located under
+`Panorama/G/JPEG/panorama.pw`. PanoWizard 1.5 showed Ready with all ten JPEG
+sources. The image ID, settings, masks and saved panorama were preserved.
+Project format 10 reads masks and saves panorama as internal PNG files. The
+private original project and the G in the repository examples are separate.
 
-## Release 1.5 installerad — 2026-11-03
+## Release 1.5 installed — 2026-11-03
 
-På Magnus instruktion byggdes Release 1.5 (202611030044) och installerades i
-/Applications/PanoWizard.app. Strict/deep-signatur och identisk binär + Info.plist
-mot byggresultatet verifierade. Native start och Om-dialog verifierar 1.5,
-Build 2026-11-03 00:44; appen lämnad öppen. Befintliga actor-isoleringsvarningar
-och AppIntents-metadata-varning kvar. Föregående installerade 1.4 bevarad i
+On Magnus' instructions, Release 1.5 (202611030044) was built and installed in
+/Applications/PanoWizard.app. Strict/deep signature and identical binary +
+Info.plist against the build output verified. Normal launch and the About dialog
+verify 1.5, Build 2026-11-03 00:44; the app is left open. Existing actor
+isolation warnings and AppIntents metadata warnings remain. Previously installed
+1.4 preserved in
 /Users/magnus/Library/Developer/Xcode/PanoWizard-before-mandatory-thumbnail-7il5dqc4/PanoWizard.app.
-App Store-arkiv och inskickad 1.4 orörda. Ingen commit eller push utförd.
+App Store archive and shipped 1.4 intact. No commit or push performed.
 
-## Publicering kräver HTML och thumbnail — 2026-11-03
+## Publishing requires HTML and thumbnails — 2026-11-03
 
-PanoWizard 1.5 har inget Generate thumbnail-val eller AppStorage för det.
-Gammal PanoWizard.Publish.generateThumbnail-nyckel tas bort när dialogen öppnas;
-tidigare false ignoreras. Render och JPEG-upload körs alltid; framgång sätts
-först efter båda uppladdningarna. Befintlig 640x360/JPEG80-rendering, kamera,
-filnamn, överskrivningsskydd, dold staging och partiell feltext oförändrade.
-Exporthjälp och integritetspolicy uppdaterade; opt-in livetest publicerar nu
-ett HTML/JPEG-par i stället för ett separat HTML-only-läge.
-Verifiering: fem riktade tester godkända (bl.a. riktig WebKit-render vid två
-FOV); ett lokalt SFTP-test skippat utan fixture-server. Release 1.5
-(202611030035) byggd och strict/deep-signatur godkänd. Befintliga varningar i
-PanoWizardApp.swift om actor-isolering samt AppIntents-metadata kvar.
-Manuellt test i byggd Debug-app på disponibel projektkopia med gammal false:
-kryssruta saknas, gamla nyckeln rensad, HTML + JPEG med UTF-8-namn publicerade
-i 2008; remote JPEG verifierad 640x360. HTML-ersättning godkänd och JPEG-
-ersättning avbruten: tydligt partiellt resultat, JPEG SHA256 oförändrad.
-Båda temporära serverfilerna borttagna och frånvaro verifierad. Testappen stängd.
-Ingen installation i /Applications, App Store-åtgärd, commit eller push ingår;
-installerad app och inskickat arkiv 1.4 bevarade. Hjälpen är ändrad lokalt.
+PanoWizard 1.5 has no Generate thumbnail option or AppStorage for that. The old
+PanoWizard.Publish.generateThumbnail key is removed when the dialog is opened;
+previously false is ignored. Render and JPEG upload are always running; success
+is set only after both uploads. Existing 640x360/JPEG80-rendering, camera, file
+name, overwriting protection, hidden staging and partial error text unchanged.
+Export help and privacy policy updated; opt-in live test now publishes an
+HTML/JPEG pair instead of a separate HTML-only mode. Verification: five targeted
+tests approved (including true WebKit rendering at two FOVs); a local SFTP test
+run without fixture servers. Release 1.5 (202611030035) constructed and
+strict/deep signature approved. Existing alerts in PanoWizardApp.swift regarding
+actor isolation and AppIntents metadata remaining. Manual testing in built-in
+Debug app on available project copy with old false: cross box missing, old key
+cleared, HTML + JPEG with UTF-8 name published in 2008; remote JPEG verified
+640x360. HTML replacement approved and JPEG replacement discontinued: clear
+partial result, JPEG SHA256 unchanged. Both temporary server files deleted and
+absence verified. The lock is closed. No installation in /Applications, App
+Store action, commit or push included; installed app and uploaded archive 1.4
+preserved. The helper's changed locally.
 
-## Nästa utvecklingsversion 1.5 — 2026-11-02
+## The following development version 1.5 — 2026-11-02
 
-På Magnus instruktion höjdes MARKETING_VERSION till 1.5 i både Debug och
-Release. Byggnummer genereras fortsatt med befintlig tidsstämpel vid bygge.
-Projekt/plist och båda versionsinställningarna verifierade. Ingen ny build,
-installation eller App Store-ändring ingår; installerad och inskickad app är
-fortsatt 1.4 (202611022209).
+On Magnus' instructions, the MARKETING_VERSION was raised to 1.5 in both Debug
+and Release. Construction numbers are generated continuously with existing
+timestamps at construction. Projekt/plist and both version settings verified. No
+new build, installation or App Store change is included; installed and
+downloaded app continues 1.4 (202611022209).
 
-## Automatisk publicering godkänd — 2026-11-02
+## Automatic publication authorised — 2026-11-02
 
-Magnus instruerade Kör automatisk publicering. Automatically release this
-version valt och sparat för 1.4 (202611022209); verifierat efter omladdning
-(Save disabled, automatisk radio vald). Waiting for Review kvarstår.
-Detta ersätter den manuella publiceringsinställningen från inskickningen.
-Appen får nu publiceras automatiskt efter Apples godkännande. Inga ändringar
-i build, granskningsärende eller landsurval. Frankrike fortsatt pausat.
+Magnus instructed you to run automatic publishing. Automatically release this
+version selected and saved for 1.4 (202611022209); verified after reloading
+(Save disabled, automatic radio selected). Waiting for Review remains. This
+replaces the manual publication setting from the submission. The app can now be
+published automatically with Apple's approval. No change in build, audit or land
+survey. France continued to rest.
 
-## App Store 1.4 inskickad till granskning — 2026-11-02
+## App Store 1.4 submitted for review — 2026-11-02
 
-Magnus gav uttryckligt slutgodkännande: Submit. App Privacy läst: publicerad
-policy-URL korrekt, Photos or Videos, Other User Content och User ID deklarerade
-för App Functionality och kopplade till användaren; inga deklarationer ändrade.
-Versionspostens beskrivning, granskningstext, exempel-URL och vald build granskade.
-Manually release this version valt och sparat före inskickning för att respektera
-tidigare instruktion att inte släppa appen. Detta ersätter äldre automatisk
-release-inställning. Update Review följt av Resubmit to App Review utfört.
-Apple bekräftar Waiting for Review för 1.4 (202611022209), inskickad 2 november
-2026 kl. 23:02 Europe/Stockholm. Submission ID:
-c5c10c97-d367-4412-a117-a6a3e3cc732d. Frankrike fortsatt pausat.
-Ingen rebuild, kod-/versionsändring, release eller separat meddelande till Apple.
-Skärmbild sparad i uppdragsmappens outputs/PanoWizard-1.4-submitted.png.
+Magnus gave his final express approval: Submit. App Privacy read: published
+policy URL correct, Photos or Videos, Other User Content and User ID declared
+for App Functionality and linked to the user; no declarations changed.
+Description of the version post, review text, example URL and selected build
+reviewed. Manually release this version selected and saved prior to upload to
+respect previous instructions not to release the app. This replaces the older
+automatic release setting. Update Review followed by Resubmit to App Review
+performed. Apple confirms the Waiting for Review for 1.4 (202611022209), which
+was sent on 2 November 2026 at 23:02 Europe/Stockholm. Submission ID:
+c5c10c97-d367-4412-a117-a6a3e3cc732d. France continued to rest. No rebuild,
+code or version change, release or separate message to Apple. Screenshot saved in
+the mission map outputs/PanoWizard-1.4-submitted.png.
 
-## App Store 1.4 klar för nästa granskningssteg — 2026-11-02
+## App Store 1.4 ready for the next review step — 2026-11-02
 
-Dokumentcommits till och med 4d4b7eb pushade till main; GitHub Pages byggd och
-publik privacy/export verifierade med SFTP-information respektive Save….
-Rätt build 1.4 (202611022209) vald och sparad på versionsposten, som nu visar
-Prepare for Submission. Magnus godkände uttryckligen pausad distribution i
-Frankrike: bortvalet bekräftat/sparat, 173 länder/regioner kvar; fastlandskina
-fortsatt bortvalt. Apple anger att tillgänglighetsändringen kan ta 24 timmar.
-Export compliance sparad: standardkryptering utanför OS, ingen distribution i
-Frankrike. Missing Compliance borta; TestFlight visar Ready to Submit för
-202611022209. Ingen fransk dokumentation uppladdad, ingen Info.plist-ändring.
-Free Apps Agreement verifierat Active. Paid Apps Agreement är också Active
-men har en separat uppdatering tillgänglig; inga avtal godkända av agenten.
-App Privacy-deklarationen har inte ändrats eller slutligt verifierats här.
-Arkiv/källkod/version oförändrade; inga nya byggen. Ingen App Review-inskickning
-eller release utförd. Magnus godkänner slutlig inskickning separat.
-Detta ersätter tidigare väntande compliance-, buildkopplings- och pushstatus.
+Document commits even 4d4b7eb pushed to main; GitHub Pages built and public
+privacy/export verified with SFTP information respectively Save.... Right build
+1.4 (202611022209) selected and saved to the version mail, which now displays
+Prepare for Submission. Magnus explicitly authorised a paused distribution in
+France: the withdrawal confirmed and saved, 173 countries or regions remaining; mainland
+China continued to withdraw. Apple states that the change in availability may
+take 24 hours. Export compliance saved: standard encryption outside the OS, no
+distribution in France. Missing Compliance is gone; TestFlight shows Ready to
+Submit for
+202611022209. No French documentation uploaded, no Info.plist change. Free Apps
+              Agreement verified Active. Paid Apps Agreement is also Active but
+              has a separate update available; no agreements approved by the
+              agent. The App Privacy Statement has not been changed or verified
+              here. Archive, source code, and version unchanged; no new builds. No app
+              review or release has been performed. Magnus approves final
+              shipment separately. This replaces previously pending compliance,
+              build coupling and push status.
 
-## Extra kontroll före App Review — 2026-11-02
+## Additional control before App Review — 2026-11-02
 
-Add Build-dialogen verifierar att 1.4 (202611022209) är valbar trots Missing
-Compliance. Endast en osparad fältändring användes för att visa väljaren;
-Cancel/omladdning återställde befintlig 1.3-koppling och Save är disabled.
-Frankrike: Available on App Release. Fastlandskina: enda Not Available.
-Citadel har AES128CTR med CCryptoBoringSSL; arkivbinären innehåller aes128-ctr
-och BoringSSL-typnamn. OS-only-krypteringsundantag kan inte antas. Apples
-export-compliance-tabell anger fransk deklaration för standardkryptering utanför
-OS när Frankrike ingår; ingen deklaration eller landinställning ändrad.
-Publika privacy/export/examples/support returnerar 200, exempel-ZIP byte-range
-206. Privacy saknar fortfarande SFTP-tillägget: lokala dokumentcommits behöver
-pushas före submission. AI-kodkontroll: OpenAI-information före explicit
-AI Retouch/Try Again; ingen automatisk generation från dialogens task.
-App Privacy i Connect är inte omdeklarerad eller slutligt verifierad här.
-Connects startsida visade även uppdaterad Paid Applications Schedule; eventuell
-påverkan på gratisappen är inte fastställd. Ingen rebuild, review eller release.
+The Add Build dialog verifies that 1.4 (202611022209) is optional despite
+Missing Compliance. Only one unparalleled field change was used to show the
+voter; Cancel/omladdning restored the existing 1.3 link and Save is disabled.
+French: Available on App Release. Mainland China: only Not Available. Citadel
+has AES128CTR with CCryptoBoringSSL; the archive binary contains aes128-ctr and
+BoringSSL type names. OS-only encryption exemptions cannot be adopted. Apple's
+export compliance table shows the French declaration for non-OS standard
+encryption when France is included; no declaration or landing change. Public
+privacy/export/examples/support returns 200, example ZIP byte range
+206. Privacy still lacks the SFTP extension: local document commits need to be
+     pushed before submission. AI code control: OpenAI information before
+     explicit AI Retouch/Try Again; no automatic generation from the dialog
+     task. App Privacy in Connect is not re-declared or finally verified here.
+     Connects' homepage also showed an updated Paid Applications Schedule; any
+     impact on the free app has not been established. No rebuild, review or
+     release.
 
-## App Store 1.4 uppladdad och bearbetad — 2026-11-02
+## App Store 1.4 uploaded and processed — 2026-11-02
 
-På Magnus uttryckliga instruktion granskades och committades dokumentändringarna
-i f5df89f; arbetskopian verifierades ren före uppladdningen. Samma validerade
-arkiv 1.4 (202611022209) laddades upp via Xcode Organizer, Uploaded 22:25
-Europe/Stockholm. Ingen rebuild, nytt arkiv, källkods- eller versionsändring.
-Appbinärens SHA-256 före/efter identisk:
-a70fbed2ab9d3fc4dccbdadc005227e61ef30c69c77dda8d851d3191f6b2cbf0.
-Upload completed with warnings: endast de elva kända OpenCV-dSYM-varningarna.
-Connect Build Uploads visar rätt version/build och Complete; TestFlight listar
-202611022209 under Version 1.4 med Missing Compliance. Manage-formuläret
-frågar vilken typ av krypteringsalgoritmer appen implementerar; inga svar sparade.
-Bygget är färdigbearbetat men inte bekräftat klart för App Review-val medan
-compliance återstår. Befintlig 1.3-buildkoppling lämnad orörd; ersätt med rätt
-1.4-build inför granskning. Ingen Submit/Update Review, release, Git-push eller
-taggning utförd. Dokumentcommits är lokala; push behövs för publicerad hjälp.
-Magnus godkänner eventuell slutlig inskickning separat.
+At Magnus' explicit instructions, the document changes in f5df89f were reviewed
+and commissioned; the worktree was verified purely prior to upload. The same
+validated archives 1.4 (202611022209) were uploaded via Xcode Organizer,
+Uploaded 22:25 Europe/Stockholm. No rebuilds, new archives, source code or
+version changes. The SHA-256 before and after of the app binary is identical:
+a70fbed2ab9d3fc4dccbdadc005227e61ef30c69c77dda8d851d3191f6b2cbf0. Upload
+completed with warnings: only the 11 known OpenCV-dSYM warnings. Connect Build
+Uploads shows correct version/build and Complete; TestFlight lists 202611022209
+under Version 1.4 with Missing Compliance. The Manage form asks what type of
+encryption algorithms the app implements; no answers saved. The building is
+finished but not clearly confirmed for App Review selection while compliance
+remains. Existing 1.3 link left intact; replace with the correct 1.4 link for
+inspection. No Submit/Update Review, release, Git push or tagging performed.
+Document commits are local; push is needed for published help. Magnus shall
+approve any final dispatch separately.
 
-## App Store-validering 1.4 godkänd — 2026-11-02
+## App Store validation 1.4 approved — 2026-11-02
 
-Magnus godkände själv nya utvecklaravtalet i Safari. Kontosidan visar åter
-Certificates/Identifiers/Profiles och avtalsvarningen är borta. Validate App
-kördes om för samma arkiv 1.4 (202611022209): Organizer visar Validation
-succeeded och Validated 22:19 Europe/Stockholm. Elva kända OpenCV-dSYM-varningar
-kvar; appens egen dSYM matchar. Certifikatfelet återkom inte efter godkänt avtal;
-ingen separat certifikatåtgärd eller ny credential skapades av agenten.
-Detta ersätter föregående blockeringsstatus. Ingen upload eller App Review-
-inskickning gjord. Dokumentändringarna är fortfarande lokala och ocommittade.
+Magnus himself approved the new developer agreement in Safari. The account page
+shows Certificates/Identifiers/Profiles again and the contract warning is gone.
+Validate App was run for the same archive 1.4 (202611022209): Organizer shows
+Validation succeeded and Validated 22:19 Europe/Stockholm. Eleven known
+OpenCV-dSYM warnings remain; the app's own dSYM matches. The certificate defect
+did not recur after an agreed agreement; no separate certificate measure or new
+credential was created by the agent. This replaces the previous blocking status.
+No uploads or app review submissions were made. The document changes are still
+local and uncommitted.
 
-## App Store 1.4 förberedd, validering blockerad — 2026-11-02
+## App Store 1.4 ready, validation blocked — 2026-11-02
 
-Arkiv av incheckad appkod ea529a69f48a0b5bf55fa68031bcdf3bc1647770:
+File of checked app code ea529a69f48a0b5bf55fa68031bcdf3bc1647770:
 /Users/magnus/Library/Developer/Xcode/Archives/2026-11-02/PanoWizard-1.4-20261102-2209.xcarchive.
-Version 1.4 (202611022209), arm64; archive lyckades. Strict/deep-signatur,
-sandbox/network.client och matchande app/dSYM-UUID verifierade. Arkivappen
-installerad i Applications; tidigare app sparad i
+Version 1.4 (202611022209), arm64; archive succeeded. Strict/deep signature,
+sandbox/network.client and matching app/dSYM-UUID verified. The archive weapon
+installed in Applications; previous app saved in
 /Users/magnus/Library/Developer/Xcode/PanoWizard-before-store-archive-20261102-221049.app.
-Validate App körd i Xcode Organizer: stoppad av PLA Update available (senaste
-Program License Agreement måste godkännas av kontoinnehavaren) och saknat
-Mac Installer Distribution-certifikat med privat nyckel för team 52A6FA9VB5.
-Arkivets Apple Development-signatur är inte färdig distributionssignering.
-Ingen uppladdning, inskickning, avtalsacceptans, commit eller push utförd.
-Magnus loggade in; rätt sida hittades i Safari. Befintlig Rejected-post 1.3
-ändrad till 1.4; beskrivning med SFTP/thumbnail och Review Notes för Guideline
-4.0 sparade och verifierade efter omladdning. Rejected är ärvd status, inget
-nytt avslag på 1.4. Äldre build 1.3 (202610242148) är fortfarande kopplad och
-måste ersättas med rätt 1.4-build efter uppladdning. Automatically release this
-version är verifierat valt och lämnat oförändrat. Inget What’s New-fält visades;
-versionsnyheter finns lokalt. Kontaktuppgifter och screenshot bevarade.
-docs/privacy.md beskriver nu frivillig SFTP-publicering och
-lokal lösenordslagring; docs/export.md använder Save… och samlar Publish-hjälpen.
-Dessa dokumentändringar behöver publiceras före inskickning. SFTP innehåller
-standardkryptering via Citadel/SwiftNIO SSH/SwiftCrypto; besvara Apples nya
-export compliance-frågor utifrån detta, anta inte tidigare HTTPS-only-undantag.
-Ingen exemptionsflagga eller App Privacy-deklaration ändrad.
+Validate App running in Xcode Organizer: stopped by PLA Update available (the
+latest Program License Agreement must be approved by the account holder) and
+lacked Mac Installer Distribution certificate with private key for Team
+52A6FA9VB5. The file's Apple Development signature is not a finished
+distribution signature. No uploads, dispatches, contract acceptance, commit or
+push performed. Magnus logged in; the right page was found in Safari. Existing
+Rejected Post 1.3 changed to 1.4; description with SFTP/thumbnail and Review
+Notes for Guideline 4.0 saved and verified after reloading. Rejected is
+inherited status, no new rejection on 1.4. The older build 1.3 (202610242148) is
+still connected and must be replaced with the correct 1.4 build after uploading.
+Automatically release this version is verified selected and left unchanged. No
+What’s New field was shown; version news is available locally. Contact details
+and screenshots preserved. docs/privacy.md now describes voluntary SFTP
+publishing and local password storage; docs/export.md uses Save... and collects
+Publish help. These amendments need to be published before dispatch. SFTP
+contains standard encryption via Citadel/SwiftNIO SSH/SwiftCrypto; respond to
+Apple's new export compliance questions based on this, without adopting previous
+HTTPS-only exemptions. No exemption flag or App Privacy Statement amended.
 
-## Gemensam check-in — 2026-11-02
+## Joint check-in — 2026-11-02
 
-Magnus har uttryckligen godkänt commit, tidsstämpeltagg och push för både
-PanoWizard och Panorama Browser. PanoWizard-kontrollpunkten samlar SFTP Publish,
-valfri companion-JPEG, sparad publiceringsdestination och HTML-storlek,
-Save…-texten samt avslut efter sista fönstret. Tillfälliga byggloggar och
-disponibla projektkopior i /work/ ignoreras av Git och behålls lokalt.
-Ingen App Store-uppladdning eller inskickning ingår.
-Verifiering: 21 riktade projekt-/SFTP-/WebKit-tester godkända; ett lokalt
-SFTP-integrationstest överhoppat eftersom testservern inte körs. Release 1.4
-(202611022151) byggd, installerad och verifierad med strict/deep-signatur och
-identisk binär. Normal start och avslut med stängknappen verifierade igen.
-Licensfiler behåller originalens whitespace; övrig staged whitespace-kontroll
-och credentials-mönsterkontroll godkända. Föregående app sparad i
+Magnus has explicitly authorized commit, time stamp tag and push for both
+PanoWizard and Panorama Browser. The PanoWizard checkpoint collects SFTP
+Publish, optional companion-JPEG, saved publishing destination and HTML size,
+Save... text and closes after the last window. Temporary building logs and
+available project copies in /work/ are ignored by Git and kept locally. No App
+Store downloads or submissions are included. Verification: 21 targeted
+projekt-/SFTP-/WebKit-tester approved; a local SFTP integration test skipped
+because the test server is not running. Release 1.4 (202611022151) built,
+installed and verified with strict/deep signature and identical binaries. Normal
+start and finish with the shutter button verified again. License files retain
+the original's whitespace; other staged whitespace control and credentials
+pattern control approved. Previous app saved in
 /Users/magnus/Library/Developer/Xcode/PanoWizard-before-checkin-20261102-215125.app.
 
-## Avsluta efter sista stängda fönstret — 2026-11-02
+## Closing after the last closed window — 2026-11-02
 
-App Store-avslag för 1.3 (Guideline 4.0): fönsterstängning lämnade processen
-igång utan återöppning. Reproducerat lokalt. Application-delegaten returnerar
-nu true från applicationShouldTerminateAfterLastWindowClosed. Befintlig
-sparfråga och Cmd+Q-hantering oförändrade; inga nya menyer eller fönsterflöden.
-Installerad signerad Release 1.4 (202611022135), strict/deep-signatur och binär
-mot byggresultatet verifierade. Manuella tester med disponibla projekt:
-normal stängknapp avslutar processen; osparat + Cancel behåller projektet;
-Don't Save avslutar; Save skriver .pw och avslutar; avbruten Save-dialog
-behåller projektet. Cmd+Q verifierat utan ändringar samt med osparat + Cancel
-och Don't Save. git diff --check godkänd. Tidigare app sparad i
+App Store layoff for 1.3 (Guideline 4.0): window closure allowed the process to
+start without reopening. Reproduced locally. The application delegate now
+returns true from the applicationShouldTerminateAfterLastWindowClosed. Existing
+savings request and Cmd+Q management unchanged; no new menus or window flows.
+Installed signed Release 1.4 (202611022135), strict/deep signature and binary to
+the build output verified. Manual tests with available projects: normal
+shutdown button completes the process; unspared + Cancel maintains the project;
+Don't Save completes; Save writes .pw and ends; interrupted Save dialog
+maintains the project. Cmd+Q verified unchanged and with unspared + Cancel and
+Don't Save. git diff --check approved. Previous app saved in
 /Users/magnus/Library/Developer/Xcode/PanoWizard-before-window-closing-20261102-213617.app.
-Ingen App Store-uppladdning, versionsändring, commit eller push.
+No app store downloads, changes to versions, commits or pushes.
 
 ## Save… i Interactive Panorama — 2026-11-02
 
-Endast knapptexten Save HTML… ändrad till Save… i PanoramaExportView.
-Publish…, exportfunktioner, dialoger och övrig UI oförändrade. Signerad Release
-1.4 (202611022122) byggd och installerad i /Applications/PanoWizard.app;
-strict/deep-signatur och installerad binär mot byggresultatet verifierade.
-Installerad Export-vy kontrollerad med disponibel projektkopia: Save… och
-Publish… syns, Save JPEG…/Save PNG… kvar. Inga nya tester för textändringen;
-bygge, exakt ensträngsdiff och git diff --check godkända. Backup:
+Only the Save HTML button has been changed to Save in PanoramaExportView.
+Publish..., export functions, dialogues and other UI unchanged. Signed Release
+1.4 (202611022122) built and installed in /Applications/PanoWizard.app;
+strict/deep signature and installed binary to the build result verified.
+Installed Export view checked with available project copy: Save... and
+Publish... view, Save JPEG.../Save PNG... remaining. No new test for text
+modification; build, exact single-string diff and give diff --check approved.
+I'm going back up to
 /Users/magnus/Library/Developer/Xcode/PanoWizard-before-save-label-20261102-212324.app.
-Tidigare arbetskopieändringar bevarade. Ingen commit/push.
+Previous copy changes were preserved. No one commit/push.
 
-## Återkommande macOS-startfel och Mountain Duck — 2026-11-02
+## Recurring macOS boot errors and Mountain Duck — 2026-11-02
 
-Både PanoWizard och Messenger blockerades. CoreServicesUIAgent (PID 9630)
-hade 256 öppna FD, varav 253 kataloger; systemets globala filgräns var långt
-ifrån nådd. macOS-loggen visade POSIX 24 medan agenten följde återkommande
-proc/task/cwd/root-sökvägar i Mountain Ducks pi-kato-montering. Det pekar på
-rekursiv traversering av den monterade serverns /proc som utlösande orsak.
-Båda apparnas kodsignaturer verifierade. Riktad SIGKILL av den låsta agenten
-återställde normal start; båda appfönstren verifierade. Ny agent hade bara
-3 öppna FD och inga kataloger. Ingen appkod, filgräns eller säkerhetsinställning
-ändrad. Att begränsa servermonteringen till en vanlig datakatalog undviker
-att exponera /proc för samma traversering; monteringen ändrades inte här.
+Both PanoWizard and Messenger were blocked. The CoreServicesUIAgent (PID 9630)
+had 256 open FDs, of which 253 were directories; the system's global file limit
+was far from reached. proc/task/cwd/root paths In the Mountain Ducks pic-cat
+assembly. It indicates recursive crossover of the mounted server /proc as the
+triggering cause. The code signatures on both apps were verified. Targeted
+SIGKILL by the locked agent restored normal start; both app windows verified.
+The new agent only had three open FDs and no directories. No app code, file
+limit or security settings changed. Restricting the server installation to a
+regular data catalog avoids exposing /proc to the same crossover; the
+installation was not changed here.
 
-## Ikonstart blockerad av macOS filgräns — 2026-11-02
+## Icon startup blocked by macOS file limit — 2026-11-02
 
-Normal appstart reproducerade POSIX 24, Too many open files, vid translocation.
-CoreServicesUIAgent (PID 602) hade exakt 256 öppna FD (253 kataloger), medan
-systemets totala filgräns inte var nådd. Signaturen var giltig och ingen ny
-appkrasch fanns. Normal SIGTERM hjälpte inte; riktad SIGKILL av den egna
-CoreServicesUIAgent lät macOS starta om processen. Därefter öppnade normal
-appstart /Applications/PanoWizard.app och dess Untitled-fönster verifierades.
-Ingen produktkod, filgräns eller säkerhetsinställning ändrades.
+Normal appstart reproduced POSIX 24, too many open files, at translocation.
+CoreServicesUIAgent (PID 602) had exactly 256 open FDs (253 directories), while
+the total file limit of the system was not reached. The signature was valid, and
+there was no new app crash. Normal SIGTERM did not help; directed SIGKILL by the
+CoreServicesUIAgent itself allowed macOS to restart the process. Then the normal
+appstart /Applications/PanoWizard.app opened and its Untitled window was
+verified. No product code, file limit or security settings were changed.
 
-## Lokalt Release-bygge — 2026-11-02
+## Local release building — 2026-11-02
 
-På Magnus begäran byggdes aktuell arbetskopia som signerad Release 1.4
-(202611020050) och installerades i /Applications/PanoWizard.app. Strict/deep-
-signatur, installerad version/byggnummer och binärhash mot byggresultatet
-verifierade. Föregående app sparad i
+At Magnus' request, the current worktree was built as signed Release 1.4
+(202611020050) and installed in /Applications/PanoWizard.app. Strict/deep-
+signature, installed version and build number and binaryhash against the construction
+result verified. Previous app saved in
 /Users/magnus/Library/Developer/Xcode/PanoWizard-before-build-20261102-005045.app.
-Ingen produktkod ändrad och ingen commit/push gjordes.
+No product code was changed and no commit/push was made.
 
-## Interactive Panorama: Original och sparat storleksval — 2026-11-01
+## Interactive Panorama: Original and saved size selection — 2026-11-01
 
-Magnus begärde Original som standard för Interactive Panorama Size och att valet
-sparas i appen. Storleken ligger nu i native AppStorage/UserDefaults med nyckeln
-PanoWizard.HTMLExport.size, standard Original. Delas mellan projekt/fönster och
-behålls mellan starter; Save HTML och Publish använder samma val. JPEG-kvalitet,
-bildexportens storlek och projektformat oförändrade. Hjälpen uppdaterad.
-Signerad Release 1.4 (202611012218) byggd och installerad i Applications;
-strict/deep-signatur, byggnummer och binärhash verifierade. Föregående app:
+Magnus requested Original as the default for Interactive Panorama Size and that
+the selection be saved in the app. The size is now in native
+AppStorage/UserDefaults with PanoWizard.HTMLExport.size key, standard Original.
+Divided between projects or windows and retained between starts; Save HTML and
+Publish use the same choice. JPEG quality, port size and project format
+unchanged. Help up to date. Signed Release 1.4 (202611012218) built and
+installed in Applications; strict/deep signature, building number and binary hash
+verified. Previously on
 /Users/magnus/Library/Developer/Xcode/PanoWizard-before-original-html-size-20261101-221923.app.
-Inga nya tester för standard-API-inställningen; git diff --check godkänd. Ingen commit/push.
+No new tests for the standard API setting; give diff --check approved. No one
+commit/push.
 
-## Nytt lokalt Release-bygge — 2026-11-01
+## New local release building — 2026-11-01
 
-Magnus begärde bygge av aktuell kod. Signerad Release 1.4 (202611012204)
-byggd och installerad i Applications enligt sparad rutin; strict/deep-signatur,
-byggnummer och binärhash verifierade. Föregående app sparad i /Users/magnus/Library/Developer/Xcode/PanoWizard-before-build-20261101-220706.app.
-Appen användes under installationen; öppet projekt lämnades kvar och det nya
-bygget används efter omstart. Ingen produktkod ändrad, inga nya tester,
-ingen commit/push.
+Magnus requested the construction of current code. Signed Release 1.4
+(202611012204) built and installed in Applications according to saved routine;
+strict/deep signature, build number and binary hash verified. Previous app saved
+in
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-build-20261101-220706.app.
+The app was used during the installation; open projects were left behind and the
+new building is used after restarting. No product code changed, no new tests, no
+commit/push.
 
-## Publiceringssökväg och filnamn i projektfilen — 2026-11-01
+## Publishing path and file name in the project file — 2026-11-01
 
-Magnus begärde att Path och Filename ska sparas i själva projektet. PanoProject
-har nu valfria publishPath/publishFilename i project.json. Befintliga projekt
-utan fälten läses fortsatt som format 10. Dialogen prioriterar projektvärden;
-tidigare lokalt sparade värden kopieras till modellen när dialogen öppnas om
-projektfälten saknas. Inga nya Path/Filename skrivs till UserDefaults.
-Publish uppdaterar modellens destination och modifiedAt. Vanlig Spara/Spara som
-skriver värdena i .pw och ändringen ger normal osparad-status. Close fortsätter
-att kasta ännu opublicerade fältändringar. Anslutning/lösenord förblir lokala.
-16 projekt-/pakettester passerade, inklusive verklig skrivning/kopiering/
-återöppning, äldre JSON utan fälten och att credentials inte finns i projektet.
-Hjälpen uppdaterad. Signerad Release 1.4 (202611012203) byggd och installerad;
-strict/deep-signatur, byggnummer och binärhash verifierade. Föregående app sparad
-i /Users/magnus/Library/Developer/Xcode/PanoWizard-before-project-publish-destination-20261101-220412.app.
-Ingen commit/push.
+Magnus requested that Path and Filename be saved in the project itself.
+PanoProject now has optional publishPath/publishFilename in project.json.
+Existing projects without fields continue to be read as format 10. The dialogue
+prioritizes project values; previously locally saved values are copied to the
+model when the dialog is opened if the project fields are missing. No new
+Path/Filename is written to UserDefaults. Publish is updating the destination
+and modifiedAt of the model. Normal Spara/Spara that writes the values in .pw
+and the change gives normal unspared status. Close continues to throw
+unpublished field changes. Connection and password remains local. 16
+projekt-/pakettester passed, including real skrivning/kopiering/ reopening,
+older JSON without fields and that credentials are not in the project. Help up
+to date. Signed Release 1.4 (202611012203) built and installed;
+strict/deep signature, building number and binary hash verified. Previous app
+saved in
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-project-publish-destination-20261101-220412.app.
+No commit/push.
 
-## Länktext View Panorama — 2026-11-01
+## See also: — 2026-11-01
 
-Endast synlig länktext i framgångsmeddelandet ändrad till View Panorama.
-Den faktiska URL:en och dess native öppning i standardwebbläsaren behålls;
-utan konfigurerad basadress visas endast Uploaded successfully. Ingen annan
-produktändring. Signerad Release 1.4 (202611012140) byggd och installerad;
-strict/deep-signatur, byggnummer och binärhash verifierade. Inga nya tester för
-textändringen; git diff --check godkänd. Föregående app sparad i /Users/magnus/Library/Developer/Xcode/PanoWizard-before-view-panorama-label-20261101-214046.app.
-Ingen commit/push.
+Only visible link text in the success message changed to View Panorama. The
+actual URL and its native opening in the default web browser are retained;
+without a configured base address only Uploaded successfully appears. No other
+product changes. Signed Release 1.4 (202611012140) built and installed;
+strict/deep signature, building number and binary hash verified. No new tests for
+the text change; give diff --check approved. Previous app saved in
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-view-panorama-label-20261101-214046.app.
+No one commit/push.
 
 ## Public Base URL valfri — 2026-11-01
 
-Magnus begärde endast att Public Base URL ska vara valfri. Tom eller enbart
-whitespace ger ingen URL-validering och vanlig SFTP-publicering med meddelandet
-Uploaded successfully. Angiven adress valideras och ger samma klickbara länk
-som tidigare. Fält, sparande, övrig UI och SFTP-flöde oförändrade. Framgång
-lagras separat från valfri URL så att även uppladdning utan länk bekräftas.
-Riktade tester för tom/whitespace, angivna URL:er, kodning och sparade uppgifter
-passerade (fyra körda, SFTP-integrationstest avsiktligt överhoppat; transportkod
-oförändrad). Hjälpen uppdaterad. Signerad Release 1.4 (202611012107)
-byggd och installerad i Applications; strict/deep-signatur, byggnummer och
-binärhash verifierade. Föregående app sparad i /Users/magnus/Library/Developer/Xcode/PanoWizard-before-optional-public-url-20261101-210819.app.
-Ingen commit/push.
+Magnus only requested that the Public Base URL be optional. Tom or just
+whitespace does not provide any URL validation and regular SFTP publication with
+the message Uploaded successfully. The specified address is validated and
+provides the same clickable link as before. Fields, savings, other UI and SFTP
+flow unchanged. Success is stored separately from the selected URL so that even
+unlinked uploads are confirmed. Targeted tests for tom/whitespace, specified
+URLs, encryption and saved data passed (four run, SFTP integration test
+deliberately skipped; transport code unchanged). Help up to date. Signed Release
+1.4 (202611012107) built and installed in Applications; strict/deep signature,
+building number and binary hash verified. Previous app saved in
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-optional-public-url-20261101-210819.app.
+No one commit/push.
 
-## Klickbar webblänk i publiceringsbekräftelsen — 2026-11-01
+## Click on the webpage in the publication confirmation — 2026-11-01
 
-På Magnus nya instruktion finns åter ett enda sparat Public Base URL-fält i
-anslutningsformuläret. Det valideras före publicering och sparas automatiskt med
-anslutningen. Äldre sparad konfiguration utan fältet behåller sina credentials.
-Ingen återinförd Save Connection, Copy URL, webblänksdialog eller extra knapp.
-Befintlig framgångsrad visar Uploaded successfully. följt av en klickbar URL;
-native SwiftUI Text/AttributedString-link öppnar standardwebbläsaren.
+In Magnus' new instruction, there is once again a single saved Public Base URL
+field in the connection form. It is validated before publication and
+automatically saved with the connection. Older saved configurations without the
+field retain their credentials. No reset save connection, copy URL, webpage
+dialog or extra button. Existing Successful row shows Uploaded successfully.
+followed by a clickable URL; native SwiftUI Text/AttributedString-link opens the
+default web browser.
 
-URL består av basadress + valfri Path + Filename. Varje tillagd komponent
-UTF-8/percentkodas separat; befintlig kodning i basadressen behålls. HTTP/HTTPS
-krävs; query, fragment och credentials i bas-URL avvisas. Ingen gissning från
-SFTP-host/katalog. Renderingsmotor, HTML-generator och uppladdningskod orörda.
-Tio riktade tester via normal xcodebuild-teststart godkända, inklusive svenska
-tecken, mellanslag, #/?/%, tom undersökväg, flernivåsökväg, avslutande slash,
-redan kodad basadress, persistens/migrering, befintlig HTML-export och lokal SFTP.
-Det tidigare LaunchServices-felet inträffade inte i denna testomgång.
-Signerad Release 1.4 (202611012057) byggd och installerad i Applications;
-strict/deep-signatur, byggnummer och binärhash verifierade. Reservkopia:
-/Users/magnus/Library/Developer/Xcode/PanoWizard-before-publish-url-20261101-205818.app.
-Appen startad normalt; testserver stoppad. Ingen commit/push.
+The URL consists of base address + optional path + filename. Each added
+component UTF-8/percentkodas separately; the existing encoding in the base
+address is retained. HTTP/HTTPS is required; queries, fragments and credentials
+in the base URL are rejected. No guesses from SFTP-host/katalog. Rendering
+engine, HTML generator and upload code intact. Ten targeted tests via normal
+xcodebuild test start approved, including Swedish characters, intermediate,
+#/?/%, empty search path, multi-level search path, ending slash, already coded
+base address, persistens/migrering, existing HTML export and local SFTP. The
+previous LaunchServices error did not occur in this test run. Signed Release 1.4
+(202611012057) built and installed in Applications; strict/deep signature,
+building number and binary hash verified. This is the maximum amount of time
+required to complete the test.
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-publish-url-20261101-205818.app
+I'm not going to. The app started normally; test servers shut down. No one
+commit/push.
 
-## En enda Publish-dialog med valfri undersökväg — 2026-11-01
+## A single Publish dialogue with an optional survey path — 2026-11-01
 
-Magnus bekräftade lyckad uppladdning till sin server och beställde därefter
-förenklingen: alltid synliga anslutningsfält, valfri Path och separat Filename;
-endast Close/Publish. Save Connection, anslutningsmellansteget och hela Web Link/
-Copy URL/Open in Browser borttagna. Publish validerar och sparar anslutningen
-automatiskt; Close sparar inte fältändringar. Filnamn och Path sparas lokalt per
-projekt-ID; filnamnets befintliga standard behålls. Äldre sparad anslutning med
-publicBaseURL kan läsas utan att credentials tappas; den egenskapen ignoreras.
+Magnus confirmed successful upload to its server and then ordered the
+simplification: always visible connection fields, optional path and separate
+filename; only Close/Publish. Save Connection, connection interface and entire
+Web Link/ Copy URL/Open in Browser removed. Publish validates and saves the
+connection automatically; Close does not save field changes. The file name and
+path are stored locally per project ID; the existing file name standard is
+maintained. Older saved connection with publicBaseURL can be read without losing
+credentials; that property is ignored.
 
-Path är relativt befintlig Remote Directory. Saknade kataloger skapas stegvis,
-även 2019/Toscana och A/B/C/D; befintliga återanvänds. Absoluta sökvägar, . och ..,
-backslash/kontrolltecken avvisas. Serverns kanoniska sökvägar kontrolleras för att
-stoppa symlänkar utanför baskatalogen. Befintlig överskrivningsfråga kvar.
-HTML-generator och renderingsmotor är oförändrade; hjälpen uppdaterad.
+Path is a relatively existing Remote Directory. Missing directories are created
+in stages, including 2019/Toscana and A/B/C/D; existing directories are reused.
+Absolute pathways, . and .., backslash/kontrolltecken are rejected. The
+canonical search paths of the server are checked to stop simple thoughts outside
+the basic catalog. There's still an existing overwriting issue. HTML generator
+and rendering engine are unchanged; help updated.
 
-Nio riktade tester passerade med samma byggda testpaket direkt via XCTest:
-legacy-inställningar, värdnamn, sökvägar, befintlig HTML-export och verklig lokal
-SFTP med skapande/återanvändning av flernivåkataloger, filnamn och mottagna bytes,
-avböjd/godkänd överskrivning, nekad katalogrättighet, fil i katalogväg,
-symlänk utanför basen, fel lösenord och otillgänglig port. Testserver stoppad.
-Normal xcodebuild-teststart blockerades av LaunchServices "Too many open files";
-samma fel reproducerades med open för BÅDE gamla installerade appen och Debug.
-Ingen systeminställning ändrad och ingen produktkod anpassad för detta miljöfel.
+Nine targeted tests passed with the same built-in test package directly via
+XCTest: legacy settings, hostname, search paths, existing HTML export and real
+local SFTP with creation and reuse of multi-level catalogs, file name and
+received bytes, declined or accepted overwriting, denied catalog rights, file in
+catalogue path, simple off-base thinking, wrong passwords and unavailable port.
+Test servers down. Normal xcodebuild test start was blocked by LaunchServices'
+"Too many open files"; the same error was reproduced with open for BOTH the old
+installed app and Debug. No system settings changed and no product code adapted
+to this environmental error.
 
-Signerad Release 1.4 (202611012026) byggd och installerad i Applications;
-strict/deep-signatur och binärhash verifierade. Startad direkt via appens binär
-förbi LaunchServices. Manuell kontroll av själva Publish-dialogen återstår.
-Föregående app: ~/Library/Developer/Xcode/PanoWizard-before-publish-path-20261101-202843.app.
-Ingen commit, push eller Apple-uppladdning.
+Signed Release 1.4 (202611012026) built and installed in Applications;
+strict/deep signature and binaryhash verified. Launched directly through the
+app's binary via LaunchServices. Manual control of the Publish dialog itself
+remains. Previously on
+~/Library/Developer/Xcode/PanoWizard-before-publish-path-20261101-202843.app. No
+commit, no push or Apple upload.
 
-## Förenklad SFTP-konfiguration — 2026-11-01
+## Simplified SFTP configuration — 2026-11-01
 
-Magnus bad om förenkling och ifrågasatte Public Base URL. Webbadressen är nu
-valfri under Web Link (Optional); SFTP-uppladdning kräver den inte. Ingen
-webbadress gissas från serverns katalog. Utan URL visas Uploaded successfully
-utan Copy URL/Open in Browser. Befintliga sparade webbadresser fungerar fortsatt.
-Hostname accepterar inklistrad http/https-adress och normaliseras till värdnamn
-vid Save Connection samt anslutning. HTML-generator och renderingsmotor orörda.
-Nio riktade tester passerar, inklusive uppladdning utan publik URL mot lokal
-SFTP-server och normalisering av värdnamn. Hjälpen uppdaterad. Signerad Release
-1.4 (202611011955) byggd, installerad i Applications och startad enligt
-byggrutinen; strict/deep-signatur och binärhash verifierade. Föregående app sparad
-i /Users/magnus/Library/Developer/Xcode/PanoWizard-before-optional-web-link-20261101-195608.app. Testserver stoppad. Ingen commit/push.
+Magnus asked for simplification and questioned the Public Base URL. The web
+address is now optional under Web Link (Optional); SFTP uploading does not
+require it. No web address is guessed from the server's catalog. Without URL,
+Uploaded successfully appears without Copy URL/Open in Browser. Existing saved
+web addresses are still functioning. Hostname accepts included http/https-adress
+and is normalized to hostname at Save Connection and connection. HTML generator
+and rendering engine intact. Nine targeted tests pass, including uploading
+unpublished URLs to local SFTP servers and normalising hostnames. Help up to
+date. Signed Release 1.4 (202611011955) built, installed in Applications and
+started according to the build routine; strict/deep signature and binaryhash
+verified. Previous app saved in
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-optional-web-link-20261101-195608.app.
+Test servers down. No one commit/push.
 
-## SFTP-bygge installerat — 2026-11-01
+## SFTP building installed — 2026-11-01
 
-På Magnus begäran byggdes signerad Release 1.4 (202611011943), installerades i
-/Applications/PanoWizard.app och startades enligt sparad byggrutin. Strict/deep-
-signatur, installerat byggnummer och binärhash mot byggresultatet verifierade.
-Föregående app sparad i ~/Library/Developer/Xcode/PanoWizard-before-SFTP-20261101-194411.app.
-Inga nya produktändringar, tester, commits eller pushar i denna byggomgång.
+At Magnus' request, the signed Release was built. 1.4 ( 202611011943 ),
+installed in /Applications/PanoWizard.app and started according to a conserved
+construction pattern. Strict/deep- Signature, installed building number and
+binary hash against the build output verified. Previous app saved in
+~/Library/Developer/Xcode/PanoWizard-before-SFTP-20261101-194411.app. No new
+product changes, tests, commits or pushes in this construction cycle.
 
-## SFTP-publicering av interaktivt panorama — 2026-11-01
+## SFTP publishing of interactive panorama — 2026-11-01
 
-Magnus beställde Publish… bredvid Save HTML…: en lokalt sparad SFTP-anslutning
-(host/port/användare/lösenord/katalog/publik bas-URL), redigerbara inställningar,
-filnamn, busy-indikator, överskrivningsfråga samt Copy URL/Open in Browser.
-Implementerat med exakt Citadel 0.12.1 och versionslåsta transitiva Swift-paket;
-licenser medföljer. Använder befintlig FilePanoramaExporter, ingen andra
-HTML-generator eller ändring i renderingsmotorn. Lösenord sparas i lokala
-UserDefaults utan Keychain enligt uttryckligt krav. Första SSH-servernyckeln
-måste godkännas och sparas; ändrad nyckel stoppar anslutningen.
+Magnus ordered Publish... next to Save HTML...: a locally saved SFTP connection
+(host, port, username, password, directory, and public base URL), editable settings, file
+name, busy indicator, overwriting query and Copy URL/Open in Browser.
+Implemented with exact Citadel 0.12.1 and version-locked transitive Swift
+package; licenses included. Using existing FilePanoramaExporter, no other HTML
+generator or modification of the rendering engine. Passwords are stored in local
+UserDefaults without Keychain as expressly required. The first SSH server key
+must be approved and saved; the modified key stops connection.
 
-Den gamla CONFIGURATION_BUILD_DIR-överskrivningen kolliderade verifierat med
-Swift-paketens resursbundlar. Borttagen till förmån för Xcodes vanliga DerivedData;
-bygg utanför iCloud. README uppdaterad; gamla Build-länken kan visa äldre appar.
-Signerat Release-bygge och strict/deep-signatur godkända i
+The old CONFIGURATION_BUILD_DIR overwriting collided verified with the resource
+bundles of the Swift package. Removed in favor of Xcode's usual DerivedData;
+built outside iCloud. README updated; the old Build link can show older apps.
+Signed Release build and strict/deep signature approved in
 ~/Library/Developer/Xcode/PanoWizardSFTP/Build/Products/Release/PanoWizard.app;
-sandbox och network.client verifierade. Ingen installation eller Apple-uppladdning.
-Åtta riktade tester godkända: första lokala konfigurationen, återläsning/ersättning
-av sparade credentials, URL-kodning, befintlig HTML-export och SFTP-integration
-mot lokal Paramiko-server med ECDSA-nyckel (ny fil, avböjd/godkänd överskrivning,
-fel lösenord, otillgänglig port). Mottaget filinnehåll kontrollerat. Testernas
-temporära scheme-ändring återställd; integrationstest kräver explicit
-PANOWIZARD_SFTP_TEST=1 och testserver på localhost:22229; reproducerbar fixture
-finns i PanoWizard/TestSupport/sftp_server.py (Paramiko endast för utveckling).
-Testservern är stoppad. Verklig webbserver,
-manuell genomgång av publiceringsdialogen och App Store-validering återstår.
-Äldre RSA-only-server gav algoritmförhandlingsfel; moderna ECDSA-testservern
-fungerade utan att försvaga protokollinställningarna. Ingen commit/push.
+sandbox and network.client verified. No installation or Apple upload. Eight
+targeted tests approved: first local configuration, readback and replacement of
+saved credentials, URL encryption, existing HTML export and SFTP integration
+against local Paramiko servers with ECDSA key (new file, declined or accepted
+overwriting, wrong password, unavailable port). Received file content checked.
+Temporary scheme change of testers restored; integration test explicitly
+requires PANOWIZARD_SFTP_TEST=1 and test servers at localhost:22229;
+reproducible fixture is available in PanoWizard/TestSupport/sftp_server.py
+(Paramiko for development only). The test server is down. Real web servers,
+manual review of the publication dialog and validation of the App Store remain.
+Older RSA-only servers provided algorithm negotiation errors; the modern ECDSA
+test server functioned without weakening protocol settings. No one commit/push.
 
-## Check-in av återställningskontext — 2026-11-01
+## Check-in of recovery context — 2026-11-01
 
-Magnus begärde check-in av samtliga väntande ändringar. Endast kontexten om
-återställningen och Release 1.4 (202610310014) ingår; ingen produktkod ändrad.
-Granskning, git diff --check och credential-kontroll godkända; main/origin/main
-synkade före commit. Inget nytt bygge eller test behövs för dokumentationen.
-Commit, ny Stockholmstidsstämpeltagg och push av main samt den nya taggen ingår.
+Magnus requested check-in of all pending changes. Only the context of Restore
+and Release 1.4 (202610310014) is included; no product code changed. Review, git
+diff --check and credential check approved; main/origin/main sank before commit.
+No new build or test is required for the documentation. Commit, new Stockholm
+time stamp tag and push of main as well as the new tag included.
 
-## Återställt bygge före absolut grönt — 2026-10-31
+## Restored building before absolutely green — 2026-10-31
 
-Magnus avbröt försöket med absolut grönt i slutrenderingen. Kod och testtillägg
-återställda till Before-red-light-green-light (de834e7). På följande instruktion
-byggdes signerad Release 1.4 (202610310014); build och strict/deep-signatur
-passerade. 0 px extra feather och D-fixen kvar. Ingen installation, commit
-eller push. Applications fortsatt 202610302154.
+Magnus interrupted the experiment with absolutely green in the final rendering.
+Code and test appendix restored to Before-red-light-green-light (de834e7). On
+the following instruction, signed Release 1.4 (202610310014) was built; build
+and strict/deep signature passed. 0 px extra feather and D-fix left. No
+installation, commit or push. Applications continued 202610302154.
 
-## Outside-feather 50 px: verifierat skydd men avbrutet försök — 2026-10-30
+## Outside-feather 50 px: verified protection but interrupted attempt — 2026-10-30
 
-Legoland Hell finns enligt Magnus i Desktop/Panorama/F och G. Provade
-ensidig linjär 50 px-feather i PanoramaBridge.cpp; befintliga söm-/tonbeslut
-behölls. Include låstes vid native-projektionen till en giltig korrigerad
-källa, utan annan källas blendCorrection; senare giltig Include vann överlapp.
-Fullupplösning med identiska raster/masker/låsta registreringscacher:
-F 8402×4201, 4 548 474 gröna pixlar; G 8580×4290, 666 222 gröna pixlar.
-Alla gröna pixlar exakt lika mellan nya 0/50; utanför grönt nya 0 pixelidentisk
-med gamla 0. Sömval och slutrenderingens radiometriloggar identiska F/G/D.
-D 8410×4205: båda räckena hela, D-fixen kvar. Men G fick tydlig NY spökbild
-utanför grönt vid påsen och mjukare dubbla motivgränser: fast utåtriktad
-blandning skyddar grönt men blandar fortfarande rörliga motiv utanför masken.
-Kravet på inga nya spökbilder är inte uppfyllt. Ingen adaptiv metod tillagd.
-22 befintliga Swift-tester samt nya fristående native-kontroller för 0/50,
-utstorlek, Include-isolering/överlapp och Exclude passerade; signerad Release
-1.4 (202610302249) byggd men INTE installerad. A testades inte efter G-fyndet.
-Hela produktförsöket och tillhörande produktdokumentation/testtillägg återställda
-till HEAD 894b0fa; endast denna kontext kvar. Installerad app fortsatt
-202610302154 (0 px). Återapplicerbar patch och före/efter-bilder finns i
-chatten 2026-10-30/fo/outputs/outside-feather; testapp i work/outside-feather.
-Inga originalpanoraman ändrade, ingen commit/tagg/push. Upprepa inte samma
-fasta feather med oförändrade masker i G och förvänta frånvaro av spökbilder.
-Magnus begärde därefter check-in av dokumentationen; ingen produktkod ingår.
+Legoland Hell, according to Magnus, is in Desktop/Panorama/F and G. Tested
+unilateral linear 50 px-feather in PanoramaBridge.cpp; existing seam and tone decisions
+are retained. Include was locked at native projection to a valid corrected
+source, without another is called blendCorrection; later valid Include won
+overlap. Full resolution with identical raster, masks, and locked registration caches:
+F 8402×4201, 4 548 474 green pixels; G 8580×4290, 666 222 green pixels. All
+green pixels are exactly equal between new 0/50; outside green new 0 pixel-like
+with old 0. The radiometric triangles of the sleep valve and final rendering are
+identical F/G/D. D 8410×4205: both ends complete, the D-fix left. But G got a
+clear new ghost image outside green on the bag and softer double subject
+boundaries: although out-of-the-box blending protects green but still blends
+moving subjects outside the mask. The requirement for no new ghost images is not
+met. No adaptive method added. 22 existing Swift tests as well as new
+independent native controls for 0/50, size, Include isolation and overlap and
+Exclude passed; signed Release 1.4 (202610302249) built but NOT installed. A
+wasn't tested after the G finding. The entire product test and related
+product documentation and test additions restored to HEAD 894b0fa; only this context
+remains. App installed continued 202610302154 (0 px). Reusable patch and
+before-and-after images are available in the chat
+2026-10-30/fo/outputs/outside-feather; test in work/outside-feather. No changes
+to the original panorama, none commit/tagg/push. Do not repeat the same solid
+feather with unchanged masks in G and expect no ghost images. Magnus
+subsequently requested a check-in of the documentation; no product code is
+included.
 
-## Check-in med extra feather avstängd — 2026-10-30
+## Check-in with extra feather off — 2026-10-30
 
-Magnus begärde check-in av samtliga väntande ändringar: fast linjär
-feather-implementation med bredd 0 px och nollhantering samt denna kontext.
-D:s verifierade sömfix är oförändrad. Aktuell installerad Release är
-1.4 (202610302154); bygge och strict/deep-signatur godkända. Slutgranskning,
-git diff --check och credential-kontroll godkända; main/origin synkade före
-commit. Tidigare 32 px-renderings- och maskkontroller dokumenterade nedan;
-ingen separat rendering eller ny testsvit för 0 px körd vid check-in.
-Commit, ny Stockholmstidsstämpeltagg och push av main samt taggen ingår.
+Magnus requested check-in of all pending changes: fixed linear feather
+implementation with width 0 px and zero handling as well as this context. D's
+verified seam fix is unchanged. Currently installed Release is 1.4
+(202610302154); build and strict/deep signature approved. Final verification, git
+diff --check and credential check approved; main/origin sank before commit.
+Previous 32 px rendering and masking controls documented below; no separate
+rendering or new test suite for 0 px performed at check-in. Commit, new
+Stockholm time stamp tag and push of main and tag included.
 
-## Extra linjär feather satt till 0 px — 2026-10-30
+## Extra linear feather set to 0 px — 2026-10-30
 
-Magnus begärde 0 px och nytt bygge. Breddkonstanten är 0.0; en nödvändig
-nollhantering i analysisFeatherWeight returnerar ownership × edgeFade vid
-featherWidth ≤ 0 och undviker division med noll. Övrig kod hashverifierad
-mot samma implementation som tidigare. Befintliga ton-/blendkomponenter
-behålls; den extra linjära övergången är avstängd. Signerad Release 1.4
-(202610302154) installerad i Applications och startad; strict/deep-signatur
-och binärhash mot byggresultat godkända. 100 px-appen sparad i
-work/m-fixed-feather/PanoWizard-100px.app. Ingen commit, tagg eller push.
+Magnus requested zero parts and a new build. The width constant is 0.0; a
+necessary zero management in analysisFeatherWeight returns ownership × edgeFade
+at featherWidth ≤ 0 and avoids division by zero. Other code hashed against the
+same implementation as before. Existing ton-/blendkomponenter shall be
+maintained; the additional linear transition shall be discontinued. Signed
+Release 1.4 (202610302154) installed in Applications and started;
+strict/deep signature and binary hash against build outputs approved. 100
+px app saved in work/m-fixed-feather/PanoWizard-100px.app. No commit, tag or
+push.
 
-## Publicerad 1.3 enligt Magnus — 2026-10-30
+## Published 1.3 by Magnus — 2026-10-30
 
-Magnus refererar nu till sin publicerade App Store-version 1.3; tidigare
-Waiting for Review-anteckning är historisk. Exakt publiceringsdatum,
-Apple-byggnummer och uppladdad kod-SHA är inte sparade här. Jämförelsen med
-senare utveckling utgår från Git-grunden 7adbccd (versionssättning till 1.3).
-Vid jämförelsen kördes lokal 1.4 (202610302114), med fast 100 px-feather.
+Magnus is now referring to its published App Store version 1.3; the previous
+Waiting for Review note is historic. The exact date of publication, Apple
+building number and uploaded SHA code are not saved here. The comparison with
+later development is based on the Git base 7adbccd (version to 1.3). In
+comparison, local 1.4 (202610302114) was run with a fixed 100 px-feather.
 
-## Fast feather nedjusterad till 100 px — 2026-10-30
+## Fast feather down to 100 px — 2026-10-30
 
-Magnus begärde 200→100 px. Endast breddkonstanten ändrad; all övrig C++
-hashverifierad mot samma 32 px-bas som tidigare. Signerad Release 1.4
-(202610302114) byggd och installerad i Applications; strict/deep-signatur
-och binärhash mot byggresultatet verifierade. Appen avslutades normalt före
-installation och startades igen. 200 px-versionen sparad i
-work/m-fixed-feather/PanoWizard-200px.app. Ingen commit, tagg eller push.
+Magnus requested 200 to 100 px. Only the width constant changed; all other C++
+hashes verified against the same 32 px base as before. Signed Release 1.4
+(202610302114) built and installed in Applications; strict/deep signature and
+binary hash against the build result verified. The app was shut down normally
+before installation and restarted. 200 px version saved in
+work/m-fixed-feather/PanoWizard-200px.app. No commit, tag or push.
 
-## Fast feather ändrad till 200 px för egen testning — 2026-10-30
+## Fast feather modified to 200 px for own testing — 2026-10-30
 
-På Magnus instruktion ändrades endast 64.0→200.0 i feather-breddens konstant.
-Övrig C++ verifierad identisk med tidigare implementation via blob 85112447…
-efter omvänd konstantändring. Signerad Release 1.4 (202610302109) byggd,
-installerad i Applications och startad. Strict/deep-signatur och installerad
-binär mot byggresultatet verifierade. 64 px-appen sparad i
-work/m-fixed-feather/PanoWizard-64px.app. Magnus testar manuellt efter ny
-Create Panorama. Ingen commit, tagg eller push; inga nya renderingstester.
+On Magnus' instructions, only 64.0→200.0 in the feather-width constant was
+changed. Other C++ verified identical to previous implementation via blob
+85112447... after reverse constant change. Signed Release 1.4 (202610302109)
+built, installed in Applications and started. Strict/deep signature and installed
+binary to the build result verified. 64 px app saved in
+work/m-fixed-feather/PanoWizard-64px.app. Magnus is manually testing for a new
+Create Panorama. No commit, tag or push; no new rendering tests.
 
-## Fast feather ändrad till 64 px för egen testning — 2026-10-30
+## Fast feather modified to 64 px for own testing — 2026-10-30
 
-På Magnus instruktion ändrades endast konstanten 32.0→64.0 i anropet till
-analysisFeatherWeight. All övrig C++ är byteidentisk med 32 px-implementationen
-(verifierat genom omvänd konstantändring mot blob 85112447…). D-fixen kvar.
-Signerad Release 1.4 (202610302103) byggd och installerad i Applications,
-strict/deep-signatur och binärhash mot byggresultatet verifierade, app startad.
-32 px-appen sparad i work/m-fixed-feather/PanoWizard-32px.app. Inga nya
-renderingstester; Magnus testar M/A/D manuellt efter Create Panorama igen.
-Ingen commit, tagg eller push.
+On Magnus' instructions, only the constant 32.0→64.0 was changed in the call to
+analysisFeatherWeight. All other C++ is byte-identical with the 32 px
+implementation (verified by reverse constant change to blob 85112447...). The
+D-fix remains. Signed Release 1.4 (202610302103) built and installed in
+Applications, strict/deep signature and binaryhash against the build result
+verified, app started. 32 px app saved in
+work/m-fixed-feather/PanoWizard-32px.app. No new rendering tests; Magnus will
+test M/A/D manually after Create Panorama again. No commit, tag or push.
 
-## Exakt 32 px-feather återinförd och installerad — 2026-10-30
+## Exactly 32 px feather reintroduced and installed — 2026-10-30
 
-Magnus begärde samma implementation för egen testning, utan vidare experiment.
-Återapplicerade sparad work/m-fixed-feather/experiment.patch; C++-blobben är
-exakt 851124479560a9dd6201ca83a98a8ba082d80aa9, samma som försöket. D:s
-sömbegränsning verifierad oförändrad. Ingen ny UI eller annan förbättring.
-Release 1.4 (202610302053) byggd, strict/deep-signatur verifierad, installerad
-i /Applications/PanoWizard.app och startad. Installerad binär hashidentisk
-med byggresultatet. Föregående D-verifierade app är säkerhetskopierad i
-work/m-fixed-feather/PanoWizard-before-install.app. Inga nya renderingstester;
-tidigare M/D/A- och maskkontroller återanvänds. Panorama måste skapas om för
-att visa feathern. Källkod och kontext oincheckade; ingen commit/tagg/push.
+Magnus requested the same implementation for his own testing, without further
+experimentation. Reapplied saved work/m-fixed-feather/experiment.patch; C++ blob
+is exactly 851124479560a9dd6201ca83a98a8ba082d80aa9, the same as the experiment.
+D's boundary verified unchanged. No new UI or other improvements. Release 1.4
+(202610302053) built, strict/deep signature verified, installed in
+/Applications/PanoWizard.app and started. Installed binary hash identical to the
+build output. The previous D-verified app is backed up in
+work/m-fixed-feather/PanoWizard-before-install.app. No new rendering tests;
+previous M/D/A- and mask controls are reused. Panorama needs to be recreated to
+show the feather. Source code and context unchecked; none commit/tagg/push.
 
-## Reviderad visuell bedömning av A:s featherförsök — 2026-10-30
+## Revised visual assessment of A's feather test — 2026-10-30
 
-Magnus granskade visade före/efter-utsnitt och bedömer inte skillnaden som
-en försämring för en människa. Det är takdekoration, inte text/skylt.
-Assistentens tidigare visuella underkännande av A var för strängt och ska
-inte behandlas som en verifierad praktisk kvalitetsregression. Stor maximal
-pixeldifferens ensam är inget underlag för sådan slutsats. M:s uppmätta
-förbättring och D:s hela räcken kvarstår som testresultat. Produktionskoden
-är fortfarande återställd; ingen ny implementation/installation utförd.
+Magnus reviewed showed before-and-after crops and does not assess the difference as
+a deterioration for a human. It's ceiling decoration, not text/skylt. The former
+visual underrepresentation of A by the assistant was too strict and should not
+be treated as a verified practical quality regression. Large maximum pixel
+differences alone are no basis for such a conclusion. The measured improvement
+of M and the full range of D remain as test results. The production code is
+still restored; no new implementation/installation has been executed.
 
-## Fast 32-pixelsfeather för M återställt — 2026-10-30
+## Although 32-pixel feather for M restored — 2026-10-30
 
-Magnus återupptog arbetet för ett separat, tidsbegränsat featherförsök.
-Prövade linjär vikt från signerat avstånd till befintligt ägarskap, totalt
-32 px (±16) vid renderad utstorlek. Befintliga masker och tonkomponenter
-behölls; ingen släthetsstyrning, registrering, radiometri eller sömändring.
-Temporär ändring: analysisFeatherWeight samt viktackumulering/utstorlek i
-analyzePanorama/renderPanorama (+35/−5 rader). M:s 314 träprov förbättrades
-median 15→6, p90 27→10/255 vid native-rendering 6614 × 3307; polygonkanter
-visuellt mjukare. D:s räcken hela vid 8410 × 4205. A-kontrollen vid 2048 px
-visade mjukare/suddigare tak- och skyltkonturer (maxdiff 127/255), vilket
-räknades som försämring och utlöste återställning enligt Magnus villkor.
-Ägarskap och radiometriloggar identiska för M/D/A. Maskvikter exakt 0 för
-ogiltiga pixlar; magenta sentinel utanför mask gav maxdiff 0 i fixed blend.
-Hela produktionskoden är byteidentiskt återställd; D-fixen kvar. Ingen
-appinstallation, commit eller push. Underlag och patch i work/m-fixed-feather.
-Stopp efter test; inget ytterligare försök utan ny instruktion.
+Magnus resumed work for a separate, time-limited feather trial. Tested linear
+weight from signed distance to existing ownership, total 32 px (±16) at rendered
+size. Existing masks and sound components shall be retained; no smoothness
+control, recording, radiometric or sleep reminder. Temporary change:
+analysisFeatherWeight and viktackumulering/utstorlek in
+analyzePanorama/renderPanorama (+35/−5 rows). M's 314 wood samples improved
+median 15→6, p90 27→10/255 at native-rendering 6614 × 3307; polygon edges
+visually softer. D's full range at 8410 × 4205. The A-control at 2048 px showed
+mjukare/suddigare roof and sign contours (maxdiff 127/255), which was counted as
+deterioration and triggered recovery under Magnus's terms. Ownership and
+radiometric logs identical to M/D/A. Masking weights exactly 0 for invalid
+pixels; magenta sentinels outside the masking gave maxdiff 0 in fixed blend. The
+entire production code has been restored by default; the D-fix remains. No app
+installation, no commit or push. Substrate and patch in work/m-fixed-feather.
+Stop after testing; no further attempts without further instruction.
 
-## M avslutat för kvällen — 2026-10-30
+## M finished for the evening — 2026-10-30
 
-Magnus avslutade arbetet. Ingen säker förbättring är identifierad. Båda
-försöken nedan är helt återställda; upprepa dem inte utan ny hypotes och
-nytt underlag. Tidigare förslag om dessa försök är därmed överspelade.
-Slutkontroll: all produktionskod är identisk med incheckade 76b747d;
-D:s verifierade sömfix finns kvar. Vid avslutningen återstod endast avsiktlig
-dokumentation i CONTEXT.md; inga byggen, commits eller pushar utfördes då.
-Magnus begärde därefter check-in av dokumentationen med ny tagg och push.
+Magnus finished the job. No safe improvement has been identified. Both
+experiments below are completely restored; do not repeat them without new
+hypotheses and new evidence. Previous proposals on these trials are therefore
+overused. Final control: all production codes are identical to those checked
+76b747d; D's verified seam fix remains. At the time of completion, only
+intentional documentation remained in CONTEXT.md; no construction, commits or
+push was carried out at that time. Magnus then requested check-in of the
+documentation with new tag and push.
 
-- **Bred blendning inom Exclude:** blandade seamDetailed/broad med befintlig
-  släthet och kant-/konfliktskydd. Samma 314 träprov i M: median 15→14,
-  p90 27→26/255; skarvarna fortsatt tydliga. Avbrutet för otillräcklig effekt.
-  D pixelidentiskt; A maxdiff 1/255 vid 2048 px. Exkluderade warppixlar gav
-  inget bidrag i sentinelkontrollen. Underlag: work/m-blend-experiment.
-- **Lokalt dämpad radiometri:** 23 tillfälliga rader i applySeamLocalRadiometry,
-  fältvikt headroom/(headroom+|delta|) före befintlig confidence/korridor.
-  Taken ±12/±24 och alla säkerhetsgränser behölls. M:s median 15→16,
-  p90 27→31/255; 62 nytillkomna mättade kanalvärden i ägda källområden.
-  Avbrutet för sämre resultat och informationsförlust. D:s räcken hela,
-  maxdiff 3/255; A maxdiff 4/255 vid 2048 px, ingen uppenbar försämring i
-  översikt. Underlag: work/m-local-damping.
+- **Wide blending within Exclude:** mixed seamDetailed/broad with existing
+  smoothness and kant-/konfliktskydd. The same 314 wood samples in M: median
+  15→14, p90 27→26/255; the scales remained clear. Interrupted due to
+  insufficient power. D is pixel-dependent; A maxdiff 1/255 at 2048 px. Excluded
+  warpixels made no contribution to the sentinel control. Subject:
+  work/m-blend-experiment.
+- Locally dimmed radiometry:** 23 temporary rows in applySeamLocalRadiometry,
+  field weight headroom/(headroom+the part of the radiometer) before existing
+  confidence/korridor. The ceiling ±12/±24 and all safety limits shall be
+  maintained. M's median 15→16, p90 27→31/255; 62 newly added measured channel
+  values in owned source areas. Disconnected for poor performance and loss of
+  information. D's range whole, maxdiff 3/255; A maxdiff 4/255 at 2048 px, no
+  apparent deterioration in overview. Subject: work/m-local-damping.
 
-Gemensamt: identiska bilder, masker och registreringscache; oförändrat
-bildägarskap. Inget av försöken installerades. Installerad app är fortsatt
-D-verifierade 1.4 (202610301723), med fullupplösningsrendering.
+Common: identical images, masks and registration cache; unchanged car title.
+None of the experiments were installed. The installed app is still D-verified
+1.4 (202610301723), with full resolution rendering.
 
-Belagd diagnos: M återskapat pixelidentiskt (6614 × 3307), cache 4eb36269….
-Lokala restskillnader vid träets sömmar är 35/43 nivåer i största RGB-kanalen.
-Par 3–6 avvisas p.g.a. mättat korrigeringsfält (2884/265446 = 1,086 % >1 %),
-inte direkt uppmätt 0/255-klippning. Isolerad full korrigering riskerar dock
-att klippa 163 kanalvärden med information till svart i bild 6:s ägda områden.
-Att bara släppa igenom paret eller höja skyddsgränserna är därför inte belagt
-säkert. Analysunderlag: work/m-tonal-analysis och work/m-radiometry-analysis.
+M pixel-based (6614 × 3307), cache 4eb36269 ... Local residual differences at
+the seams of the wood are 35/43 levels in the major RGB channel. Par 3–6 is
+rejected due to a measured correction field (2884/265446 = 1,086 % >1 %), not
+directly measured 0/255-klippning. However, isolated full correction risks
+cutting 163 channel values with information to black in image 6's own areas.
+Therefore, simply letting the pair through or raising the safety limits is not
+safe. Analysis data: work/m-tonal-analysis and work/m-radiometry-analysis.
 
-## Check-in av D:s sömfix — 2026-10-30
+## Check-in of D's sewing fix — 2026-10-30
 
-Efter Magnus verifiering begärdes check-in av samtliga väntande ändringar:
-sömfixens 17 C++-rader och denna kontext. Release 1.4 (202610301723),
-strict/deep signatur, isolerad D-regression och korta A/Toscana-kontroller
-godkända enligt nedan. Slutgranskning, git diff --check och riktad kontroll
-av credential-mönster godkända; main och origin/main synkade före commit.
-Inga ytterligare byggen eller testsviter behövdes. Commit, ny tagg i
-Stockholmstid och push av main samt den nya taggen ingår i begäran.
+After Magnus verification, all pending changes were requested to check in: the
+17 C++ rows of the seamfix and this context. Release 1.4 (202610301723),
+strict/deep signature, isolated D regression and short A/Toscana-kontroller
+approved as follows. Final verification, git diff --check and targeted control
+of credential patterns approved; main and origin/main sank before commit. No
+further construction or testing sites were needed. Commit, new tag in Stockholm
+time and push of main as well as the new tag are included in the request.
 
-## D verifierat av Magnus och orsaksanalys — 2026-10-30
+## D Verified by Magnus and Causal Analysis — 2026-10-30
 
-Magnus bekräftar att installerad 1.4 (202610301723) fungerar som tidigare.
-Belagd orsak för D: a90d020 förenklade till gemensamt sömval och tog bort
-den särskilda kandidatbegränsningen för nadir/Repair. Handhållen nadir kunde
-därefter äga närliggande räcken utanför Include; växling mot ringbildernas
-förskjutna avbildning gav brotten. Samma geometri och masker gav fel före
-den isolerade sömfixen och hela räcken efter, med oförändrad blendningskod.
-Fullupplösningsrenderingen behålls. D med handhållen nadir och närliggande
-räcken är ett konkret regressionsfall för framtida ändringar i sömval/blendning.
+Magnus confirms that installed 1.4 (202610301723) is functioning as before.
+Reasonable cause for D: a90d020 simplified to joint selection and removed the
+specific candidate limitation for nadir/Repair. The handheld nadir could then
+own the nearby racks outside the Include; switching to the displaced image of
+the rings gave rise to the offences. The same geometry and masks failed before
+the isolated seam fixture and the entire shelf after it, with unchanged blending
+code. The full resolution return is maintained. D with hand held nadir and
+nearby rack is a concrete regression case for future changes in
+seam selection and blending.
 
-## Testbygge av D:s sömbegränsning — 2026-10-30
+## Test construction of the range limitation D — 2026-10-30
 
-På Magnus begäran byggdes signerad Release 1.4 (202610301723) med den
-experimentella ändringen nedan och installerades i /Applications/PanoWizard.app.
-Bygge, strict/deep kodsignatur och installerad binär mot byggresultat godkända.
-Appen startad. Föregående installation kopierad till denna chatts
-work/d-seam-experiment/PanoWizard-before.app. Originalprojekt orörda;
-D behöver Create Panorama igen för att visa ändringen. Ingen commit/push.
+At Magnus' request, the signed Release 1.4 (202610301723) was built with the
+experimental modification below and installed in /Applications/PanoWizard.app.
+Construction, strict/deep code signature and installed binaries against
+build outputs approved. The app started. Previous installation copied to
+this chat work/d-seam-experiment/PanoWizard-before.app. Original projects
+untouched; D needs Create Panorama again to show the change. No one commit/push.
 
-## Experimentell sömbegränsning för D — 2026-10-30
+## Experimental area limitation for D — 2026-10-30
 
-Isolerat före/efter-test med identiska RAW-raster, Include och låst cache
-bekräftade räckesregressionen i a90d020. På Magnus begäran återinfördes endast
-sömkandidatbegränsningen i analyzePanorama: role 2, eller role 0 med minst tre
-horisontella vyer (|axel-Y| < 0,65) och nadiraxel-Y < −0,8, använder
-protectedMask före preferCentralCoverage. Två rader håller renderingsrollerna
-synkade när överhoppade bilder filtreras. Totalt 17 nya C++-rader; blendning,
-registrering och Include-semantik oförändrade. Ändringen är experimentell.
+Isolated before-and-after test with identical RAW ratings, Include and locked cache
+confirmed the range regression in a90d020. At Magnus' request, only the seam
+candidate limitation was reintroduced in analyzePanorama: role 2, or role 0 with
+at least three horizontal views (< > > 0,65 ) and nadiraxel-Y < − 0,8 , uses
+protectedMask before preferCentralCoverage. Two rows keep the rendering rolls
+submerged when overlapping images are filtered. A total of 17 new C++ rows;
+blending, registration and inclusion semantics unchanged. The change is
+experimental.
 
-D omrenderad 8410 × 4205 med samma indata/cache: referensen pixelidentisk med
-sparat original, båda räckena sammanhängande efter ändringen, 100 % täckning.
-Nadirägarskap utanför grönt vid 4096-analysen minskar 1405682 → 152 pixlar.
-Kort A/Toscana-jämförelse vid 2048 px: oförändrad alpha/täckning, ändrat sömval
-och tonövergångar på marken, inga uppenbara nya geometriska fel i översikt.
-Endast fristående testmotorer kompilerade; installerad app oförändrad.
-git diff --check godkänd. Inga originalprojekt ändrade, ingen commit/push.
-Underlag i denna chatts work/d-seam-experiment. Stopp efter test enligt Magnus.
+D reversed 8410 × 4205 with the same indata/cache: reference pixel-dimensional
+with saved original, both frames coherent after modification, 100% coverage.
+Nadir ownership outside green at 4096 analysis decreases 1405682 → 152 pixels.
+Short A and Toscana comparison at 2048 px: unchanged alpha and coverage, altered seam
+and tone transitions on the ground, no obvious new geometrical errors in
+overview. Only standalone test engines compiled; installed app unchanged. git
+diff --check approved. No original projects changed, none commit/push. Subject
+to this chat work/d-seam-experiment. Stop after the test, according to Magnus.
 
-## Kort regressionsanalys av Desktop/Panorama/D — 2026-10-30
+## Short regression analysis of Desktop/Panorama/D — 2026-10-30
 
-Räckesbrotten syns i sparat result.png (8410 × 4205), inte bara i Preview.
-Fem NEF, grön mask på sista bilden, inga röda masker. Projektets cachehash
-verifierad till fc2af58a…; fyra horisontella vyer och sista optiska axelns Y
-−0,999 uppfyller den tidigare automatiska nadirregeln. Starkaste kandidaten
-är a90d020 (13/10), som tog bort nadir/fillOnly-begränsningen till protectedMask
-vid sömval och begränsningen i bred blendning. Registrering oförändrad i de
-två senaste motorändringarna; cffc2ca ändrade fullupplösningsrendering och
-93bc378 radiometri/blendning. Ingen A/B-rendering utförd, orsaken inte bevisad.
-Nästa föreslagna steg: isolerad jämförelse före/efter a90d020 med samma geometri
-och masker samt inspektion av bildägarskap vid räckena. Ingen kod, mask eller
-projektfil ändrad, inget bygge/testpaket. Magnus kräver stopp efter rapport.
+The line breaches are shown in save result.png (8410 × 4205), not just in
+Preview. Five NEFs, green mask in the last picture, no red masks. The project
+cachehash verified to fc2af58a...; four horizontal views and the last optical
+axis Y −0,999 meet the previous automatic nadir rule. The strongest candidate is
+a90d020 (13/10), which removed the nadir/fillOnly restriction to protectedMask at
+seam selection and restriction in wide blending. Registration unchanged in the
+last two engine changes; cffc2ca changed full resolution rendering and 93bc378
+radiometry and blending. No A/B-rendering performed, cause unproven. Next proposed
+step: isolated comparison before and after a90d020 with the same geometry and masks,
+as well as inspection of vehicle roofing at the racks. No code, mask or project
+file changed, nothing build or test bundle. Magnus wants a stop after the report.
 
-## Grön mask och Repair Image i M — 2026-10-30
+## Green mask and Repair Image in M — 2026-10-30
 
-Magnus vill att bild 6 i Desktop/Panorama/M endast ersätter stativet inom
-grönmålat område. Sparat projekt bekräftar fillOnly på bild 6 och grön mask.
-Nuvarande Include prioriterar området vid sömval men begränsar inte bildens
-övriga användning; Repair Image avser separat registrering utan att styra
-ringgeometrin. Ingen produktkod eller panoramafil ändrad vid genomgången.
+Magnus wants image 6 in Desktop/Panorama/M to only replace the green-painted
+area. Savings projects confirm fillOnly in Figure 6 and Green Mask. Current
+Include prioritizes the area of seam selection but does not restrict other uses
+of the image; Repair Image refers to separate registration without controlling
+the ring geometry. No product code or panorama file changed during the review.
 
-Magnus provade röd mask utanför ersättningsområdet och visade att bild 6
-sedan hoppas över med Insufficient overlap matches. Kodgranskning bekräftar
-att röd mask appliceras före extractFeatures och tar bort registreringsunderlag;
-rådet att rödmaska resten är därför otillräckligt. Föreslagen riktning för
-Repair Image med grön mask: behåll registreringsunderlaget men begränsa
-bildbidraget vid sammanfogning till grönt. Ännu inte implementerat eller testat.
+Magnus tested red mesh outside the replacement area and showed that image 6 then
+hopes over with Insufficient overlap matches. The code review confirms that red
+masks are applied before extractFeatures and removes registration documents; the
+advice to redmask the rest is therefore insufficient. Proposed direction for
+Repair Image with green mask: keep the registration document but limit the image
+contribution when combined to green. Not yet implemented or tested.
 
-## Check-in av blendningsfix — 2026-10-30
+## Check-in of the blending fix — 2026-10-30
 
-Magnus begärde check-in av samtliga väntande ändringar: endast blendningsfixen
-i PanoramaBridge.cpp och denna kontext. Sidopanelen är helt återställd till
-föregående commit; knappfelet är olöst. Senaste signerade Release-bygge är
-1.4 (202610300018), installerat med ursprunglig sidopanel. Bygge, strict/deep
-kodsignatur och git diff --check godkända. Praktisk verifiering omfattar
-Toscana och exempel A; hela A–Z är inte genomgånget. Inga automatiska tester
-körda. Commit, ny Stockholmstidsstämpeltagg och push till main ingår i begäran.
-Felsökningsregeln finns även i den gemensamma globala AGENTS.md i iCloud.
+Magnus requested check-in of all pending changes: only the blending fix in
+PanoramaBridge.cpp and this context. The sidebar is fully restored to the
+previous commit; the button error is unresolved. The latest signed Release
+building is 1.4 (202610300018), installed with the original side panel. Bygge,
+strict/deep code signature and give diff --check approved. Practical
+verification covers Tuscany and example A; the whole A–Z is not the review. No
+automated tests conducted. Commit, new Stockholm time stamp tag and push to main
+are included in the request. The error rule is also found in the common global
+AGENTS.md of iCloud.
 
-## Bestående felsökningsregel — 2026-10-30
+## Troubleshooting rule — 2026-10-30
 
-Magnus kräver att den utdragna, gissningsbaserade knappfelsökningen inte
-upprepas. Återskapa felet och skilj verifierade fakta från hypoteser före
-produktändring. Pröva en avgränsad hypotes med ett tydligt förväntat utfall.
-Om försöket inte stöder hypotesen: backa försöket och återgå till diagnos,
-inte en serie nya kodgissningar, ombyggen eller omstarter. Bredda inte
-uppgiften till layout eller annan funktion utan belägg för att det behövs.
-Vid utebliven framdrift, stanna upp och redovisa vad som är känt och okänt.
+Magnus wants to avoid another round of prolonged, speculative button debugging.
+Reproduce the problem and distinguish verified facts from hypotheses before
+changing the product. Test one focused hypothesis with a clear expected outcome.
+If the attempt does not support the hypothesis, revert it and return to
+diagnosis. Avoid a succession of speculative code changes, rebuilds, and
+restarts. Extend the task to layout or other behavior only when the evidence
+calls for it. If progress stalls, report what is known and what remains unknown.
 
-## Knappfelsökning avbruten och sidopanel återställd — 2026-10-30
+## Disrupted button search and side panel restored — 2026-10-30
 
-Magnus uppgav att problemet tycks inträffa efter maskning. I en isolerad
-A-kopia kunde lasso → färdig mask → utebliven sidoknappsåtgärd återskapas,
-samtidigt som Panorama → Create startade. Genereringen avbröts. Den tidigare
-förebyggande ändringen nedan löste inte detta. Försök med radidentitet och
-separat placering gav inte tillräcklig verifiering av vanliga musklick.
-Magnus invände mot den utökade felsökningen/layoutändringen. Försöken stoppade;
-PanoramaSidebar.swift återställd helt till HEAD. Inga knapp-/layoutändringar
-ska räknas som lösta eller behållna. Blendningsfixen i C++ är kvar.
-Kontrollkopians osparade mask kastad; originalprojekt är orörda. Inget incheckat.
+Magnus stated that the problem appears to occur after masking. In an isolated
+A-copy, lasso → finished mask → missing side button action could be recreated,
+while Panorama → Create started. The generation has been interrupted. The
+previous preventive amendment below did not resolve this. Trials with row
+identification and separate placement did not provide sufficient verification of
+normal muscle clicks. Magnus objected to the extended
+the debugging and layout change. Attempts stopped; PanoramaSidebar.swift restored
+to full HEAD. No button and layout changes shall be counted as unresolved or
+retained. The blending fix in C++ is still there. The unspent mask of the
+control copy is discarded; the original design remains intact. Nothing checked
+in.
 
 ## Intermittent Create-knapp — 2026-10-29
 
-Magnus rapporterade att sidopanelens Create Panorama ibland inte reagerar,
-medan Panorama → Create fungerar. Båda använder samma canStitch och stitch();
-sidoknappen ligger i List(selection:). Det ursprungliga intermittenta felet
-kunde inte återskapas i en isolerad A-kopia. Minimal förebyggande ändring i
-PanoramaSidebar.swift: selectionDisabled() på åtgärdsraden och
-allowsWindowActivationEvents() för klicket som aktiverar ett inaktivt fönster.
-Krav på bildantal/phase och menykommandot är oförändrade.
+Magnus reported that the Create Panorama of the sidebar sometimes doesn't
+respond, while Panorama → Create works. Both use the same canStitch and
+stitch(); the side button is in List(selection:). The original intermittent
+error could not be recreated in an isolated A-copy. Minimum preventative change
+in PanoramaSidebar.swift: selectionDisabled() on the action row and
+allowsWindowActivationEvents() for the click that activates an inactive window.
+Requirements on bildantal/phase and the menu command are unchanged.
 
-Release-bygge/signatur och git diff --check godkända, installerad version
-1.4 (202610292352). Praktiskt verifierat: tomt projekt startar inte Create;
-sidoknappen öppnar retuschbekräftelsen från Preview, Retouch och källbild,
-även koordinatklick på knappens vänstra del. Samtliga bekräftelser avbröts;
-ingen ny generering eller ändring av originalprojekt. Kontrollkopian stängd
-utan att sparas; appen står på Untitled. Inga automatiska tester körda och
-ingen commit/tagg/push. Fortsatt användning behöver bekräfta att det
-intermittenta beteendet har försvunnit. Fråga om normal eller nedtonad knapp
-ställdes asynkront; inget svar kom före denna anteckning.
+Release build and signature and git diff --check approved, installed version 1.4
+(202610292352). Practically verified: empty project does not start Create; the
+sidebar opens the retouch confirmation from Preview, Retouch and source image,
+including a coordinate click on the left side of the button. All confirmations
+have been cancelled; no new generation or modification of original projects.
+Check copy closed without saving; the app is on Untitled. No automated tests
+performed and no commit/tagg/push. Continued use needs to confirm that the
+intermittent behaviour has disappeared. The question of normal or toned buttons
+was asked asynchronously; no response came before this note.
 
-## Mjukare färgövergång vid exklusionsmasker — 2026-10-29
+## Softer colour transition in exclusion masks — 2026-10-29
 
-Magnus godkände förslaget från Toscana-utredningen. Endast PanoramaBridge.cpp
-ändrades: maskskyddet använder befintlig seamDetailed (smal källdetalj plus
-lågfrekvent, konsistensbegränsad färgkorrigering) i stället för enbart narrow.
-Ingen bred bilddetalj eller minimum-feather återförs i skyddsområdet; beräkningen
-använder fortsatt bara giltiga källpixlar. Lokal radiometri tillåter p90-restfel
-över 12 endast om det ursprungliga p90-felet minst halveras. Övriga median-,
-medel-, underlags- och klippningskrav är oförändrade; ingen motivspecifik kod.
+Magnus approved the proposal from the Tuscan investigation. Only
+PanoramaBridge.cpp has been modified: the mesh protector uses existing
+seamDetailed (small source detail plus low frequency, consistency-limited color
+correction) instead of just narrow. No wide image detail or minimum feathers are
+reproduced in the protected area; the calculation continues to use only valid
+source pixels. Local radiometry allows p90 residues above 12 only if the
+original p90 error is at least halved. Other media, medium, substrate and
+cutting requirements are unchanged; no subject-specific code.
 
-Praktisk rendering med samma Toscana-geometri/sömmar ger 8486 × 4243, samma
-täckning och samtliga åtta källmasker byte/pixelmässigt lika i analysen.
-Maskkantens lokala färgsprång minskade 22→4/255 med samma 53 kantprover.
-Lodrät färgsöm kvarstår delvis. Före/efter-renderingar av exempel A vid 4096 px
-granskades manuellt: fotografen fortsatt bortmaskad, ingen synlig återkomst,
-identisk alpha/täckning. Inga automatiska regressionstester körda.
+Practical rendering with the same Toscana geometry and seams yields 8486 × 4243,
+the same coverage and all eight source masks byte-for-byte and pixel-for-pixel equal in
+analysis. The local colour jump of the mask canton decreased 22→4/255 with the
+same 53 edge samples. The vertical color seam remains partially.
+Before-and-after renders of example A at 4096 px was examined manually: the
+photographer continued masked, no visible return, identical alpha and coverage. No
+automatic regression tests performed.
 
-Signerat Release-bygge lyckades, installerat som 1.4 (202610292319), strict/deep
-kodsignatur och git diff --check godkända. Appen öppnade en isolerad Toscana-kopia
-med det nya fullstora resultatet till Preview/Ready, alla åtta källbilder och
-befintlig röd mask. Kontrollkopian ligger öppen i denna chatts work/toscana-blend/
-verification/Toscana; källmappens alla 12 filer är hashverifierat oförändrade.
-Originalprojekt behöver Create Panorama igen för att få den nya blendningen.
-Ingen versionshöjning, commit, tagg, push, arkivering eller Apple-uppladdning.
+Signed Release build succeeded, installed as 1.4 (202610292319), strict/deep
+code signature and git diff --check approved. The app opened an isolated Toscana
+copy with the new full-size result to Preview/Ready, all eight source images and
+existing red mask. The verification copy is open in this chat
+work/toscana-blend/verification/Toscana; all 12 files of the source folder are
+hash-verified unchanged. The original project needs Create Panorama again to get
+the new blend. No upgrades, commits, tags, pushes, archives or Apple uploads.
 
-## Utredning av blendning i Toscana/På utflykt — 2026-10-29
+## Investigation of blending in Toscana/På utflykt — 2026-10-29
 
-Åtta JPEG-källor och panorama.pw i iCloud/Mina filer/Panorama/2006/Toscana/
-På utflykt granskades utan ändring. Sparat panorama 8486 × 4243 återskapades
-pixelidentiskt med aktuell motor, samma ImageIO-maskade TIFF och befintlig
-alignment-cache 09aede8d…. Den blågröna fläckens rundade kant följer den röda
-masken på nadirbilden 13.24.55; ersättande stenläggning kommer från 13.24.27.
-Två samverkande regler verifierades: contentAdaptiveBlend återställer narrow
-nära userExclusions och stänger därmed av tonal utjämning; lokal radiometri
-för bildpar 2–7 avvisas trots median 9→3,787 och p90 29→13,567 eftersom
-absolut p90-gräns är 12. Exponeringen varierar även mellan källorna (f/7,1–13
-vid 1/250 s). Separat diagnostik med samma geometri och sömmar visar att
-tillåten korrigering plus utjämning minskar det lokala färgsprånget längs
-maskkanten från 22 till 4,5/255 (median största RGB-kanal, 53 kantprover).
-Lodrät söm kvarstår delvis; detta är ingen färdig eller generellt verifierad fix.
-Rekommenderad riktning: behåll bortmaskat innehåll borta men tillåt säker
-lågfrekvent färgutjämning och bedöm radiometrins förbättring lokalt. Ingen
-appkod, installation eller projektfil ändrad; inga regressionstester körda.
-Diagnostik och jämförelse finns i denna chatts work/toscana-blend och outputs/.
+Eight JPEG sources and panorama.pw in iCloud/Mina filer/Panorama/2006/Toscana/På utflykt were reviewed unchanged. The saved panorama 8486 × 4243 was
+pixel-drivenly recreated with the current engine, the same ImageIO masked TIFF
+and existing alignment cache 09aede8d.... The rounded edge of the blue-green
+stain follows the red mask on the nadir image 13.24.55; a replacement stone
+laying comes from 13.24.27. Two interactive rules were verified:
+contentAdaptiveBlend restores narrow near userExclusions and closes tonal
+equalization; local radiometry for image pairs 2–7 is rejected despite median
+9→3,787 and p90→13,567 because the absolute p90-limit is 12. Exposure also
+varies between sources (f/7,1–13 at 1/250s). Separate diagnostics using the same
+geometry and seams show that permissible correction plus equalization reduces
+the local color jump along the mask edge from 22 to 4,5/255 (median largest RGB
+channel, 53 edge samples). Loose seams remain partially; this is not a finished
+or generally verified fix. Recommended direction: keep away the masked content
+but allow safe low-frequency colour matching and assess improvement of
+radiometrics locally. No app code, installation or project file modified; no
+regression tests performed. Diagnosis and comparison can be found in this chat
+work/toscana-blend and outputs/.
 
-## Dokumentationsgranskning efter check-in — 2026-10-29
+## Check of documentation after check-in — 2026-10-29
 
-Check-in cffc2ca och tagg 2026-10-29-21-32 är pushade. GitHubs workflow för
-exempelpaket och Pages avslutades båda med success. Huvudändringarna i hjälpen
-följde med denna commit. Efter Magnus fråga kompletterades Getting Started
-(sju exempel och HTML-storlek/kvalitet), README:s kvalitetsval samt G:s aktuella
-standardprompt och F:s jämförelse med JPEG-exemplen. Nya skärmbilder från den
-installerade appen visar exportens separata HTML-kvalitet och G:s JPEG-källor.
-Bilderna granskades visuellt; lokala dokumentationslänkar/bildreferenser och
-git diff --check godkända. A/G-projekten öppnades utan att sparas; inga ändringar
-i examples/. Ingen appkod ändrad eller nytt bygge behövt. Samtliga 129 lokala
-länkar/bildreferenser är kontrollerade. Magnus begärde därefter check-in av
-kompletteringarna med commit, ny tidsstämpeltagg och push till main.
+Check-in cffc2ca and tag 2026-10-29-21-32 are pushed. The GitHub workflow for
+the example package and Pages were both successfully completed. The main changes
+in aid followed this commit. Following Magnus's question, Getting Started (seven
+examples and HTML-storlek/kvalitet), README's quality selection as well as G's
+current standard prompt and F's comparison with the JPEG examples were
+supplemented. New screenshots from the installed app show the export's separate
+HTML quality and G's JPEG sources. The images were scanned visually; local
+documentation links and image references and git diff --check approved. A/G-projekten
+was opened without saving; no changes to examples/. No app code modified or new
+build needed. All 129 local links and image references are controlled. Magnus then
+requested check-in of the additions with commit, new timestamp tag and push to
+main.
 
-## Godkänd exempelstorlek och check-in — 2026-10-29
+## Approved sample size and check-in — 2026-10-29
 
-Magnus godkände att använda 12288 × 6144-varianten som sparad panoramabild
-i exempel G och slutföra check-in. result.png är nu 97191998 byte (92,7 MiB),
-under GitHubs filgräns. Käll-JPEG behåller 4000 × 6000; bildreferenser,
-retuschpatchar och justeringar är bevarade. Hjälp och exempel-README anger
-den sparade exempelstorleken. Fullstorleksoriginalet finns säkerhetskopierat
-lokalt utanför repot. Appens Create och projektformat ändras inte av detta.
+Magnus agreed to use the 12288 × 6144 variant that saved panorama image in
+example G and complete check-in. result.png is now 97191998 byte (92,7 MiB),
+below GitHub's file limit. Source-JPEG retains 4000 × 6000; image references,
+retouches and adjustments are retained. Help and example readME indicates the
+saved sample size. The full-size original is backed up locally outside the
+repository. This does not change the Create and project format of the app.
 
-Check-in omfattar samtliga väntande ändringar, inklusive högupplöst Create,
-Preview/retusch/export, HTML-storlek och JPEG Quality, hjälp samt G:s JPEG-källor,
-nya patchar och borttagna HTML-export. Ingen Git LFS införs. Senaste signerade
-Release är 1.4 (202610291952), tidigare praktiskt verifierad. Commit, ny
-Stockholmstidsstämpeltagg och push till main ingår i Magnus godkännande.
-Slutkontroll: G öppnar till Ready med alla sex JPEG-källor och retusch.
-Samtliga väntande filer är under 100 MiB; 69 dokumentationslänkar, patch- och
-källreferenser, installerad kodsignatur och git diff --check är godkända.
-Inga automatiska regressionstester kördes vid denna check-in.
+Check-in includes all pending changes, including high resolution Create,
+Preview/retusch/export, HTML size and JPEG Quality, help as well as G's JPEG
+sources, new patches and deleted HTML exports. No Git LFS is introduced. The
+most recent signed Release is 1.4 (202610291952), previously practically
+verified. Commit, new Stockholm time stamp tag and push to main are all part of
+Magnus' approval. Final control: G opens to Ready with all six JPEG sources and
+retouch. All pending files are under 100 MiB; 69 documentation links, patch and
+source references, installed code signature and git diff --check are accepted.
+No automatic regression tests were performed at this check-in.
 
-## Uppmätta PNG-alternativ för G — 2026-10-29
+## Measure PNG options for G — 2026-10-29
 
-För att undersöka GitHub-hindret skapades separata kandidater utan att ändra
-G:s original. Förlustfri OpenCV PNG-komprimering nivå 9 med adaptiva filter
-gav 165546270 byte (157,9 MiB) vid 16914 × 8457; identiska avkodade pixlar
-verifierades. Det räcker inte för GitHubs filgräns. En nedskalad kandidat
-12288 × 6144 med samma PNG-kodning blev 97191998 byte (92,7 MiB).
-Nedskalning minskar upplösningen; JPEG-källorna behåller 4000 × 6000.
-Förslag: använd 12288-varianten endast som sparad exempelbild i G och behåll
-fullstorleksoriginal lokalt. Förslaget godkändes senare och applicerades enligt avsnittet ovan.
-Originalets byteidentitet och lokal säkerhetskopia verifierade; inget incheckat.
+To investigate the GitHub barrier, separate candidates were created without
+altering G's original. Loss-free OpenCV PNG compression level 9 with adaptive
+filters yielded 165546270 byte (157,9 MiB) at 16914 × 8457; identical decoded
+pixels were verified. That's not enough for the GitHub file limit. A scaled
+candidate 12288 × 6144 with the same PNG encoding became 97191998 byte (92,7
+MiB). Reduced scaling reduces the resolution; JPEG sources retain 4000 × 6000.
+Suggestion: use the 12288 variant only as a saved sample image in G and keep the
+full-size original locally. The proposal was subsequently approved and applied
+in accordance with the section above. Original exchange identity and local
+backup verified; nothing checked in.
 
-## JPEG-källbilder i exempel G — 2026-10-29
+## JPEG source images in example G — 2026-10-29
 
-På Magnus instruktion ersattes G:s sex NEF-källor med DSC_0442.JPG–DSC_0447.JPG.
-JPEG-kvalitet 98 %, oförändrade orienterade mått 4000 × 6000; ImageIO använder
-samma orienterade avkodning som appens källbildsläsning. Kamera, objektiv och
-fotograferingstid verifierades efter kodningen. Källornas totalstorlek minskade
-från 194,8 MB till 43,9 MB (77,5 %). NEF-originalen säkerhetskopierades lokalt
-utanför repot innan de togs bort ur G.
+On Magnus' instructions, G's six NEF sources were replaced by
+DSC_0442.JPG–DSC_0447.JPG. JPEG quality of 98%, unchanged oriented measurement
+4000 × 6000; ImageIO uses the same oriented decoding as the source image reading
+of the app. The camera, lens and photography time were verified after coding.
+The total size of the sources decreased from 194,8 MB to 43,9 MB (77,5 %). The
+NEF originals were backed up locally outside the repository before being removed
+from G.
 
-Endast bild-URL:er och modifiedAt ändrades i G:s projektmetadata; bild-ID:n,
-rotationer, mått, retusch och justeringar behölls. Befintlig folder-bookmark
-täcker även JPEG-filerna. Sparat panorama, patchbilder, patchmasker och HTML
-är oförändrade byte för byte. Hjälp och exempel-README beskriver nu JPEG i G;
-F behåller NEF. Appen öppnade G med alla sex JPEG-källor, källbildsvisning och
-Preview/retusch till Ready. Ingen ny generering eller appkodändring gjordes.
+Only image URLs and modifiedAt were changed in G's project metadata; image ID,
+rotations, measurements, retouches and adjustments are retained. The existing
+folder bookmark also covers the JPEG files. Save panorama, patch images, patch
+masks and HTML are unchanged byte for byte. Help and example readME now
+describes JPEG in G; F retains NEF. The app opened G with all six JPEG sources,
+source image view and Preview/retusch to Ready. No new generation or app code
+changes were made.
 
-Källbytet löser inte check-in-hindret: G:s panorama/result.png är fortfarande
-180988415 byte (172,6 MiB). Ingen commit, tagg eller push gjordes.
+The source change does not resolve the check-in barrier: G's panorama/result.png
+is still the 180988415 change (172,6 MiB). No commits, tags or pushes were made.
 
-## Check-in och stor fil i G — 2026-10-29
+## Check-in and large file in G — 2026-10-29
 
-Magnus bekräftade nöjdhet med fullstor HTML på cirka 43 MB jämfört med
-240 MB och begärde check-in av alla ändringar. Kod/dokumentation granskade;
-senaste Release-bygge/signatur, 24 lokala dokumentationslänkar, projektets
-nya G-patchreferenser och git diff --check godkända. Inga fynd vid riktad
-kontroll av credential-mönster. main och origin/main är synkade före commit.
+Magnus confirmed satisfaction with full-size HTML at approximately 43 MB versus
+240 MB and requested check-in of all changes. Kod/dokumentation reviewed; the
+latest Release build and signature, 24 local documentation links, the project's new
+G-patch references and git diff --check approved. No finds on targeted control
+of credential patterns. main and origin/main are sinked before commit.
 
-G:s nya panorama/result.png är 180988415 byte (172,6 MiB), över GitHubs
-100 MiB-gräns för vanliga Git-filer. Ingen LFS-spårning är konfigurerad i
-repot; nuvarande exempelworkflow använder git archive. Val mellan Git LFS
-med anpassad exempelpaketering och att lämna hela G-projektets ändringar
-lokalt har begärts. Ingen commit, tagg eller push gjord före det valet.
+G's new panorama/result.png is the 180988415 byte (172,6 MiB), over GitHub's 100
+MiB limit for regular Git files. No LFS tracking is configured in the repot;
+current example workflow uses git archive. A choice between Git LFS with custom
+sample packaging and the submission of all G project changes locally has been
+requested. No commits, tags or pushes made before that election.
 
-## JPEG Quality för HTML — 2026-10-29
+## JPEG Quality for HTML — 2026-10-29
 
-På Magnus begäran tillkom JPEG Quality under Interactive Panorama, med
-Normal (82 %, standard), High (92 %) och Maximum (98 %), samma nivåer som
-bildexporten. HTML har ett separat kvalitetsval som skickas genom AppModel
-till JPEG-kodningen. Detta ersätter den fasta HTML-kvaliteten 80 % nedan.
-Hjälpen är uppdaterad. Praktiska Small-exporter av samma G-bild gav 5,55/
-6,75/7,23 MB; olika JPEG-kvantisering verifierades för de tre nivåerna.
-Installerad UI visar alla val och standard Normal; tidigare öppet G-projekt
-återöppnades på Export med HTML-storlek Original som före uppdateringen.
+At Magnus' request, JPEG Quality was added under Interactive Panorama, with
+Normal (82%, Standard), High (92%) and Maximum (98%), the same levels as image
+export. HTML has a separate quality selection that is sent via AppModel to the
+JPEG encoding. This replaces the fixed HTML quality below 80%. The help is up to
+date. Practical Small exports of the same G-image gave 5,55/ 6,75/7,23 MB;
+different JPEG quantization was verified for the three levels. Installed UI
+displays all options and default Normal; previously open G projects were
+reopened on Export with HTML size Original as before the update.
 
-Release-bygge lyckades och installerades som **1.4 (202610291952)** i
-/Applications/PanoWizard.app. Installerad signatur och git diff --check
-godkända. Inga automatiska regressionstester skapade/körda. Inget incheckat.
+Release-build succeeded and was installed as **1.4 (202610291952)** in
+/Applications/PanoWizard.app. Installed signature and give diff--check approved.
+No automated regression tests created or run. Nothing checked in.
 
-## JPEG och storleksval för HTML — 2026-10-29
+## JPEG and size selection for HTML — 2026-10-29
 
-Magnus godkände JPEG-only för den interaktiva HTML-exporten och valen
-Small/Medium/Large/Original. Implementerat med maxbredder 4096/8192/12288/
-sparad originalbredd, fast JPEG-kvalitet 80 % och Medium som standard.
-Mindre källpanoraman förstoras inte. HTML:s val påverkar inte projektets
-sparade original eller de separata bildexportvalen. Hjälp och README uppdaterade.
+Magnus approved JPEG-only for the interactive HTML export and selection
+Small/Medium/Large/Original. Implemented with maximum width 4096/8192/12288/
+saved original width, although JPEG quality is 80% and Medium as standard. The
+smaller source panorama is not enlarged. The selection of HTML does not affect
+the project's saved originals or the separate image port selections. Help and
+README updated.
 
-Praktiska exporter av justerat G: Small 5,4 MB, Medium 17,1 MB, Large 31,8 MB,
-Original 52,3 MB; inbäddad JPEG och respektive bildmått verifierade. Mindre A
-behöll 4096 × 2048 även med Medium. Medium granskades i Safari; Small exporterades
-även genom appen från G med sparade patchar/justeringar (4,6 MB och 4096 × 2048).
-Storlekar varierar med motiv och justeringar. Inga automatiska regressionstester
-körda; befintligt HTML-test fick en giltig bildfil eftersom export nu avkodar bilden.
+Practical exports of adjusted G: Small 5,4 MB, Medium 17,1 MB, Large 31,8 MB,
+Original 52,3 MB; embedded JPEG and respective image size verified. Minor A kept
+4096 × 2048 even with Medium. Medium was reviewed in Safari; Small was also
+exported through the app from G with saved patchar/justeringar (4,6 MB and 4096
+× 2048). They vary in size with motifs and adjustments. No automated regression
+tests run; existing HTML test was given a valid image file because export now
+decodes the image.
 
-Release-bygge lyckades och installerades i /Applications/PanoWizard.app:
-**1.4 (202610291940)**. Installerad signatur och git diff --check godkända.
-Ändringarna är fortsatt oincheckade. Redan ändrade originalfiler i examples/G
-lämnades orörda under detta arbete; praktisk appkontroll gjordes i isolerad kopia.
+Release-build was successfully installed in /Applications/PanoWizard.app: **1.4
+(202610291940)**. Installed signature and give diff--check approved. The changes
+remain unchecked. Already modified original files in examples/G were left
+untouched during this work; practical app control was carried out in isolated
+copy.
 
-## HTML-filens storlek — 2026-10-29
+## Size of the HTML file — 2026-10-29
 
-Magnus bedömer cirka 240 MB per HTML-panorama som för stort. HTML-exporten
-behöver kunna minska filstorleken utan att sänka projektets sparade original.
-Provkomprimering av färgjusterat G med ImageIO/JPEG kvalitet 0,80 gav
-beräknad självständig HTML: 4096 px cirka 5,4 MB, 8192 px 17,1 MB,
-12288 px 31,8 MB och original 16914 px 52,3 MB. Detta är JPEG-mätningar
-med beräknad base64-overhead; storlekarna varierar med motivet.
-Förslag: egna val för HTML-bredd och JPEG-kvalitet, standard 8192 px/80 %.
-Förslaget är senare godkänt och implementerat enligt avsnittet ovan.
+Magnus estimates about 240 MB per HTML panorama as too large. The HTML export
+needs to be able to reduce the file size without lowering the saved project
+originals. Sample compression of coloured G with ImageIO/JPEG quality 0,80
+yielded calculated independent HTML: 4096 px approximately 5,4 MB, 8192 px 17,1
+MB, 12288 px 31,8 MB and the original 16914 px 52,3 MB. These are JPEG
+measurements with a calculated base64 overhead; sizes vary with the subject.
+Proposal: own selection of HTML width and JPEG quality, standard 8192 px/80 %.
+The proposal was subsequently approved and implemented in accordance with the
+section above.
 
-## Fullupplöst panoramagenerering — 2026-10-29
+## Full panorama generation — 2026-10-29
 
-Create beräknar nu panoramabredden från originalmått och kalibrerad lins
-(vinkelupplösningen vid optiska axeln, med aspektkorrektion). Geometri och
-sömmar/färg/blending analyseras med högst 4096 px bredd; slutbildens detaljer
-projiceras direkt från originalen i mindre block. Fullupplöst 2:1 PNG sparas
-i projektet. Preview laddar högst 4096 px med explicit RGBA-textur; export
-använder det sparade resultatet utan ny stitching. Projektformat och
-MARKETING_VERSION är oförändrade; äldre projekt behåller sina sparade mått.
+Create now calculates the panoramic width from the original measurement and
+calibrated lens (angular resolution at the optical axis, with aspect
+correction). Geometry and seams, color, and blending are analysed with a maximum width
+of 4096 px; the final image details are projected directly from the original in
+smaller blocks. Full 2:1 PNG is stored in the project. Preview loads up to 4096
+px with explicit RGBA texture; exports use the saved result without new
+stitching. Project format and MARKETING_VERSION are unchanged; older projects
+retain their savings.
 
-Retuschkompositer och bildexport körs nu i bakgrunden. Invalidering av
-panoramat lämnar inte kvar retuschens busy-status. HTML använder WebGL 2
-med texturdelar för att kunna visa bilder bredare än GPU:ns enskilda textur.
-PNG-data bäddas in i små separata dataelement och läses som Blob; en enda
-cirka 230 MB lång script-token gav orimlig inläsningstid i Safari.
-HTML är fortsatt självständig och förlustfri men kan bli mycket stor.
+Retouch composites and car exports are now running in the background.
+Invalidation of the panorama does not leave the retouch's busy status. HTML uses
+WebGL 2 with texture parts to display images wider than the individual texture
+of the GPU. PNG data is embedded into small separate data elements and read as
+Blob; a single about 230 MB long script token provided unreasonable reading time
+in Safari. HTML is still independent and loss-free, but it can be very large.
 
-Verifiering slutförd efter föregående chatts avbrott: isolerad G-kopia har
-16914 × 8457 px i sparat projekt samt Original-JPEG och Original-PNG.
-Båda befintliga patchbilderna och maskerna bevarades byte för byte efter
-Save/återöppning. Preview, retusch, justeringar och HTML-export från den
-installerade appen kontrollerades visuellt; Safari visade full upplösning
-med panorering/zoom samt retusch och justeringar. Ändring av källbild under
-retuschberäkning återställde arbetsläget; kontrolländringen kastades.
-Originalexemplen är oförändrade. Hjälpen beskriver det nya flödet.
+Verification completed after the previous chat interruption: isolated G-copy has
+16914 × 8457 px in saved projects as well as Original JPEG and Original PNG.
+Both existing patch images and masks were retained for replacement after
+saving and reopening. Preview, retouch, tweaks and HTML export from the installed
+app were visually checked; Safari showed full resolution with panorering/zoom as
+well as retouch and tweaks. The change in the source image during the
+retrospective calculation restored the working mode; the control change was
+discarded. The original copies are unchanged. The assistant describes the new
+flow.
 
-Signerat Release-bygge lyckades och installerades i /Applications/PanoWizard.app:
-**1.4 (202610291911)**, deep/strict-signatur och git diff --check godkända.
-Inga automatiska regressionstester körda; befintliga testanrop/förväntningar
-är anpassade till async-retusch och automatisk storlek. Ingen bred genomgång
-av alla exempel eller andra webbläsare utförd. Ändringarna är oincheckade;
-ingen commit, tagg, push, arkivering eller Apple-uppladdning utförd.
+Signed Release build was successfully installed in /Applications/PanoWizard.app:
+**1.4 (202610291911)**, deep/strict-signatur and git diff --check approved. No
+automatic regression tests performed; existing test calls and expectations are
+adapted to async retouch and automatic size. No extensive review of all examples
+or other web browsers performed. The changes are unchecked; no commit, tag,
+push, archiving or Apple uploads have been made.
 
-## Krav på generering, preview och export — 2026-10-29
+## Requirements for generation, preview and export — 2026-10-29
 
-Magnus preciserade flödet: Create Panorama ska generera och spara panoramat
-i maximal upplösning utifrån källbilderna. Export ska använda det redan
-högupplösta resultatet; ingen ny panoramagenerering vid export. En mindre
-visningskopia för Preview accepteras om den förenklar implementationen.
-Detta ersätter förslaget att rendera hög upplösning först vid export.
-Implementerat och verifierat enligt avsnittet ovan.
+Magnus specified the flow: Create Panorama will generate and save panorama in
+maximum resolution based on the source images. Exports shall use the already
+high-resolution result; no new panorama generation at export. A smaller viewing
+copy of Preview is accepted if it simplifies implementation. This replaces the
+proposal to render high resolution only on export. Implemented and verified in
+accordance with the section above.
 
-## Fast panoramaupplösning — 2026-10-29
+## For the purposes of this Regulation, the following definitions shall apply: — 2026-10-29
 
-Utredning av detaljförlust i exempel G: OpenCVPanoramaEngine.outputWidth är
-hårdkodad till 4096 för alla genereringar. Sparad panorama/result.png i G är
-4096 × 2048 (8,4 MP över hela sfären). NEF-källorna är 24 MP; samma
-ImageIO-läsning som appen använder verifierades till 4000 × 6000 efter
-orientering. Exportens Original behåller panoramats befintliga storlek.
-Högre detaljupplösning kräver ny generering med större utdatamått.
-Ingen funktionell ändring eller nytt panorama gjordes under utredningen.
-Magnus valde då att diskutera lösningen vidare innan implementation;
-senare preciserade krav står ovan. Check-in omfattade utredningen och den
-fristående HTML-exporten examples/G/panorama.html (4096 × 2048).
+Examining detail loss in example G: OpenCVPanoramaEngine.outputWidth is
+hardcoded to 4096 for all generations. Saved panorama/result.png in G is 4096 ×
+2048 (8,4 MP over the entire sphere). The NEF sources are 24 MP; the same
+ImageIO reading that the app uses was verified to 4000 × 6000 after orientation.
+The original of the export shall retain the existing size of the panorama.
+Higher detail resolution requires a new generation with greater exhaustion. No
+functional change or new panorama was made during the investigation. Magnus then
+decided to discuss the solution further before implementation; later clarified
+requirements are listed above. Check-in included the investigation and the
+independent HTML export examples/G/panorama.html (4096 × 2048).
 
 ## Checkpoint — 2026-10-28 21:01 Europe/Stockholm
 
-Magnus begärde check-in av samtliga väntande ändringar: isolerade temporära
-arbetsfiler, bibehållen retusch vid återimport utan nya bilder, lasso i
-bildmarginalerna och dokumenterade arbets-/versionsrutiner. Källkod och kontext
-granskade; senaste Release-bygget lyckades, installerad signatur och
-git diff --check godkända. Inga ytterligare kodändringar eller versionshöjningar
-gjordes vid incheckningen. Commit, ny tidsstämpeltagg och push ingår i begäran.
+Magnus requested check-in of all pending changes: isolated temporary work files,
+retained retouch at reimport without new images, lasso in the image margins and
+documented arbets-/versionsrutiner. Source code and context checked; the latest
+release build was successful, installed signature and git diff --check approved.
+No further code changes or version enhancements were made at check-in. Commit,
+new timestamp tag and push are included in the request.
 
-## Lasso vid bildkanter — 2026-10-28
+## Lasso at the edges of the picture — 2026-10-28
 
-På Magnus instruktion utökades lassots klick- och hovringsyta till hela
-bildens visningsområde, inklusive marginalerna. Kontur och markör ritas där;
-befintlig rasterisering klipper masken vid bildkanten utan att begränsa
-polygonens hörnpunkter. Penselns hovring och gest ligger kvar på bilden.
-Ändringen finns endast i PanoramaPreview.swift; projektformatet är oförändrat.
+On Magnus' instructions, the lattice clicking and hovering surface was extended
+to the entire view area of the image, including the margins. The outline and
+marker are drawn there; existing rasterization cuts the mask at the edge of the
+image without limiting the angles of the polygon. The pencil hovers and gestures
+are still in the picture. The change is only in PanoramaPreview.swift; the
+project format remains unchanged.
 
-Signerat Release-bygge lyckades. Installerad app är 1.4 (202610282048),
-kontrollerad med codesign --verify --deep --strict. I isolerad G-kopia
-verifierades Exclude/Include över samtliga fyra kanter och korrekt klippning;
-även hörnsuddning, lasso vid förstoring och panorering kontrollerades under
-arbetet. Penseldragning med modifierartangent återstår att prova manuellt.
-Kontrollkopian stängdes utan att spara. Inga automatiska regressionstester,
-commit, tagg eller push utförda.
+Signed Release building succeeded. The app installed is 1.4 (202610282048),
+controlled by codesign --verify --deep --strict. In the isolated G-copy,
+Exclude/Include was verified on all four edges and correct cutting; also
+cornering, magnification lasso and panelling were checked during the work. Brush
+pulling with modifier key remains to be tested manually. The control copy was
+shut down without saving. No automatic regression tests, commits, tags or pushes
+performed.
 
-## Två fixar efter kodgranskning — 2026-10-28
+## Two fixes after code review — 2026-10-28
 
-På Magnus instruktion ändrades endast AppModel.swift: varje modellinstans får
-en egen arbetskatalog under macOS temp/PanoWizard/projektUUID/tempUUID för
-återställt panorama, patchbilder, retuschkomposit och patchdialogernas filer.
-Import utan nytillkomna bild-URL:er uppdaterar räknaren för överhoppade filer
-men behåller panorama, retusch, justeringar och valt arbetsläge.
-Mall, projektformat och versionsnummer är oförändrade.
+On the instructions of Magnus, only AppModel.swift was changed: each model
+instance receives its own workbook under macOS
+temp/PanoWizard/projektUUID/tempUUID for restored panorama, patch images,
+retouch composites and patch dialog files. Imports without newly added image
+URLs update the overlapped file counter but retain panorama, retouch,
+adjustments and selected working mode. The template, project format and version
+number are unchanged.
 
-Signerat Release-bygge lyckades, kopierades till /Applications/PanoWizard.app
-och kontrollerades med codesign --verify --deep --strict. Installerad version
-är 1.4 (202610282006). Manuell kontroll i två isolerade G-kopior med samma
-projekt-ID: återimport av befintlig bild behöll allt; efter Save var panorama,
-patchbilder, patchmasker och retuschmetadata identiska med ursprunget.
-En ny bild gav fortsatt avsedd nollställning i ena kopian, medan andra kopians
-AI-patch kunde öppnas utan fel och sparas med samtliga bilddata intakta.
-Kontrollkopiorna stängdes. Inga nya AI-anrop eller automatiska regressionstester
-kördes. Ingen commit, tagg eller push utförd för dessa ändringar.
+Signed Release building was successful, copied to /Applications/PanoWizard.app
+and checked with code design --verify --deep --strict. The installed version is
+1.4 (202610282006). Manual control in two isolated G-copies with the same
+project ID: reimporting existing image kept everything; after Save, panorama,
+patch images, patch masks and retouch metadata were identical to the original. A
+new image provided a continuous intended zero setting in one copy, while the AI
+patch of another copy could be opened without error and saved with all image
+data intact. The controls were closed. No new AI calls or automatic regression
+tests were run. No commit, tag or push was performed for these changes.
 
-## Riktad kodgranskning — 2026-10-28
+## Targeted code review — 2026-10-28
 
-Projekt-/retuschflöden granskade utan kodändringar eller automatiska
-regressionstester. Två fel verifierades manuellt i isolerade kopior av G med
-ett nytt projekt-ID: (1) återimport av en befintlig bild nollställer panorama,
-patchar och justeringar trots oförändrat bildurval; (2) samtidigt öppna kopior
-med samma projekt-ID delar återställda temporära panorama-/patchfiler i
-AppModel.init. Nollställning i ena fönstret raderade patchfiler som andra
-fönstret behövde; Edit visade "The patch image could not be read." Felen var
-orättade vid granskningen; de rättades senare enligt avsnittet ovan.
-Granskningskopiorna stängdes utan att spara. Separat har Magnus
-valt att behålla dagens nollställning vid borttagning av källbild.
+Project and retouch workflows examined without code changes or automatic regression
+tests. Two errors were manually verified in isolated copies of G with a new
+project ID: (1) re-importing an existing image to zeroes panorama, patches and
+adjustments despite unchanged image selection; (2) simultaneously opening copies
+with the same project ID parts restored temporary panorama-/patchfiler in
+AppModel.init. Zeroing in one window deleted patch files that the other window
+needed; Edit showed "The patch image could not be read". The errors were
+uncorrected during the review; they were later corrected according to the
+section above. The review copies were closed without saving. Separately, Magnus
+has chosen to maintain today's zero position when removing source image.
 
-## Mallbaserat arbetsflöde — 2026-10-28
+## Model-based workflow — 2026-10-28
 
-Magnus använder en mall `panorama.pw` som kopieras till varje nytt panorama.
-Kopiorna behåller mallens projekt-ID. Kollisionen mellan temporära arbetsfiler
-ovan är därför relevant i normalt arbete när flera sådana projekt öppnas
-samtidigt, även om de innehåller olika panoraman. Magnus godkände därefter
-en unik arbetsmapp per öppnat dokument, utan ändring av mall/projektformat;
-lösningen är implementerad och verifierad enligt avsnittet ovan.
+Magnus uses a template `panorama.pw` that is copied to each new panorama. The
+copies retain the model's project ID. The collision between temporary work files
+above is therefore relevant in normal work when several such projects are opened
+simultaneously, even if they contain different panorama. Magnus subsequently
+approved a unique worksheet per open document, without modifying
+mall/projektformat; the solution is implemented and verified in accordance with
+the section above.
 
-## Versionsrutin — 2026-10-28
+## Versioning workflow — 2026-10-28
 
-Magnus ändrar själv appens versionsnummer (`MARKETING_VERSION`) manuellt,
-endast inför publicering, före arkivering/uppladdning till App Store Connect.
-Agenten får inte ändra versionsnumret på eget initiativ, vare sig vid lokala
-byggen, check-in eller publiceringsförberedelser. Versionshöjningen
-checkas in tillsammans med koden som skickas till Apple. Använd dessa
-versionsgränser i Git för att ta fram ändringstext; separat changelog behövs inte.
-Byggnummer är separata från denna rutin och fortsätter genereras automatiskt
-av det befintliga byggsteget.
+Magnus manually changes the app's version number (`MARKETING_VERSION`) before
+archiving and uploading a release to App Store Connect. The agent must not
+change the version number on its own during local builds, check-ins, or
+release preparation. Check in the version bump with the code sent to Apple.
+Use these version boundaries in Git to draft release notes. A separate
+changelog is unnecessary. Build numbers remain separate and are generated
+automatically by the existing build step.
 
-## Exempel G och hjälp — 2026-10-28
+## Example G and assistance — 2026-10-28
 
-Magnus lade till `examples/G`: sex Nikon D7200 NEF-bilder, inga källmasker och
-två aktiva AI-patchar i Replace-läge. Ingen separat nadir- eller zenitbild finns;
-AI rekonstruerar gräs/löv nedåt och grenar/löv uppåt. Hjälpens exempelöversikt,
-AI-guide, startsida och öppningsinstruktioner samt båda README-filerna beskriver
-nu A–G. Fem hjälpbilder togs i appen från en tillfällig projektkopia: översikt samt
-före/efter för nadir och zenit. Patchordning och jämförelseflöde verifierades
-manuellt. Hjälpbilder granskade; 128 lokala länkar/bildreferenser och
-`git diff --check` godkända. Originalprojektet och källbilderna är oförändrade
-(verifierat mot arbetskopian). Magnus begärde därefter check-in med commit, tidsstämpeltagg och push.
-Även exempelpaketets automatiska releasebeskrivning uppdaterades till A–G.
-GitHub Pages bygger från main/docs och exempelworkflow paketerar examples/
-automatiskt vid push. Ingen appkod ändrades eller nytt appbygge behövdes.
+Magnus added `examples/G`: six Nikon D7200 NEF images, no source masks and two
+active AI patches in Replace mode. There is no separate nadir or zenit image; AI
+reconstructes grass and leaves downward and branches and leaves upwards. The help example
+overview, AI guide, homepage and opening instructions as well as both README
+files now describe A–G. Five help images were taken in the app from a temporary
+project copy: overview and before and after for nadir and zenit. Patch order and
+comparison flow were verified manually. Supporting images reviewed; 128 local
+links and image references and `git diff --check` approved. The original project and
+the source images are unchanged (verified against worktree). Magnus then
+requested check-in with commit, time stamp tag and push. The automatic release
+description of the sample package was also updated to A–G. GitHub Pages builds
+from main/docs and example workflow packs examples/ automatically at push. No
+app code was changed or a new app builder needed.
 
-## Lokalt bygge — 2026-10-28
+## Local construction — 2026-10-28
 
-Magnus visade efter första bygget att 1.3 redan väntar på App Review.
-Före den andra datorns check-in stod lokal projektfil och origin/main på 1.2;
-den inskickade versionens höjning hade alltså inte sparats där.
-Första lokala bygget 1.3 (202610280135) ersattes därför med nästa version:
-MARKETING_VERSION är nu **1.4** i Debug och Release.
-Vanligt signerat Release-bygge lyckades och kopierades till
-`/Applications/PanoWizard.app` enligt projektets installationsrutin.
-Installerad version **1.4 (202610280137)**; versionsmetadata och
-`codesign --verify --deep --strict` verifierade för byggd och installerad app.
-Projektfilens plist-kontroll och `git diff --check` godkända.
-Efter check-in på andra Macen hämtades `7adbccd` med versionsgrund 1.3.
-Committen ändrar bara versionsnummer och kontext; lokala 1.4 behölls.
-Inga regressionstester körda enligt projektets testpreferens. Ingen omstart av
-appen, arkivering, uppladdning, App Review-ändring, commit eller push utförd.
+Magnus showed after the first build that 1.3 was already waiting for App Review.
+Before the second computer's check-in, the local project file and origin/main
+were on 1.2; thus the uploaded version had not been saved there. The first local
+build 1.3 (202610280135) was therefore replaced with the following version:
+MARKETING_VERSION is now **1.4** in Debug and Release. Usually signed Release
+building was successful and copied to `/Applications/PanoWizard.app` according
+to the project installation routine. Installed version **1.4 (202610280137)**;
+version metadata and `codesign --verify --deep --strict` verified for built and
+installed app. Project file plist check and `git diff --check` approved. After
+check-in on other Maces, `7adbccd` was retrieved with version basis 1.3. The
+committee changes only version numbers and context; local 1.4 is retained. No
+regression tests performed according to the project test preference. No restart
+of the app, archiving, uploading, App Review modification, commit or push
+performed.
 
-## Aktuellt publiceringsläge — 2026-10-28
+## Current state of publication — 2026-10-28
 
-Magnus screenshot bekräftar **macOS 1.3 — Waiting for Review** i App Store
-Connect. Detta ersätter publiceringsstatus 1.2 nedan. Byggnummer och
-inskickningsdatum för 1.3 har inte verifierats. Versionshöjningen finns nu i Git
-efter andra Macens check-in; byggplatsen har inte verifierats. Kontrollera både Git-läge och
-senast verifierade inskickade version före nästa versionshöjning.
+Magnus screenshot confirms **macOS 1.3 — Waiting for Review** in the App Store
+Connect. This replaces the publication status 1.2 below. Construction number and
+date of dispatch for 1.3 has not been verified. The version upgrade is now
+available in Git after other Macs check-in; the construction site has not been
+verified. Check both Git status and the last verified version submitted before
+your next update.
 
-## Synkad versionsgrund — 2026-10-28
+## Shaded version basis — 2026-10-28
 
-Andra Macens check-in `7adbccd` sparar version **1.3** i Git. Lokalt nästa
-bygge är **1.4** enligt avsnittet ovan; App Review-status 1.3 har nu
-bekräftats med Magnus screenshot. Äldre uppgifter om 1.2 är historiska.
+Other Mac's check-in `7adbccd` saves version **1.3** in Git. Locally the next
+build is **1.4** as per the section above; App Review status 1.3 has now been
+confirmed with Magnus screenshot. Previous data on 1.2 are historical.
 
-## Historiskt publiceringsläge — 2026-10-24
+## Historical state of publication — 2026-10-24
 
-PanoWizard **1.2 (202610240249)** är inskickad till App Review och statusen
-**Waiting for Review** är verifierad i App Store Connect. Submission ID:
-`17a31abe-65ac-4c62-b0b4-da16b4eec9c9`, inskickad 2026-10-24 kl. 03:00 svensk tid.
-Magnus valde uttryckligen att ersätta den godkända men opublicerade 1.1-releasen;
-den avbröts innan versionsposten ändrades till 1.2. Det nya bygget är valt och
-Review Notes uppdaterade för lassomaskning och exempel A–D. Export compliance
-är besvarad för det nya bygget. Manuell publicering efter godkännande är kvar.
-Inget nytt avtal accepterades av assistenten; inskickningen lyckades trots
-att en generell avtalsnotis tidigare visats.
+PanoWizard **1.2 (202610240249)** is submitted to App Review and the status
+**Waiting for Review** is verified in App Store Connect. Submission ID:
+`17a31abe-65ac-4c62-b0b4-da16b4eec9c9`, dispatched 2026-10-24 at 03:00 Swedish
+time. Magnus explicitly chose to replace the approved but unpublished 1.1
+release; it was discontinued before the version mail was changed to 1.2. The new
+building has been selected and Review Notes updated for load-bearing and example
+A–D. Export compliance is responsible for the new construction. Manual
+publication after approval remains. No new contract was accepted by the
+assistant; the submission was successful despite a general notice of agreement
+having been previously shown.
 
-Aktivt repository på Mac mini är nu `/Users/magnus/GitHub/panowizard`, utanför
-Dokument/iCloud. Signerat arkiv:
-`~/Library/Developer/Xcode/Archives/2026-10-24/PanoWizard-1.2.xcarchive`.
-Arkivsignatur och uppladdning verifierade; endast 11 kända OpenCV-dSYM-varningar.
-Efter ett separat misslyckat GUI-bygge ändrades fyra ARCHS_STANDARD-overrides
-till arm64 eftersom de medföljande OpenCV-biblioteken endast stöder arm64.
-Genererade arkivproduktlänkar som blockerade Release-byggmappen flyttades till
-`~/Library/Developer/Xcode/BuildLinkBackups/20261024`; inga målfiler raderades.
-Signerat vanligt Release-bygge lyckades därefter. Dessa lokala projektinställningar
-och denna kontext är ännu inte committade eller pushade.
+Active repository on Mac mini is now `/Users/magnus/GitHub/panowizard`, outside
+of Dokument/iCloud. Signed archive:
+`~/Library/Developer/Xcode/Archives/2026-10-24/PanoWizard-1.2.xcarchive`. File
+signature and upload verified; only 11 known OpenCV-dSYM warnings. After a
+separate failed GUI build, four ARCHS_STANDARD overrides were changed to arm64
+because the accompanying OpenCV libraries only support arm64. The generated
+archive product links that blocked the Release build folder were moved to
+`~/Library/Developer/Xcode/BuildLinkBackups/20261024`; no target files were
+deleted. Signed normal release building succeeded afterwards. These local
+project settings and this context are not yet committed or pushed.
 
-Denna status ersätter äldre publiceringsstatus nedan. Vänta på Apples besked;
-skicka inte in ett nytt bygge eller ändra inskickningen utan Magnus instruktion.
+This status replaces the older publication status below. Wait for Apple's
+message. Don't send in a new build or change the shipment without Magnus'
+instructions.
 
-## Aktuellt publiceringsläge — läs först (2026-10-16)
+## Current publishing status — read first (2026-10-16)
 
-PanoWizard **1.1**, build **202610162112**, är **inskickad till App Review**.
-Användarens screenshot från App Store Connect bekräftar **Items Submitted (1)**,
-**macOS App 1.1**, **1.1 (202610162112)** och **Waiting for Review** den 16 oktober.
-Detta är inskickat, inte godkänt eller publicerat. Nästa steg är att invänta
-Apples besked. Skicka inte in på nytt eller byt build utan användarens instruktion.
+PanoWizard **1.1**, build **202610162112**, is inserted into App Review**. The
+user's screenshot from the App Store Connect confirms **Items Submitted (1)**,
+**MacOS App 1.1**, **1.1 (202610162112)** and **Waiting for Review** on 16
+October. This is sent, not approved or published. The next step is to wait for
+Apple's message. Do not re-submit or change build without the user's
+instructions.
 
-Version 1.0 (202610080027) avvisades den 15 oktober: Kina/OpenAI och saknade
-exempelfiler. Fastlandskina har avmarkerats. Review Notes har uppdaterats för
-Help → Download Examples…, som hämtar det automatiskt genererade paketet från
-GitHub. Källfilerna under examples/ är fortsatt redigerbara. Användaren har
-verifierat både den nya AI-patchen i A via nedladdningen och den korrigerade
-360-zoomningen lokalt.
+Version 1.0 (202610080027) was rejected on 15 October: Kina/OpenAI and lacked
+sample files. Mainland China has been demarcated. Review Notes has been updated
+for Help → Download Examples..., which downloads the automatically generated
+package from GitHub. The source files under examples/ are still editable. The
+user has verified both the new AI patch in A via download and the corrected 360
+zoom locally.
 
-Källkodscheckpoint före dokumentation av inskickningen: `22debb5`.
-Taggen `apple-submitted-1.1-202610162112` markerar denna dokumenterade
-inskickningscheckpoint; exakt binäridentitet mellan arkiv och commit har inte
-verifierats genom reproducerbar byggjämförelse.
+Source code check point before documentation of dispatch: `22debb5`. The tag
+`apple-submitted-1.1-202610162112` marks this documented dispatch checkpoint;
+the exact binary identity between archive and commit has not been verified by
+reproducible build comparison.
 
-**Publiceringsbeslut:** PanoWizard är projektet Magnus vill publicera.
-**LAN Scanner och Broker Explorer används endast privat/lokalt av Magnus.**
-De ska inte förberedas för App Store, GitHub Releases, DMG eller annan offentlig
-distribution utan en ny uttrycklig instruktion. Tidigare förslag om distribution
-av dessa två verktyg avvisades av användaren.
+PanoWizard is the project Magnus wants to publish. **LAN Scanner and Broker
+Explorer are only used privat/lokalt by Magnus.** They shall not be prepared for
+App Store, GitHub Releases, DMG or other public distribution without new
+explicit instructions. Previous proposals for the distribution of these two
+tools were rejected by the user.
 
-Aktivt repository är /Users/magnus/Documents/GitHub/panowizard, origin
-https://github.com/meg768/panowizard.git. Äldre next-gen-namn och formuleringar
-om gamla ../panowizard längre ned är historik, inte aktuella sökvägsinstruktioner.
+The active repository is /Users/magnus/Documents/GitHub/panowizard, origin
+https://github.com/meg768/panowizard.git. Older next-gen names and formulations
+about old ../panowizard below are history, not current search instructions.
 
-Läs denna fil innan arbetet återupptas. Uppdatera den när projektets struktur,
-beteende, verifiering, distributionsgrund eller viktiga beslut ändras.
+Read this file before work resumes. update it when the structure, behaviour,
+verification, distribution basis or key decisions of the project change;
 
-## App- och dokumentikoner — lokal ändring 2026-10-08
+## App and document icons — local change 2026-10-08
 
-På Magnus instruktion används den godkända fullkvadratiska prototypen som ny
-appikon. Alla tio AppIcon-PNG-storlekar är ogenomskinliga utan inritad ram eller
-hörnmask. Den separata PanoWizardProject.icns-resursen och CFBundleTypeIconFile
-har tagits bort. Dokumenttypens UTTypeIcons anger UTTypeIconText=PW och låter
-macOS använda appikonen som standardbadge på systemets dokumentform.
-Debug och ren Release-build lyckades; plist och ikonernas storlekar/opacitet
-verifierade. Finder-utseendet är ännu inte visuellt verifierat och kan påverkas
-av ikoncache eller andra installerade appversioner. Projektformatet är oförändrat.
-Release-bygget finns i
+On Magnus' instructions, the approved full-square prototype is used as a new
+appicon. All 10 AppIcon PNG sizes are opaque without an embedded frame or corner
+mask. The separate PanoWizardProject.icns resource and the CFBundleTypeIconFile
+have been removed. The document type UTTypeIcons specifies UTTypeIconText=PW and
+allows macOS to use the app icon as the default badge on the system document
+form. Debug and clean Release build succeeded; plist and icons
+storlekar/opacitet verified. The Finder view has not yet been visually verified
+and may be affected by icon cache or other installed app versions. The format of
+the project remains unchanged. The release building is located in
 /Users/magnus/Library/Developer/Xcode/PanoWizardBuilds/Release/PanoWizard.app.
-Magnus startar om och fortsätter i en ny konversation. Nästa steg: öppna detta
-bygge och kontrollera appikon samt befintliga och nya .pw-dokument i Finder.
-Ingen ny upload, submission eller ändring av inskickad build har gjorts.
-Ikonändringarna och denna kontext sparas med commit och push på Magnus begäran.
+Magnus starts again and continues in a new conversation. Next step: open this
+build and check the app icon as well as existing and new .pw documents in
+Finder. No new upload, submission or modification of the submitted build has
+been made. The icon changes and this context are saved with commit and push at
+Magnus' request.
 
-## Mål, facit och aktuell instruktion
+## Target, outline and current instruction
 
-`panowizard-next-gen` är nästa generation av PanoWizard, byggd som en vanlig
-native macOS-app i Xcode för framtida Mac App Store-distribution.
+`panowizard-next-gen` is the next generation of PanoWizard, built as a regular
+native macOS app in Xcode for future Mac App Store distribution.
 
-`../panowizard` är den befintliga färdiga appen och är facit. Den får inte ändras.
-Problemet som migrationen löser är projekt-/bygg-/distributionsgrunden, inte
-applikationskod, algoritmer, arbetsflöden eller design. Gör ingen featureutveckling,
-UI-redesign, generell refactoring eller förenkling som tar bort fungerande delar.
+`../panowizard` is the existing finished app and is the reference implementation. It can't be changed.
+The problem that migration solves is the project, build, and distribution setup, not
+application code, algorithms, workflows or design. Do not perform feature
+development, UI redesign, general refactoring or simplification that removes
+functional parts.
 
-Steg 1 skapade en standard SwiftUI/Swift-app med Hello World, följt av Photography-
-kategori och den exakt bevarade gamla appikonen. Användaren bekräftade därefter att
-denna grund bygger, arkiverar och har passerat App Store Connect Validation.
+Step 1 created a standard SwiftUI/Swift-app with Hello World, followed by the
+Photography category and the accurately preserved old app icon. The user
+subsequently confirmed that this baseline builds, archives and has passed App
+Store Connect Validation.
 
-Steg 2 är nu genomfört lokalt: hela applikationskoden, C++-motorn, nödvändiga
-resurser, originalets OpenCV-bibliotek, tester och användarguide har migrerats.
-Inga kända applikationsfunktioner har avsiktligt utelämnats.
-Användaren har bekräftat lyckad App Store Connect validation av den migrerade
-appen. Endast de 11 precompiled OpenCV-bibliotekens symbolvarningar återstår.
+Step 2 is now implemented locally: the entire application code, C++ engine,
+necessary resources, original OpenCV library, tests and user guide have been
+migrated. No known application features have been deliberately omitted. The user
+has confirmed the successful App Store Connect validation of the migrated app.
+Only the 11 precompiled OpenCV library symbol warnings remain.
 
-Aktuell instruktion (2026-10-06): slutför Tutorial-migrering till självförsörjande
-/docs med lokala bilder. Tidigare förbud att röra Tutorial/ är ersatt av denna
-nya instruktion. Ingen appkod ändras. Användaren har därefter begärt commit+push till origin/main.
-Filåtkomst ska vara projektspecifik: återställ optional metadata inuti `.pw`,
-kontrollera samtliga original och begär direkt native Grant Access-katalogåtkomst
-per otillgänglig plats om permission saknas, utan preliminär app-alert. Spara
-bookmarks i projektet för omstart. Legacy-projekt utan metadata ska kunna
-auktoriseras och sedan uppgraderas genom vanlig Save. Originalbilder ska alltid
-vara externa; kopiera eller flytta dem aldrig till `.pw`.
+Current instruction (2026-10-06): complete the Tutorial migration to
+self-sufficient /docs with local images. Previous prohibitions against touching
+Tutorial/ are replaced by this new instruction. No app code is changed. The user
+has subsequently requested commit+push to origin/main. File access shall be
+project-specific: restore optional metadata within `.pw`, check all originals
+and directly request native Grant Access directory access per inaccessible
+location if permission is missing, without a preliminary app alert. Save
+bookmarks in the project for restart. Legacy projects with no metadata should be
+able to be authorised and then upgraded through regular Save. Original images
+shall always be external; never copy or move them to `.pw`.
 
-## Repository och checkpoint
+## Repository and checkpoint
 
 - Remote: `https://github.com/meg768/panowizard-next-gen.git`.
 - Branch: `main`.
-- Senaste committade grund: `c3526fb820096b8eaaf46a7f68001e908fbd4798`.
-- Taggen `pre-migration` pekar på denna commit och finns på origin.
-- Migrationen och efterföljande verifierade korrigeringar ingår i checkpointen
-  som användaren begärde att committa och pusha 2026-10-06.
-- Det gamla projektet var rent vid start. Dess samtliga vanliga filers innehåll
-  (även Vendor och befintliga byggfiler, exklusive Git-internals) jämfördes med
-  SHA-256 före/efter och var oförändrat.
+- Last committed basis: `c3526fb820096b8eaaf46a7f68001e908fbd4798`.
+- The tag `pre-migration` points to this commit and is at origin.
+- The migration and subsequent verified corrections are included in the
+  checkpoint requested by the user to commit and push 2026-10-06.
+- The old project was clean at the start. The contents of all its regular files
+  (including Vendor and existing build files, excluding Git-internals) were
+  compared to SHA-256 before and after and remained unchanged.
 
-## Native Xcode-grund
+## Native Xcode base
 
 - Projekt: `PanoWizard/PanoWizard.xcodeproj`.
-- Delat scheme: `PanoWizard`, i `xcshareddata/xcschemes/PanoWizard.xcscheme`.
-- App-target och produkt: `PanoWizard`, `PanoWizard.app`.
+- Shared scheme: `PanoWizard`, in `xcshareddata/xcschemes/PanoWizard.xcscheme`.
+- App target and product: `PanoWizard`, `PanoWizard.app`.
 - Native macOS, SwiftUI, Swift 6 language mode, Xcode 26.5.
-- Deployment target kvar på macOS 26.5, från den nya verifierade grunden.
+- Deployment target remaining on macOS 26.5, from the new verified basis.
 - Organization identifier: `se.egelberg`.
-- Bundle identifier: **`se.egelberg.panowizard`**, Debug och Release.
+- Bundle identifier: **`se.egelberg.panowizard`**, Debug and Release.
 - Automatic Xcode-managed signing, team Magnus Egelberg, ID `52A6FA9VB5`.
-- App Sandbox och Hardened Runtime kvar aktiverade.
+- Sandbox and Hardened Runtime apps are still activated.
 - Photography-kategori: `public.app-category.photography`.
-- Xcode-genererad Info.plist kompletteras med `PanoWizard/Info.plist`, som endast
-  innehåller originalets dokumenttyp och exporterade UTI-deklarationer.
-- Projektpaket: `.pw`, UTI `se.egelberg.panowizard.project`, Editor/Owner,
-  originalets `PanoWizardProject.icns` som dokumentikon.
-- App Store-version/build är fortfarande Xcode-inställningar: 1.0 / 1.
-  Det gamla skriptets tidsbaserade versionsnummer har inte återinförts.
-- Inga storage frameworks eller Swift package dependencies.
-- Ingen `Package.swift` eller egna bundle-, signerings- eller distributionsskript.
-- `.gitignore` exkluderar användarspecifik Xcode-state, `.DS_Store` och DerivedData.
+- The Xcode generated Info.plist is supplemented by `PanoWizard/Info.plist`,
+  which only contains the original document type and exported UTI declarations.
+- Project package: `.pw`, UTI `se.egelberg.panowizard.project`, Editor/Owner,
+  the original `PanoWizardProject.icns` as document icon.
+- App Store-version/build are still Xcode settings: 1.0 / 1. The time-based
+  version number of the old script has not been reintroduced.
+- No storage frameworks or Swift package dependencies.
+- No `Package.swift` or own bundle, signature or distribution script.
+- `.gitignore` excludes user-specific Xcode-state, `.DS_Store` and DerivedData.
 
-Originalets Swift package använde standard Swift 6-konkurrens utan Xcode-mallens
-MainActor-isolering som standard. Den inställningen togs därför bort från app-
-targeten; källkodens befintliga explicita actor-annoteringar behölls. Algoritmer,
-parametrar, maskvillkor, cacheidentiteter och bildbehandlingsordning ändrades inte.
+The original Swift package used the standard Swift 6 competition without the
+Xcode model's MainActor insulation as standard. Therefore, that setting was
+removed from the app targets; the existing explicit actor entries of the source
+code are retained. Algorithms, parameters, mesh conditions, cache identities and
+image processing arrangements were not changed.
 
-## Struktur och beroenden
+## Structure and dependencies
 
-- `PanoWizard/PanoWizard/Application` — app-/dokumentlivscykel och menyer.
-- `PanoWizard/PanoWizard/Models` — projektformat, originalbilder, masker, patches,
-  justeringar och dokumentpaket.
-- `PanoWizard/PanoWizard/Services` — import, metadata, stitchning, retusch,
-  bildbehandling, Little Planet, exporter och sandboxens filåtkomst.
-- `PanoWizard/PanoWizard/ViewModels` — AppModel och arbetsflöden.
-- `PanoWizard/PanoWizard/Views` — hela befintliga SwiftUI/AppKit-gränssnittet.
-- `PanoWizard/PanoWizard/Assets.xcassets` — originalets oförändrade appikon.
-- `PanoWizard/OpenCVBridge` — originalets `PanoramaBridge.cpp` och C-header.
-- `PanoWizard/Resources` — Backgrounds, dokumentikon och ThirdPartyLicenses.
-- `PanoWizard/Vendor/OpenCV` — originalets OpenCV 5-headers och dylibs.
-- `PanoWizard/PanoWizardTests` — samtliga 13 ursprungliga Swift Testing-filer.
-- `docs` — självförsörjande GitHub Pages-help, illustrerade guider och bilder.
-- `README.md` — befintlig funktionsbeskrivning med nya Xcode-bygginstruktioner.
+- `PanoWizard/PanoWizard/Application` — app-/dokumentlivscykel and menus.
+- `PanoWizard/PanoWizard/Models` — Project format, original images, masks,
+  patches, adjustments and document packages.
+- `PanoWizard/PanoWizard/Services` — imports, metadata, stitching, retouch,
+  image processing, Little Planet, exports and file access to the sandbox.
+- `PanoWizard/PanoWizard/ViewModels` — AppModel and workflows.
+- `PanoWizard/PanoWizard/Views` — whole existing the SwiftUI/AppKit interface.
+- `PanoWizard/PanoWizard/Assets.xcassets` — the original unaltered app icon.
+- `PanoWizard/OpenCVBridge` — of the original `PanoramaBridge.cpp` and C-header.
+- `PanoWizard/Resources` — Backgrounds, documentation and third party licenses.
+- `PanoWizard/Vendor/OpenCV` — the original OpenCV 5-headers and dylibs.
+- `PanoWizard/PanoWizardTests` — all 13 original Swift Testing files.
+- `docs` — Self-supporting GitHub Pages help, illustrated guides and images.
+- `README.md` — existing function description with new Xcode building
+  instructions.
 
-`OpenCVBridge` är en native Xcode static-library-target med C++17. En liten
-`module.modulemap` gör originalets C-API tillgängligt som `import OpenCVBridge`.
-Header och C++-implementation är byte-identiska med facit. Xcode länkar libc++ och
-OpenCV och använder en vanlig Copy Files-fas till Frameworks med CodeSignOnCopy.
-Inga externa stitchningsverktyg eller hjälpprocesser används.
+`OpenCVBridge` is a native Xcode static library target with C++17. A small
+`module.modulemap` makes the original's C-API available as `import
+OpenCVBridge`. Header and C++ implementation are byte-identical to facit. Xcode
+links libc++ and OpenCV and uses a regular Copy Files phase to Frameworks with
+CodeSignOnCopy. No external stitching tools or auxiliary processes are used.
 
-Originalets 11 distribuerade OpenCV 5-bibliotek finns med:
-calib, core, features, flann, geometry, imgcodecs, imgproc, objdetect, photo,
-stereo och stitching (`libopencv_*.500.dylib`). De kopierade Vendor-binarierna är
-byte-identiska med originalen. Xcode signerar de inbäddade kopiorna normalt.
-Samtliga transitiva `@rpath`-referenser kontrollerades finnas i appens Frameworks;
-övriga referenser går till Apples systembibliotek. Inga lokala Vendor-sökvägar
-behövs vid runtime.
+The original 11 distributed OpenCV 5 libraries are available with: calib, core,
+features, flann, geometry, imgcodecs, imgproc, objdetect, photo, stereo and
+stitching (`libopencv_*.500.dylib`). The copied Vendor binaries are
+byte-identical to the original. Xcode will sign the embedded copies normally.
+All transitive `@rpath` references verified are in the app's Frameworks; other
+references go to Apple's system library. No local Vendor search routes are
+needed at runtime.
 
-**Slutligt arkitekturbeslut (2026-10-05): PanoWizard är avsiktligt Apple Silicon / arm64-only.**
-Originalets verifierade OpenCV 5.0-binarier är endast arm64.
-Lägg inte till Intel/x86_64-stöd, bygg inte om OpenCV och skapa inte universal
-binaries. Acceptera inte Xcodes förslag om standard architectures.
-`ARCHS = arm64` används därför för app, bridge och tester. Intel-stöd har inte
-skapats; även det gamla byggskriptet byggde endast arm64. Byt inte OpenCV-version
-eller algoritmer för att lösa detta utan en uttrycklig ny uppgift.
+**Final architecture decision (2026-10-05): PanoWizard is intentionally Apple
+Silicon/arm64-only.** The original verified OpenCV 5.0 binaries are only arm64.
+Do not add Intel/x86_64 support, do not rebuild OpenCV and do not create universal
+binaries. Do not accept Xcode's proposals for standard architectures. `ARCHS =
+arm64` is therefore used for app, bridge and testing. Intel support hasn't been
+created; even the old script only built arm64. Do not change the OpenCV version
+or algorithms to solve this without an explicit new task.
 
-Bakgrunderna A.jpg, B.jpg och C.png kopieras som en vanlig Backgrounds-resursmapp.
-Välkomstvyns enda resursändring är `Bundle.module` → `Bundle.main`.
-Originalets OpenCV-/tredjepartslicenser följer med i appresurserna.
+Backgrounds A.jpg, B.jpg and C.png are copied as a regular Backgrounds resource
+map. The only resource change of the welcome wine is `Bundle.module` →
+`Bundle.main`. The original OpenCV-/tredjepartslicenser shall be accompanied by
+the appraisals.
 
-## Appikon
+## The name of the species
 
-Den befintliga appikonen importerades i steg 1 från
-`../panowizard/Resources/Icons/PanoWizardApp.icns` med Apples `iconutil`.
-Alla tio PNG-representationer i AppIcon.appiconset är byte-identiska med de
-extraherade originalrepresentationerna. Ingen redesign, färgändring eller
-annan bildändring gjordes.
+The existing appliance was imported in step 1 from
+`../panowizard/Resources/Icons/PanoWizardApp.icns` with Apple's `iconutil`. All
+ten PNG representations in the AppIcon.appicon are byte-identical to the
+original representations extracted. No redesign, colour change or other
+alterations were made.
 
-Alla Mac-slots finns: 16, 32, 128, 256 och 512pt, var och en i 1x/2x.
-512pt @2x är 1024×1024 och verifierades i den kompilerade Assets.car.
-Stora representationer ligger i Assets.car; extraktion av enbart den byggda
-AppIcon.icns visar därför inte hela ikonuppsättningen.
+All Mac slots are available: 16, 32, 128, 256 and 512pt, each in 1x/2x. 512pt
+@2x is 1024×1024 and verified in the compiled Assets.car. Large representations
+are found in Assets.car; extraction of only the built AppIcon.icns therefore
+does not show the entire icon set.
 
-## Sandbox och nödvändiga kodanpassningar
+## Sandbox and necessary kidney adjustments
 
-Signerade app-entitlements har verifierats innehålla:
+Signed app entities have been verified to contain:
 
 - `com.apple.security.app-sandbox = true`.
-- `com.apple.security.files.user-selected.read-write = true` — projekt,
-  JPEG/PNG/HTML/Little Planet/manual patch-export och filhantering.
-- `com.apple.security.files.bookmarks.app-scope = true` — åtkomst till externa
-  originalbilder efter panelen stängts och efter omstart.
-- `com.apple.security.network.client = true` — befintlig OpenAI AI-retuschering.
+- `com.apple.security.files.user-selected.read-write = true` — project,
+  JPEG/PNG/HTML/Little Planet/manual patch export and file management.
+- `com.apple.security.files.bookmarks.app-scope = true` — access to external
+  original images after the panel is closed and restarted.
+- `com.apple.security.network.client = true` — existing OpenAI AI retouch.
 
-Ingen full-disk-access, sandboxexception, avstängd library validation eller
-annan bred säkerhetsförsvagning har införts.
+No full disk access, sandbox exception, disabled library validation or other
+broad security vulnerability has been introduced.
 
-Originalets projekt sparar **referenser till externa originalbilder**, inte
-inbäddade kopior av dem. Projektformat **10 är oförändrat**. Det ursprungliga
-filåtkomstbeteendet var inte tillräckligt för en sandboxad app efter omstart.
+The original's project saves references to external originals, not embedded
+copies of them. Project format **10 is unchanged**. The original file access
+behavior was not enough for a sandboxed app after rebooting.
 
-`SourceFileAccess.swift` håller security-scoped åtkomst aktiv under körningen.
-Den använder inte längre UserDefaults för source grants. Individuella grants från
-ImageImportService lagras i minnet tills Save skriver optional projektmetadata.
-Både första bildvalet och Add måste skapa en riktig bookmark innan bilden accepteras.
-Native folder recovery håller vald katalog aktiv på samma sätt.
+`SourceFileAccess.swift` keeps security-scoped access active while driving. It
+no longer uses UserDefaults for source grants. Individual grants from
+ImageImportService are stored in memory until Save enters optional project
+metadata. Both the first image selection and Add must create a real bookmark
+before the image is accepted. Native folder recovery keeps the selected
+directory active in the same way.
 
-Projektet kan innehålla **`source-access.json`** som optional paketmedlem:
+The project may include **`source-access.json`** as an optional package member:
 
 ```json
 {
@@ -1595,114 +1696,132 @@ Projektet kan innehålla **`source-access.json`** som optional paketmedlem:
 }
 ```
 
-Swift Codable Data är Base64 i JSON. Nycklarna är standardiserade absoluta
-POSIX-sökvägar. Endast redan beviljade grants som täcker projektets source-URL:er
-sparas. En beviljad katalog dedupliceras och ersätter redundanta individuella
-filbookmarks i samma katalog. Ingen bredare katalogåtkomst skapas automatiskt.
-Gamla paket utan filen får tom bookmarkmetadata och läses som tidigare.
-`project.json` och dess formatVersion **10** är oförändrade.
+Swift Codable Data is Base64 in JSON. The keys are standardized absolute POSIX
+search paths. Only grants already awarded covering the project's source URLs are
+saved. An allocated directory is deduplicated and replaces redundant individual
+file bookmarks in the same directory. No broader directory access is
+automatically created. Old packages without the file will receive empty bookmark
+metadata and read as before. `project.json` and its formatVersion **10** is
+unchanged.
 
-Bookmarks är **app-scoped men lagras projektspecifikt i `.pw`**, inte i
-appinställningar. Apple document-scoped bookmarks kräver både filanchor och
-filtarget; de stöder inte katalogtargets. App-scoped bookmarks stödjer den
-begärda native katalogauktoriseringen och behöver bara befintlig app-scope-
-entitlement. Apple DTS-källa:
-https://developer.apple.com/forums/thread/798402?answerId=855880022
-Inget document-scope-entitlement eller tillfälligt sandboxundantag har införts.
+Bookmarks are **app-scoped but stored project specifically in `.pw`**, not in
+app settings. Apple document-scoped bookmarks require both file anchors and file
+targets; they do not support the catalog target. App-scoped bookmarks support
+the requested native catalog authorisation and only require existing app-scope
+entitlements. Apple DTS source:
+https://developer.apple.com/forums/thread/798402?answerId=855880022 No document
+scope entitlement or temporary sandbox suspension has been introduced.
 
-Vid dokumentläsning återställs **endast det öppnade projektets bookmarks** med
-`.withSecurityScope`, `.withoutUI` och startAccessingSecurityScopedResource,
-innan source images eller metadata används av previews. Resolved bookmarkdata
-återskapas i minnet och kan sparas vid nästa Save, inklusive stale refresh.
-En process kan förstås fortfarande ha åtkomst från redan öppnade projekt; macOS
-sandboxgrant är process-wide. Det är inte ett persistent globalt source-register.
+In document reading, only the open project bookmarks** with
+`.withSecurityScope`, `.withoutUI` and startAccessingSecurityScopedResource are
+restored before source images or metadata are used by previews. Resolved
+bookmark data is recovered in memory and can be saved at the next Save,
+including stale refresh. Of course, a process can still be accessed from
+projects that have already been opened; macOS sandboxgrant is process-wide. It's
+not a persistent global source registry.
 
-Alla projektsources kontrolleras med riktig FileHandle-open/read. Permissionfel
-samlas för hela projektet innan NSOpenPanel visas direkt med den förväntade
-parentkatalogen. Panelens Grant Access är användarens bekräftelse. Efter varje
-kataloggrant kontrolleras återstående sources; nästa nödvändiga katalog visas
-direkt utan ytterligare Grant Access-alert. En katalog som täcker flera originals
-eller subkataloger eliminerar deras ytterligare pickerbehov. Cancel avbryter.
-Övriga I/O-fel har vanlig felhantering. Nekad åtkomst ska inte radera referenser.
+All project sources are checked with real FileHandle-open/read. Permission
+errors are collected for the entire project before NSOpenPanel appears directly
+with the expected parent catalog. Grant Access of the panel is user
+confirmation. After each grant, the remaining sources are checked; the next
+necessary directory is displayed immediately without any additional Grant Access
+alerts. A directory covering several originals or subcategories eliminates their
+additional picker needs. Cancellation is off. Other I/O-fel have common error
+handling. Refused access shall not delete references.
 
-Grants blir optional metadata i dokumentets working state och gör dokumentet
-osparat tills Save. Save skriver metadata tillsammans med oförändrat övrigt
-projekttillstånd. Save As inkluderar samma relevanta app-scoped grants och kräver
-ingen document-anchor-rebind. Projektfönstrets sourceReloadRevision startar om
-befintliga previews efter lyckad resolution. Revert följer samma läs-/recoveryväg.
+Grants become optional metadata in the document's working state and make the
+document unsecured until Save. Save enters metadata together with unchanged
+other project permissions. Save As includes the same relevant app-scoped grants
+and does not require document anchor rebound. Project window
+sourceReloadRevision starts with existing previews after successful resolution.
+Revert follows the same read and recovery path.
 
-En app-scoped bookmark är knuten till appens signeringsidentitet och lokala
-filsystem. Ingen garanti om åtkomst efter flytt till annan dator/användare/annan
-signeringsidentitet, eller externa file moves/stale-situationer som inte testats.
-Otillgängliga grants kan återställas via samma recovery. Projektmetadata innehåller
-inte source image bytes och duplicerar/flyttar aldrig original.
+An app-scoped bookmark is linked to the app's signature identity and local file
+system. No guarantee of access after migration to another computer, user, or other
+signature identity, or external files moves/stale-situationer that have not been
+tested. Unused grants can be recovered through the same recovery. Project
+metadata does not contain source image bytes and duplicerar/flyttar never
+original.
 
-Jämförelse mot facit: **36 gamla Swift-filer migrerade**, varav 32 är
-byte-identiska. De fyra med nödvändiga anpassningar är:
+Comparison to facit: **36 old Swift files migrated**, of which 32 are
+byte-identical. The four necessary adjustments are:
 
-1. PanoramaWelcomeView.swift — Bundle.main för resurser.
-2. ImageImportService.swift — behåll security-scoped originalbildsåtkomst.
-3. PanoProjectDocument.swift — återställ sparad åtkomst innan missing-file-logik.
-4. PanoWizardApp.swift — resolution i dokumentfönstrets livscykel och tydligt fel.
+1. PanoramaWelcomeView.swift — Bundle.main for resources
+2. ImageImportService.swift — maintain the security-scoped original image
+   resolution.
+3. PanoProjectDocument.swift — Restore saved access before missing-file logic.
+4. PanoWizardApp.swift — Resolution in the document window lifecycle and clearly
+   error.
 
-**Avsiktliga skillnader från gamla appen:** legacy-projekt utan tidigare sparade
-åtkomstgrants kan behöva användarvald Grant Access för externa original. Ingen
-mappdialog visas automatiskt för läsbara projekt. Sandboxen och lowercase bundle-ID ger
-separata apppreferenser; gammal API-nyckel och UI-preferenser importeras inte
-automatiskt. API-nyckeln anges i samma befintliga dialog. Ingen ny nyckellagrings-
-lösning eller automatisk kopiering av känsliga inställningar har införts.
+** Intentional differences from the old app:** legacy projects without
+previously saved access grants may require user choice Grant Access for external
+originals. No folder dialog is automatically displayed for readable projects.
+The sandbox and lowercase bundle ID provide separate app references; old API
+keys and UI preferences are not automatically imported. The API key is specified
+in the same existing dialog. No key-locking solution or automatic copying of
+sensitive settings has been introduced.
 
-## Applikationsbeteende och invariants från facit
+## Application behavior and baseline invariants
 
-Behåll befintlig implementation av:
+Preserve the existing implementation of:
 
-- En komplett överlappande horisontell fisheye-ring för 360° × 180°, inte multi-row.
-- Delade kamera-/linsparametrar, separata repair images och optimerad geometri.
-- Originalorientering med ImageIO följt av användarens quarter turns.
-- Röda alpha-baserade exklusionsmasker och gröna seam-priority-masker.
-- SIFT, rotation RANSAC, robust kamera/linsoptimering, horisontnivellering,
-  spherical warp, radiometri, GraphCut/ägarskap, seam-korrigering och blending.
-- Alpha-bevarande 2:1 PNG internt; transparenta pixlar är saknad täckning,
-  ogenomskinligt svart är vanligt bildinnehåll.
-- Panorama-preview, identisk drag/scroll/Command-zoom-navigation och maskverktyg.
-- Manuella och AI-retouch patches med befintlig skapande-/redigeringslivscykel;
-  patches påverkar inte stitchningsgeometrin. Nyare patch ligger ovanpå äldre.
-- Befintlig alpha-härledd redigerbar AI-mask, prompt och sparade resultat.
-- Globala icke-destruktiva justeringar efter retouch, gemensamma för preview/export.
-- Little Planet stereografisk projektion med befintlig center/rotation/resize.
-- JPEG, PNG och självständig HTML-export med samma implementation.
-- Dokument-, Save/Save As/Revert-/stängningslivscykel, menyer, genvägar och filhantering.
-- Engelskt gränssnitt och befintlig design; ingen ny språkväxlare eller UI-redesign.
-- Produktionsmotorn läser bara uttryckligen valda original och masker.
-  Ingen automatisk bildsökning eller fallberoende specialkod.
-- Cacheformatnycklar och kopplade matematiska parametrar får inte ändras vid
-  orelaterad migration, namnändring eller cleanup.
+- One complete overlapping horizontal fisheye ring covering 360° × 180°,
+  with no multi-row stitching.
+- Shared camera and lens parameters, separate repair images, and optimized
+  geometry.
+- Original orientation through ImageIO followed by the user's quarter turns.
+- Red alpha-based exclusion masks and green seam-priority masks.
+- SIFT, rotation RANSAC, robust camera and lens optimization, horizon
+  leveling, spherical warping, radiometry, GraphCut ownership, seam
+  correction, and blending.
+- Internal 2:1 PNG with alpha preserved. Transparent pixels mean missing
+  coverage. Opaque black is ordinary image content.
+- Panorama preview, identical drag, scroll, and Command-zoom navigation,
+  and masking tools.
+- Manual and AI retouch patches with the existing creation and editing
+  lifecycle. Patches do not affect stitching geometry. Newer patches are
+  placed above older ones.
+- The existing editable, alpha-derived AI mask, prompt, and saved results.
+- Global non-destructive adjustments after retouch, shared by preview and
+  export.
+- Little Planet stereographic projection with the existing center, rotation,
+  and resizing.
+- JPEG and PNG output and self-contained HTML export with the existing
+  implementation.
+- Document, Save, Save As, Revert, and close behavior, menus, shortcuts,
+  and file handling.
+- The English interface and existing design, without introducing a language
+  switcher or redesigning the UI.
+- The production engine reads only explicitly selected originals and masks.
+  It does not automatically look for images or use case-specific code.
+- Cache format keys and associated mathematical parameters may not change
+  during unrelated migration, renaming, or cleanup.
 
-Den gamla `best-ever`-taggen är referens för visuellt verifierade panoramor A–S.
-En lyckad kompilering eller ett syntetiskt test bevisar inte samma visuella
-resultat för dessa verkliga fotopanorama. Ingen A–S-körning gjordes i migrationen.
+The old `best-ever` tag is the reference for visually verified panoramas A–S.
+A successful build or synthetic test does not establish identical visual
+results for these real panoramas. A–S were not run during the migration.
 
-## Lokal Build-mapp
+## Local Build map
 
-Xcodes vanliga `CONFIGURATION_BUILD_DIR` är satt på projektnivå till
-`$(HOME)/Library/Developer/Xcode/PanoWizardBuilds/$(CONFIGURATION)`.
-Repositoryts Git-ignorerade `Build` är en lokal symlink till
-`~/Library/Developer/Xcode/PanoWizardBuilds`. Apparna nås därför som
-`Build/Debug/PanoWizard.app` respektive `Build/Release/PanoWizard.app`.
-Där finns senaste lyckade bygge per konfiguration. Ingen egen kopierings-,
-bundle- eller signeringsmekanism används; Xcode bygger och signerar normalt.
+The standard `CONFIGURATION_BUILD_DIR` of Xcodes is set at project level to
+`$(HOME)/Library/Developer/Xcode/PanoWizardBuilds/$(CONFIGURATION)`. The
+Git-ignored `Build` of the repository is a local symlink to
+`~/Library/Developer/Xcode/PanoWizardBuilds`. The applications are therefore
+accessed as `Build/Debug/PanoWizard.app` and `Build/Release/PanoWizard.app`.
+That's the latest successful build per configuration. No own copying, bundling
+or signing mechanism is used; Xcode builds and signs normally.
 
-Anledningen till den externa lagringen är att repositoryt ligger i iCloud Documents.
-Ett direkt appbygge under repositoryts Build fick FinderInfo/fileprovider-metadata
-av iCloud och Xcodes codesign avvisade det. Byggprodukterna måste därför hållas
-utanför iCloud. Release-bygget och `codesign --verify --deep --strict` lyckades efter denna ändring.
-På en ny checkout kan Build-länken återskapas till ovanstående
-lokala mapp; den maskinspecifika länken versionshanteras inte.
+The reason for the external storage is that the repository is in iCloud
+Documents. A direct app build under repository's Build got
+FinderInfo/fileprovider-metadata from iCloud and Xcodes code design rejected it.
+Therefore, the building products must be kept outside iCloud. The release
+building and `codesign --verify --deep --strict` succeeded after this change. On
+a new checkout, the Build link can be recreated to the above local folder; the
+machine-specific link version is not managed.
 
-## Bygga, testa och arkivera
+## Construction, testing and archiving
 
-Använd alltid det vanliga Xcode-projektet och delade PanoWizard-schemat. Exempel
-från repositoryroten:
+Always use the usual Xcode project and shared PanoWizard schema.
 
 ```sh
 xcodebuild -project PanoWizard/PanoWizard.xcodeproj \
@@ -1724,917 +1843,995 @@ xcodebuild -project PanoWizard/PanoWizard.xcodeproj \
   -archivePath /tmp/panowizard-migration.xcarchive archive
 ```
 
-PanoWizardTests är en native hosted test-target med originalets `@testable import`.
-OpenCVBridge bygger normalt som ett targetberoende. Testtarget och bridge använder
-SKIP_INSTALL och ska inte hamna som separata produkter i distributionsarkivet.
+PanoWizardTests is a native hosted test target with the original `@testable
+import`. OpenCVBridge normally builds as a target dependent. The test target and
+bridge shall use SKIP_INSTALL and shall not appear as separate products in the
+distribution archive.
 
-## Verifierat i migrationen
+## Verified in migration
 
-- Rena Debug- och Release-byggen lyckades.
-- Native Release-arkivering lyckades.
-- Samtliga 54 befintliga testfall i 13 suites rapporterade godkänt. De omfattar
-  projektdokument, metadata/orientering, gruppering, native bridge-validering,
-  syntetiskt 2:1-panorama och cacheåteranvändning, maskdispatch, retouch,
-  patchredigering, justeringar, Little Planet, spherical math, UI-interaktionsmath
-  och OpenAI request/response-hantering.
-- Testet `panoramaFixture` returnerar utan arbete om
-  `PANOWIZARD_PANORAMA_PROJECT` saknas. Det var inte konfigurerat här;
-  de 54 rapporterade testen betyder därför inte att ett riktigt fotoprojekt testats.
-- Tester kördes efter de slutliga kodanpassningarna.
-- Originalets C++-motor/header är byte-identiska. Testfilerna var ursprungligen
-  identiska; ImageMetadataReaderTests har senare fått faktisk filskapning i
-  importfixture och kontroll av bookmarkfel enligt senaste filåtkomstuppgiften.
-- Originalets resurser, licenser och Vendor-bibliotek har jämförts; alla
-  transitiva bibliotek finns i den byggda appen utan externa Vendor-runtimekrav.
-- `codesign --verify --deep --strict` godkände appen; signerade sandboxentitlements
-  och Info.plist/UTI/kategori kontrollerades.
-- Appikonen har erforderlig kompilerad 1024×1024-representation.
-- Den signerade sandboxade Release-appen startades och provades via macOS-UI.
-  Välkomstvy, originalbildens thumbnail och spherical preview visades.
-- Ett enbart syntetiskt format-10-projekt öppnades med den nya mappdialogen.
-  Save As sparade `.pw`, relativ källbildssökväg och panorama bytes oförändrat.
-- Appen avslutades/startades om och det sparade projektet öppnades utan en ny
-  mappauktorisering; originalbild och preview fanns kvar.
-- JPEG och PNG exporterades i 1024×512; HTML innehöll sin inbäddade bild.
-  Little Planet-dialog och PNG-export fungerade (512×512 för testpanoramat).
-- Move Source File to Trash lyckades för den egna syntetiska testbilden.
-  Inga gamla projektbilder användes för denna destruktiva teståtgärd.
-- Gamla repositoryts filinnehåll är oförändrat enligt före/efter-manifest.
-- Enda varningen i slutliga appbyggen/arkivering är Xcodes metadata extraction
-  skipped för saknad AppIntents.framework, som också fanns i grundprojektet.
+- The pure Debug and Release build was successful.
+- The Native Release filing was successful.
+- All 54 existing test cases in 13 suites reported approved. They include
+  project documents, metadata/orientering, grouping, native bridge validation,
+  synthetic 2:1 panorama and cache reuse, mask dispatch, retouch, patch editing,
+  adjustments, Little Planet, spherical math, UI interaction math and OpenAI
+  request/response-hantering.
+- The test `panoramaFixture` returns without work if
+  `PANOWIZARD_PANORAMA_PROJECT` is missing. It wasn't configured here; the 54
+  tests reported, therefore, don't mean that a real photographic project was
+  tested.
+- Tests were done after the final kidney transplants.
+- The C++-motor/header of the original is byte-identical. The test files were
+  originally identical; ImageMetadataReaderTests has subsequently been given
+  actual file creation in import fixture and check for bookmark errors according
+  to the latest file access task.
+- Resources, licenses and Vendor libraries of the original have been compared;
+  all transitive libraries are available in the built-in app without external
+  Vendor runtime requirements.
+- `codesign --verify --deep --strict` approved the app; signed sandbox entries
+  and Info.plist/UTI/kategori checked.
+- The apicon has the required compiled 1024×1024 representation.
+- The signed sandboxed Release app was launched and tested via macOS-UI. Welcome
+  view, thumbnail of the original image and spherical preview were shown.
+- A single synthetic format-10 project was opened with the new folder dialog.
+  Save As saved `.pw`, relative source image search path and panorama changed
+  unchanged.
+- The app avslutades/startades about and the saved project was opened without a
+  new folder authorization; original image and preview remained.
+- JPEG and PNG were exported in 1024×512; HTML contained its embedded image.
+  Little Planet dialogue and PNG export worked (512×512 for test panorama).
+- Move Source File to Trash succeeded for its own synthetic test image. No old
+  project images were used for this destructive test measure.
+- The file content of the old repository is unchanged according to
+  before-and-after manifest.
+- The only warning in final appbyggen/arkivering is that Xcode's metadata
+  extraction was skipped for missing AppIntents.framework, which was also
+  included in the basic project.
 
-Initialt uppstod C++-länkningsproblem (library search path och libc++) som löstes
-med vanliga build settings. Ett testförsök hade överblivna Xcode-testframework-
-signeringsfiler från ett avbrutet bygge; ett rent testbygge löste det. Inga
-signeringsskript eller undantag infördes för detta.
+Initially, C++ linking problems (library search path and libc++) arose that were
+solved with regular build settings. One test had surviving Xcode test frame
+signature files from a discontinued build; a clean test build solved it. No
+signature scripts or exceptions were introduced for this purpose.
 
-Lokala verifieringsloggar finns i `/tmp/panowizard-migration-debug.log`,
-`/tmp/panowizard-migration-release.log`, `/tmp/panowizard-migration-final-tests.log`
-och `/tmp/panowizard-migration-archive.log`. Testresultat finns i
-`/tmp/panowizard-migration-final-tests.xcresult`. Dessa är temporära och ingår
-inte i repositoryt. UI-provningens syntetiska filer låg under
-`/tmp/panowizard-migration-fixture` och är inte produktresurser.
+Local verification logs are found in `/tmp/panowizard-migration-debug.log`,
+`/tmp/panowizard-migration-release.log`,
+`/tmp/panowizard-migration-final-tests.log` and
+`/tmp/panowizard-migration-archive.log`. Test results are provided in
+`/tmp/panowizard-migration-final-tests.xcresult`. These are temporary and not
+included in the repositories. The synthetic files of the UI test were below
+`/tmp/panowizard-migration-fixture` and are not product resources.
 
-## Historik: första runtime-regressionen och tidigare legacy-workaround
+## History: first runtime regression and previous legacy workaround
 
-Detta avsnitt beskriver en tidigare implementation/verifiering. Mappdialogen
-togs senare bort enligt avsnittet om nya projekts bokmärken nedan.
+This section describes an earlier implementation/verifiering. The map dialogue
+was later removed as set out in the section on new project bookmarks below.
 
-Efter migrationen rapporterade användaren att ett befintligt `.pw`-projekt öppnas
-med rätt bildnamn/dimensioner men visar ”The Image Could Not Be Read”. Felet
-reproducerades i den vanliga signerade Release-appen med
-`/Users/magnus/Desktop/Panorama/E/panowizard.pw`, format 10 och åtta externa PNG-filer.
+After the migration, the user reported that an existing `.pw` project is opened
+with the correct bildnamn/dimensioner but shows ”The Image Could Not Be Read”.
+The error was reproduced in the commonly signed Release app with
+`/Users/magnus/Desktop/Panorama/E/panowizard.pw`, format 10 and eight external
+PNG files.
 
-Projektpaketet lagrar metadata och källbilds-URL:er i `project.json`. Originalen
-är inte inbäddade. Den gamla skrivaren gör URL:erna relativa till mappen som
-innehåller `.pw`-paketet (även `..` kan förekomma); den gamla läsaren stödjer även
-absoluta file-URL:er och fallback till samma filename bredvid paketet. E-projektet
-refererar exempelvis till `2009-06-25%2014-53-14.png` bredvid paketet, med URL-
-avkodning till filnamnet med mellanslag. Inbäddat panorama/masker är separata
-resurser i paketet. Bildlistans metadata visar inte att externa bildbytes går att
-läsa. SourceImageRaster är oförändrad och använder ImageIO direkt på källbildens URL.
+The project package stores metadata and source image URLs in `project.json`. The
+original isn't embedded. The old printer makes the URLs relative to the folder
+containing the `.pw` package (although `..` may exist); the old reader also
+supports absolute file URLs and fallbacks to the same filename next to the
+package. For example, the e-project refers to `2009-06-25%2014-53-14.png` next
+to the package, with URL decoding for the file name in the middle. Embedded
+panorama/masker are separate resources in the package. The metadata of the image
+list does not show that external image exchanges are readable. SourceImageRaster
+is unchanged and uses ImageIO directly on the source image URL.
 
-Rotorsak i migrationens åtkomstkod: SourceFileAccess kunde returnera utan ett
-riktigt åtkomstgrant efter `isReadableFile`, inklusive bara kontroll av parent-
-mappen. Filmetadata/permission bits och åtkomst till `.pw` ger inte sandboxrätt
-att öppna de externa originalen. Därmed uteblev den nödvändiga mappdialogen.
-Dessutom kunde källvyns `.task(id: image)` redan ha sparat en misslyckad läsning
-innan åtkomst gavs; samma bildvärde startade inte om den läsningen.
+Rotor reason in the migration access code: SourceFileAccess could return without
+a real access grant after `isReadableFile`, including only control of parent
+folders. Filmetadata/permission bits and access to `.pw` do not give sandbox
+rights to open the external originals. This meant that the necessary folder
+dialogue was missing. In addition, the source code `.task(id: image)` could have
+already saved a failed reading before access was granted; the same image value
+did not start with that reading.
 
-Den smala korrigeringen ändrar två produktionsfiler:
+The narrow correction changes two production files:
 
-- `Services/SourceFileAccess.swift`: kontrollera faktisk filöppning och läs en
-  byte med FileHandle i stället för metadata-baserad `isReadableFile`.
-  Vid nekad åtkomst används samma native NSOpenPanel för källmappen, samma
-  app-scoped bookmarklagring och samma aktiva security-scoped åtkomst. Efter
-  valet verifieras en faktisk källfilsöppning. En fil räknas som saknad först när
-  parent faktiskt kan listas och filnamnet saknas, så nekad åtkomst inte tar bort
-  källbildsreferenser. Ingen auto-import av andra bilder från mappen införs.
-- `Application/PanoWizardApp.swift`: resolution avslutas först efter att åtkomst
-  och modell är färdiga (`defer`), och ContentView får ny identitet när
-  resolutionen avslutas. Det startar om befintliga source/thumbnail-läsningar
-  efter åtkomstgrant utan ändring av bildloader eller UI-design.
+- `Services/SourceFileAccess.swift`: check the actual file opening and read a
+  change with FileHandle instead of metadata-based `isReadableFile`. For denied
+  access, the same native NSOpenPanel is used for the source folder, the same
+  app-scoped bookmark storage and the same active security-scoped access. After
+  the elections, an actual opening of sources is verified. A file is considered
+  missing only when the parent can actually be listed and the file name is
+  missing, so denied access does not remove source image references. No
+  automatic import of other images from the folder is entered.
+- `Application/PanoWizardApp.swift`: resolution is terminated only after access
+  and model are complete (`defer`), and ContentView gets a new identity when the
+  resolution is terminated. It restarts from the existing
+  source and thumbnail reads after access without changing image loads or UI
+  design.
 
-Ingen ändring av `.pw`-format, URL-format, metadata, sparare, ImageIO-loader,
-algoritmer, entitlements eller App Sandbox. Gamla format-10-projekt behöver inte
-skrivas om; åtkomstgrant lagras i appens egna preferenser. Övriga äldre
-projektformat omfattas fortfarande av facits befintliga versionspolicy.
+This is not the case with `.pw` format, URL format, metadata, savers, ImageIO
+loaders, algorithms, entitlements or App Sandbox. Old format-10 projects do not
+need to be rewritten; access grants are stored in the app's own preferences.
+Other older project formats are still subject to the existing version policy of
+Facet.
 
-Verifiering efter korrigering:
+Verification after correction:
 
-- Riktiga E-projektet öppnades i vanlig Release-app: en mappauktorisering,
-  därefter synliga thumbnails och läsbara originalbilder, samtliga åtta valda
-  genom UI utan bildläsningsfel. Första bildens riktiga pixels/mask visades visuellt.
-- Efter avslut utan sparning och full omstart öppnades samma projekt utan ny
-  mappfråga; originalbildsläsningen fungerade igen.
-- SHA-256 före/efter bekräftade oförändrat project.json och alla åtta externa PNG-filer.
-- Release-bygge och normal Debug-build lyckades. App Sandbox och app-scoped
-  bookmarks är fortsatt aktiva; vanliga appbyggen har ingen full-filsystemexception.
-- 56 tester i 14 suites passerade, inklusive de gamla 54 och två nya fokuserade
-  tester för faktisk filöppning respektive en katalog som inte är källbildsinnehåll.
-- Viktig testgräns: Xcode lägger automatiskt till en test-only read-only exception
-  för `/` i den hosted test-appen. Hosted tester bevisar därför inte sandboxens
-  nekade filåtkomst. Ett tillfälligt test av sådan nekad åtkomst visade detta och
-  togs bort. Runtime-verifieringen ovan gjordes i den normala Release-appen med
-  dess ordinarie, kontrollerade entitlements, utan denna exception.
+- The real E-project was opened in the regular Release app: a folder
+  authorization, followed by visible thumbnails and readable original images,
+  all eight selected through UI without image reading error. The actual
+  pixels/mask of the first image was displayed visually.
+- After closing without savings and full restart, the same project was opened
+  without a new folder issue; the original image reading worked again.
+- SHA-256 before and after confirmed unchanged project.json and all eight external PNG
+  files.
+- Release build and normal Debug build succeeded. App Sandbox and app-scoped
+  bookmarks are still active; regular app builders have no full file system
+  exception.
+- 56 tests in 14 suites were passed, including the old 54 and two new focused
+  tests for actual file opening respectively a catalogue that is not source
+  image content.
+- Important test limit: Xcode automatically adds a test-only read-only exception
+  to `/` in the hosted test app. Hosted tests therefore do not prove denied file
+  access to the sandbox. A temporary test of such denied access showed this and
+  was removed. The above runtime verification was performed in the normal
+  Release app with its regular, controlled entitlements, without this exception.
 
-Loggar: `/tmp/panowizard-source-access-release.log`,
-`/tmp/panowizard-source-access-debug.log`, `/tmp/panowizard-access-final-tests.log`.
-Resultatbundle: `/tmp/panowizard-access-final-tests.xcresult`.
-Inget committat, taggat eller pushat.
+Logs: `/tmp/panowizard-source-access-release.log`,
+`/tmp/panowizard-source-access-debug.log`,
+`/tmp/panowizard-access-final-tests.log`. Result bundle:
+`/tmp/panowizard-access-final-tests.xcresult`. Nothing committed, tagged or
+pushed.
 
-## Historik: nya projekts filbookmarks — verifiering 2026-10-05
+## History: new project file bookmarks — verification 2026-10-05
 
-Denna verifiering gäller första versionen utan recovery. Den senare,
-uttryckligen användarvalda Grant Access-recoveryn beskrivs nedan.
+This verification applies to the first version without recovery. The latter,
+explicitly user-selected Grant Access recovery is described below.
 
-Användaren accepterar inte extra mappval och har uttryckligen slopat krav på
-legacy-filåtkomst. Den tidigare legacy-mappworkarounden är borttagen. App-scoped
-bookmarks från uttryckligt bildval räcker för begärt flöde utan formatändring.
-Inga source images kopieras, dupliceras eller flyttas till projektpaketet.
+The user does not accept additional folder selection and has expressly waived
+legacy file access requirements. The previous legacy map workaround has been
+removed. App-scoped bookmarks from explicit image selection are sufficient for
+requested flow without format change. No source images are copied, duplicated or
+moved to the project package.
 
-Ändrade produktionsfiler i denna uppgift:
+Modified production files in this task:
 
-- SourceFileAccess: ta bort NSOpenPanel/AppKit/mappgrant; låt bookmarkskapande
-  kasta fel i stället för att tyst ignorera det; balansera åtkomst om lagringen
-  misslyckas. Restore använder sparade grants utan UI.
-- ImageImportService: acceptera endast bilder vars bookmark sparats framgångsrikt.
-- PanoProjectDocument: hantera throws från dokument-URL:ens befintliga retain.
-- PanoWizardApp: återställ grants innan initiala källpreviews startar.
+- SourceFileAccess: remove NSOpenPanel/AppKit/mappgrant; let the bookmark
+  creator throw out errors instead of silently ignoring it; balance access if
+  storage fails. Restore uses savings grants with no UI.
+- ImageImportService: accept only images whose bookmarks have been successfully
+  saved.
+- PanoProjectDocument: manage throws from the existing retain of the document
+  URL.
+- PanoWizardApp: restore grants before the initial source previews start.
 
-Runtime verifierades i normal signerad Release-app utan testhostens breda
-filåtkomst. Tre nya syntetiska 640×320 PNG-bilder låg utanför sandboxcontainern i
-`/Users/magnus/PanoWizardBookmarkVerification-20261005`: två i `Sources`, en i
-`Added`. Projekt skapades med normalt Choose Source Images, tredje bilden lades
-till via Add från den andra katalogen, och Save sparade
-`Projects/BookmarkWorkflow.pw` i en separat katalog. Ingen överordnad mappgrant
-valdes. UserDefaults innehöll tre individuella filbookmarks (852–856 bytes).
-Paketet innehöll endast project.json och maskkataloger, inga originalbilder.
+Runtime was verified in the normal signed Release app without broad file access
+from the test host. Three new synthetic 640×320 PNG images were located outside
+the sandbox container in
+`/Users/magnus/PanoWizardBookmarkVerification-20261005`: two in `Sources`, one
+in `Added`. Projects were created using normal Choose Source Images, the third
+image was added via Add from the second directory, and Save saved
+`Projects/BookmarkWorkflow.pw` to a separate directory. No senior portfolio
+grant was selected. UserDefaults contained three individual file bookmarks
+(852–856 bytes). The package contained only project.json and mask catalogues, no
+original images.
 
-Release-processen avslutades med Quit och kontrollerades vara borta innan
-omstart. Efter relaunch öppnades bara `.pw` via Open Panorama. Alla tre thumbnails
-och individuellt valda bilder laddades utan ny åtkomst-/mappdialog eller bildfel.
-Bildpixels verifierades visuellt. Originalen ligger kvar på ursprungliga platser.
+The release process was completed with Quit and verified to be gone before
+restart. After the relaunch only `.pw` was opened via Open Panorama. All three
+thumbnails and individually selected images were uploaded without any new
+access and folder dialog or image errors. The image pixel was verified visually. The
+original remains in its original location.
 
-Debug- och Release-build lyckades. App Sandbox och app-scope bookmarks är
-aktiverade i signerad vanlig Release-app; inga filesystem exceptions infördes.
-Loggar: `/tmp/panowizard-bookmarks-debug.log`,
-`/tmp/panowizard-bookmarks-release.log`, `/tmp/panowizard-bookmarks-tests.log`.
-Slutlig testslogg: `/tmp/panowizard-bookmarks-final-tests.log`.
-Testresultat: `/tmp/panowizard-bookmarks-final-tests.xcresult`.
-Samtliga 56 tester i 14 suites passerade. Första körningen upptäckte en gammal
-importfixture med endast påhittade URL:er och stubbad metadata; scoped bookmarks
-kräver faktiska filer. Testet skapar nu filer för stubben och verifierar även att
-icke-existerande filer med bookmarkfel inte importeras. Den valfria panoramaFixture
-hade ingen PANOWIZARD_PANORAMA_PROJECT och körde därför inte en verklig stitchfixture.
-Vanlig Debug-app byggdes rent igen efter testkörningen så testhostens tillfälliga
-filesystem exception inte finns kvar i senaste Debug-produkt.
-Inget committat, taggat eller pushat. Gamla repositoryt har inte ändrats.
+Debug and Release build worked. App Sandbox and app-scope bookmarks are enabled
+in the signed regular Release app; no file system exceptions were introduced.
+Logs: `/tmp/panowizard-bookmarks-debug.log` the following points are added:
+`/tmp/panowizard-bookmarks-release.log` the following points are added:
+`/tmp/panowizard-bookmarks-tests.log` I'm not going to. Final test log:
+`/tmp/panowizard-bookmarks-final-tests.log`. Test results:
+`/tmp/panowizard-bookmarks-final-tests.xcresult`. All 56 tests in 14 suites
+passed. The first run detected an old import fixture with only invented URLs and
+stubborn metadata; scoped bookmarks require actual files. The test now creates
+files for the column and also verifies that non-existent files with bookmark
+errors are not imported. The optional panoramaFixture had no
+PANOWIZARD_PANORAMA_PROJECT and therefore did not run a real stitchfixture. The
+usual Debug app was built cleanly after the test run so the temporary file
+system exception of the test host is not left in the latest Debug product.
+Nothing committed, tagged or pushated. The old repository hasn't changed.
 
-## Historik: Recoverable Grant Access via apppreferenser — verifiering 2026-10-05
+## Recoverable Grant Access through app references — verification 2026-10-05
 
-Denna version ersattes av projektmetadata och ett enda alertflöde enligt nedan.
+This version was replaced by project metadata and a single alert stream as shown
+below.
 
-Aktuell permission-recovery ersätter den tidigare återvändsgränden:
+Current permission recovery replaces the previous limit of return:
 
 - Titel: **Could Not Read Source Images**.
 - Text: **PanoWizard needs permission to access the source images for this project.**
-- Knappar: **Cancel** och **Grant Access**.
-- Grant Access öppnar NSOpenPanel som sheet med endast katalogval, initialt
-  `sourceURL.deletingLastPathComponent()`. Panelen visas först efter att alerten
-  stängts, och endast efter användarens uttryckliga val.
-- Vald katalog behålls security-scoped och sparas som app-scoped bookmark via
-  befintlig SourceFileAccess. Samtliga projektreferenser läses om direkt.
-- Om nästa permissionfel gäller en annan katalog visas samma recovery för den
-  katalogen. Ingen individuell filauktorisering efterfrågas.
-- Lyckad resolution återställer dokumentmodellen och ändrar ContentViews
-  reloadrevision så tidigare misslyckade thumbnails/previews laddas igen.
-- Cancel i alert eller panel avbryter recovery utan ändring av original/projekt.
-- Revert använder samma permission-recovery. Andra fil-/sparfel har kvar vanlig
-  felhantering och OK-knapp.
+- Button: Cancel and Grant Access.
+- Grant Access opens NSOpenPanel as a sheet with only catalog selection,
+  initially `sourceURL.deletingLastPathComponent()`. The panel shall be
+  displayed only after the alert has been closed, and only at the user's express
+  choice.
+- The selected directory is kept security-scoped and saved as an app-scoped
+  bookmark via existing SourceFileAccess. All project references are read
+  directly.
+- If the next permission error is a different directory, the same recovery will
+  appear for that directory. No individual file authorisation is required.
+- Successful resolution restores the document model and changes ContentView's
+  reloadrevision so previously unsuccessful thumbnails/previews recharges.
+- Cancel in alert or panel interrupts recovery without changing
+  original/projekt.
+- Revert is using the same permission recovery. Other fil-/sparfel still have
+  normal error handling and OK button.
 
-Ändrade produktionsfiler: SourceFileAccess.swift och PanoWizardApp.swift.
-SourceFileAccess returnerar ett typat PermissionRequired med URL till nekad
-källbild. En verklig FileHandle-read skiljer permissionfel från övriga I/O-fel;
-Cocoa read/write-no-permission och POSIX EACCES/EPERM stöds. Runtime visade att
-macOS rapporterade den nekade läsningen med Cocoa write-no-permission och en
-missvisande "permission to save"-text; detta hanteras också av den nya recoveryn.
-Bekräftat saknade filer följer fortfarande befintlig missing-file-policy.
+Modified production files: SourceFileAccess.swift and PanoWizardApp.swift.
+SourceFileAccess returns a type of PermissionRequired with URL to the rejected
+source image. A real FileHandle read separates permission errors from the rest
+of I/O-fel; Cocoa read/write-no-permission and POSIX EACCES/EPERM are supported.
+Runtime showed that macOS reported the denied reading with Cocoa
+write-no-permission and a misleading "permission to save" text; this is also
+handled by the new recover. Confirmed missing files still follow the existing
+missing file policy.
 
-Verifierat i vanlig signerad sandboxad Release-app:
+Verified in the commonly signed sandboxed Release app:
 
-1. Ny syntetisk format-10-fixture, `PanoWizardRecoveryVerification-20261005`, med
-   tre externa PNG-bilder: två i Sources, en i Added; `.pw` i separat Projects.
-   Katalogerna hade inte tidigare valts eller fått bookmarks.
-2. Öppning av `Projects/Recovery.pw` gav exakt text och Cancel/Grant Access-knappar.
-3. Grant Access öppnade native panelen direkt i Sources, med bildfiler disabled.
-   Ett kataloggrant täckte båda dess bilder. Retry hittade nästa nekade katalog.
-4. Nästa Grant Access öppnade direkt i Added. Efter dess katalogval försvann
-   felet och alla tre thumbnails och källbildspreviews laddades.
-5. Appen avslutades helt med Quit; Release-processen kontrollerades vara borta.
-   Efter relaunch öppnades samma `.pw` utan ny permissionalert eller mappanel.
-   Samtliga tre källor gick att välja utan bildfel; bildpixels verifierades visuellt.
-6. UserDefaults innehåller katalogbookmarks för Sources och Added (740 bytes
-   vardera), inte individuella recovery-filgrants. SHA-256 före/efter bekräftade
-   oförändrat project.json och alla tre externa original. Paketet innehåller
-   fortfarande bara project.json; inga bildkopior eller formatändringar infördes.
+1. New synthetic format-10 fix, `PanoWizardRecoveryVerification-20261005`, with
+   three external PNG images: two in Sources, one in Added; `.pw` in separate
+   Projects. The catalogues had not been selected or bookmarked before.
+2. Opening `Projects/Recovery.pw` gave exact text and Cancel/Grant Access
+   buttons.
+3. Grant Access opened the native panel directly in Sources, with image files
+   disabled. A catalog box covered both of its pictures. Retry found the next
+   denied catalog.
+4. The next Grant Access opened right in Added. After its catalog selection, the
+   error disappeared and all three thumbnails and source image spreads were
+   uploaded.
+5. The app was completely shut down with Quit; the Release process was checked
+   to be gone. After the relaunch, the same `.pw` was opened without a new
+   permission list or folder panel. All three sources could be selected without
+   image error; image pixels were verified visually.
+6. UserDefaults contains directory bookmarks for Sources and Added (740 bytes
+   each), not individual recovery file grants. SHA-256 before and after confirmed
+   unchanged project.json and all three external originals. The package still
+   contains only project.json; no photocopies or format changes were made.
 
-Release och rent vanligt Debug-build lyckades. Codesign och ordinarie
-sandbox/bookmark-entitlements verifierades; inga filesystem exceptions infördes.
-58 tester i 14 suites passerade, inklusive två nya fokuserade tester: verklig
-permission-denial identifierar sourceURL och bekräftat saknad fil ger inte en
-permission-recovery. Hosted test-appens breda test-only filåtkomst bevisar inte
-sandboxgrants; därför provades hela recoveryn i vanlig Release-app.
-Valfria riktiga panoramaFixture är fortsatt okonfigurerad. Cancel och felaktigt
-valt foldergrant har inte provats manuellt i denna runtime-verifiering.
+Release and the usual Debug build worked. Code design and ordinary
+sandbox/bookmark-entitlements were verified; no file system exceptions were
+introduced. 58 tests in 14 suites passed, including two new focused tests: real
+permission-denial identifies sourceURL and confirmed missing file does not
+provide a permission-recovery. The broad test-only file access of the hosted
+test app does not prove sandbox grants; therefore, the entire recovery was
+tested in a regular Release app. Optional real panoramaFixture is still
+unconfigured. Cancel and incorrectly selected foldergrant has not been manually
+tested in this runtime verification.
 
-Loggar: `/tmp/panowizard-recovery-release.log`,
-`/tmp/panowizard-recovery-debug.log`, `/tmp/panowizard-recovery-final-tests.log`.
-Resultat: `/tmp/panowizard-recovery-final-tests.xcresult`.
-Gamla repositoryt har inte ändrats. Inget committat, taggat eller pushat.
+Logs: `/tmp/panowizard-recovery-release.log` the following points are added:
+`/tmp/panowizard-recovery-debug.log` the following points are added:
+`/tmp/panowizard-recovery-final-tests.log` I'm not going to. The result:
+`/tmp/panowizard-recovery-final-tests.xcresult`. The old repository hasn't
+changed. Nothing committed, tagged or pushated.
 
-## Projektspecifika bookmarks och legacy-upgrade — verifiering 2026-10-05
+## Project-specific bookmarks and legacy upgrades — verification 2026-10-05
 
-Produktionsändringar begränsade till SourceFileAccess, PanoProjectDocument och
-ProjectDocumentView i PanoWizardApp. Optional metadata enligt schemat ovan är
-enda formatutökningen. Gamla appen ignorerar okända paketmedlemmar, men dess
-vanliga Save skulle inte bevara bookmarkmetadata; ny app behövs för sandbox-
-persistensen. Ursprungliga algoritmer, bildloader, resurser och UI är oförändrade
-utöver det begärda recoveryflödet.
+Production changes restricted to SourceFileAccess, PanoProjectDocument and
+ProjectDocumentView in PanoWizardApp. Optional metadata as shown in the table
+above is the only format extension. The old app ignores unknown package members,
+but its usual Save would not preserve bookmark metadata; a new app is needed for
+sandbox persistence. Original algorithms, image loaders, resources and UI are
+unchanged beyond the requested recovery flow.
 
-**Riktigt legacyprojekt U:** `/Users/magnus/Desktop/Panorama/U/panowizard.pw`.
-Innehåller nio externa 2000×3008 PNG-original, två exklusionsmasker, tre
-protection masks, panorama/result och två aktiva manuella retouchpatches.
-Backup av endast det befintliga projektpaketet finns i
-`/tmp/panowizard-legacy-U-before-project`; inga externa original kopierades.
-SHA-256-manifest för befintliga projekt-/bildfiler:
+**Really legacy project U:** `/Users/magnus/Desktop/Panorama/U/panowizard.pw`.
+Contains nine external 2000×3008 PNG originals, two exclusion masks, three
+protection masks, panorama/result and two active manual retouch patches. Backup
+of only the existing project package is available in
+`/tmp/panowizard-legacy-U-before-project`; no external originals were copied.
+SHA-256 manifest for existing projekt-/bildfiler:
 `/tmp/panowizard-legacy-U-before.json`.
 
-Vanlig signerad sandboxad Release-app verifierades via native UI:
+Commonly signed sandboxed Release app verified via native UI:
 
-1. Full processomstart före testet. Första Open av U utan bookmarkmetadata gav
-   exakt en Could Not Read Source Images / Grant Access-alert.
-2. Grant Access öppnade direkt i U. Ett native katalogval gav åtkomst till alla
-   nio original. Projekt öppnades utan fler pickerfrågor.
-3. Source pixels, befintlig grön protection-mask och senare röd exklusionsmask
-   verifierades visuellt; retouchlistan visade båda aktiva manuella patches.
-4. Vanlig Save lade till en source-access.json med en U-katalogbookmark.
-   **Alla befintliga filer, inklusive project.json, var byte-identiska före/efter.**
-   Detta verifierar bevarade inställningar/IDs/datum/metadata, mask- och
-   patchbytes, panorama, protected masks, samt alla externa original.
-5. Quit och kontroll att Release-processen verkligen försvann; relaunch och
-   Open av samma U gav varken alert eller folder picker. Alla nio sources valdes
-   individuellt utan bildfel; thumbnails/pixels/masker laddades.
-6. U-katalogens grant finns inte i gamla UserDefaults-bookmarkregistret. Kod läser
-   inte längre registret: persistensen kommer från projektets metadata.
+1. Full process restart before test. The first Open of U without bookmark
+   metadata gave an exact Could Not Read Source Images / Grant Access alert.
+2. Grant Access opened directly in U. A native catalog selection gave access to
+   all nine originals. Projects were opened without further questions.
+3. Source pixels, existing green protection mask and later red exclusion mask
+   were verified visually; the retouchlist showed both active manual patches.
+4. The usual Save added a source-access.json with a U-catalog bookmark. **All
+   existing files, including project.json, were byte-identical to before and after.**
+   This verifies the preserved settings, IDs, dates, and metadata, mask and
+   patchbytes, panorama, protected masks, as well as all external originals.
+5. Quit and check that the Release process really disappeared; relaunch and Open
+   of the same U gave neither alerts nor folder picks. All nine sources were
+   selected individually without image error; thumbnails/pixels/masker was
+   charged.
+6. The grant for the U-catalogue is not in the old UserDefaults bookmark
+   register. Code no longer reads the register: persistence comes from project
+   metadata.
 
-**Flera kataloger:** `PanoWizardRecoveryVerification-20261005/Projects/Recovery.pw`,
-tre syntetiska externa PNG-original (två Sources, en Added) utan metadata.
-Även här en initial alert; Grant Access startade Added-picker och därefter direkt
-Sources-picker, **utan en andra alert**. Sources valdes en gång för två filer.
-Save lagrade exakt två katalogbookmarks; alla befintliga fixturebytes var
-oförändrade. Efter full Quit/relaunch/Open laddades alla tre utan alert/picker.
-Paketet innehåller endast project.json + source-access.json, inga originalbilder.
+**Multiple directories:**
+`PanoWizardRecoveryVerification-20261005/Projects/Recovery.pw`, three synthetic
+external PNG originals (two Sources, one Added) with no metadata. Again, an
+initial alert; Grant Access started Added-picker and then directly
+Sources-picker, without a second alert. Sources was chosen once for two files.
+Save stored exactly two catalog bookmarks; all existing fixtures were unchanged.
+After full Quit/relaunch/Open all three were loaded without alert/picker. The
+package contains only project.json + source-access.json, no original images.
 
-Debug- och Release-build lyckades; normal Debug-app byggdes rent efter testerna.
-Codesign och signerade ordinarie sandbox/bookmark-entitlements verifierades.
-62 tester i 14 suites passerade. Fyra ytterligare tester täcker optional metadata
-med komplett projekt-/mask-/panorama-/retouch-roundtrip, legacy utan metadata,
-insamling av samtliga denied sources, och endast relevanta deduplicerade grants.
-Hosted test-only filesystem exception kan inte bevisa sandboxruntime, som därför
-provades i vanlig Release. Valfria real panoramaFixture är fortsatt okonfigurerad.
+Debug and Release build succeeded; normal Debug app was built after the tests.
+Codesign and signed ordinaries sandbox/bookmark-entitlements were verified. 62
+tests in 14 suites passed. Four additional tests cover optional metadata with
+complete projekt-/mask-/panorama-/retouch-roundtrip, legacy without metadata,
+collection of all denied sources, and only relevant deduplicated grants. Hosted
+test-only file system exception cannot prove sandbox runtime, which was
+therefore tested in regular Release. Optional real panoramaFixture is still
+unconfigured.
 
-Loggar: `/tmp/panowizard-project-bookmarks-release.log`,
-`/tmp/panowizard-project-bookmarks-debug.log`,
-`/tmp/panowizard-project-bookmarks-tests.log`.
-Testresultat: `/tmp/panowizard-project-bookmarks-tests.xcresult`.
-Gamla repositoryt är oförändrat. Endast det uttryckligen testade Desktop/U-projektet
-har uppgraderats med optional metadata; övrigt befintligt innehåll bevarades exakt.
-Inget committat, taggat eller pushat.
+Logs: `/tmp/panowizard-project-bookmarks-release.log` the following points are
+added: `/tmp/panowizard-project-bookmarks-debug.log` the following points are
+added: `/tmp/panowizard-project-bookmarks-tests.log` I'm not going to. Test
+results: `/tmp/panowizard-project-bookmarks-tests.xcresult`. The old repository
+is unchanged. Only the explicitly tested Desktop/U-projektet has been upgraded
+with optional metadata; other existing content was kept accurate. Nothing
+committed, tagged or pushated.
 
-## Kvarstående verifieringsgränser
+## Standing verification limits
 
-- Ingen ny App Store Connect Validation eller distribution har gjorts efter migrationen.
-- Ingen full visuell panorama-regression mot gamla appen/A–S. Extern källbildsläsning
-  i det riktiga E-projektet verifierades senare enligt avsnittet ovan.
-- Inget skarpt AI-bildanrop med API-nyckel; network.client och befintliga
-  request/response-tester är verifierade, inte tjänstens end-to-end-svar.
-- Hela manuella export/extern redigering/import-flödet provades inte genom UI;
-  dess implementation följer med och retouch-/patchredigeringstester passerar.
-- Alla möjliga filflyttar, volymer, behörighetsändringar och stale-bookmark-
-  situationer är inte manuellt testade. Otillgängliga grants rapporteras som fel;
-  användaren kan välja Grant Access för att återställa saknade grants.
-  Bookmarks lagras i projektet och är knutna till appidentitet/lokalt filsystem.
-  Överföring till annan dator/konto är inte verifierad. Apppreferenser behövs inte.
-- Inget Intel-stöd; originalets binära beroenden är arm64.
-- Inga kända avsiktligt borttagna funktioner. Dessa verifieringsgränser får inte
-  döljas eller ”lösas” genom att ta bort eller förenkla applikationsfunktioner.
+- No new App Store Connect validation or distribution has been made since the
+  migration.
+- No full visual panorama regression to the old appen/A–S. External source image
+  reading in the actual E-project was later verified as set out in the section
+  above.
+- No sharp AI image call with API key; network.client and existing
+  request/response-tester are verified, not end-to-end service response.
+- The entire manual export/extern editing and import workflow was not tested
+  through the UI; its implementation follows and retouch-/patchredigeringstester
+  passes.
+- All possible file moves, volumes, permissions changes and stale-bookmark
+  situations are not manually tested. Unavailable grants are reported as
+  incorrect; the user can choose Grant Access to recover missing grants.
+  Bookmarks are stored in the project and linked to appidentitet/lokalt file
+  systems. Transfer to another dator/konto is not verified. App preferences are
+  not necessary.
+- No Intel support; the original binary dependencies are arm64.
+- No known deliberately removed functions. These verification limits must not be
+  hidden or "disallowed" by removing or simplifying application functions.
 
-## Direkt native permission-picker — verifiering 2026-10-05
+## Direct native permission picker — verification 2026-10-05
 
-Den preliminära Could Not Read Source Images / Grant Access-alerten är borttagen.
-PermissionRequired startar befintlig folder recovery på nästa main-loop-varv.
-Bookmarkhantering, projektmetadata, retry och sekventiella folder grants är oförändrade.
-Övriga läsfel visar fortfarande vanlig fel-alert.
+The preliminary Could Not Read Source Images / Grant Access alert has been
+removed. PermissionRequired starts the existing folder recovery on the next
+main-loop port. Bookmark management, project metadata, retry and sequential
+folder grants are unchanged. Other reading errors still show common error
+alerts.
 
-Debug och Release byggde med BUILD SUCCEEDED; loggar:
-`/tmp/panowizard-direct-authorization-debug.log` och
-`/tmp/panowizard-direct-authorization-release.log`.
-Normal sandboxad Release-app verifierades med en ny testfixture:
+Debug and Release built with BUILD SUCCEEDED; logs:
+`/tmp/panowizard-direct-authorization-debug.log` and
+`/tmp/panowizard-direct-authorization-release.log`. Normal sandboxed Release app
+was verified with a new test fix:
 `/Users/magnus/PanoWizardDirectAuthorizationVerification-20261005/Projects/Direct.pw`.
-Tre externa PNG i två kataloger: öppning gick direkt till Added-katalogens native
-picker, därefter Sources-katalogens picker, utan app-alert mellan stegen. Samtliga
-bilder laddades. Save sparade två folder bookmarks i befintlig source-access.json
-version 1. SHA256 för alla fyra tidigare filer (tre originals och project.json)
-var oförändrade. Efter full quit (processen borta), relaunch och reopen laddades
-alla tre bilder utan alert eller folder picker. Ingen formatändring, ingen
-ändring av sandbox/capabilities. Befintliga tester kördes inte om för denna
-UI-ändring; föregående körning hade 62 godkända tester. Inget commit/tag/push.
+Three external PNGs in two directories: opening went directly to the native
+picker of the Added catalogue, then the Sources catalogue picker, with no app
+alert between steps. All the pictures were uploaded. Save saved two folder
+bookmarks in the existing source-access.json version 1. SHA256 for all four
+previous files (three originals and project.json) was unchanged. After full
+quit, relaunch and reopen, all three images were uploaded without alert or
+folder picks. No change in format, no change in sandbox/capabilities. Existing
+tests were not repeated for this UI change; the previous run had 62 approved
+tests. There's nothing commit/tag/push.
 
-## Automatisk timestamp-baserad buildidentitet — 2026-10-05
+## Automatic timestamp-based build identity — 2026-10-05
 
-Semantic version förblir manuellt styrd via MARKETING_VERSION = 1.0 i Debug och
-Release. Ingen automatisk semantic increment och ingen persistent counter.
-Native app-target har en alltid körd Run Script-phase Generate Build Metadata,
-som använder ett enda lokalt date-anrop och skriver två preprocessormakron i
-$(DERIVED_FILE_DIR)/PanoWizardBuildMetadata.h. CFBundleVersion blir YYYYMMDDHHmm
-och optional PanoWizardBuildTimestamp blir YYYY-MM-DD HH:mm från samma tid.
-Inga source/project/plist-filer ändras under byggningen.
+Semantic version remains manually controlled via MARKETING_VERSION = 1.0 in
+Debug and Release. No automatic semantic increment and no persistent counter.
+The native app target has an always running Run Script-phase Generate Build
+Metadata, which uses a single local date call and writes two preprocessor macros
+in $(DERIVED_FILE_DIR) /PanoWizardBuildMetadata.h. CFBundleVersion becomes
+YYYMMDDHHmm and optional PanoWizardBuildTimestamp becomes YYYY-MM-DD HH:mm from
+the same time. No source/project/plist-filer changes during construction.
 
-Appens Info.plist använder Xcodes vanliga plist preprocessing med denna genererade
-prefix header. GENERATE_INFOPLIST_FILE är NO för app-target (testtargets oförändrade),
-eftersom genererad plist annars ersätter CFBundleVersion med CURRENT_PROJECT_VERSION.
-Standard bundle keys finns därför uttryckligen i input-plisten med vanliga Xcode
-variabelexpansioner. Photography, document types, icons och bundle identifier är
-bevarade. Xcode sköter fortsatt plist processing, asset catalog, app bundling,
-signing och Archive; ingen custom bundling/signing. CURRENT_PROJECT_VERSION = 1
-är borttagen för att inte ange ett konkurrerande buildvärde.
+The app Info.plist uses the usual plist preprocessing of Xcode with this
+generated prefix header. Generate_INFOPLIST_FILE is NO for the app target (test
+target unchanged), as otherwise the generated plist will replace CFBundleVersion
+with CURRENT_PROJECT_VERSION. Standard bundle keys are therefore explicitly
+included in the input panel with regular Xcode variable expansions. Photographs,
+document types, icons and bundle identifiers are preserved. Xcode continues to
+run plist processing, asset catalog, app bundling, signing and Archive; no
+custom bundling/signing. CURRENT_PROJECT_VERSION = 1 is deleted for not entering
+a competing build value.
 
-About-kommandot öppnar standard native macOS About-panel med två rader:
-Version 1.0 (202610052215) / Build 2026-10-05 22:15 (verifierade exempel).
-Debug och Release byggde och deras bundle metadata samt About-paneler verifierades.
-Archive till /tmp/PanoWizardTimestamp.xcarchive lyckades och innehöll
-CFBundleShortVersionString 1.0, CFBundleVersion 202610052216 och lokal Build
-2026-10-05 22:16. Native codesign --verify --deep --strict godkänd för Debug
-och arkivet. Buildloggar /tmp/panowizard-timestamp-{debug,release,archive}.log.
+The About command opens the default native macOS About panel with two rows:
+Version 1.0 (202610052215) / Build 2026-10-05 22:15 (verified example). Debug
+and Release built, and their bundle of metadata and About panels were verified.
+The archive to /tmp/PanoWizardTimestamp.xcarchive was successful and contained
+CFBundleShortVersionString 1.0, CFBundleVersion 202610052216 and local Build
+2026-10-05 22:16. Native code design --verify --deep --strictly approved for
+Debug and the archive. Construction logs /tmp/panowizard-timestamp-{debug
+,release,archive}.log.
 
-CFBundleVersion följer aktuell Apple-dokumentations format (en till tre numeriska
-heltal separerade med punkt; här ett heltal). App Store Connect validation/upload
-kördes inte i detta steg. Minutupplösningen innebär att två builds inom samma
-minut får samma nummer; ny distributionsbuild behöver ny minut. Lokal tid innebär
-också att ändrad systemklocka/tidszon eller återgång vid vintertid kan ge tidigare
-värde: ingen global monotonicitetsgaranti utan counter, enligt förenklat krav.
-Inget commit/tag/push.
+CFBundleVersion follows the current Apple documentation format (one to three
+numeric integers separated by a dot; here an integer). App Store Connect
+validation/upload was not run in this step. The minute resolution means that two
+builds within the same minute get the same number; a new distribution build
+needs another minute. Local time also means that changing systemklocka/tidszon
+or returning to winter time can give previous value: no global monotonicity
+guarantee without counter, according to simplified requirements. Nothing at all
+commit/tag/push.
 
-## Xcode Analyze och regressionstester — 2026-10-05
+## Xcode Analyze and regression tests — 2026-10-05
 
-Arkitekturbeslutet ovan är slutligt för nu: arm64-only, inga Intel/universal-
-ändringar eller OpenCV-rebuilds. Analyze kördes med delat PanoWizard-scheme,
-Debug, platform=macOS,arch=arm64; app och native OpenCVBridge ingick.
-Första Analyze blockerades av RetouchPatch.id: UUIDx i Models/PanoProject.swift.
-Unknown type gav följdfel för Codable/Equatable. Återställt endast UUID, vilket
-matchar initializer och originalets modell exakt. Ingen ändring av format,
-retouch-/maskstate eller beteende.
+The architectural decision above is final for now: arm64-only, no
+Intel/universal- changes or OpenCV reconstructions. Analyze was run with shared
+PanoWizard-scheme, Debug, platform=macOS,arch=arm64; app and native OpenCVBridge
+included. First Analyze was blocked by RetouchPatch.id: UUIDx in
+Models/PanoProject.swift. Unknown type resulted in error for Codable/Equatable.
+Restored only UUID, which exactly matches the initialiser and the original
+model. No change in format, retouch-/maskstate or behavior.
 
-Nästa körning träffade ett gammalt PanoWizardTests.xctest i delad Debug-output
-vid codesign. Xcodes normala clean löste stale output utan sourceändringar.
-Final clean Analyze lyckades: noll diagnostics i Clangs PanoramaBridge.plist.
-Swift compiler rapporterade inga kodvarningar. Enda kvarvarande warning var
+The next run hit an old PanoWizardTests.xctest in shared Debug output at code
+design. Xcode's normal clean solved static output without source changes. Final
+clean analyze was successful: zero diagnostics in Clangs PanoramaBridge.plist.
+Swift compilers reported no code warnings. The only remaining warning was
 AppIntents metadata extraction skipped / No AppIntents.framework dependency
-found; benign eftersom appen inte använder App Intents. Ingen dependency lades
-till för att tysta den. Build metadata-phase always-run-notisen är avsiktlig.
-Clang static analyzer analyserar C++; Swift kontrolleras av kompilatorn, och
-precompiled OpenCV-dylibs analyseras inte som source.
+found; benign because the app does not use App Intents. No dependency was added
+to silence it. Build the metadata-phase always-run notice is intentional. Clang
+static analyzer analyzes C++; Swift is controlled by the compiler, and
+precompiled OpenCV-dylibs are not analyzed as source.
 
-Debug och Release byggde godkänt. Testresultat: 62 passed i 14 suites, 0 failed,
-0 skipped, /tmp/panowizard-analyze-tests.xcresult. Hosted tests bevisar inte
-sandboxpermission-runtime; inga nya UI-recoverytester behövdes för UUID-typo.
-Normal Debug-app byggdes rent igen efter hosted tests för att lämna normal
-sandbox/signing utan test-only exceptions. Loggar:
-/tmp/panowizard-analyze-before.log (initial compilefel),
-/tmp/panowizard-analyze-after.log (stale testbundle-signingfel),
-/tmp/panowizard-analyze-final.log (Analyze godkänt),
-/tmp/panowizard-analyze-{debug-build,release-build,tests}.log.
-Inga ändringar i originalprojektet, OpenCV, algoritmer, UI, externa sourcebilder,
-Grant Access/bookmarks, .pw-format, capabilities eller architectures.
-Inget commit/tag/push.
+Debug and Release built approved. Test results: 62 passed in 14 suites, 0
+failed, 0 skipped, /tmp/panowizard-analyze-tests.xcresult. Hosted tests do not
+prove sandboxpermission runtime; no new UI recovery tests were needed for UUID
+type. Normal Debug app was built cleanly after hosted tests to leave normal
+sandbox/signing without test-only exceptions. Logs:
+/tmp/panowizard-analyze-before.log (initial compilation error),
+/tmp/panowizard-analyze-after.log (steel test bundle signing error),
+/tmp/panowizard-analyze-final.log (Analyze approved),
+/tmp/panowizard-analyze-{debug-build,release build,tests}.log. No changes to the
+original project, OpenCV, algorithms, UI, external source images, Grant
+Access/bookmarks, .pw format, capabilities or architectures. There's nothing
+commit/tag/push.
 
-## Appens dSYM i normal Archive — 2026-10-05
+## The dSYM of the app in normal Archive — 2026-10-05
 
-Enda buildsettingändringen: projektets Release-konfiguration har nu
-DWARF_DSYM_FOLDER_PATH = "$(BUILD_DIR)/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)".
-DEBUG_INFORMATION_FORMAT = dwarf-with-dsym var redan korrekt och är oförändrat.
-CONFIGURATION_BUILD_DIR och användarens Build/Debug samt Build/Release-genvägar
-är bevarade. Xcode får generera appens dSYM i sitt normala BUILD_DIR; vid Archive
-är detta ArchiveIntermediates/PanoWizard/BuildProductsPath, vilket native Archive
-samlar in automatiskt. BUILT_PRODUCTS_DIR var inte tillräckligt eftersom det
-också ärver den fasta CONFIGURATION_BUILD_DIR-sökvägen. Inga copy/signing-scripts.
+The only buildsetting change: the Release configuration of the project now has
+DWARF_DSYM_FOLDER_PATH = "$(BUILD_DIR) / $(CONFIGURATION)
+$(EFFECTIVE_PLATFORM_NAME)". DEBUG_INFORMATION_FORMAT = dwarf-with-dysm was
+already correct and is unchanged. Configuration_BUILD_DIR and the user's
+Build/Debug and Build and Release shortcuts are preserved. Xcode may generate the
+app's dSYM in its normal BUILD_DIR; for Archive this is
+ArchiveIntermediates/PanoWizard/BuildProductsPath, which native Archive collects
+automatically. BUILT_PRODUCTS_DIR was not sufficient as it also inherits the
+fixed CONFIGURATION_BUILD_DIR search path. No copy/signing-scripts.
 
-Normal Release Archive /tmp/PanoWizardDSYMFinal.xcarchive lyckades.
-Dess dSYMs/PanoWizard.app.dSYM/Contents/Resources/DWARF/PanoWizard och arkiverade
-app-executable har båda UUID 63859E98-443B-319C-B2CB-AFB3EEE7F791 (arm64).
-Arkivets codesign --verify --deep --strict godkänd. De 11 precompiled OpenCV-
-biblioteken är oförändrade; inga dSYMs tillverkades och deras symbolvarningar
-lämnas avsiktligt kvar. App Store Connect validation/upload kördes inte om.
+Normal Release Archive /tmp/PanoWizardDSYMFinal.xcarchive was successful. Its
+dSYMs/PanoWizard.app.dSYM/Contents/Resources/DWARF/PanoWizard and archived app
+executable have both UUID 63859E98-443B-319C-B2CB-AFB3EEE7F791 (arm64). The code
+design of the archive -- verify --deep --strictly approved. The 11 precompiled
+OpenCV libraries are unchanged; no dSYMs were manufactured and their symbol
+warnings are intentionally left behind. The App Store Connect validation/upload
+was not re-launched.
 
-Debug/Release byggdes och befintliga 62 tester i 14 suites passerade.
-Resultat /tmp/panowizard-dsym-tests.xcresult. Normal Debug byggdes rent efter
-hosted tests. Arkivet lämnade som tidigare en dangling native Xcode-symlink
-i den fasta Release-outputmappen; endast den dangling länken togs bort inför
-slutligt vanligt Release-build. Ingen appkod, architecture, sandbox, OpenCV
-eller bildbehandling ändrad.
-Loggar /tmp/panowizard-dsym-debug.log, /tmp/panowizard-dsym-release-final.log,
-/tmp/panowizard-dsym-tests.log och /tmp/panowizard-dsym-archive-final.log.
-Inget commit/tag/push.
+Debug/Release was built and the existing 62 tests in 14 suites passed. The
+result /tmp/panowizard-dsym-tests.xcresult. Normal Debug was built purely after
+hosted tests. The file left, as before, a dangling native Xcode-symlink in the
+fixed Release output folder; only the dangling link was removed before the final
+normal Release build. No change in app code, architecture, sandbox, OpenCV or
+image processing. Logs /tmp/panowizard-dsym-debug.log the following points are
+added: /tmp/panowizard-dsym-release-final.log the following points are added:
+/tmp/panowizard-dsym-tests.log and /tmp/panowizard-dsym-archive-final.log I'm
+not going to. There's nothing commit/tag/push.
 
-## Enkel modellkonstruktion vid projektöppning — 2026-10-05
+## Single model design at project opening — 2026-10-05
 
-Endast ProjectDocumentView-livscykeln ändrades. model är optional State och init
-lagrar dokument/bookmarks men skapar inte AppModel. ContentView visas först när
-source resolution lyckats. Befintlig .task läser/återställer/auktoriserar sources
-och skapar den slutliga fulla modellen en gång. Nya osparade projekt skapar sin
-modell en gång i samma task. Ingen initial full modell, dubbel retouch-rebuild
-eller initial thumbnailpass som därefter kastas bort. Normal öppning ökar inte
-sourceReloadRevision; force-recovery behåller befintlig reset. Pending grants
-utgår från savedDocument när modellen ännu saknas; Save/bookmarks behåller samma
-format/semantik. Native Grant Access-dialogen och foldersekvensen är oförändrade.
+Only the ProjectDocumentView lifecycle was changed. model is optional State and
+init stores dokument/bookmarks but does not create AppModel. ContentView is only
+displayed when the source resolution is successful. Existing .task
+reads, restores, and authorizes sources and creates the final full model once.
+New unspent projects create their model once in the same task. No initial full
+model, double retouch rebuild or initial thumbnail pass that is then discarded.
+Normal opening does not increase sourceReloadRevision; force-recovery maintains
+the existing journey. Pending grants are based on savedDocument when the model
+is still missing; Save/bookmarks retains the same format/semantik. The Native
+Grant Access dialog and folder sequence are unchanged.
 
-Samma Release-app, U/panowizard.pw och sample 15 sekunder med 1 ms intervall:
-före /tmp/panowizard-new-open.sample hade retouch rebuild 608 + 591 = 1199
-samples under två model construction paths (view init och deferred resolution).
-Efter /tmp/panowizard-opening-after.sample hade endast resolveSources-path och
-646 retouch rebuild-samples; view init hade 1 sample och ingen model/rebuild.
-46 procent mindre sampled retouch-arbete, cirka 0.55 s av den tidigare
-uppskattningen eliminerat. Sampling är uppskattning, inte exakt end-to-end-
-latens eller en exakt runtime invocation counter. Koden har en enda skyddad
-konstruktion vid normal opening och profilen bekräftar en enda konstruktionpath.
-Ingen rendering/OpenCV/cache/bildalgoritm/sandboxändring. U öppnades utan Save.
+The same Release app, U/panowizard.pw and sample 15 seconds with 1 ms interval:
+before /tmp/panowizard-new-open.sample retouch rebuild had 608 + 591 = 1199
+samples under two model construction paths (view init and deferred resolution).
+After /tmp/panowizard-opening-after.sample only resolveSources-path and 646
+retouch rebuild samples; view init had 1 sample and no model/rebuild. 46 percent
+less sampled retouch work, about 0.55 s of the previous estimate eliminated.
+Sampling is estimation, not exact end-to-end latency or an exact runtime
+invocation counter. The code has a single protected design at normal opening and
+the profile confirms a single design path. No one
+rendering, OpenCV, cache, image algorithm, or sandbox change. The U was opened without
+Save.
 
-Recovery verifierades även med /Users/magnus/PanoWizardOpeningRecovery-20261005/
-Projects/Opening.pw: tre externa testbilder i Added och Sources, direkt native
-picker för vardera katalogen, därefter laddade samtliga tre. Save sparade två
-folder bookmarks i source-access.json. SHA256 på de tre originals och project.json
-oförändrad. Full quit (process borta), relaunch och reopen krävde ingen alert
-eller picker. Debug/Release BUILD SUCCEEDED; 62 tester i 14 suites passerade.
-/tmp/panowizard-opening-tests.xcresult; /tmp/panowizard-opening-{debug,release,tests}.log.
-Debug byggdes rent efter hosted tests för normal sandbox/signing.
-Inget commit/tag/push.
+Recovery was also verified with
+/Users/magnus/PanoWizardOpeningRecovery-20261005/ Projects/Opening.pw: three
+external test images in Added and Sources, direct native picks for each
+catalogue, then uploading all three. Save saved two folder bookmarks in
+source-access.json. SHA256 on the three originals and project.json unchanged.
+Full quit, relaunch and reopen required no alerts or picks. Debug/Release BUILD
+SUCCEED; 62 tests in 14 suites passed. /tmp/panowizard-opening-tests.xcresult;
+/tmp/panowizard-opening-{debug,release,tests}.log. Debug was built purely after
+hosted tests for normal sandbox/signing. Nothing at commit/tag/push.
 
-## Senaste distributionsstatus och OpenCV-symbolutredning — sparat 2026-10-06
+## Recent distribution status and OpenCV symbol investigation — saved 2026-10-06
 
-Användaren har bekräftat att PanoWizard.app-dSYM-varningen är löst och App Store
-validation lyckas. Kvarvarande Upload Symbols Failed-varningar gäller endast
-de 11 precompiled OpenCV 5.0-dylibs. Arkivets native dSYM-outputfix beskrivs ovan.
+The user has confirmed that the PanoWizard.app-dSYM warning is resolved and the
+App Store validation is successful. The current Upload Symbols Failed warnings
+apply only to the 11 precompiled OpenCV 5.0 dylibs. The native dSYM output
+fixture of the file is described above.
 
-Senaste uppgiften var enbart read-only-utredning om OpenCV-symboler kan erhållas
-utan att ändra verifierat beteende. Inga bibliotek byggdes om eller ersattes.
-Det finns INGEN auktorisering att implementera en OpenCV-rebuild; nästa beslut
-återstår hos användaren. Rekommendationen är att lämna symbolvarningarna tills
-förbättrad crash-symbolication motiverar en separat verifierad dependency-rebuild.
-Arm64-only-beslutet är fortsatt slutligt för nu. Inget commit/tag/push är tillåtet.
+The latest task was to read-only investigate whether OpenCV symbols can be
+obtained without changing verified behaviour. No libraries were rebuilt or
+replaced. There is NO authorisation to implement an OpenCV rebuild; the next
+decision remains with the user. The recommendation is to leave the symbol
+warnings until improved crash-symbolization justifies a separately verified
+dependency rebuild. The Arm64-only decision remains final for now. Nothing
+commit/tag/push is allowed.
 
-### Lokalt återfunnet ursprung och byggkonfiguration
+### Locally recovered origin and construction configuration
 
-Originalets .vendor-cache innehåller opencv-5.0.0.tar.gz, opencv-5.0.0/ samt
-opencv-build/ med CMakeCache.txt, build.ninja, compiler metadata och object files.
-Source archive SHA256:
-b0528f5a1d379d59d4701cb28c36e22214cc51cf64594e5b56f2d3e6c0233095
-Samtliga 6905 jämförda extraherade sourcefiler var identiska med arkivet.
-Embedded Version control är unknown; exakt upstream Git-commit/download-URL
-fastställdes inte. Det lokala exakta sourcearkivet och byggkonfigurationen finns.
+The .vendor cache of the original contains opencv-5.0.0.tar.gz, opencv-5.0.0/
+and opencv-build/ with CMakeCache.txt, build.ninja, compiler metadata and object
+files. Source archive SHA256:
+b0528f5a1d379d59d4701cb28c36e22214cc51cf64594e5b56f2d3e6c0233095 All 6905
+compared extracted source files were identical to the archive. Embedded Version
+control is unknown; exact upstream Git-commit/download-URL was not determined.
+The local exact source archive and building configuration are available.
 
-De 11 dylibs i originalets .vendor-cache/opencv-build/lib har samma UUIDs och
-identiska __text-maskinkodsektioner som nuvarande Vendor/OpenCV/lib. Hela filernas
-SHA256 skiljer sig, så påstå inte full byte-identitet mellan build-output och
-Vendor; UUID + __text-jämförelsen visar samma länkningsursprung/maskinkod.
+The 11 dylibs in the original .vendor-cache/opencv-build/lib have the same UUIDs
+and identical __text machine code sections as the current Vendor/OpenCV/lib. The
+SHA256 of all files is different, so don't say full byte identity between
+build-output and Vendor; the UUID + __text comparison shows the same
+linkage origin and machine code.
 
-Konfiguration: Release, shared dylibs, arm64, C++17, -O3 -DNDEBUG, deployment
-macOS 26.0; AppleClang 21.0.0.21000101, CMake 4.4.0 och Ninja.
-BUILD_LIST = core,imgproc,imgcodecs,features,flann,calib,photo,stitching; dess
-beroenden resulterar i exakt calib/core/features/flann/geometry/imgcodecs/
-imgproc/objdetect/photo/stereo/stitching. Inga extra contrib-moduler.
-Accurate algorithm hint, NEON/FP16/DOTPROD baseline och NEON_BF16 dispatch;
-GCD, Accelerate/LAPACK, Eigen 5.0.1, Carotene och KleidiCV 26.03.
-ENABLE_FAST_MATH=OFF, WITH_OPENCL=OFF, non-free=OFF.
-Embedded codecstöd: zlib 1.3.2, libjpeg-turbo 3.1.2-70, PNG 1.6.57 (NEON,
-EXIF/XMP/ICC/cICP), TIFF 4.7.1, JPEG2000/OpenJPEG 2.5.3 samt GIF/HDR/SUNRASTER/
-PXM/PFM. AVIF saknas trots begärd WITH_AVIF: skilj önskade CMake-options från
-faktiskt detected/built stöd. För exakt reproduktion måste även externa headers,
-SDK/toolchain och CPU/dependency-autodetection pinnas, inte bara BUILD_LIST.
+Configuration: Release, shared dylibs, arm64, C++17, -O3 -DNDEBUG, deployment
+macOS 26.0; AppleClang 21.0.0.21000101, CMake 4.4.0 and Ninja. BUILD_LIST =
+core,imgproc,imgcodecs,features,flann,calib,photo,stitching; its dependencies
+result in exactly calib/core/features/flann/geometry/imgcodecs/
+imgproc/objdetect/photo/stereo/stitching. No additional contributions. Accurate
+algorithm hint, NEON/FP16/DOTPROD baseline and NEON_BF16 dispatch; GCD,
+Accelerate/LAPACK, Eigen 5.0.1, Carotene and KleidiCV 26.03. I'm not going to be
+able to do this. The following code is used for embedded codec support: zlib
+1.3.2, libjpeg-turbo 3.1.2-70, PNG 1.6.57 (NEON, EXIF/XMP/ICC/cICP), TIFF 4.7.1,
+JPEG2000/OpenJPEG 2.5.3 and GIF/HDR/SUNRASTER/ PXM/PFM. AVIF is missing despite
+requested WITH_AVIF: separate the desired CMake options from actual
+detected/built support. For accurate reproduction, external headers
+SDK/toolchain and CPU/dependency-autodetection must also be pinned, not just
+BUILD_LIST.
 
-### Varför nuvarande dylibs inte kan få riktiga matching dSYMs
+### Why current dylibs can't get real matching dSYMs
 
-BUILD_WITH_DEBUG_INFO=OFF. Samtliga 871 kvarvarande Mach-O .o-filer kontrollerades:
-0 hade __DWARF. Dylibs saknar också DWARF; dsymutil --dump-debug-map på core var
-tomt på object/debug-info-poster. Ingen redan existerande OpenCV-dSYM hittades
-i originalet, nya repot eller tidigare undersökta lokala build/archive-mappar.
-Debuginformationen skapades aldrig, den är inte bara borttappad i paketering.
-Genuina matching dSYMs kan därför inte återvinnas ur dessa artefakter.
-Tillverka inte tomma/falska symbolfiler eller kopiera UUID till andra dSYMs.
+I'm not going to be able to do this. All 871 remaining Mach-O .o files were
+checked: 0 had __DWARF. Dylibs also lacks DWARF; the dsymutil --dump-debug
+folder on core was empty at object/debug-info-poster. No existing OpenCV-dSYM
+was found in the original, new repot or previously investigated local
+build/archive-mappar. The database was never created, it's not just lost in the
+packaging. Genuine matching dSYMs cannot therefore be recovered from these
+artefacts. Do not manufacture tomma/falska symbol files or copy UUID to other
+dSYMs.
 
-### Minsta tänkbara framtida åtgärd — endast rekommendation, inte genomförd
+### Minimum possible future action — Recommendation only, not implemented
 
-En isolerad rebuild av exakt samma source/config/dependency/toolchain, med
-Release-optimering kvar och endast debug-info påslagen, är plausibelt drop-in-
-kompatibel men ännu INTE verifierad. OpenCV 5.0:s lokala
-cmake/OpenCVCompilerOptions.cmake stödjer BUILD_WITH_DEBUG_INFO=ON och lägger
-i denna toolchain till -g1 i Release utan att ta bort -O3. Generera dSYMs från
-nya binaries/object files före stripping; de måste matcha nya dylib-UUIDs.
-Jämför export-symboler/ABI/install names/transitiva deps, headers, CPU/backend-
-konfiguration, codecstöd och maskinkod; verifiera PanoWizards bildresultat och
-regressionstester innan någon replacement. Det skulle kräva ersättningsdylibs,
-inte enbart en archive-settingfix. Att debug-info normalt inte ändrar beteende
-är ingen garanti för byte-identisk kod eller identiskt beteende vid ny build.
-Rör inte den nu verifierade native-stacken utan ny uttrycklig instruktion.
+An isolated rebuild of exactly the same source/config/dependency/toolchain, with
+Release optimization remaining and only debug-info enabled, is plausibly drop-in
+compatible but not yet verified. OpenCV 5.0's local
+cmake/OpenCVCompilerOptions.cmake supports BUILD_WITH_DEBUG_INFO=ON and adds in
+this toolchain to -g1 in Release without removing -O3. Generate dSYMs from new
+binaries/object files before stripping; they must match new dylib-UUIDs. Compare
+export-symboler/ABI/install names/transitiva deps, headers, CPU/backend-
+configuration, codec support and machine code; verify PanoWizard image results
+and regression tests before any replacement. It would require replacement
+dilibs, not just an archive setting fix. The fact that debug-info normally does
+not change behavior is no guarantee of byte-identical code or identical behavior
+at new build. Do not touch the now-verified native stack without further
+explicit instructions.
 
-Källor: https://llvm.org/docs/CommandGuide/dsymutil.html och
-https://docs.opencv.org/4.12.0/db/d05/tutorial_config_reference.html; exakt
-OpenCV 5.0-optionbeteende verifierades även direkt i lokala CMake-sourcefilen.
+Sources: https://llvm.org/docs/CommandGuide/dsymutil.html and
+https://docs.opencv.org/4.12.0/db/d05/tutorial_config_reference.html; exact
+OpenCV 5.0 option behavior was also verified directly in the local CMake source
+file.
 
-Den senaste kodändringen är fortfarande enkel AppModel-konstruktion vid opening,
-med verifierade Debug/Release, 62 tester och bevarad Grant Access-persistens enligt
-avsnittet ovan. Bara CONTEXT.md uppdaterades vid denna kontextsparing.
+The most recent code change is still a simple AppModel construction at opening,
+with verified Debug/Release, 62 tests and preserved Grant Access persistence as
+described in the section above. Only CONTEXT.md was updated at this context
+saving.
 
 ## Commit/push-checkpoint — 2026-10-06
 
-Användaren begärde commit+push av aktuellt arbete till origin/main. Checkpointen
-omfattar hela native Xcode-migrationen, arm64 OpenCV-binaries och resurser,
-sandbox/bookmark-recovery med optional projektmetadata, timestamp-identitet,
-native archive-dSYM-setting, UUID-typofix, enkel AppModel-konstruktion vid opening,
-tester, användarguide och kontext. Tidigare verifieringar beskrivs ovan; inga
-nya kodändringar eller OpenCV-rebuilds görs som del av checkpointen. Ingen taggning.
+The user requested commit+push of current work to origin/main. The checkpoint
+includes the entire native Xcode migration, arm64 OpenCV binaries and resources,
+sandbox/bookmark-recovery with optional project metadata, timestamp identity,
+native archive-dSYM setting, UUID typefix, simple AppModel construction at
+opening, tests, user guide and context. Previous verifications are described
+above; no new code changes or OpenCV rebuilds are made as part of the
+checkpoint. There's no tagging.
 
-## Minimal GitHub Pages-help för granskning — 2026-10-06
+## Minimum GitHub Pages help for review — 2026-10-06
 
-/docs/index.md skapad från scratch med kort användarhjälp på engelska: syfte,
-create/open/save, externa sourcebilder och Grant Access, Add, Create-analys/
-stitching, navigation/adjustments, masks, manual/AI patches, Little Planet och
-JPEG/PNG/HTML-export. Faktaunderlag Tutorial/, README och aktuella UI-labels.
-Analyze är inte en separat användaroperation; help förklarar att Create gör
-analys och stitching. Inga assets duplicerades: initialversionen är text-only.
-Inget framework, theme, JS, custom design/config eller navigationssystem.
-Tutorial/ och appkod oförändrade. Användaren begärde därefter commit+push till
-origin/main. Ingen GitHub Pages-konfiguration eller deployment utfördes.
+/docs/index.md created from scratch with short user assistance in English:
+purpose, create/open/save, external source images and Grant Access, Add,
+Create-analysis/ stitching, navigation/adjustments, masks, manual/AI patches,
+Little Planet and JPEG/PNG/HTML-export. Facts Tutorial/, README and current UI
+labels. Analyze is not a separate user operation; help explains that Create does
+analysis and stitching. No assets duplicated: the initial version is text only.
+No framework, theme, JS, custom design/config or navigation system. Tutorial/
+and app code unchanged. The user then requested commit+push to origin/main. No
+GitHub Pages configuration or deployment was performed.
 
-## Tutorial-migrering till självförsörjande docs — 2026-10-06
+## Tutorial migration to self-sustaining docs — 2026-10-06
 
-Användaren stoppade den första flytten, bad om analys och auktoriserade sedan
-slutförandet. Tutorial/README.md är nu docs/getting-started.md. Images/ och
-HowTo/ flyttade till docs/; respektive guides README.md heter nu index.md.
-Befintlig docs/index.md behålls med en panoramaillustration och länkar till fem
-bildguider. Alla 17 bilder är byte-identiska med committat Tutorial-material;
-inga dubbletter eller bildberoenden utanför docs. Alla interna sid-/bildlänkar
-verifierade ligga inom docs och peka på befintligt innehåll. Publika sidlänkar
-använder .html; varje detaljguide länkar tillbaka till startsidan. Inga framework,
-theme, JS eller configändringar. Tutorial/ innehåller lokalt endast ignorerad
-.DS_Store; dess tracked material är flyttat. Appkod är oförändrad.
-README:s strukturuppgift uppdaterad. Inget commit/push eller deployment.
+The user stopped the first move, requested analysis and authorised after
+completion. Tutorial/README.md is now docs/getting-started.md. Images/ and
+HowTo/ moved to docs/; respectively, the guides README.md are now called
+index.md. Existing docs/index.md is maintained with a panoramic illustration and
+links to five picture guides. All 17 images are byte-identical with committed
+Tutorial material; no duplicates or image dependencies outside of the docs. All
+internal page and image links verified are within docs and point to existing content.
+Public page links use .html; each detail guide links back to the homepage. No
+framework, theme, JS or configuration changes. Tutorial/ contains only locally
+ignored .DS_Store; its tracked material has been moved. The app code is
+unchanged. Readme's structural data is updated. No commit/push or deployment.
 
-Användaren begärde commit+push av docs-migreringen 2026-10-06. Ingen taggning
-eller separat deployment begärd.
+The user requested commit+push of the docs migration 2026-10-06. No tagging or
+separate deployment requested.
 
-## Native Help-meny — 2026-10-06
+## Native Help menu — 2026-10-06
 
-Help → PanoWizard Help läser PanoWizardHelpURL från appens Info.plist och öppnar
-https://meg768.github.io/panowizard-next-gen/ via NSWorkspace.shared.open i
-standardwebbläsaren. URL:ens dubbla slash är XML-entities i källplist eftersom
-befintlig Xcode-plistpreprocessing annars tolkar dem som en kommentar; byggda
-Debug/Release-plists innehåller den exakta normala URL:en. SwiftUI ersätter
-.help-commandgruppen. AppKit helpMenu pekar på en kvarhållen off-menu NSMenu,
-vilket enligt native API undertrycker den automatiska Spotlight Search-rutan.
-Ingen WebView eller custom help-window. Docs och övrig appfunktion oförändrade.
-Debug och Release build succeeded. Release kördes: Help innehåller enbart
-PanoWizard Help, utan Search; klick öppnade rätt publicerad hjälpsida i Safari.
-Ingen commit, taggning eller push enligt användarens instruktion.
+PanoWizard Help reads the PanoWizardHelpURL from the app's Info.plist and opens
+https://meg768.github.io/panowizard-next-gen/ via NSWorkspace.shared.open in the
+default web browser. The double slash of the URLs are XML entities in the source
+folder because existing Xcode-plist preprocessing otherwise interprets them as a
+comment; built-in Debug/Release-plists contains the exact normal URL. SwiftUI
+replaces the .help command group. AppKit helpMenu points to a retained off-menu
+NSMenu, which according to the native API suppresses the automatic Spotlight
+Search box. No WebView or custom help window. Docs and other app functions
+unchanged. Debug and Release build succeeded. Release ran: Help contains only
+PanoWizard Help, without Search; click Opened correctly published help page in
+Safari. No commit, tag or push as directed by the user.
 
-Användaren auktoriserade därefter commit+push av Help-menyändringen till
-origin/main. Ingen taggning begärd.
+The user then authorized commit+push of the Help menu change to origin/main. No
+tagging requested.
 
-## Gemensam projektfönsterram utan efterföljande zoom — 2026-10-06
+## Joint project window frames without subsequent zoom — 2026-10-06
 
-Användaren valde app-level storlek/position för alla projektfönster. Den gamla
-WindowStateRestorer med två async-steg och explicit zoom(default true) ersatt
-med NSView.viewDidMoveToWindow som synkront återställer den gemensamma ramen
-PanoWizard.ProjectWindow via setFrameUsingName(force: true), och registrerar
-native setFrameAutosaveName. Tidigare sparad ram återanvänds. Separat isZoomed
-flagga används inte längre; defaultSize 1240x780 gäller utan sparad ram.
-Ingen ändring av projektdata, laddning eller välkomstfönstrets separata zoom.
-Debug/Release build succeeded. Release-verifiering: öppnade Opening.pw,
-ändrade storlek med native Window → Move & Resize → Left (901x923 punkter),
-quittade helt och återöppnade samma projekt; sparad mindre ram återkom.
-Stängde och öppnade H/panowizard.pw; samma gemensamma ram användes, bilder och
-preview laddade. Ingen efterföljande programmatisk projektzoom finns kvar.
-UI-snapshots verifierar slutlig storlek; ingen bildruta-för-bildruta-mätning av
-öppningsflimmer utförd. Ingen commit/tag/push.
+The user selected app level storlek/position for all project windows. The old
+WindowStateRestorer with two async steps and explicit zoom ((default true)
+replaced by NSView.viewDidMoveToWindow which synchronously restores the common
+frame PanoWizard.ProjectWindow via setFrameUsingName(force: true), and registers
+native setFrameAutosaveName. Previously saved frames are reused. Separate
+isZoomed flag is no longer used; defaultSize 1240x780 applies without a saved
+frame. No changes to the project data, load or separate zoom of the welcome
+window. Debug/Release build succeeded. Release verification: opened Opening.pw,
+resized with native Window → Move & Resize → Left (901x923 points), completely
+quashed and reopened the same project; saved less frame returned. Closed and
+opened H/panowizard.pw; the same common frame used, images and preview loaded.
+No subsequent programmatic project zoom remains. UI snapshots verify the final
+size; no box-by-box measurement of opening frames is performed. No one
+commit/tag/push.
 
-## Om-fönstrets versionstext — 2026-10-06
+## The text of the om-window version — 2026-10-06
 
-På användarens begäran visar Om-fönstret nu endast Version 1.0 och Build med
-lokalt datum/tid; numeriskt CFBundleVersion inom parentes borttaget från UI.
-CFBundleVersion genereras fortfarande automatiskt och ingår oförändrat i
-bundlemetadata. Manuell semantic version styrs av app-targetets Version /
-MARKETING_VERSION (Debug och Release), för närvarande 1.0. Ingen commit/push.
+At the user's request, the Om window now only displays Version 1.0 and Build
+with local datum/tid; numerically CFBundleVersion in parentheses removed from
+UI. CFBundleVersion is still automatically generated and included unchanged in
+the bundle metadata. Manual semantic version is controlled by the app target's
+Version / MARKETING_VERSION (Debug and Release), currently 1.0. No one
+commit/push.
 
-Användaren bekräftade att projektfönstrets återställning fungerar och begärde
-commit+push av aktuellt arbete. Xcode har även normaliserat project.pbxproj,
-lagt till INFOPLIST_KEY_CFBundleDisplayName=PanoWizard i Debug/Release och
-avlägsnat PanoWizard.entitlements från synchronized-group membershipExceptions.
-MARKETING_VERSION är fortsatt 1.0. Om-textens Release-build succeeded.
+The user confirmed that the project window restoration is working and requested
+a commit+push of current work. Xcode has also normalized project.pbxprojects,
+added INFOPLIST_KEY_CFBundleDisplayName=PanoWizard in Debug/Release and removed
+PanoWizard.entitlements from synchronized-group membershipExceptions.
+Marketing_version is continued 1.0 I'm not going to. Release-build of the
+om-text succeeded.
 
 ## Topic-oriented GitHub Pages Help — 2026-10-06
 
-Användaren begärde enklare visuell startsida och separata ämnen; struktur
-föreslogs före implementation. docs/index.md har titel, befintlig 1800x900
-(2:1) panorama, kort intro och 11 ämneslänkar grupperade Start / Create and
-inspect / Correct / Export. Sex nya Markdown-sidor flyttar instruktioner från
-startsidan: projects.md, source-images.md, creating-panorama.md, preview.md,
-export.md, file-access.md. Befintlig getting-started.md och fyra HowTo-guider
-behållna på samma URL:er. Masks-guiden kompletterad med befintlig varning om
-recreate/retouch; AI-guiden med befintligt API-key-krav. Alla 17 bilder byte-
-identiska; nya sidor refererar befintliga bilder utan kopior. 58 interna länkar
-kontrollerade mot befintliga filer inom docs. Ordinary Markdown, ingen JS,
-CSS/theme/framework/generator eller appändring. Publicerad rendering inte
-verifierad (inget push/deployment). Ingen commit/push enligt instruktion.
+The user requested simpler visual homepage and separate topics; structure was
+suggested prior to implementation.docs/index.md has title, existing 1800x900
+(2:1) panorama, short intro, and 11 topic links grouped Start / Create and
+inspect / Correct / Export. Six new Markdown pages are moving instructions from
+the homepage: projects.md, source-images.md, creating-panorama.md, preview.md,
+export.md, file-access.md. Existing getting-started.md and four HowTo guides
+kept on the same URLs. The Masks Guide supplemented with an existing warning of
+recreate/retouch; the AI Guide with existing API key requirements. All 17 images
+are switched identical; new pages refer to existing images without copies. 58
+internal links checked against existing files within the docs. Ordinary
+Markdown, no JS, CSS/theme/framework/generator or change of app. Published
+rendering not verified (nothing push/deployment). No commit/push as directed.
 
-Användaren begärde därefter commit+push av den ämnesorienterade hjälpsajten
-till origin/main. Ingen taggning eller separat deployment begärd.
+The user then requested commit+push of the subject-oriented help page to
+origin/main. No tagging or separate deployment requested.
 
-## Dölj automatisk repo-rubrik i Help — 2026-10-06
+## Hide the automatic repo heading in Help — 2026-10-06
 
-Användaren bad ta bort blå panowizard-next-gen-rubrik överst på alla sidor.
-Verifierade publicerad HTML och standardtemat Primer: repo-rubriken renderas
-bara om site.title är truthy och skiljer sig från page.title. docs/_config.yml
-sätter title: false för att stänga av denna rubrik globalt utan CSS, eget layout,
-JS eller ändring av sidornas Markdown-rubriker. Publicerad rendering kan inte
-verifieras innan push/deployment. Ingen commit/push utförd.
+The user asked to remove the blue panowizard-next-gen heading at the top of each
+page. Verified published HTML and default theme Primer: the repo headline is
+rendered only if site.title is truthy and differs from page.title.
+docs/_config.yml sets title: false to shut down this headline globally without
+CSS, own layout, JS or modification of the pages' Markdown headlines. Published
+rendering cannot be verified before push/deployment. No commit/push performed.
 
-Användaren begärde därefter commit+push av inställningen som döljer repo-rubriken
-till origin/main. Ingen taggning begärd.
+The user then requested a commit+push of the setting that hides the repo heading
+to origin/main. No tagging requested.
 
-## Korrigering av repo-rubrik — 2026-10-06
+## Correction of repo items — 2026-10-06
 
-Efter push verifierades att Pages deploy av 5f957c5 lyckats och publicerad HTML
-ändå innehåller repo-rubriken; title:false räckte inte (metadata återfyller titel).
-Ersatt med site title PanoWizard Help och minimal docs/_includes/head-custom.html
-CSS: .markdown-body > h1:first-child:not([id]) { display: none; }. Primer inkluderar
-head-custom i head. Selektorn träffar endast automatiska h1 utan id, inte Markdown-
-rubriker som har id. Inget eget layout eller JavaScript. Lokalt verifierad mot
-publicerad HTML; publicerad effekt kräver ny commit/push. Ingen commit/push ännu.
+After push, it was verified that Pages deploy by 5f957c5 was successful and
+published HTML still contains the repo headline; title:false wasn't enough
+(metadata refills title). Replaced with site title PanoWizard Help and minimal
+docs/_includes/head-custom.html CSS: .markdown-body > h1:first-child:not([id]) {
+display: none; }. Primaries include head-custom in head. The selector hits only
+automatic h1 without id, not Markdown headings with id. No own layout or
+JavaScript. Locally verified against published HTML; published effect requires
+new commit/push. No commit/push yet.
 
-Användaren auktoriserade commit+push av korrigeringen (c+p) till origin/main.
+The user authorised commit+push of the correction (c+p) to origin/main.
 
-## Help-granskning mot aktuell implementation — 2026-10-06
+## Assistance review against current implementation — 2026-10-06
 
-Alla 12 Markdown-help-sidor lästa och jämförda med aktuella SwiftUI-viewlabels,
-AppModel, dokument/bookmark/import-kod, OpenCVBridge och export/retouch-services.
-Korrigerat startflöde: Create Your Panorama väljer källbilder direkt, Add gäller
-fler bilder i öppet projekt (också verifierat i körande UI och picker avbruten).
-Source Images förtydligar högerklick/Image Type och lika pixelmått efter rotation.
-Tidigare kategoriska påstående att multi-row är unsupported borttaget: ringmodell
-finns, men inget explicit multi-row-rejection eller verifiering av sådana dataset;
-rekommendationen om en överlappande ring behålls utan att lova multi-row-stöd.
-Little Planet har Option-drag till center, drag/horizontal scroll till rotation;
-befintlig shape-screenshot visar tidigare click-text/sliderlayout och märks tydligt
-som äldre. Mask/Create-varning rättad: maskändringar invalidaterar panorama direkt,
-clearar patches och neutraliserar adjustments; lyckad stitch gör samma reset.
-API-key entry-button förtydligad från aktuell AI-sheet. Övriga topics behållna.
-58 lokala länkar verifierade, alla 17 bilder oförändrade. Ingen full ny stitching/
-AI-anrop/export benchmark eller reproduktion av illustrationernas scenresultat;
-uppskattningar 'few minutes'/'most sequences' är inte styrkta av koden och har
-inte omtestats. Ingen appkod/struktur/designändring. Ingen commit/push.
+All 12 Markdown help pages read and compared with current SwiftUI viewlabels,
+AppModel, dokument/bookmark/import-kod, OpenCVBridge and
+export/retouch-services. Corrected startup flow: Create Your Panorama directly
+selects source images, Add applies to more images in open projects (also
+verified in running UI and picks off). Source Images clarifies right-click or Image
+type and equal pixel size after rotation. Previous categorical claims that
+multi-row is unsupported are removed: ring model exists, but no explicit
+multi-row rejection or verification of such datasets; the recommendation for an
+overlapping ring is maintained without promising multi-row support. Little
+Planet has Option drag to center, drag/horizontal scroll to rotation; existing
+shape-screenshot shows earlier click-text/sliderlayout and is marked clearly as
+older. Mask/Create-varning Corrected: masking changes invalidate panorama
+directly, clear patches and neutralize adjustments; successful stitch makes the
+same trip. API-key entry button clarified from current AI sheet. Other topics
+retained. 58 local links verified, all 17 images unchanged. No full new
+stitching/ AI-anrop/export benchmark or reproduction of the scene results of the
+illustrations; estimates 'few minutes'/'most sequences' are not supported by the
+code and have not been retested. No one app code, structure, or design change. No one
+commit/push.
 
-Användaren auktoriserade därefter commit+push (c+p) av Help-granskningens
-korrigeringar till origin/main. Ingen taggning begärd.
+The user then authorised commit+push (c+p) of the corrections to origin/main
+from the Help review. No tagging requested.
 
-## .pw-dokumentikon identisk med appikon — 2026-10-06
+## .pw document icon identical to the app icon — 2026-10-06
 
-Användaren begärde exakt appikon-artwork för .pw utan paper treatment.
-PanoWizard/Resources/PanoWizardProject.icns ersatt med den befintliga native
-actool-genererade AppIcon.icns från byggda appen. AppIcon-assets oförändrade.
-Befintlig CFBundleTypeIconFile=PanoWizardProject.icns och native resource-copy
-behållna. Debug/Release build succeeded; i båda byggda bundles verifierades att
-refererad dokumentikon är byte-identisk med deras AppIcon.icns och källresursen.
-Ingen script/buildpipelineändring, ingen redesign. Finder-iconcache för redan
-registrerade dokument verifierades inte; cache kan visa gammal ikon tills macOS
-uppdaterar appregistrering. Ingen commit/push.
+The user requested the exact appikon artwork for .pw without paper treatment.
+PanoWizard/Resources/PanoWizardProject.icns Replaced with the existing native
+actool-generated AppIcon.icns from the built app. The AppIcon asset is
+unchanged. Existing CFBundleTypeIconFile=PanoWizardProject.icns and native
+resource-copy retained. Debug/Release build succeeded; in both built bundles
+verified that referenced document icons are byte-identical with their
+AppIcon.icns and source resource. No script or build pipeline change, no redesign.
+The Finder icon cache for already registered documents was not verified; the
+cache may display old icons until macOS updates pre-registration. No one
+commit/push.
 
-## Inga fönsterflikar och förenklad View-meny — 2026-10-06
+## No window tabs and simplified View menu — 2026-10-06
 
-Användaren begärde inga tabs och endast Zoom In / Zoom Out / Reset View i View.
-NSWindow.allowsAutomaticWindowTabbing=false sätts före launch; appens fönster
-får tabbingMode=.disallowed vid update. View-menyn identifieras via Zoom In-
-titeln (SwiftUI använder intern menuAction, inte bildresponderns selector) och
-filtreras till de tre kommandona, även vid native menu-update/open/tracking för
-att undvika AppKit-injektion av fullscreen/tab-items. Native fullscreen-knappen
-ändras inte. Debug/Release build succeeded. Efter full omstart av Release
-verifierade native View-meny exakt tre poster, inga tab/fullscreen-menyposter.
-Tidigare lokal dokumentikonändring är fortsatt kvar. Ingen commit/push.
+The user requested no tabs and only Zoom In / Zoom Out / Reset View in View.
+NSWindow.allowsAutomaticWindowTabbing=false is set before launch; the app window
+gets tabbingMode=.disallowed when updated. The view menu is identified via the
+Zoom In- title (SwiftUI uses internal menuAction, not image responder selector)
+and filtered to the three commands, even at native menu-update/open/tracking to
+avoid AppKit injection by fullscreen/tab-items. The native fullscreen button is
+not changed. Debug/Release build succeeded. After the full reboot of Release,
+native View menus verified exactly three records, no tab/fullscreen-menyposter.
+Previous local document changes have continued. No one commit/push.
 
-## Återgå till standard för View/flikar — 2026-10-06
+## Return to standard for View menu and tabs — 2026-10-06
 
-Användaren avvisade specialkoden för att begränsa View och stänga av tabs och
-prioriterar SwiftUI/macOS-standard. Hela den nyss tillagda ViewMenuDelegateProxy,
-menu tracking-observern och tabbing-overrides borttagna; appfil återställd till
-committat läge. Befintliga Zoom In/Out/Reset commands och systemets standard-
-poster/flikar behålls. Föregående avsnitts View/tab-implementation är därmed
-ersatt. Dokumentikonändringen kvarstår. Ingen commit/push.
+The user declined the special code to limit View and close tabs and priorities
+SwiftUI/macOS-standard. The entire newly added ViewMenuDelegateProxy, menu
+tracking observer and tabing overrides removed; app file restored to committed
+mode. The existing Zoom In/Out/Reset commands and the system standard
+poster/flikar are maintained. The previous paragraph View/tab-implementation is
+therefore replaced. The change in the document remains. No one commit/push.
 
-## Verifiering av native projektflikar — 2026-10-06
+## Verification of native project tables — 2026-10-06
 
-Användaren auktoriserade verifiering av tabs och befintlig Close/Save/quit,
-med anpassningar kvar om inga konkreta fel hittas. Testkopior Tab-A.pw och
-Tab-B.pw skapades i /tmp/PanoWizardTabVerification från Opening.pw; relativa
-source-paths rebased till befintliga externa testbilder (bara kopior ändrade).
-Native Merge All Windows fungerade, tabbar/new-tab/systemkommandon tillgängliga.
-A roterades/sparades med Cmd-S; B:s bildmått kvar oförändrade. B roterades och
-Cmd-W gav Save/Don't Save/Cancel; Cancel behöll fliken, Save sparade B och stängde
-bara B. On-disk JSON verifierade separat rotation=1 för A/B. A ändrades igen,
-annan flik aktiverades och Cmd-Q gav varning för osparat A. Cancel stoppade quit;
-Don't Save avslutade testappen och disk-A behöll tidigare sparad rotation=1.
-Original Opening.pw SHA256 oförändrad. Befintligt W-projekt ändrades inte.
-Inget konkret tab-fel påvisat; ingen appkod ändrad. Ej heltäckande verifiering
-av alla menyalternativ/Save As/många samtidiga dirty tabs. Tidigare ikonändring
-kvar; ingen commit/push.
+The user authorised the verification of tabs and existing Close/Save/quit, with
+adjustments remaining if no concrete errors are found. Test copies Tab-A.pw and
+Tab-B.pw were created in /tmp/PanoWizardTabVerification from Opening.pw;
+relative source-paths rebased to existing external test images (only copies
+modified). Native Merge All Windows worked, tabbar/new-tab/systemkommandon
+available. A roterades/sparades with Cmd-S; the image size of B remains
+unchanged. B was rotated and Cmd-W gave Save/Don't Save/Cancel; Cancel kept the
+tab, Save saved B and closed only B. On-disk JSON verified separately rotation=1
+for A/B. A was changed again, another tab was activated and Cmd-Q warned of
+unsparing A. Cancel stopped quit; Don't Save finished the test run and disk-A
+kept previously saved rotation=1. Original Opening.pw SHA256 unchanged. The
+existing W-Project was not amended. No specific tab error detected; no app code
+changed. Not a complete verification of all menyalternativ/Save As or many
+concurrent dirty tabs. Previous icon change remains; no commit/push.
 
-Användaren auktoriserade därefter commit+push (c+p) av dokumentikonändringen
-och uppdaterad kontext, inklusive beslut/verifiering att följa native tabs.
-Ingen tab-specialkod kvar i ändringarna; ingen taggning begärd.
+The user then authorised commit+push (c+p) of the document change and updated
+context, including beslut/verifiering to follow native tabs. No tab code remains
+in the amendments; no tagging requested.
 
-## Tomt projekt med samma arbetsyta — 2026-10-06
+## Empty projects with the same working surface — 2026-10-06
 
-Användaren auktoriserade första ändringen: tomt dokument ska se ut som vanligt
-projekt utan bilder. ContentView använder nu alltid NavigationSplitView och
-DetailWorkspace; den tidigare stora PanoramaWelcomeView i tomt dokument är
-borttagen. Sidebar visar alltid Images/Add och Panorama/Create/Retouch/Preview/
-Export; Create och navigationrows är disabled när underlag saknas. Sidebar-
-No Images-overlay borttagen för att inte skymma posterna. Preview har enkel
-No Source Images-text med Add/drop-instruktion. Ingen model/stitch/sandboxändring.
-Debug/Release build succeeded. Release-UI verifierad via File New och native
-flikradens +: båda visar samma sidebar/arbetsyta utan bildbakgrund. Add öppnar
-native image importer, avbruten efter kontroll. Separata appstartens welcome-
-scene/maximering lämnad kvar i detta första steg; bara tomma projektdokument
-ändrade. Ingen commit/push.
+The user authorised the first amendment: empty documents should look like
+ordinary projects without images. ContentView now always uses
+NavigationSplitView and DetailWorkspace; the previously large
+PanoramaWelcomeView in blank documents is removed. The sidebar always displays
+Images/Add and Panorama/Create/Retouch/Preview/ Export; Create and
+navigationrows are disabled when the database is missing. Sidebar-No Images
+overlay removed to avoid obscuring the posts. Preview has simple No Source
+Images text with Add/drop-instruktion. No model, stitching, or sandbox change
+Debug/Release build succeeded. Release-UI verified via File New and native
+flickr +: both display the same sidebar/arbetsyta without image background. Add
+opens native image imports, interrupted after check. Separate appstart's
+welcome- scene/maximering left in this first step; only empty project documents
+changed. No one commit/push.
 
-## Enkel avstängning av automatisk tabbing — 2026-10-06
+## A simple shutdown of automatic tabing — 2026-10-06
 
-På användarens uttryckliga begäran sätts endast
-`NSWindow.allowsAutomaticWindowTabbing = false` i befintliga appdelegatens
-`applicationWillFinishLaunching`. Ingen menyfiltrering, egen fönsterhantering
-eller annan tab-anpassning har lagts till. Debug och Release bygger utan fel
-(loggar /tmp/panowizard-simple-tabbing-debug.log och release.log).
-Runtime-verifieringen är ännu inte slutförd: den körande appens avslut visar
-osparade ändringar. Avslutet avbröts för att bevara dem; användaren har tillfrågats
-om att själv spara/stänga eller tillåta avslut utan att spara. En full omstart
-krävs innan den nya launch-inställningen kan verifieras med två dokument.
-Ingen commit/push.
+At the user's explicit request, only `NSWindow.allowsAutomaticWindowTabbing =
+false` is entered in the existing app delegate `applicationWillFinishLaunching`.
+No menu filtering, proprietary window management or other tab adjustment has
+been added. Debug and Release builds without error (logs
+/tmp/panowizard-simple-tabbing-debug.log and release.log). Runtime verification
+is not yet complete: the running app closure shows unreserved changes. The
+termination was discontinued to preserve them; the user has been asked whether
+to save save and close or allow termination without saving. A full restart is
+required before the new launch setting can be verified with two documents. No
+one commit/push.
 
-## Commit/push och datumtaggar — 2026-10-06
+## Commit, push, and timestamp tags — 2026-10-06
 
-Användaren har beslutat att framtida `c+p` / `commit+push` i detta projekt även
-ska skapa och pusha en annoterad tagg på den slutliga commiten. Namnformat:
-`YYYY-MM-DD-hh-mm`, med lokal tid i Europe/Stockholm (24-timmarsklocka). Detta är en
-arbetsrutin för uttryckligen begärd commit+push, inte en build-hook eller
-automatisk commit. Skapa inga commits/pushar när användaren förbjuder dem.
-Commit ce238af med tom projektarbetsyta och enkel tab-inställning är pushad.
-Runtime-verifiering av tab-inställningen efter omstart återstår enligt ovan.
+The user decided that future `c+p` or `commit+push` requests for this project
+should also create and push an annotated tag on the final commit. Use
+`YYYY-MM-DD-hh-mm` in Europe/Stockholm local time on a 24-hour clock. This is a
+workflow for explicitly requested commits and pushes. Do not automate it
+through a build hook or commit or push against the user's instructions.
+Commit ce238af, which added an empty project workspace and a simple tab
+setting, was pushed. Runtime verification of the tab setting after restart
+was still pending.
 
-## Sparad kontext — 2026-10-07
+## Recorded context — 2026-10-07
 
-Användarens avsikt med datumtaggar är att varje uttryckligen begärd "check in"
-(c+p) ska ge en lättidentifierad version att återgå till på GitHub. Commit är
-själva versionen; push skickar commit och tagg till origin. Behåll det enkla
-formatet YYYY-MM-DD-hh-mm; användaren önskar ingen extra precision eller
-speciallösning för flera commits inom samma minut. Flytta inte befintliga
-publicerade taggar om en namnkonflikt uppstår.
-Senast pushade kodändring är ce238af. Efterföljande commits 3975097 och e91ddea
-ändrar bara kontext/taggrutin. Befintliga taggar: pre-migration,
-2026-10-06_23-15-44 och 2026-10-06-23-18. Ingen ytterligare appkod har ändrats.
-Debug/Release lyckades för tab-inställningen; runtime-verifiering efter omstart
-med två dokument återstår fortfarande. Osparade ändringar fick inte kastas.
+The user wants every explicitly requested check-in (c+p) to produce a
+recognizable version on GitHub that is easy to return to. The commit is the
+version, and the push publishes the commit and tag to origin. Keep the simple
+YYYY-MM-DD-hh-mm format. The user wants neither extra time precision nor
+special handling for more than one commit within a minute. Do not move a
+published tag if its name conflicts.
+The latest pushed code change was ce238af. The following commits 3975097 and
+e91ddea changed only the context and tagging procedure. Existing tags:
+pre-migration, 2026-10-06_23-15-44, and 2026-10-06-23-18. There were no other
+app code changes. Debug and Release builds passed for the tab setting.
+Runtime verification after restart with two documents was still pending.
+Unsaved changes had to be preserved.
 
-## Buffrade UI-ändringar genomförda — 2026-10-07
+## Buffered UI changes implemented — 2026-10-07
 
-Användaren godkände sju punkter med "Kör": Images-menyn har alltid Add...
-(disabled utan aktiv projektmodell), separator och bildlista när bilder finns.
-Focused scene action använder befintlig image importer. Sidebar Create-knappens
-trailing padding korrigerad från 20 till 14 efter visuell kontroll mot Add.
-Panorama-menyn heter nu Create, samma action/kortkommando. Välkomstbilden kvar;
-WelcomeWindowZoomer borttagen, befintlig WindowStateRestorer återanvänd med
-separat app-level frameName PanoWizard.WelcomeWindow. Normal default 1080x680,
-projektframe oförändrad. Ingen ändring av start/reopen-flödet i övrigt.
-Källbildens masktoolbar visar Clear mask och Rotate med ikon/text; Undo och
-Invert-knapparna borttagna, Cmd+Z/underliggande maskfunktioner oförändrade.
-Preview-tomläget har samma Create-knapp som Retouch/Export (disabled enligt
-canStitch). Alla sex ContentUnavailableView använder nya gemensamma
-OpticalEmptyStateLayout, intrinsisk meddelandegrupp centrerad vid höjd/3 och
-klampad för små ytor; texter/typografi/interna avstånd oförändrade.
-Debug/Release bygger utan fel. Release UI kontrollerad: Add... med tomt projekt,
-import av befintlig docs JPG i ett osparat testdokument, maskknapparna, bildmenyn,
-Create i Preview/Retouch/Export, tomlägets visuella höjd. Högerpadding slutjusterad
-utifrån screenshot; slutlig justering ej verifierad i omstartad UI ännu.
-Välkomstfönstrets resize/quit/relaunch-persistens ej manuellt verifierad denna gång.
-Gamla Tab-A-fixturen saknar numera sina externa PNG och gav befintligt read-error;
-inte ändrat eller sparat. Användarens separat körande installerade app orörd.
-Ingen commit, tagg eller push.
+The user approved seven points with "Drive": the Images menu always has Add...
+(disabled without active project model), separator and picture list when images
+are available. Focused scene action uses existing image importers. The sidebar
+Create button's trailing padding corrected from 20 to 14 after visual check
+against Add. The Panorama menu is now called Create, the same as
+action/kortkommando. The welcome image remains; WelcomeWindowZoomer removed,
+existing WindowStateRestores reused with a separate app-level frameName
+PanoWizard.WelcomeWindow. Normal default 1080x680, project frame unchanged. No
+change to startup and reopening workflow otherwise. The source image's mask toolbar shows
+Clear mask and Rotate with ikon/text; Remove and Invert buttons removed,
+Cmd+Z/underliggande mask functions unchanged. The preview mode has the same
+Create button as Retouch/Export (disabled according to canStitch). All six
+ContentUnavailableView uses new common OpticalEmptyStateLayout, intrinsic
+message group centered at height/3 and cluttered for small areas;
+texter/typografi/interna distance unchanged. Debug/Release builds without error.
+Release UI controlled: Add... with empty project, import of existing docs JPG in
+an unseparated test document, the machine buttons, image menu, Create in
+Preview/Retouch/Export, visual height of the blank. Right padding final adjusted
+from screenshot; final adjustment not verified in restarted UI yet. The welcome
+window resize/quit/relaunch-persistens is not manually verified this time. The
+old Tab-A fixture now lacks its external PNGs and gave existing read errors; not
+modified or saved. The user's separately running installed app intact. No
+commit, tag or push.
 
-## Andra buffrade UI-listan — 2026-10-07
+## Other buffered UI list — 2026-10-07
 
-Godkänd med "Kör": maskknappen heter nu Clear (samma ikon/action), JPEG-export
-startar med befintliga Maximum-värdet 0.98 i stället för High 0.92, och No Source
-Images-tomläget har Add-knapp. Add använder exakt samma importer-presentation
-som sidopanel/Images-meny, utan ny filhantering. Knapptext Add, menytext Add...
-Första UI-listans ännu ocommittade ändringar behållna. Ingen commit/tagg/push.
-Debug och Release BUILD SUCCEEDED efter denna lista, diff --check utan fel.
-Kodkopplingen till befintlig importer och Maximum-tag 0.98 verifierad; de tre
-ändringarna har inte manuellt provkörts i omstartad app denna gång.
+Approved with "Run": the machine button is now called Clear (same ikon/action),
+JPEG export starts with existing Maximum value 0.98 instead of High 0.92, and No
+Source Images empty mode has Add-button. Add uses the exact same import
+presentation as sidopanel/Images-meny, with no new file management. I'm going to
+add text. Changes to the first UI list not yet committed are retained. No one
+commit/tagg/push. Debug and Release BUILD SUCCEED after this list, diff --check
+without error. The code link to existing imports and Maximum tag 0.98 verified;
+the three changes have not been manually tested in the restarted app this time.
 
-## Tredje buffrade UI-listan — 2026-10-07
+## Third buffered UI list — 2026-10-07
 
-Godkänd med "Kör": No Source Images actions innehåller en explicit centrerad
-VStack med Add och hjälptext på egen rad (ContentUnavailableView actions lade
-annars ut dem horisontellt). Beskrivningen för Preview utan bilder är nu
-"To preview, first add source images and create a panorama." Retouch och Export
-använder motsvarande godkända text och Add när images.isEmpty. Med bilder men
-utan panorama behålls befintlig Create/text/canStitch. Alla Add-knappar använder
-befintliga model.isImporterPresented; inga nya sandbox-/import-/stitchflöden.
-Tidigare ocommittade UI-ändringar behållna. Ingen commit/tagg/push.
-Debug och Release BUILD SUCCEEDED. diff --check utan fel. Brancherna och Add-
-action kontrollerade i koden; slutlig visuell kontroll i omstartad app återstår.
+Approved with "Run": No Source Images actions contain an explicitly centred
+VStack with Add and help text in their own row (ContentUnavailableView actions
+otherwise placed them horizontally). The description for Preview without images
+is now "To preview, first add source images and create a panorama". Retouch and
+Export use the corresponding approved text and Add when images.isEmpty. With
+images but without panorama, the existing Create/text/canStitch is maintained.
+All Add-buttons use existing model.isImporterPresented; no new
+sandbox, import, and stitching workflows. Previously uncommitted UI changes retained. No
+one commit/tagg/push. Debug and Release BUILD SUCCEED. diff --check without
+error. Branches and Add-action checked in the code; final visual control in
+restarted app remains.
 
-## Bakgrunder och samlad check-in — 2026-10-07
+## Backgrounds and collected check-in — 2026-10-07
 
-Användaren ersatte/utökade välkomstbilderna: Backgrounds innehåller nu A.jpg–G.jpg,
-C.png ersatt med C.jpg. Hela folder reference kopieras normalt av Xcode. Debug
- och Release byggda utan fel; exakt samma sju bildnamn och byte-identiska bilder
-verifierade i båda app-paketen. Inga bildtransformationer utförda av Codex.
-Användaren auktoriserade commit+push av samlade UI-listor och nya bakgrunder,
-med datumtagg enligt etablerad rutin. Manuella verifieringsbegränsningar ovan
-kvarstår; de har inte ersatts med påståenden om nya runtime-tester.
+User replaced or extended welcome pictures: Backgrounds now include A.jpg–G.jpg,
+C.png replaced with C.jpg. The entire folder reference is normally copied by
+Xcode. Debug and Release built without error; exactly the same seven image names
+and byte-identical images verified in both app packages. No image
+transformations performed by Codex. The user authorised commit+push of compiled
+UI lists and new backgrounds, with date tags according to established routine.
+The above manual verification limitations remain; they have not been replaced by
+claims of new runtime tests.
 
 
-## Repositorynamn och hjälp-URL — 2026-10-08
+## Repository name and help URL — 2026-10-08
 
-Aktivt repository är nu /Users/magnus/Documents/GitHub/panowizard, origin
-https://github.com/meg768/panowizard.git. Tidigare next-gen-namn i historiken
-avser detta migrerade Xcode-projekt. PanoWizardHelpURL i Info.plist uppdaterad
-till https://meg768.github.io/panowizard/ efter namnbytet. Native Help-action
-läser fortfarande denna nyckel och öppnar standardwebbläsaren.
+Active repository is now /Users/magnus/Documents/GitHub/panowizard, origin
+https://github.com/meg768/panowizard.git. Previous next-gen names in history
+refer to this migrated Xcode project. PanoWizardHelpURL in Info.plist updated to
+https://meg768.github.io/panowizard/ after renaming. Native Help-action still
+reads this key and opens the default web browser.
 
-## Support och integritetspolicy — 2026-10-08
+## Support and privacy policy — 2026-10-08
 
-Inför App Store lade vi till docs/support.md och docs/privacy.md samt länkar
-från hjälpens startsida. Användaren valde uttryckligen GitHub Issues som
-supportkanal (aktiverat i meg768/panowizard). Ingen påhittad e-postadress.
-Policyn baserad på nuvarande kod: lokal bildbehandling, externa källbilder,
-projektmetadata/masks/panorama/patches och security bookmarks, frivillig
-OpenAI image-edit-request direkt via HTTPS med egen API-nyckel. Nyckeln ligger
-för närvarande i UserDefaults, inte Keychain och inte projektet. Inga påståenden
-om OpenAI-retention eller träning; länkar till leverantörens datapolicy.
-Support varnar för att GitHub Issues är offentliga och att .pw kan innehålla
-bilder/sökvägar. Lokala Markdown/HTML-länkar verifierade. Ingen appkod ändrad.
-Publicerade adresser efter nästa Pages-deploy: /panowizard/support.html och
-/panowizard/privacy.html. Sidorna är ännu inte pushade/publicerade. App Store
-Connect Privacy-formulär och appens AI-samtyckesflöde återstår separat; användaren
-sköt tidigare upp AI-granskningen. Ingen commit/tagg/push denna gång.
+In front of the App Store, we added docs/support.md and docs/privacy.md as well
+as links from the help's homepage. The user explicitly chose GitHub Issues as
+the support channel (activated in meg768/panowizard). No invented e-mail
+address. Policy based on current code: local image processing, external source
+images, projektmetadata/masks/panorama/patches and security bookmarks, voluntary
+OpenAI image-edit request directly via HTTPS with its own API key. The key is
+currently in UserDefaults, not Keychain and not the project. No claims about
+OpenAI retention or training; links to the provider's data policy. Support warns
+that GitHub Issues is public and that .pw may contain images and paths. Local
+Markdown and HTML links verified. No app code changed. Published after the next
+Pages deployment: /panowizard/support.html and /panowizard/privacy.html. The
+pages are not yet pushade/publicerade. The App Store Connect Privacy form and
+the app's AI consent stream remain separate; the user previously postponed the
+AI review. No commit/tagg/push this time.
 
-## App Store Connect och TestFlight — 2026-10-08
+## App Store Connect and TestFlight — 2026-10-08
 
-Support-/policyändringarna ovan är därefter committade och pushade i e569164,
-med annoterad tagg 2026-10-08-00-24. Föregående UI-/bakgrundscommit är 5bcd215,
-tagg 2026-10-07-23-36. De äldre styckenas "inte pushade" gäller deras tidpunkt.
+support and policy changes above is then commuted and pushed into e569164, with
+annotated tag 2026-10-08-00-24. The previous UI-/bakgrundscommit is 5bcd215, tag
+2026-10-07-23-36. The "not pushed" of the older pieces is their timing.
 
 - App Store Connect Apple ID: 6819353008; bundle se.egelberg.panowizard.
-- Archive/upload lyckades för 1.0 (202610080027). Bygget valdes också på
-  distributionsversionen. Appens ikon visas korrekt i Connect.
-- Internal TestFlight-gruppen "My Testing": en testare och ett build.
-  Magnus installerade via TestFlight och bekräftade grundflödet: skapa projekt,
-  lägga till bilder, skapa panorama, exportera, spara och återöppna. Detta är
-  användarverifiering, inte nya automatiserade tester. AI-liveanrop ej verifierat.
-- Gratis: Current Price-screenshot visar 0,00 kr i Sverige och nollpriser i
-  övriga synliga marknader. Tillgänglighet 175 länder/regioner.
-- Manuell release rekommenderades och användaren gick vidare efter instruktionen;
-  slutligt sparat val har inte verifierats i screenshot. Kontrollera detta före
-  framtida besked om automatisk/manuell publicering.
-- Primärt språk English (U.S.); kategori Photo & Video, ingen sekundär kategori.
-  Åldersformuläret gav 4+ (regionala undantag visas), Not Applicable som override.
-  Content Rights sparat som inget tredjepartsinnehåll, efter villkoret att
-  välkomstbilderna är Magnus egna. Apple's Standard License Agreement kvar.
-- App Privacy publicerades via användarens stegvisa arbete. Deklarerade typer:
-  Photos or Videos, Other User Content, User ID; App Functionality, linked to
-  identity, ingen tracking. API-nyckel som User ID och kopplingen till identitet
-  är vår bedömning, inte en uttrycklig Apple-klassificering av API-nycklar.
-  Bakgrund: frivillig OpenAI image-edit med egen nyckel och leverantörens
-  standardretention; lokal bildbehandling är i sig inte datainsamling.
-- Privacy Policy URL: https://meg768.github.io/panowizard/privacy.html
-  Support URL: https://meg768.github.io/panowizard/support.html
-  Marketing URL: https://meg768.github.io/panowizard/
-  Copyright: 2026 Magnus Egelberg. GitHub Issues är vald supportkanal.
-- Beskrivning och keywords ifyllda. Promotional Text och Subtitle lämnades tomma.
-- Sign-in required avmarkerat; Apple-kontaktuppgifter ifyllda av användaren.
-  **API-nyckeln anges i själva AI-retuschgränssnittet, inte i Settings.**
-  Användarens rättelse är styrande för framtida dokumentation/granskningsnoter.
+- Archive/upload succeeded for 1.0 (202610080027). The building was also
+  selected for the distribution version. The app icon appears correctly in
+  Connect.
+- Internal TestFlight group "My Testing": a tester and a build. Magnus installed
+  via TestFlight and confirmed the basic flow: create projects, add images,
+  create panorama, export, save and reopen. This is user verification, not new
+  automated tests. The AI live call hasn't been verified.
+- Free: Current Price screenshot shows 0,00 kr in Sweden and zero prices in
+  other visible markets. Availability 175 countries or regions.
+- Manual release was recommended and the user proceeded as instructed;
+  ultimately saved selections have not been verified in screenshots. Please
+  check this before any future publication of automatisk/manuell.
+- Primary language English (U.S.); category Photo & Video, no secondary
+  category. The age form gave 4+ (regional exceptions are shown), Not Applicable
+  as the override. Content Rights saved as no third-party content, provided that
+  the welcome pictures are Magnus' own. Apple's Standard License Agreement
+  remains.
+- App Privacy was published through the user's step-by-step work. Declared
+  types: Photos or Videos, Other User Content, User ID; App Functionality,
+  linked to identity, no tracking. API keys such as User ID and the link to
+  identity are our assessment, not an explicit Apple classification of API keys.
+  Background: voluntary OpenAI image-edit with own key and provider's default
+  retention; local image processing is not data collection per se.
+- Privacy Policy URL: https://meg768.github.io/panowizard/privacy.html Support
+  URL: https://meg768.github.io/panowizard/support.html Marketing URL:
+  https://meg768.github.io/panowizard/ Copyright: 2026 by Magnus Egelberg.
+  GitHub Issues is the chosen support channel.
+- Description and keywords filled in, promotional text and subtitle left blank.
+- Sign-in required delimited; Apple contact details completed by the user. **The
+  API key is specified in the AI retouching interface itself, not in Settings.**
+  The user's correction is the controller for future
+  dokumentation/granskningsnoter.
 
-Granskningsnoter sparade av användaren:
+Review notes saved by the user:
 
 PanoWizard creates panoramas from overlapping source images. To test the main
 workflow, add overlapping photos, click Create, and export the result. Image
@@ -2644,642 +2841,643 @@ Optional AI retouching requires an OpenAI API key entered in the AI retouch
 interface. It sends the selected panorama view and editing instructions directly
 to OpenAI.
 
-### Butiksskärmbild
+### Shop screen
 
-En skärmbild är uppladdad och sparad, med Lunds Domkyrka i Preview och appens
-sidopanel. Projektet var redan öppet från
-/Users/magnus/Desktop/Panorama/U/panowizard.pw i /Applications/PanoWizard.app.
-Native app-screenshot togs via CUA; inga kod- eller projektändringar gjordes.
-Efter uttryckligt godkännande skalades den proportionellt med ImageMagick och
-smala mörka sidomarginaler till exakt 2880 × 1800, utan beskärning/förvrängning.
-Original: /Users/magnus/Desktop/PanoWizard-AppStore/01-preview.png
-Uppladdad: /Users/magnus/Desktop/PanoWizard-AppStore/01-preview-2880x1800.png
+A screenshot is uploaded and saved, with Lund's Cathedral in Preview and the
+app's sidebar. The project was already open from
+/Users/magnus/Desktop/Panorama/U/panowizard.pw in /Applications/PanoWizard.app.
+Native app screenshots were taken via CUA; no code or project changes were made.
+After explicit approval, it was scaled in proportion to ImageMagick and narrow
+dark side margins to exactly 2880 × 1800, without cropping or distortion.
+Originally: /Users/magnus/Desktop/PanoWizard-AppStore/01-preview.png Uploaded:
+/Users/magnus/Desktop/PanoWizard-AppStore/01-preview-2880x1800.png
 
-### Kända kvarstående frågor
+### Known remaining questions
 
-AI-disclosure/uttryckligt samtycke i appen sköts tidigare upp och har inte
-granskats eller ändrats i denna session. Hur Apple ska testa valfri AI-retusch
-utan egen API-nyckel diskuterades men löstes inte före användarens inskick.
-Inskicket är bekräftat; det betyder inte att dessa frågor är verifierade eller
-att Apple godkänt appen. Hantera konkret återkoppling när den kommer.
+AI-disclosure/uttryckligt consent in the app was previously opened and has not
+been reviewed or amended during this session. How Apple will test optional AI
+retouch without its own API key was discussed but not resolved before the user's
+input. The shipment is confirmed; this does not mean that these questions are
+verified or that Apple has approved the app. Handles concrete feedback when it
+comes.
 
-Kontext sparad lokalt på uttrycklig begäran; ingen ny commit/tagg/push begärd.
+Context saved locally upon explicit request; no new commit/tagg/push requested.
 
-## Lokal bygg- och installationsrutin — 2026-10-08
+## Local build and installation workflow — 2026-10-08
 
-Användaren har uttryckligen begärt: **Vid bygge → kopiera till Applications.**
-Efter ett lyckat appbygge ska den färdigbyggda PanoWizard.app kopieras till
-/Applications/PanoWizard.app, så att användaren alltid hittar senaste bygget där.
-Använd det bygge som just lyckades; för Release är nuvarande byggplats
+The user explicitly requested that successful builds be copied to
+Applications. Copy the complete PanoWizard.app bundle to
+/Applications/PanoWizard.app so that the latest build is always there.
+Use the build that just succeeded. The Release build at the time was at
 /Users/magnus/Library/Developer/Xcode/PanoWizardBuilds/Release/PanoWizard.app.
-Kopiera hela appbundlen (exempelvis med ditto) och kontrollera installerat
-versions-/byggnummer samt kodsignaturen. Kopiera inte ett äldre bygge när det
-aktuella bygget har misslyckats. Detta är en bestående arbetsrutin och kräver
-inte ny bekräftelse vid varje bygge.
-Senast kopierade Release: version 1.1, bygge 202610081849.
+Use a tool such as ditto and verify the installed version, build number,
+and code signature. If the current build fails, do not copy an older build.
+This workflow is a standing request and does not require confirmation for
+each build.
+Latest Release copied at the time: version 1.1, build 202610081849.
 
-## .pw-dokumentikon och ikoncache — 2026-10-08
+## .pw document icon and icon cache — 2026-10-08
 
-En uttrycklig dokumentikon med vikt hörn, appmärket och PW-text har lagts till
-som PanoWizard/PanoWizard/Resources/PWDocument.icns. Info.plist anger
-CFBundleTypeIconFile och UTTypeIconFile till PWDocument.icns samt
-LSTypeIsPackage=true. Release byggt, kopierat till /Applications/PanoWizard.app
-(version 1.1, bygge 202610081849); codesign --verify --deep --strict lyckades.
-Den aktiva Launch Services-registreringen pekade rätt, men NSWorkspace gav
-fortfarande den gamla appikonen. Omstart av Finder/ikonagent räckte inte.
-Efter användarens uppföljning flyttades användarens två cachemappar
-com.apple.iconservicesagent och com.apple.iconservices från DARWIN_USER_CACHE_DIR
-till /tmp/pw-icon-cache-backup-20261008185507 och Finder startades om.
-Därefter returnerade NSWorkspace.icon(forFile:) den nya dokumentikonen för
-/tmp/pw-icon-check.pw, visuellt verifierat. Användarens verkliga Finder-vy har
-inte kontrollerats. Inga projektdokument ändrades. Ingen commit/push.
+An explicit document icon with weight corners, app tag and PW text has been
+added as PanoWizard/PanoWizard/Resources/PWDocument.icns. Info.plist indicates
+CFBundleTypeIconFile and UTTypeIconFile to PWDocument.icns and
+LSTypeIsPackage=true. Release built, copied to /Applications/PanoWizard.app
+(version 1.1, build 202610081849); codesign --verify --deep --strict succeeded.
+The active Launch Services registration pointed right, but NSWorkspace still
+gave the old app icon. Restarting Finder/ikonagent was not enough. Following the
+user's follow-up, the user's two cache apps com.apple.iconservicesagent and
+com.apple.iconservices were moved from DARWIN_USER_CACHE_DIR to
+/tmp/pw-icon-cache-backup-20261008185507 and Finder was restarted.
+NSWorkspace.icon(forFile:) then returned the new document icon for
+/tmp/pw-icon-check.pw, visually verified. The user's real Finder view has not
+been checked. No project documents were amended. No one commit/push.
 
-## macOS-genererad .pw-ikon verifierad — 2026-10-08
+## macOS generated .pw icon verified — 2026-10-08
 
-Ersätter slutsatsen och implementationen i föregående ikonanteckning.
-På användarens begäran återställdes UTTypeIcons med UTTypeIconText=PW.
-CFBundleTypeIconFile och UTTypeIconFile togs bort; LSTypeIsPackage=true behölls.
-Efter Release-bygge, kopiering till Applications, registrering och återställning
-av användarens ikoncache returnerar NSWorkspace.icon(forFile:) nu macOS egen
-systemgenererade dokumentikon med vikt hörn, appmärket och PW-text. Resultatet
-är visuellt verifierat på testpaketet /tmp/pw-icon-check.pw. Den tidigare egna
-PWDocument.icns var alltså inte nödvändig och har tagits bort från källträdet.
-Cachebackup för detta test: /tmp/pw-system-icon-cache-backup-20261008190119.
-Ingen commit/push. Användarens verkliga projektfiler har inte ändrats.
+Replace the conclusion and implementation of the previous icon notation. At the
+user's request, UTTypeIcon was restored with UTTypeIconText=PW.
+CFBundleTypeIconFile and UTTypeIconFile were removed; LSTypeIsPackage=true was
+retained. After releasing build, copying to Applications, registering and
+restoring the user's icon cache, NSWorkspace.icon(forFile:) now returns macOS'
+own system-generated document icons with weight corners, app tag and PW text.
+The result is visually verified on the test package /tmp/pw-icon-check.pw. The
+previous own PWDocument.icns was therefore not necessary and has been removed
+from the source tree. Cachebackup for this test:
+/tmp/pw-system-icon-cache-backup-20261008190119. No one commit/push. The user's
+actual project files have not changed.
 
-## Standardtext i macOS-genererad dokumentikon — 2026-10-08
+## Standard text in the macOS generated document icon — 2026-10-08
 
-På användarens begäran togs UTTypeIconText=PW bort. UTTypeIcons är nu en
-tom dictionary; filändelsen är fortfarande pw. Release-bygget lyckades och
-kopierades till /Applications/PanoWizard.app: version 1.1, bygge 202610081904.
-Kodsignaturen verifierades. Efter registrering och cacheåterställning visar
-NSWorkspace.icon(forFile:) för /tmp/pw-icon-check.pw fortfarande PW i versaler,
-nu som macOS standardtext utan explicit textinställning. Visuellt verifierat.
-Cachebackup: /tmp/pw-default-label-cache-backup-20261008190459.
-Denna standardinställning har behållits. Ingen commit/push.
+UTTypeIconText=PW was removed at the user's request. UTTypeIcons is now an empty
+dictionary; the file ending is still pw. The release build was successful and
+copied to /Applications/PanoWizard.app: version 1.1, build 202610081904. The
+code signature was verified. After registration and cache reset,
+NSWorkspace.icon(forFile:) for /tmp/pw-icon-check.pw still displays PW in
+versales, now as macOS default text without explicit text setting. Visualally
+verified. Cachebackup: /tmp/pw-default-label-cache-backup-20261008190459. This
+default setting has been maintained. No one commit/push.
 
-## Checkpoint för dokumentikon och bygg-rutin — 2026-10-08
+## Checkpoint for documentation and construction routine — 2026-10-08
 
-Användaren begärde spara kontext + c+p. Checkpointen omfattar CONTEXT.md och
-Info.plist: macOS-genererad dokumentikon med standardtext och paketmarkering,
-samt den bestående rutinen att kopiera lyckade byggen till Applications.
-Senaste installerade och signaturverifierade Release är 1.1 (202610081904).
-Separata lokala ändringar i MARKETING_VERSION, Xcode-schemats formatering och
-docs-copy/ ingår inte i denna commit. Datumtagg skapas enligt sparad c+p-rutin.
-Tidigare "ingen commit/push"-anteckningar beskriver läget vid respektive test.
+The user requested to save context + c+p. The checkpoints include CONTEXT.md and
+Info.plist: macOS-generated document icons with default text and packet markup,
+as well as the existing routine of copying successful builds to Applications.
+The most recent installed and signature verified Release is 1.1 (202610081904).
+Separate local changes to the MARKETING_VERSION, Xcode schematic formatting and
+docs-copy/ are not included in this commit. Date tags are created according to
+the saved c+p routine. Previous 'no commit/push' notes describe the situation of
+each test.
 
-## Dokumentationsuppdatering och publicering — 2026-10-08
+## Updating and publishing of documentation — 2026-10-08
 
-Användaren godkände uppdatering av befintlig dokumentation utan ändring av appkod.
-Getting Started följer Import → Create → Preview → Export. Befintlig sidstruktur
-behållen; guiderna har aktuella kontroller, tekniska krav åtskilda från fotoråd,
-aktuella GUI-bilder och verkliga exempel från N, U, V, S och Z. Maskningens
-befintliga fotografiska före/efter-exempel behölls och beskars utan gammal GUI.
-AI-exemplet använder en redan sparad reparation; inga nya API-anrop gjordes.
-Retouch visar baspanoramat, medan Preview visar aktiva patchar; AI-jämförelsen
-är därför fångad i Preview med identisk riktning och zoom.
-Alla 14 sidor renderingskontrollerade lokalt, 22 refererade bilder verifierade,
-interna länkar och git diff --check godkända. Appfiler, originalprojekten och
-docs-copy/ verifierades oförändrade mot startens checksummor. Befintliga lokala
-Xcode-versions-/schemaändringar ingår inte i dokumentationscommiten.
-Användaren begärde därefter c+p och GitHub-publicering. Pages är konfigurerat
-för main:/docs och publiceras automatiskt efter push. Annoterad datumtagg
-skapas enligt den bestående c+p-rutinen.
+The user consented to the update of existing documentation without modifying the
+app code. Getting Started follows Import → Create → Preview → Export. Existing
+page structure retained; guides have current controls, technical requirements
+separated from photo advice, current GUI images and real examples from N, U, V,
+S and Z. The existing photographic image of the machine before-and-after examples is
+kept and scanned without an old GUI. The AI example uses an already saved
+repair; no new API calls were made. Retouch displays the base panorama, while
+Preview displays active patches; the AI comparison is therefore captured in
+Preview with identical direction and zoom. All 14 pages were rendered locally,
+22 referenced images verified, internal links and git diff --check approved. App
+files, original projects and docs-copy/ were verified unchanged against startup
+checks. Existing local Xcode version or scheme changes is not included in the
+documentation committee. The user then requested c+p and GitHub publication.
+Pages are configured for main:/docs and published automatically after push. The
+date tag is created according to the existing c+p routine.
 
-## Globala riktningar för HTML-export — 2026-10-08
+## Global directions for HTML export — 2026-10-08
 
-Två switchar ovanför Save HTML: Invert drag direction och Invert scroll zoom.
-Båda av som standard. @AppStorage/UserDefaults sparar globalt, inte i projekt.
-HTML-exporten läser valen och bäddar in fasta riktningsfaktorer. Drag inverteras
-på båda axlarna, vanlig scrollzoom inverteras separat; nypgest och tangentbord
-behåller sitt beteende. Ingen inställningspanel i den exporterade visaren.
-Alla fyra kombinationer kontrollerade genom exporterad JavaScript och simulerade
-pan-/scroll-/nyp-händelser. Fem befintliga PanoramaAdjustmentProcessorTests
-klarade. GUI och global lagring verifierade efter omstart och byte G → N.
-Release byggt och kopierat till /Applications/PanoWizard.app, build 202610082159;
-kodsignaturen godkänd. Exportguiden och exportbilden uppdaterade lokalt.
-Inför omstart hade användarens öppna G osparade ändringar. De bevarades genom
-Save As till /Users/magnus/Desktop/Panorama/G/panowizard-before-html-settings.pw;
-originalet skrevs inte över. Appen visar nu N:s Export med båda switchar av.
-Ingen commit/push begärd. Tidigare Xcode-version/schemaändringar behållna.
+Two switches above Save HTML: Invert drag direction and Invert scroll zoom. Both
+by default. @AppStorage/UserDefaults saves globally, not in projects. The HTML
+export reads the selections and inserts fixed direction factors. Drag is
+reversed on both shoulders, normal scrollzoom is reversed separately; the keypad
+and keyboard retain their behavior. No settings panel in the exported display.
+All four combinations were controlled via exported JavaScript and simulated
+pan, scroll, and pinch events. Five existing PanoramaAdjustmentProcessorTests were
+passed. GUI and global storage verified after restarting and switching G → N.
+Release built and copied to /Applications/PanoWizard.app, build 202610082159;
+code signature approved. Export guide and export picture updated locally. Before
+restarting, the user's open G had unspent changes. They were preserved through
+Save As to /Users/magnus/Desktop/Panorama/G/panowizard-before-html-settings.pw;
+the original was not rewritten. The app now shows N's Export with both switches
+off. No commit/push requested. Formerly Xcode version or scheme changes retained.
 
-## Beteendebeskrivande HTML-switchar — 2026-10-08
+## This is the total amount of data that can be collected. — 2026-10-08
 
-Användaren valde Drag to turn the camera och Scroll up to zoom in som texter.
-Drag-switchens koppling är oförändrad. Scroll-switchens visning är negationen
-av invertScrollZoom, så på verkligen betyder uppåt = zooma in. Sparade val
-behålls. Standard utan sparade val: drag av, scroll på. Nypgest oförändrad.
-Release build 202610082218 lyckades, kopierades till Applications och
-kodsignaturen verifierades. Båda texter och befintliga val verifierade i GUI.
-Exportguide och screenshot uppdaterade lokalt. Ingen commit/push begärd.
+The user chose Drag to turn the camera and Scroll up to zoom in as text. The
+drag-switch connection is unchanged. The display of the scroll switch is the
+negation of invertScrollZoom, so on really means up = zoom in. Save the choices.
+Standard with no saved options: pull, scroll on. It's the most unchanged.
+Release build 202610082218 was successful, copied to Applications and the code
+signature verified. Both texts and existing choices verified in the GUI. Export
+guide and screenshot updated locally. No commit/push requested.
 
 ## Scroll down to zoom in — 2026-10-08
 
-På användarens begäran ersattes Scroll up to zoom in med Scroll down to zoom in.
-Switch är nu direkt bunden till invertScrollZoom igen: av = befintlig riktning,
-på = nedåt zoomar in. Båda switchar är av som standard. Global lagring behålls.
-Release 202610082227 byggt, kopierat till Applications och signaturverifierat.
-GUI verifierat i O: båda switchar av och den nya texten visas. Ingen commit/push.
+At the user's request, Scroll up to zoom in was replaced by Scroll down to zoom
+in. Switch is now directly linked to invertScrollZoom again: off = existing
+direction, on = down zooms in. Both switches are off by default. Global storage
+is maintained. Release 202610082227 built, copied to Applications and signed.
+GUI verified in O: both switches off and the new text appears. No commit/push.
 
 
-## Modal startdialog — 2026-10-08
+## Modal start dialogue — 2026-10-08
 
-På användarens begäran ersattes välkomstfönstret med en fast, centrerad
-startdialog. Create Your Panorama och Open Panorama… har samma vita knappstil.
-Quit är en vanlig SwiftUI-knapp längre ned. Inga fönsterknappar eller resize.
-AppKit runModal blockerar menykommandon tills användaren väljer ett projekt
-eller Quit. Avbrutet filval stannar i dialogen. Efter godkänt filval släpps
-modaliteten före den asynkrona importen/öppningen; vid fel återupptas dialogen.
-Projektfönstrens storlek och återställning är oförändrade.
-Release 202610082315 byggt, kopierat till /Applications/PanoWizard.app och
-signaturverifierat. GUI-prov: öppna befintliga N, importera en riktig N-bild
-till Untitled, avbryta filval, blockerat Cmd-N, oläsbar testbild med felmeddelande
-och återgång till modal dialog, samt Quit. Det tillfälliga projektet stängdes
-utan att sparas; originalprojekten skrevs inte över. Dokumentationens startbild
-och benämningen start dialog uppdaterade. Ingen commit/push begärd för ändringen.
-
-
-## Tre lika startknappar och heltäckande bakgrund — 2026-10-08
-
-Quit har nu samma vita kapsel, storlek och textstil som skapa/öppna, med
-power-symbol. Bakgrunden ligger separat bakom den fasta innehållsytan och
-fyller även dialogens safe-area; den tomma remsan längst ned är borta.
-Release byggt, kopierat till Applications och signaturverifierat. Aktuell GUI
-visuellt kontrollerad och dokumentationens startbild uppdaterad.
+At the request of the user, the welcome window was replaced by a fixed,
+centralised start dialog. Create Your Panorama and Open Panorama... have the
+same white button style. Quit is a regular SwiftUI button down there. No window
+buttons or resize. AppKit runModal blocks menu commands until the user selects a
+project or Quit. The interrupted file selection remains in the dialogue. After
+the file selection has been approved, the mode is released before the
+asynchronous import or opening; in case of error, the dialogue is resumed. The
+size and restoration of the project window remain unchanged. Release
+202610082315 built, copied to /Applications/PanoWizard.app and signed. GUI test:
+open existing N, import a real N image to Untitled, disable file selection,
+block Cmd-N, unreadable test image with error message and return to modal
+dialog, and Quit. The temporary project was closed without saving; the original
+projects were not rewritten. The start image and the name of the documentation
+have been updated. No commit/push requested for the amendment.
 
 
-## Större startdialog med transparenta knappar — 2026-10-08
+## Three identical start buttons and a complete background — 2026-10-08
 
-Open Existing Panorama… ersätter startknappens tidigare text. Samtliga vita
-knappbakgrunder har 82 % opacitet. Dialogens innehållsstorlek beräknas från
-aktuell skärms synliga yta: 62 % bredd och 68 % höjd, normalt minst 800×560
-och högst 1100×740 punkter; mindre skärmar begränsar storleken så den ryms.
-Release byggt, kopierat till Applications och signaturverifierat. GUI visuellt
-verifierat: större dialog, läsbara texter och heltäckande bakgrund. Startbild
-och projektguidens startknapp uppdaterade. Ingen commit/push begärd.
+Quit now has the same white capsule, size and texture as create or open, with power
+symbol. The background is located separately behind the fixed content surface
+and also fills the safe-area of the dialogue; the empty ribbon at the bottom is
+gone. Release built, copied to Applications and signed. Current GUI visually
+checked and documentation starting image updated.
 
 
-## Startdialogens vertikala balans — 2026-10-08
+## Larger start dialog with transparent buttons — 2026-10-08
 
-Knappbakgrunderna har nu 74 % opacitet (26 % transparens). Det fria vertikala
-utrymmet fördelas med en Spacer ovanför innehållet och två nedanför, för
-1/3–2/3-balans. Release byggt, kopierat till Applications och signaturverifierat.
-Visuellt kontrollerat och dokumentationens startbild uppdaterad.
-
-
-## Projektfönster hanteras av SwiftUI/macOS — 2026-10-08
-
-På användarens begäran togs WindowStateRestorer bort helt. Projektfönster
-läser inte längre PanoWizard.ProjectWindow och använder inte setFrameUsingName
-eller setFrameAutosaveName. SwiftUI/macOS sköter återställning. Deklarativ
-defaultSize och minimum för arbetsytan behålls; startdialogens tidigare
-överenskomna utformning är oförändrad. Release byggt och kopierat till
-Applications, kodsignatur och git diff --check godkända. GUI-verifierat genom
-öppning av N: normalt projektfönster, Ready 5 images. Ingen commit/push begärd.
+Open Existing Panorama replaces the previous text of the start button. All white
+button backgrounds are 82% opaque. The content size of the dialog is calculated
+from the visible surface of the current screen: 62% width and 68% height,
+normally at least 800×560 and maximum 1100×740 points; smaller screens limit the
+size so that it can be spaced. Release built, copied to Applications and signed.
+GUI visually verified: greater dialogue, readable text and comprehensive
+background. Start image and the start button of the project guide updated. No
+commit/push requested.
 
 
-## SwiftUI väljer projektets startstorlek — 2026-10-08
+## Vertical balance of the start dialog — 2026-10-08
 
-På användarens begäran togs även DocumentGroup.defaultSize(1240×780) bort.
-Ingen egen återställning eller angiven standardstorlek för projektfönster
- återstår. Arbetsytans befintliga minimum 900×600 behålls. Startdialogens
-utformning är fortsatt separat. Release byggt, kopierat till Applications,
-signaturverifierat och GUI-kontrollerat genom öppning av N (Ready 5 images).
-
-
-## Startdialogen stängs efter projektval — 2026-10-08
-
-Användaren upptäckte att välkomstfönstret låg kvar bakom projektet. Tidigare
-GUI-kontroller verifierade projektöppning men missade bakgrundsfönstret.
-Efter lyckad öppning/import stängs nu den refererade NSWindow direkt med close()
-i stället för dismissWindow, eftersom dialogens closable-stil är borttagen.
-Avbrutet filval/fel behåller dialogen som tidigare. Release byggt, installerat
-i Applications och signaturverifierat. GUI-prov med N: öppnat projekt och
-ny appavläsning väljer projektfönstret, ingen kvarvarande startdialog.
+Button backgrounds now have 74% opacity (26%) The free vertical space is divided
+by a Spacer above the contents and two below, for 1/3–2/3-balans. Release built,
+copied to Applications and signed. Visually checked and the documentation
+starting image updated.
 
 
-## Checkpoint: startdialog och systemets fönsterhantering — 2026-10-09
+## Project windows are managed by SwiftUI/macOS — 2026-10-08
 
-Användaren godkände att SwiftUI/macOS hanterar projektfönstrets storlek och
-position; inga fönsterkoordinater ska lagras i .pw vid Save. Begäran tag+c+p
-omfattar startdialogens senaste utformning, korrigerad stängning efter
-projektval, borttagen egen fönsteråterställning/defaultSize och motsvarande
-dokumentation samt kontext. Release-byggen och GUI-prov beskrivs ovan.
-Separata befintliga Xcode-version/schemaändringar och docs-copy/ lämnas
-utanför denna commit. Annoterad datumtagg enligt Europe/Stockholm.
-
-
-## Sju samlade GUI-ändringar — 2026-10-09
-
-Användaren godkände ett samlat genomförande efter gemensam lista:
-1. Zoom In/Out/Reset når aktuell synlig ImageNavigationResponder även från
-sidopanelen, med vanlig responderkedja först och fönstrets bildvy som fallback.
-2. Den låsta sidopanelens show/hide-knapp borttagen även på sidebar-kolumnen.
-3. Normal projektfönsterstorlek sparas globalt i UserDefaults efter manuell
-storleksändring (didEndLiveResize). Bara bredd/höjd, ingen position, inget
-.pw-innehåll och inget Save-krav. Inga frame-autosave-nycklar. Zoom/helskärm
-förblir macOS ansvar. Detta ersätter gårdagens beslut om helt native storlek.
-4. Images → Remove All… efter Add… med Cancel/Remove All-bekräftelse. Rensar
-källor, masker, panorama och patchar ur projektet, behåller originalfiler.
-Inaktivt utan bilder.
-5. Images-menyn visar endast filnamn, behåller markering/Option-siffergenvägar.
-6. Preview-tomvy: eye-symbol och No Panorama to Preview.
-7. Alla tre tomvyers Create använder pano-symbol och befintlig pill-stil.
-
-Release byggt och kopierat till Applications, signatur verifierad. 12
-PanoProjectTests passerar, inklusive nytt remove-all-test som verifierar att
-originalfilen behålls. Startmodalitet hoppas över i XCTest-värd så tester kan
-starta. GUI: zoom via meny med sidofokus, borttagen toggle, rena filnamn,
-Remove All Cancel/bekräftelse/inaktiv efteråt, Preview/Retouch/Export-tomvyer.
-Manuell resize gav 2222×1542 skärmbildspixlar och nästa nya projekt exakt samma
-storlek. Projekt N:s GUI-borttagning sparades inte; N öppnades igen oförändrat.
-Tillfälliga Untitled-projekt stängdes utan att sparas. N ligger öppet.
-Source images-guiden beskriver Remove All. Ingen commit/push begärd. Tidigare
-Xcode-version/schemaändringar och docs-copy/ har inte ändrats av detta arbete.
+At the user's request, WindowStateRestores was removed entirely. ProjectWindow
+no longer reads PanoWizard.ProjectWindow and does not use setFrameUsingName or
+setFrameAutosaveName. SwiftUI/macOS performs recovery. Declaration defaultSize
+and minimum working surface are maintained; the previously agreed layout of the
+start dialog is unchanged. Release built and copied to Applications, code
+signature and give diff --check approved. GUI verified by opening N: normal
+project window, Ready 5 images. No commit/push requested.
 
 
-## Enkel projektstart och renare sidopanel — 2026-10-09
+## SwiftUI selects the starting size of project — 2026-10-08
 
-Ny lista godkänd för enkel samlad implementation:
-1. Den separata välkomstscenen och modal AppKit-loop borttagna helt.
-DocumentGroup har defaultLaunchBehavior(.suppressed) för att undvika automatisk
-filväljare; appdelegate skapar ett normalt tomt dokument efter start om inga
-dokument finns. XCTest-start hoppar över detta.
-2. Sidopanelens toggle återställd; NavigationSplitView får en riktig State-binding
-för columnVisibility i stället för constant(.all). GUI verifierat hide och show.
-3. project.images.isEmpty är gemensamt välkomsttillstånd i ContentView före
-arbetsvyernas grenar, både vid start och Remove All, oavsett vald arbetsvy.
-Create a Panorama / Add overlapping photos, then create your panorama.
-Knappar Add Images… och Open Existing Panorama… använder befintlig stil och
-import/öppning; ingen egen modalitet eller specialfönster.
-4. Images/Panorama-indata/resultatgrupper behållna. Bred Add Images… direkt
-under Images-rubriken. Create borttagen från Panorama-rubriken; meny och
-tomma panoramavyers Create behållna. Inget extra platshållarlöv.
-
-Release byggt, installerat i Applications och signaturverifierat. 12
-PanoProjectTests passerar. GUI: tom projektstart utan filväljare/dialog, toggle
-båda riktningar, välkomstvy från Retouch, import av N-bild, Remove All återgår
-till välkomstvyn, Open Existing Panorama öppnar N med fem bilder. Testprojektet
-är tillfälligt och ska inte sparas; originalen har inte ändrats. Startguidens
-texter/bilder och berörda guider uppdaterade till den nya layouten. Ingen
-commit/push begärd. Tidigare ändringar från sjupunktslistan bevarade.
+At the user's request, DocumentGroup.defaultSize(1240×780) was also removed. No
+own recovery or specified default size for project windows remains. The existing
+minimum number of employees 900×600 shall be maintained. The design of the start
+dialogue continues separately. Release built, copied to Applications, signed and
+GUI-controlled by opening N (Ready 5 images).
 
 
-## Bestående arbetsprincip: KISS — 2026-10-09
+## Start dialog closes after project selection — 2026-10-08
 
-Magnus vill alltid hitta den enklaste lösningen för uppgiften och få så enkel
-kod som möjligt. Ledord: KISS — Keep It Simple Stupid. Prioritera befintliga
-plattformsmönster och standardbeteenden, återanvänd fungerande lösningar och
-undvik onödig specialhantering eller abstraktion. Var kritisk till ändringar
-som kräver stor mängd kod; förklara kostnaden och föreslå en enklare väg när
-det finns en sådan. Säg till om ett önskemål bryter mot tillämpliga standarder
-eller regelverk och förklara konkret vad som berörs. Enkelhet ska fortfarande
-uppfylla uppgiftens krav och ge korrekt beteende. Detta gäller fortsatt arbete.
-
-
-## Bestående testpreferens — 2026-10-09
-
-Magnus vill inte att agenten skapar eller kör automatiska regressionstester
-på eget initiativ. Sådana tester utförs endast på uttrycklig begäran.
-Byggkontroll och praktisk/manuell verifiering av efterfrågade ändringar
-kan fortsatt användas.
+The user discovered that the welcome window was still behind the project.
+Previous GUI checks verified project opening but missed the background window.
+After successful opening and import the referenced NSWindow is now closed directly
+with close() instead of dismissWindow, as the closable style of the dialog is
+removed. The interrupted filval/fel maintains the dialogue as before. Release
+built, installed in Applications and signature verified. GUI test with N: open
+project and new app reading selects the project window, no remaining start
+dialog.
 
 
-## Bred Create Panorama och fotografisk välkomstvy — 2026-10-09
+## Checkpoint: Start dialog and window management of the system — 2026-10-09
 
-Två godkända listpunkter genomförda enligt KISS. Create Panorama ligger brett
-under Panorama, med pano-symbol, befintlig WorkspaceToolbarPillStyle och
-model.stitch/canStitch; samma bredd som Add Images. Välkomstvyn återanvänder
-befintliga Backgrounds/*.jpg. En statisk slumpvald NSImage behålls under
-sessionen; ingen ny lagring, karusell, animation eller dialog. Bakgrunden
-fyller endast den tomma projektvyn och tonas med svart 58 %, med vit text
-och befintliga knappstilar. Inga automatiska regressionstester skapade/körda.
-Release byggt, kopierat till Applications och signaturverifierat. GUI:
-bakgrund/läsbarhet, knappbredd och inaktiv knapp i tomt projekt, öppning av N
-och aktiv knapp som startar stitch-progress (därefter avbruten).
-Startbild och Create-instruktioner uppdaterade. Ingen commit/push begärd.
+The user agreed that SwiftUI/macOS will manage the size and position of the
+project window; no window coordinates shall be stored in .pw at Save. The
+request tag+c+p includes the latest design of the start dialog, corrected
+closure after project selection, removed own window restoration and defaultSize
+and corresponding documentation and context. The release build and GUI tests are
+described above. Separate existing Xcode version or scheme changes and docs-copy/
+are left outside this commit. Date marked according to Europe/Stockholm.
 
 
-## Menyaktivering och startdokumentation — 2026-10-09
+## Seven combined GUI changes — 2026-10-09
 
-Senaste trepunktslistan genomförd enligt KISS utan automatiska regressionstester.
-ImagesCommandActions får canNavigateImage utifrån aktuell bildvy; Zoom In/Out/
-Reset View är disabled utan bild, även i Export och tomma panoramavyer.
-Sidebar.onDeleteCommand får nil när ingen källbild är vald, så AppKit gråar
-Delete. Ingen ersättning av standard Edit-meny eller textfältens responderkedja.
-Manuellt GUI-verifierat: tomt projekt har inaktiva Zoom/Delete/Remove All och
-Panorama Create/Retouch/Preview/Export; Add fungerar. J öppnat och vald källbild
-ger aktiv Delete samt aktiva zoomkommandon. Originalprojekten ändrades inte.
-Övriga mask/skapande/exportkontroller behåller befintliga innehållsvillkor.
-Dokumentationen granskad: inga kvarvarande hänvisningar till modal startdialog.
-Getting Started och Projects förtydligar normal projektstart med tillgängliga
-menyer; aktuell fotografisk startbild uppdaterad. Release byggt, kopierat till
-Applications, signaturverifierat och diff-check godkänd. Ingen commit/push.
+The user authorised a joint implementation according to the common list:
+1. Zoom In/Out/Reset reaches the current visible ImageNavigationResponder also
+   from the sidebar, with regular responder chain first and window image view as
+   a fallback.
+2. The locked side panel show/hide-knapp removed also in the sidebar column.
+3. Normal project window size is stored globally in UserDefaults after manual
+   resizing (didEndLiveResize). Only width and height, no position, no .pw content and
+   no save requirements. No frame-autosave keys. Zoom and full screen remains the
+   responsibility of macOS. This replaces yesterday's decision on a completely
+   native size.
+4. Images → Remove All... after Add... with Cancel/Remove All confirmation.
+   Clears sources, masks, panorama and patches from the project, retains
+   original files. I'm inactive without pictures.
+5. The images menu shows only the file name, retains
+   selection and Option-number shortcuts.
+6. Preview-tommy: the eye symbol and No Panorama to Preview.
+7. All three of the empty Create's use the board symbol and existing pill style.
 
-
-## Samlat checkpoint — 2026-10-09
-
-Användaren begärde t+p+c, tolkat som commit, annoterad datumtagg och push
-till origin/main. Checkpointen omfattar dagens godkända ändringslistor, aktuell
-normal projektstart/fotografisk välkomstvy, sidopanel och innehållsberoende
-kommandon, global vanlig fönsterstorlek, Remove All och uppdaterad docs.
-KISS och inga automatiska regressionstester på eget initiativ är bestående
-preferenser; tidigare tillagt remove-all-test från före testpreferensen ingår
-i checkpointen. Senaste ändringar byggda och manuellt verifierade enligt ovan.
-Befintliga separata Xcode-version/schemaändringar och docs-copy/ lämnas utanför.
-
-
-## Kortkommando tcp — 2026-10-09
-
-Magnus använder framöver tcp för tagg + commit + push. Praktisk ordning:
-committa aktuellt godkänt arbete/kontext, skapa annoterad lokal datumtagg
-på den nya commiten och pusha commit och tagg. Denna checkpoint sparar
-benämningen; inga nya appändringar sedan d615674. Separata Xcode-ändringar
-och docs-copy/ lämnas fortsatt utanför.
+Release built and copied to Applications, signature verified. 12
+PanoProjectTests passes, including a new remove-all test that verifies that the
+original file is preserved. Start mode hopes to overtake the XCTest host so
+tests can start. GUI: zoom through the side-focus menu, remove toggle, clean
+file name, Remove All Cancel, confirmation, or disabled state afterwards,
+Preview/Retouch/Export-tomvyer. Manual resize gave 2222×1542 screen pixels and
+the next new project exactly the same size. Project N's GUI removal was not
+saved; N was reopened unchanged. Temporary Untitled projects were shut down
+without savings. N is open. The source images guide describes Remove All. No
+commit/push requested. Previous Xcode version or scheme changes and docs-copy/
+have not been modified by this work.
 
 
-## Dokumentationsbilder och commit/push — 2026-10-09
+## Simple project start-up and cleaner side panel — 2026-10-09
 
-På begäran raderades den ospårade säkerhetskopian docs-copy/. Senaste GUI
-fångat från Applications-appen för välkomstvy, källbilder, Preview, Retouch,
-Export och Adjustments; docs/Images uppdaterad med sex riktiga skärmbilder.
-Little Planet-guidens öppningssteg återanvänder aktuell Export-bild.
-Maskningsguidens knappnamn och navigation/starttext förtydligade. Ingen
-appkod ändrad och inga automatiska regressionstester körda. Commit/push
-inkluderar även de tidigare lokala Xcode-ändringarna (version 1.1 och
-Xcodes schemaformatering), enligt begäran om att committa kvarvarande arbete.
+New list approved for simple overall implementation:
+1. The separate welcome scene and modal AppKit loop removed entirely.
+   DocumentGroup has defaultLaunchBehavior(.suppressed) to avoid automatic file
+   selectors; appdelegate creates a normally empty document after startup if no
+   documents are available. Starting XCTest will skip this.
+2. The toggle of the sidebar is restored; NavigationSplitView gets a true State
+   binding for columnVisibility instead of constant(.all). GUI verified the hide
+   and show.
+3. project.images.isEmpty is a common welcome permission in ContentView before
+   the branches of the workvisions, both at start and Remove All, regardless of
+   the chosen workvisions. Create a Panorama / Add overlapping photos, then
+   create your panorama. The Add Images and Open Existing Panorama buttons...
+   use existing style and importing or opening; no special mode or window.
+4. Images/Panorama-indata/resultatgrupper retained. Bred Add Images... directly
+   under the image heading. Create removed from the Panorama heading; menu and
+   empty panorama views Create retained. No extra seat-holding.
 
-
-## Extra tomt projekt vid filstart — 2026-10-09
-
-Uppstartens documents.isEmpty kunde kontrolleras medan en .pw-fil fortfarande
-öppnades. Minimal fix: applicationDidFinishLaunching kräver nu macOS
-NSApplication.launchIsDefaultUserInfoKey == true innan ett tomt projekt
-skapas. Befintlig suppressed-strategi och uppskjuten skapelse behålls;
-SwiftUI äger filöppningen. Native untitled-delegateförsök gav inget
-projekt respektive filväljare och ingår inte i slutändringen.
-Release byggt, installerat i Applications och signaturverifierat. Manuell
-kontroll: normal appstart visar Untitled/välkomstvy; efter avslut öppnas
-N/panowizard.pw direkt från Finder, och Window-menyn listar endast
-panowizard.pw, inget extra Untitled. Originalprojektet ändrades inte.
-Inga automatiska regressionstester, ingen commit/push begärd.
-
-
-## Slumpbakgrund per nytt projekt — 2026-10-09
-
-EmptyProjectWelcomeView.backgroundImage ändrad från static let till lokal
-@State. Varje ny välkomstvy väljer bland befintliga jpg-bakgrunder, och
-SwiftUI behåller valet vid omritning. Ingen global sessioncache eller ny
-lagring. Release byggt, installerat och signaturverifierat; manuellt
-verifierat att normal start visade stadsbild och File > New (Command-N)
-visade annan torgbild i Untitled 2. Slumpen tillåter samma bild igen.
-Inga automatiska regressionstester och ingen commit/push begärd.
+Release built, installed in Applications and signature verified. 12
+PanoProjectTests pass. GUI: empty project start without file picker or dialog,
+toggle both directions, welcome view from Retouch, import of N image, Remove All
+returns to welcome view, Open Existing Panorama opens N with five images. The
+test project is temporary and shall not be saved; the original has not been
+amended. The start guide texter/bilder and the relevant guides updated to the
+new layout. No commit/push requested. Previous amendments to the seven-point
+list were retained.
 
 
-## Orört nytt projekt är inte ändrat — 2026-10-09
+## Standing engineering principle: KISS — 2026-10-09
 
-isDirty jämför nu endast workingDocument != savedDocument. Det tidigare
-saveURL == nil gjorde även ett helt orört nytt projekt dirty. Ändringen
-är en rad. Release byggt, installerat och signaturverifierat. Manuell
-kontroll: File > New följt av Close stänger utan sparfråga; import av
-en källbild ger fortsatt sparfråga. Tillfälligt importprojekt stängt
-utan att sparas, originalet ändrades inte. Ren välkomstvy kvar. Inga
-automatiska regressionstester, ingen commit/push begärd.
+Magnus prefers the simplest solution and the simplest code that correctly
+meets the requirements. Favor established platform patterns and default
+behavior. Reuse existing solutions and avoid unnecessary special cases or
+abstractions. Explain the cost of large changes and propose a simpler option
+when one exists. If a request conflicts with an applicable standard or
+regulation, say so and explain what is affected. This applies to future work.
+
+## Standing test preference — 2026-10-09
+
+Create or run automated regression tests only when Magnus explicitly asks.
+Build checks and practical manual verification of requested changes remain
+appropriate.
+
+## Bred Create Panorama and photographic welcome view — 2026-10-09
+
+Two approved listing points implemented under KISS. Create Panorama is widely
+under Panorama, with the panel symbol, existing WorkspaceToolbarPillStyle and
+model.stitch/canStitch; the same width as Add Images. Welcome view is reusing
+existing Backgrounds/*.jpg. A static random NSImage is retained during the
+session; no new storage, carousel, animation or dialogue. The background only
+fills the empty project view and is 58% black, with white text and existing
+button styles. No automated regression tests created or run. Release built,
+copied to Applications and signed. GUI: background and readability, button width and
+inactive button in empty project, opening of N and active button to start stitch
+progression (hereafter discontinued). Start image and Create instructions
+updated. No commit/push requested.
+
+
+## Activation of menus and start documentation — 2026-10-09
+
+The latest three-point list carried out according to KISS without automatic
+regression tests. ImagesCommandActions canNavigateImage based on current image
+view; Zoom In/Out/ Reset View is disabled without image, even in Export and
+empty panorama views. Sidebar.onDeleteCommand gets nil when no source image is
+selected, so AppKit grays Delete. No replacement of the default Edit menu or
+text field response chain. Manually verified GUI: empty project has inactive
+Zoom/Delete/Remove All and Panorama Create/Retouch/Preview/Export; Add works. J
+opened and selected source image provides active Delete as well as active zoom
+commands. The original design was not altered. Other
+mask/skapande/exportkontroller retain existing terms of content. Documentation
+examined: no remaining references to modal start dialogue. Getting Started and
+Projects clarify normal project start-up with available menus; current
+photographic start-up image updated. Release built, copied to Applications,
+signature verified and diff-check approved. No one commit/push.
+
+
+## Total checkpoint — 2026-10-09
+
+The user requested t+p+c, interpreted as commit, annotated date tag and push to
+origin/main. The checkpoints include current approved change lists, current
+normal projektstart/fotografisk welcome view, sidebar and content-dependent
+commands, global regular window size, Remove All and updated docs. KISS and no
+automatic regression tests on its own initiative are permanent preferences;
+previously added pre-test-preference remove-all tests are included in the
+checkpoints. Last modification constructed and manually verified as above.
+Existing separate Xcode version or scheme changes and docs-copy/ are omitted.
+
+
+## In the case of a shortcut tcp — 2026-10-09
+
+In the future, Magnus will use tcp for tag + commit + push. Practical order:
+commit currently approved arbete/kontext, create annotated local date tag on the
+new commit and push commit and tag. This checkpoint preserves the name; no new
+changes since d615674. Separate Xcode changes and docs-copy/ are left out.
+
+
+## Documentary images and commit/push — 2026-10-09
+
+At the request, the unprinted backup docs-copy/ was deleted. The latest GUI
+captured from the Applications app for Welcome View, Source Images, Preview,
+Retouch, Export and Adjustments; docs/Images updated with six real screenshots.
+The opening steps of the Little Planet guide reuse the current Export image. The
+masking guide button name and navigation/starttext clarified. No app code
+modified and no automatic regression tests run. Commit/push also includes the
+previous local Xcode changes (version 1.1 and Xcode schedule formatting), upon
+request to commit remaining work.
+
+
+## Extra empty projects at file start — 2026-10-09
+
+The startup documents.isEmpty could be checked while a .pw file was still open.
+Minimum fix: applicationDidFinishLaunching now requires macOS
+NSApplication.launchIsDefaultUserInfoKey == true before an empty project is
+created. Existing suppressed strategy and deferred creation are maintained;
+SwiftUI owns the file opening. Native untitled delegate attempts did not yield
+any projects or file selectors and are not included in the final amendment.
+Release built, installed in Applications and signature verified. Manual control:
+normal appstart shows Untitled and the welcome view; after closing, N/panowizard.pw is
+opened directly from Finder, and the Window menu lists only panowizard.pw, no
+extra Untitled. The original design was not altered. No automated regression
+tests, no commit/push requested.
+
+
+## Randomness of each new project — 2026-10-09
+
+EmptyProjectWelcomeView.backgroundImage changed from static let to local @State.
+Each new welcome view chooses from existing jpg backgrounds, and SwiftUI keeps
+the selection at reschedule. No global session cache or new storage. Release
+built, installed and signature verified; manually verified that normal start
+showed city image and File > New (Command-N) showed another square image in
+Untitled 2. The slum allows the same image again. No automatic regression tests
+and no commit/push requested.
+
+
+## Unchanged new project not changed — 2026-10-09
+
+isDirty now only compares workingDocument != savedDocument. The previous saveURL
+== nil also made an entirely intact new project dirty. The change is a line.
+Release built, installed and signed. Manual control: File > New followed by
+Close closes without saving; import of a source image continues saving.
+Temporary import projects closed without saving, the original was not amended.
+You've got a clean welcome sign. No automated regression tests, no commit/push
+requested.
 
 ## Open Example — 2026-10-09
 
-File > Open Example använder SwiftUI NewDocumentAction för en osparad
-Example-kopia av Panorama U. Användaren godkände att senaste U sparades
-före omstart; originalet sparades via appen innan resurserna kopierades.
-Bundlat material: nio originalbilder, röda/gröna masker, panorama och två
-manuella patchar (nadir/flaggstång), cirka 95 MB. Inga lokala bookmarks
-eller .DS_Store medföljer. Källbilder kopieras en gång till appens
-Application Support så egna sparade projekt inte beror på appens bundle.
-Nytt projekt-ID, titel Example och Save föreslår Example som filnamn.
-docs/projects.md dokumenterar funktionen. Manuell kontroll upptäckte
-att relativa källsökvägar via /tmp-symlänken blev fel; beräkning och
-inläsning använder nu resolvingSymlinksInPath för bas/ursprung.
-Release byggt, installerat och signaturverifierat. Manuellt verifierat
-exempelöppning, nio källbilder/maskmarkörer, båda aktiva patchar, eget
-filnamn i Save och lyckad återöppning av separat sparad kopia.
-Inga automatiska regressionstester. Ändringarna är ännu inte committade.
+File > Open Example uses SwiftUI NewDocumentAction for an unpublished example
+copy of Panorama U. The user agreed that the last U was saved before restarting;
+the original was saved via the app before copying resources. Packed material:
+nine original images, red and green masks, panorama and two manual patches
+(nadir and flagpole), approximately 95 MB. No local bookmarks or .DS_Store
+included. Source images are copied once to the Application Support of the app so
+your own saved projects do not depend on the bundle of the app. A new project
+ID, title Example and Save suggests Example as the file name. docs/projects.md
+documents the function. Manual verification found that the relative source
+search paths via the /tmp symlink were wrong; calculation and reading now use
+resolutionSymlinksInPath for bas/ursprung. Release built, installed and signed.
+Manually verified example opening, nine source images and mask indicators, both active
+patches, own file name in Save and successful reopening of separately saved
+copy. There are no automatic regression tests. The amendments have not yet been
+committed.
 
 
-## Open Example efter Open — 2026-10-09
+## Open Example after Open — 2026-10-09
 
-Open Example ligger först i CommandGroup(replacing: .saveItem), före Close.
-Native Open… behåller openDocument:. Tidigare NSMenu-flytt gav rätt visuell
-ordning men fel SwiftUI-action; den är borttagen. Release byggt, installerat
-och signaturverifierat. Verifierat menyordning och att Open öppnar filväljaren.
+Open Example is first in CommandGroup (replacing: .saveItem), before Close.
+Native Open... is keeping the openDocument: Previous NSMenu moves gave the right
+visual order but wrong SwiftUI action; it's been removed. Release built,
+installed and signed. Verified menu order and that Open opens the file selector.
 
-## UX med JPEG-källbilder — 2026-10-09
+## UX with JPEG source images — 2026-10-09
 
-De nio PNG-källbilderna i /Users/magnus/Desktop/Panorama/UX konverterade
-med sips till JPEG kvalitet 95, oförändrad upplösning 2000 × 3008.
-project.json uppdaterad till relativa .jpg-URL:er; bild-ID och metadata kvar.
-Interna PNG-masker/panorama/patchar behållna enligt användarens val.
-Full backup: /Users/magnus/Desktop/Panorama/UX-backup-before-jpeg.
-Källbilder 75,5 MB → 18,2 MB. UX öppnat i installerad PanoWizard,
-UX-mappen auktoriserad i filväljaren. Verifierat nio JPEG-källbilder,
-fem maskmarkörer och två aktiva manuella patchar. Original U orört.
-
-
-## UX som inbyggt exempel och meny utan separator — 2026-10-09
-
-Bundlat Example ersatt med UX: nio JPEG-källbilder samt befintligt panorama,
-masker och två patchar. Relativa sökvägar, inga bookmarks eller .DS_Store.
-Installerade JPEG-filer hashverifierade mot UX; exempelresurser cirka 42 MB.
-Befintlig menydelegate döljer separatorn direkt före Open Example utan
-att flytta menyobjekt eller ändra åtgärder. Release byggt, installerat och
-signaturverifierat. Manuellt öppnat Example: nio .jpg, fem maskmarkörer,
-två aktiva patchar. Command-O verifierat med vanlig filväljare.
-Ingen commit/push.
+The nine PNG source images in /Users/magnus/Desktop/Panorama/UX were converted
+with sips to JPEG quality 95, unchanged resolution 2000 × 3008. project.json
+updated to relative .jpg URLs; image ID and metadata remain. Internal
+PNG-masker/panorama/patchar maintained according to the user's choice. Full
+backup: /Users/magnus/Desktop/Panorama/UX-backup-before-jpeg. Source images are
+75,5 MB → 18,2 MB. UX opened in installed PanoWizard, the UX folder authorized
+in file selector. Verified nine JPEG source images, five mask markers and two
+active manual patches. The original U is intact.
 
 
-## Återställd patchhantering — 2026-10-09
+## UX as a built-in example and menu without separator — 2026-10-09
 
-På användarens begäran återställdes senaste ändringen och dess regressionstest.
-Create Panorama rensar åter patcharna efter lyckad stitching.
-UX-exemplet och menyplaceringen behålls.
+Bundled Example replaced by UX: nine JPEG source images plus existing panorama,
+masks and two patches. Relative search paths, no bookmarks or .DS_Store.
+Installed JPEG files hashed against UX; sample resources approximately 42 MB. An
+existing menu delegate hides the separator immediately before Open Example
+without moving menu items or changing actions. Release built, installed and
+signed. Manually opened Example: nine .jpg, five mask markers, two active
+patches. Command-O verified with regular file selectors. No commit/push.
 
 
-## Varning före Create Panorama med retusch — 2026-10-09
+## Restored patch management — 2026-10-09
 
-Alla UI-vägar använder AppModel.stitch som nu begär bekräftelse om det
-finns retuschpatchar (även disabled). ContentView visar Create Panorama?
-med Cancel och destruktiv Create Panorama-knapp; varnar att patcharna
-tas bort och att det inte kan ångras. Endast bekräftelse anropar
-stitchDiscardingRetouch. Utan patchar startar stitching direkt.
-Regressionstest verifierar att begäran inte startar stitching eller
-ändrar panorama/patchdata och att även disabled-patchar ger varning.
-Båda retuschtesterna godkända, Release byggt och signaturverifierat.
-Installerat utan att avsluta användarens öppna projekt/sparfråga.
+At the request of the user, the last amendment and its regression test were
+restored. Create Panorama cleans the patches again after successful stitching.
+The UX model and the menu placement are retained.
+
+
+## Warning before Create Panorama with retouch — 2026-10-09
+
+All UI paths use AppModel.stitch, which now asks for confirmation of retouch
+patches (also disabled). ContentView displays Create Panorama? with Cancel and
+the destructive Create Panorama button; warns that patches are removed and
+cannot be regretted. Only confirmation calls for stitch discarding retouch.
+Without patches, the stitching starts right away. The regression test verifies
+that the request does not start stitching or modify panorama/patchdata and that
+even disabled patches provide a warning. Both retusts approved, release built
+and signature verified. Installed without closing the user's open
+project or save prompt.
 
 
 ## Checkpoint 2026-10-10-00-00
 
-Användaren begärde t+p+c: aktuellt UX-exempel med nio JPEG-bilder,
-Open Example direkt under Open utan separator, och bekräftelse före
-Create Panorama om retuschpatchar finns. Senaste Release-build och
-båda retuschtesterna godkända. Commit och annoterad datumtagg till origin/main.
+The user requested t+p+c: current UX example with nine JPEG images, Open Example
+directly under Open without separator, and confirmation before Create Panorama
+if retouch patches are available. The latest release build and both retusts
+approved. Commit and annotate date to origin/main.
 
 
-## Open Example borttaget — 2026-10-10
+## Open Example removed — 2026-10-10
 
-På användarens begäran borttaget: menypunkt, separatorhantering,
-newDocument-environment, exempel-loader, Xcode-resursreferenser, samtliga
-bundlade exempelbilder/projekt och hjälpdokumentation. Retuschvarningens
-test använder nu syntetiska data utan exempelberoende. Generisk relativ
-sökvägshantering behålls. Historiska kontextanteckningar bevaras.
-Båda retuschtesterna godkända; ren Release-build, installerad och
-signaturverifierad. Manuellt verifierat File-menyn utan Open Example.
-Användarens U/UX och redan kopierade källbilder i Application Support
-behålls så sparade projekt fortsatt kan öppnas. Ingen commit/push.
+At the user's request, removed: menu point, separator management, newDocument
+environment, example loader, Xcode resource references, all linked
+exempelbilder/projekt and supporting documentation. The retrospective test now
+uses synthetic data without sample dependency. Generic relative route management
+is maintained. Historical context notes are preserved. Both retouching tests
+approved; pure release build, installed and signature verified. Manually
+verified the File menu without Open Example. The user's U/UX and already copied
+source images in Application Support are retained so that saved projects can
+continue to be opened. No one commit/push.
 
 
-## Sidopanelens panoramaval disabled — 2026-10-10
+## Panorama selection of the siding panel disabled — 2026-10-10
 
-Retouch/Preview/Export använder nu samma villkor som menyn:
-stitchedResultURL != nil. navigationRow har disabled, selectionDisabled
-och reducerad opacity för text och ikon när panorama saknas.
-Release byggt, installerat och signaturverifierat. Manuellt verifierat
-att klick på alla tre i tomt projekt inte ändrar vyn. Inga nya tester.
-Ingen commit/push.
+Retouch/Preview/Export now uses the same terms as the menu: stitchedResultURL !=
+nil. NavigationRow has disabled, selectionDisabled and reduced opacity for text
+and icons when panorama is missing. Release built, installed and signed.
+Manually verified that clicking all three in empty projects doesn't change the
+view. No more tests. No commit/push.
 
 
 ## Checkpoint 2026-10-10-17-35
 
-Användaren begärde t+c+p. Borttagning av Open Example och dess resurser,
-oberoende retuschvarningstest samt inaktiva sidopanelval innan panorama finns.
-Release byggt och installerat, retuschtesterna godkända och sidopanelens
-klickbeteende manuellt verifierat. Commit med annoterad datumtagg till origin/main.
+The user requested t+c+p. Removal of Open Example and its resources, independent
+retrospective warning test and inactive sidebar selection before panorama is
+available. Release built and installed, retusts approved and the sidebar's click
+behavior manually verified. Committed with an annotated date tag to origin/main.
 
 
-## Preview fyller arbetsytan — 2026-10-10
+## Preview fills the workspace — 2026-10-10
 
-PanoramaPreview använder SphericalPanoramaView utan workspace-padding
-och med hörnradie 0. Retuschvyn behåller sina tidigare standardvärden.
-Release byggt, installerat och signaturverifierat. Manuellt verifierat
-med G/panowizard.pw att bilden når vänster/höger samt kanten under
-Adjustments och ovanför statusraden, utan rundade hörn. Projektet inte sparat.
-Inga nya tester; ingen commit/push.
+PanoramaPreview uses SphericalPanoramaView without workspace padding and with
+angular radius 0. Retuschvyn maintains its previous default values. Release
+built, installed and signed. Manually verified with G/panowizard.pw that the
+image reaches left or right and the edge under Adjustments and above the status
+row, without rounded corners. The project didn't save. No new tests; no
+commit/push.
 
 
 ## Checkpoint 2026-10-10-17-59
 
-Användaren begärde tcp för Preview utan marginaler, rundade hörn och
-skugga. Release byggt och visuellt verifierat. Commit och annoterad
-datumtagg till origin/main.
+The user requested tcp for Preview without margins, rounded corners and shadows.
+Release built and visually verified. Commit and annotate date to origin/main.
 
 
-## Maskläge: zoomankare vid sekvensstart — 2026-10-10
+## Male mode: zoom anchor at sequence start — 2026-10-10
 
-NativeImagePanMonitor låser nu musankaret vid första CMD-zoomrörelsen
-i en scrollsekvens, inte vid CMD-tangenttrycket. Befintlig
-ImageSurfaceScrollGesture behåller ankaret genom direkta gestfaser och
-momentum. Nya sekvenser tar nytt ankare även med CMD kvar. Zero-delta
-slutfaser uppdaterar sekvensstatus. Mushjul utan faser använder 0,25 s
-inaktivitet för ny sekvens, så inte varje hjulhändelse byter ankare.
-Preview oförändrat. Release byggt, installerat och signaturverifierat;
-fem befintliga ImageSurfaceInteractionTests godkända. Fysisk CMD-scroll
-med flyttad mus mellan sekvenser ej manuellt verifierad via UI-verktyget.
-Ingen commit/push.
-
-
-## Maskzoom: explicit scrollposition efter layout — 2026-10-10
-
-Användaren upplever fortfarande oklar zoompunkt. Zoom-onChange använde
-ScrollViewReader.scrollTo för flyttbar 1-pixelmarkör direkt när zoom ändrats.
-Ersatt zoompositioneringen med scrollPosition.scrollTo(x:y:) beräknat
-från låst bildpunkt och viewportankare. Väntar på nya contentSize innan
-positionering; hanterar centrerad bild och scrollgränser explicit.
-Ankaret låses fortsatt vid sekvensstart. Release byggt, installerat och
-signaturverifierat. Fysiskt musbeteende återstår att verifiera.
-Öppet projekt/sparfråga lämnat kvar. Ingen commit/push.
+NativeImagePanMonitor now locks the mouse anchor at the first CMD zoom motion in
+a scroll sequence, not at the CMD key press. Existing ImageSurfaceScrollGesture
+maintains the anchor through direct gesture phases and momentum. New sequences
+take on new anchors even with CMD. The zero-delta end phases update the sequence
+status. The non-phase wheels use 0,25's inactivity for new sequences, so not
+every wheel event changes anchors. Preview unchanged. Release built, installed
+and signed; five existing ImageSurfaceInteractionTests approved. Physical CMD
+scroll with the mouse moved between sequences not manually verified by the UI
+tool. No commit/push.
 
 
-## Extra flyttutrymme återställt — 2026-10-10
+## Maskzoom: explicit scrolling position after layout — 2026-10-10
 
-Användaren bad att skippa senaste ändringen. Extra viewport-padding och
-den tillhörande contentSize-ändringen borttagna. Tidigare zoomankare vid
-sekvensstart och explicit scrollposition efter layout kvar.
-
-
-## Maskzoom med AppKit-ankare och placering — 2026-10-10
-
-Användaren godkände nytt försök efter analys: driver även kraftigt inzoomat.
-CMD-scroll läser nu bildpunkt via AttachmentView.convert(event.locationInWindow)
-och viewportpunkt via NSClipView vid sekvensstart. Ingen SwiftUI ScrollGeometry
-används för CMD-ankare. Efter uppdaterad bildstorlek korrigeras clip.bounds
-via faktisk bildpunktsposition minus låst viewportpunkt. NSView.layout och
-setFrameSize samt updateNSView schemalägger korrigering efter layout.
-Bildankaret behålls genom sekvensen i både zoom-in och zoom-out; vanliga
-scrollgränser kvar, inga extra canvas-marginaler. Preview oförändrat.
-SwiftUI-positioneringen kvar för tangentbordszoom/pinch/reset. Release byggt,
-installerat och signaturverifierat; fem befintliga interaktionstester godkända.
-Fysisk CMD-scroll ännu ej manuellt verifierad. Ingen commit/push.
+The user is still experiencing an unclear zoom point. Zoom-onChange used
+ScrollViewReader.scrollTo for a movable 1-pixel marker immediately after the
+zoom was changed. Replace the zoom positioning with
+scrollPosition.scrollTo(x:y:) calculated from locked image point and viewport
+anchor. Waiting for new contentSize before positioning; handling centered image
+and scroll boundaries explicitly. The anchor shall continue to lock at the start
+of the sequence. Release built, installed and signed. Physical mouse behavior
+remains to be verified. Open project or save prompt left. No commit/push.
 
 
-## Maskzoom: synkron korrigering i layout — 2026-10-10
+## Additional movement space restored — 2026-10-10
 
-Användaren bekräftade rätt ankarprincip men skakig zoom och bad om litet
-försök, backa vid stor komplexitet. Async-korrigeringen borttagen.
-AttachmentView.layout korrigerar direkt efter super.layout; setFrameSize
-markerar needsLayout i stället för att korrigera i förtid. CMD-scroll
-markerar också needsLayout; ingen korrigering i updateNSView.
-Försöket minskar kodmängden. Release byggt, installerat och
-signaturverifierat. Öppet G-projekt lämnat kvar, omstart krävs.
-Mjukhet vid fysisk CMD-scroll återstår att verifiera. Ingen commit/push.
+The user requested to skip the last change. Additional viewport padding and
+related contentSize change removed. Previous zoom anchors at sequence start and
+explicit scroll position after layout remaining.
 
 
-## CMD-scroll förbrukas korrekt — 2026-10-10
+## Maskzoom with AppKit anchor and location — 2026-10-10
 
-Användaren bekräftade bra zoom men rapporterade pan vid maxzoom.
-NativeImagePanMonitor.install använde self?.handle(event) ?? event,
-vilket återställde händelsen även när handle returnerade nil för att
-förbruka den. Ändrat till guard let self else return event; return
-self.handle(event). CMD-scroll når därmed inte den vanliga scrollvyn
-vid zoomgränserna. Även egna panhändelser förbrukas som avsett.
-Release byggt, installerat och signaturverifierat. Appen inte omstartad.
-Manuell kontroll av maxzoom återstår. Ingen commit/push.
+The user approved a new test following the analysis: also powerful zoom drives.
+CMD scroll now reads image point through
+AttachmentView.convert(event.locationInWindow) and viewport point through
+NSClipView at sequence start. No SwiftUI ScrollGeometry is used for CMD anchors.
+After updated image size, clip.bounds are corrected via the actual image point
+position minus locked viewport point. NSView.layout and setFrameSize as well as
+updateNSView schedule corrections by layout. The image tank is maintained
+through the sequence in both zoom-in and zoom-out; normal scroll boundaries
+remain, no extra canvas margins. Preview unchanged. The SwiftUI positioning
+remains for tangentbordszoom/pinch/reset. Release built, installed and signed;
+five existing interaction tests approved. Physical CMD scroll not yet manually
+verified. No commit/push.
+
+
+## Maskzoom: synchronous correction of the layout — 2026-10-10
+
+The user confirmed the correct anchor principle but shaky zoom and asked for a
+little trial, back at great complexity. The Async correction is removed.
+AttachmentView.layout corrects immediately after super.layout; setFrameSize
+marks needsLayout instead of correcting in advance. CMD scroll also marks
+needsLayout; no correction in updateNSView. The experiment reduces the amount of
+code. Release built, installed and signed. Project G left open, restart
+required. Softness at physical CMD scroll remains to be verified. No
+commit/push.
+
+
+## CMD scroll is used correctly — 2026-10-10
+
+The user confirmed good zoom, but reported pan at maxzoom.
+NativeImagePanMonitor.install used self?.handle(event) ?? event, which restored
+the event even when handle returned nil to use it. Changed to guard let self
+else return event; return self.handle(event). CMD scrolling thus does not reach
+the normal scroll view at zoom limits. Even their own pan events are consumed as
+intended. Release built, installed and signed. The app hasn't restarted. Manual
+control of maxzoom remains. No commit/push.
 
 
 ## Checkpoint 2026-10-10-20-28
 
-Användaren begärde tcp efter att ha verifierat mjuk och korrekt maskzoom
-i båda riktningar, stabil bildpunkt och att maxzoom inte övergår till pan.
-Vanliga bild-/scrollgränser accepterade. Release byggt och signaturverifierat;
-fem befintliga interaktionstester godkända tidigare i arbetet.
-Commit och annoterad datumtagg till origin/main.
+The user requested tcp after verifying soft and correct mesh zoom in both
+directions, stable image point and that maxzoom does not transition to pan.
+Common image and scroll boundaries accepted. Release built and signed; five existing
+interaction tests approved earlier in the work. Committed and annotated date to
+origin/main.
 
-## Open Recent med unika menynamn — 2026-10-10
+## Open Recent with unique menu names — 2026-10-10
 
-File → Open Recent tillagt under Open. Använder NSDocumentControllers
-befintliga historik och vanliga dokumentöppning. Visar bara .pw-projekt,
-tar bort dubbla URL:er och bygger kortaste unika suffix av sökvägen för
-varje alternativ. Full sökväg som tooltip; Clear Menu rensar historiken.
-Tom lista har disabled No Recent Documents och Clear Menu.
-Implementerat i PanoWizardApp.swift med native submenu-delegate.
-Namnberäkning verifierad för tom lista, upprepade föräldramappar och
-rotliggande filer. Release byggt, installerat och signaturverifierat.
-Manuellt öppnat G från historiken och U via Open; menyn visar sedan
-U/panowizard.pw och G/panowizard.pw. Projekten inte ändrade eller sparade.
-docs/projects.md uppdaterad. Ingen commit/push begärd ännu.
+File → Open Recent added under Open. Use the existing history of NSD
+DocumentController and the usual document opening. Just shows .pw projects,
+removes double URLs and builds the shortest unique suffix of the search path for
+each option. Full search path as a tooltip; Clear Menu clears the history. Tom
+List has disabled No Recent Documents and Clear Menu. Implemented in
+PanoWizardApp.swift with native submenu delegate. Name count verified for empty
+lists, repeated parent scenes and rooted files. Release built, installed and
+signed. Manually opened G from history and U via Open; the menu then shows
+U/panowizard.pw and G/panowizard.pw. Projects not altered or saved.
+docs/projects.md updated. No commit/push requested yet.
 
-Användaren satte därefter max 10 projekt. Menyn begränsas efter filtrering
-och deduplicering, före beräkning av unika namn.
+The user then set a maximum of 10 projects. The menu is limited after filtering
+and deduplication, before calculating unique names.
 
-## Preview-navigation utan osparat-status — 2026-10-10
+## Preview navigation without unsupported status — 2026-10-10
 
-På användarens begäran ignorerar ProjectDocumentScene.isDirty enbart
-project.previewViewpoint vid jämförelsen med savedDocument. Fullständig
-workingDocument används fortfarande vid Save, även när isDirty är false.
-AppModel.setPanoramaViewpoint ändrar inte modifiedAt, så inga andra
-fält behöver undantas. Masker, retusch och justeringar påverkar fortfarande
-osparat-status och stängningsvarning. docs/projects.md uppdaterad.
-Release byggt, installerat och signaturverifierat; git diff --check godkänd.
-Appen inte omstartad; fysisk preview-scroll återstår för användaren att prova.
-Ingen commit/push begärd.
+At the user's request, ProjectDocumentScene.isDirty only ignores
+project.previewViewpoint when compared to savedDocument. Full workingDocument is
+still used at Save, even when iDirty is false. AppModel.setPanoramaViewpoint
+does not change modifiedAt, so no other fields need to be excluded. Masks,
+retouches and adjustments still affect unsupported status and closure warning.
+docs/projects.md updated. Release built, installed and signature verified; give
+diff --check approved. The app is not restarted; physical preview scroll remains
+for the user to try. No commit/push requested.
 
 ## Panorama C regression and isolated AI retouch transfer — 2026-10-14
 
@@ -3376,26 +3574,28 @@ Published help verified over HTTPS: examples, getting-started, Masking and AI Pa
 
 User requested commit/tag/push after confirming the updated A download and help changes. Checkpoint includes all pending navigation polish and zoom-anchor changes, tests and accumulated context. User verified source zoom and 360 zoom locally; latest installed local Release is 1.1 (202610162048). Five focused interaction tests previously passed; subsequent local Release builds/signature checks passed. Help and example packaging have already been published and verified. The uploaded Apple build 202610161844 predates these app changes; a new archive/upload is needed before submitting the current app. No Apple submission was performed.
 
-## Publicering med valfri thumbnail — 2026-11-02
+## Printing with optional thumbnails — 2026-11-02
 
-Generate thumbnail är nu en AppStorage-sparad kryssruta direkt under Filename,
-standard på. Ny PublishThumbnailRenderer använder systemets WKWebView och exakt
-exporterad HTML, initial kamera/FOV, 640x360 perspektiv, canvas JPEG quality 0.8.
-Save HTML/JPEG/PNG och Panorama Browser är oförändrade. SFTPPublisher har valfri
-JPEG-väg med dold staging, bekräftad ersättning och backup/återställning.
-HTML-framgång följd av JPEG-fel/avbrott rapporteras som partiellt resultat.
-11 tester körda och godkända (1 äldre lokal Paramiko-integration skippad): verklig
-WebKit-kameraprojektion vid två FOV, HTML-export och SFTP mot sparad server,
-HTML-only, JPEG, nekad/godkänd JPEG-ersättning och saknad lokal JPEG.
-Browser verifierade båda UTF-8-testpubliceringarna och avkodade JPEG 640x360.
-Automattestfiler borttagna, browser åter 36. Inga nya beroenden.
-Signerad Release 1.4 (202611021747) installerad och binär/signatur verifierade.
-Backup: /Users/magnus/Library/Developer/Xcode/PanoWizard-before-publish-thumbnail-20261102-174828.app.
-Native dialog kontrollerad på disponibel kopia work/thumbnail-ui-A; kryssrutan
-visas som checkbox direkt under Filename, standard på. Manuell Publish startad
-med 2008/zz-ui-thumbnail-20261102-1749-med.html; kontroll/städning av den pågår.
-Ingen commit/push. Tidigare ändringar i arbetskopian bevarade.
-Native Publish med kryssrutan på slutfördes med Uploaded successfully och både
-HTML och JPEG fanns på servern. Dessa två temporära UI-testfiler är också
-borttagna. Av-läget testades genom den automatiserade SFTP-kedjan, inte genom
-ett andra manuellt knapptryck. Testprojektet är en disponibel kopia.
+Generate thumbnail is now an AppStorage-pared cruise right under Filename,
+default on. New PublishThumbnailRenderers use the system's WKWebView and exact
+exported HTML, initial kamera/FOV, 640x360 perspective, canvas JPEG quality 0.8.
+Save HTML/JPEG/PNG and Panorama Browser are unchanged. SFTPPublisher has
+optional JPEG path with hidden staging, confirmed compensation and
+backup and restoration. HTML success followed by JPEG-fel/avbrott is reported as
+partial results. 11 tests run and approved (1 older local Paramiko integration
+skipped): real WebKit camera projection at two FOVs, HTML export and SFTP
+against saved servers, HTML-only, JPEG, denied or approved JPEG replacement and
+missing local JPEG. Browsers verified both UTF-8 test publications and decoded
+JPEG 640x360. Automatic test files removed, browser restored 36. No new
+addictions. Signed Release 1.4 (202611021747) installed and binary and signature
+verified. Back up:
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-publish-thumbnail-20261102-174828.app.
+Native dialog checked on available copy work/thumbnail-ui-A; the check box
+appears as a checkbox directly under Filename, default on. Manuell Publish
+started with 2008/zz-ui-thumbnail-20261102-1749-med.html; verification and cleanup of
+it is ongoing. No commit/push. Previous amendments to the worktree were
+preserved. Native Publish with the dashboard on was completed with Uploaded
+successfully and both HTML and JPEG were on the server. These two temporary UI
+test files are also deleted. The off-mode was tested by the automated SFTP
+chain, not by a second manual button press. The test project is a copy
+available.
