@@ -1582,7 +1582,9 @@ cv::Mat exposureGains(
             rows.push_back(std::move(row));
             values.push_back(median(std::move(differences)));
         }
-        if (!rows.empty() && count > 1) {
+        // Keep neutral gains for this channel when there are fewer overlap
+        // measurements than unknowns: OpenCV cannot solve that system.
+        if (count > 1 && rows.size() >= size_t(count - 1)) {
             cv::Mat design(int(rows.size()), count - 1, CV_64F);
             cv::Mat target(int(rows.size()), 1, CV_64F);
             for (int row = 0; row < int(rows.size()); ++row) {
@@ -1592,7 +1594,7 @@ cv::Mat exposureGains(
                 }
             }
             cv::Mat solution;
-            cv::solve(design, target, solution, cv::DECOMP_SVD);
+            if (!cv::solve(design, target, solution, cv::DECOMP_SVD)) continue;
             for (int index = 1; index < count; ++index) {
                 result.at<double>(index, channel) = std::clamp(
                     std::exp(solution.at<double>(index - 1)), 0.65, 1.55

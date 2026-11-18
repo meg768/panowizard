@@ -1,9 +1,106 @@
 # PanoWizard Project and Development Context
 
-Last updated: 2026-11-16.
+Last updated: 2026-11-18.
 
 Write all PanoWizard documentation in English, including future entries in this
 file. Keep technical identifiers, filenames, and original quotations intact.
+
+## Exposure fallback checkpoint — 2026-11-18
+
+Magnus requested the normal commit, Stockholm timestamp tag and push workflow.
+The current bridge source matches the SHA-256 of the source used for the
+verified full-resolution A/B renders and installed Release 1.5 (202611172213).
+Four targeted regression checks were rebuilt and passed again; git diff --check
+and strict deep verification of the installed app passed. The prior native
+A completion and byte/pixel-identical B comparison remain applicable.
+The checkpoint includes all pending bridge and context changes. The local
+examples/H/panorama.pw/source-access.json contains a machine-specific security-
+scoped file-access bookmark and is intentionally left untracked and unpublished.
+No Little Planet code was changed; the November 18 discussion explained the
+existing center selection, rotation and size controls.
+
+## Signed exposure-fix Release installed — 2026-11-17
+
+Built and installed PanoWizard 1.5 (202611172213) in /Applications/PanoWizard.app
+using the normal signed arm64 Release scheme and PanoWizardSFTP DerivedData,
+with pinned packages and no package updates. The build succeeded with the
+existing actor-isolation warnings. Deep strict signature verification passed;
+App Sandbox, bookmarks, selected-file read/write and outgoing-network
+entitlements were verified. All 69 installed bundle files match the build.
+Executable SHA-256: f9b49927ee543198af0d9edbe0c416bcce95265022f94ef712f7053191d63a47.
+
+Previous installed version 1.5 (202611162309) is preserved at:
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-exposure-fix-20261117-221323.app.
+Its complete file manifest matched the old installation, and its deep strict
+signature was verified before replacement. To roll back, quit PanoWizard,
+move the current app out of Applications, then copy this backup there as
+PanoWizard.app. Keep the backup itself intact.
+
+A and its five NEFs were copied to
+/Users/magnus/Documents/Codex/2026-11-17/fo/outputs/PanoWizard-A-review/.
+The installed app opened that copy, received access to its source folder,
+and completed Create Panorama successfully. The native Preview is left open
+with “Panorama complete · 100% coverage” and five images. The new rendering
+is currently in the open document; it was not explicitly saved to the review
+package in this turn. Original Desktop/panorama/A remains unchanged (eight
+files checked with SHA-256). No app source beyond the prior exposure fix changed.
+Installation log, original-app manifest and metadata: work/exposure-install-20261117/.
+User-facing rollback instructions: outputs/panowizard-exposure/installation.md
+under the current chat directory. No commit, tag, push or App Store upload.
+
+## Exposure fallback verified with current A/B cases — 2026-11-17
+
+The old A–Z suite no longer exists. Current cases are Desktop/panorama/A
+(night, five NEFs) and B (daylight, nine JPEGs with saved source masks).
+Only exposureGains in PanoramaBridge.cpp changed: retain neutral gains for a
+channel with fewer accepted pair equations than imageCount-1 unknowns, or if
+cv::solve returns false. Supported systems retain the existing SVD calculation,
+sample filtering, reference and gain clamp. Alignment and mask logic are unchanged.
+
+B's reference was rendered with unmodified code before the edit. Native
+stitching-engine output after the fix is pixel-identical: 8504 × 4252,
+0 changed RGBA pixels out of 36,159,008, maximum channel difference 0.
+The PNGs also share SHA-256 2555b731e14848362b40eaecd2fcd2b6743c5f67dc9ef0d4b3f342dbccdc4c55.
+B's 96.322457187% coverage and 1,329,763 uncovered pixels are unchanged.
+A completes at 8500 × 4250 with 100% coverage and zero uncovered pixels.
+Visual review covered an overview, six perspective views and three unscaled
+detail crops: no obvious hard color seams or broad blue/magenta cast in those
+views; warm/yellow-green lamplight and gradual sky tone variation remain.
+A has no successful pre-change reference or calibrated color target.
+
+All runs use app-equivalent oriented rasters, saved source masks and roles,
+fresh alignment and outputWidth=0. Saved retouch patches are separate and were
+not composited in these engine comparisons. SHA-256 verification confirms all
+29 original A/B files are unchanged. Four targeted executable checks passed:
+legacy-exact supported solve, sparse blue with correct green/red, no overlap,
+and preserved square rank-deficient behavior. Both engines compiled and native
+renders completed; git diff --check passed. Installed app unchanged; no commit/push.
+Artifacts and report: /Users/magnus/Documents/Codex/2026-11-17/fo/outputs/panowizard-exposure/.
+Harnesses, source snapshot, manifests and rasters: work/exposure-fix-20261117/.
+
+## Desktop panorama A exposure failure diagnosed — 2026-11-17
+
+The five enabled Nikon D80/Sigma 8mm NEFs in Desktop/panorama/A reproduce
+OpenCV's under-determined solve exception in exposureGains (PanoramaBridge.cpp).
+The app-equivalent oriented rasters pass geometry fitting (five ring images,
+median residual 0.108 degrees). Blue-channel filtering (15 < both values < 240,
+at least 18 valid samples per pair) retains only pairs 1–5 and 2–5, producing
+a 2-by-4 system. Rejections are caused by dark values, not saturation.
+The solver checks only for nonempty rows and calls cv::solve(DECOMP_SVD),
+which rejects this shape. Green/red retain seven/eight equations.
+An isolated diagnostic fallback leaving blue gains neutral completes a
+1536-by-768 panorama with 100% measured coverage. This demonstrates the
+failure path, not a verified production fix or full-resolution quality result.
+No app source, installed app, or original project was changed. Diagnostic
+sources, rasters and logs: /Users/magnus/Documents/Codex/2026-11-17/fo/work/panorama-A-diagnosis.
+A fix should handle insufficient or disconnected per-channel exposure data
+with a safe fallback instead of aborting panorama creation.
+
+## Bundled example removed — 2026-11-16
+
+Magnus removed Open Example Panorama and the bundled Lund Cathedral project.
+Example projects are distributed through Help > Download Examples. Existing
+source copies in Application Support support any previously saved projects.
 
 ## PanoWizard 1.5 App Store archive — 2026-11-16
 
@@ -16,6 +113,10 @@ The release notes are in work/appstore-1.5-whats-new.txt.
 Magnus requested the upload. Xcode Organizer confirmed that 202611161921
 was uploaded to App Store Connect with eleven symbol warnings. App Review
 is still pending submission.
+
+Six screenshots captured from PanoWizard 1.5 were uploaded to the English
+(U.S.) Mac product page draft. App Store Connect showed seven screenshots,
+including the previous one. The source projects were copied for capture.
 
 ## PanoWizard 1.4 published in the Mac App Store — 2026-11-16
 
