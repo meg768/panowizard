@@ -54,6 +54,8 @@ struct ContentView: View {
                     panoramaURL: panoramaURL,
                     adjustments: model.panoramaAdjustments,
                     projectDirectoryURL: projectDirectoryURL,
+                    lastExportSettings: model.project.littlePlanetSettings,
+                    onExport: { model.project.setLittlePlanetSettings($0) },
                     onDismiss: { isLittlePlanetPresented = false }
                 )
                 .panoWizardDialogSurface()

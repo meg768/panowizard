@@ -32,7 +32,20 @@ struct LittlePlanetPanoramaSelection {
 final class LittlePlanetExportController {
     static let previewSide = 640
 
-    var settings = LittlePlanetSettings()
+    var settings: LittlePlanetSettings
+
+    init(settings: LittlePlanetSettings? = nil) {
+        if let saved = settings,
+           (0...100).contains(saved.horizonPercent),
+           (-180...180).contains(saved.rotationDegrees),
+           (-90...90).contains(saved.centerLatitudeDegrees),
+           (0...360).contains(saved.centerLongitudeDegrees) {
+            self.settings = saved
+        } else {
+            self.settings = LittlePlanetSettings()
+        }
+    }
+
     var panoramaImage: NSImage?
     var previewImage: NSImage?
     var errorMessage: String?
@@ -76,7 +89,7 @@ final class LittlePlanetExportController {
 
     func save(
         directoryURL: URL?,
-        onSuccess: @escaping () -> Void
+        onSuccess: @escaping (LittlePlanetSettings) -> Void
     ) {
         guard let source else { return }
         let panel = NSSavePanel()
@@ -102,7 +115,7 @@ final class LittlePlanetExportController {
                     try LittlePlanetRenderer.writePNG(image, to: url)
                 }.value
                 isSaving = false
-                onSuccess()
+                onSuccess(settings)
             } catch {
                 errorMessage = error.localizedDescription
                 isSaving = false
@@ -144,9 +157,26 @@ struct LittlePlanetExportSheet: View {
     let panoramaURL: URL
     let adjustments: PanoramaAdjustments
     let projectDirectoryURL: URL?
+    let onExport: (LittlePlanetSettings) -> Void
     let onDismiss: () -> Void
 
-    @State private var controller = LittlePlanetExportController()
+    @State private var controller: LittlePlanetExportController
+
+    init(
+        panoramaURL: URL,
+        adjustments: PanoramaAdjustments,
+        projectDirectoryURL: URL?,
+        lastExportSettings: LittlePlanetSettings?,
+        onExport: @escaping (LittlePlanetSettings) -> Void,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.panoramaURL = panoramaURL
+        self.adjustments = adjustments
+        self.projectDirectoryURL = projectDirectoryURL
+        self.onExport = onExport
+        self.onDismiss = onDismiss
+        _controller = State(initialValue: LittlePlanetExportController(settings: lastExportSettings))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -184,7 +214,10 @@ struct LittlePlanetExportSheet: View {
                         .foregroundStyle(.secondary)
                 }
                 Button("Export…") {
-                    controller.save(directoryURL: projectDirectoryURL, onSuccess: onDismiss)
+                    controller.save(directoryURL: projectDirectoryURL) { exportedSettings in
+                        onExport(exportedSettings)
+                        onDismiss()
+                    }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(controller.previewImage == nil || controller.isLoading || controller.isSaving)
@@ -219,7 +252,7 @@ struct LittlePlanetExportSheet: View {
         return VStack(alignment: .leading, spacing: 18) {
             adjustmentSlider(
                 "Zoom", value: $controller.settings.horizonPercent,
-                range: 10...75, valueText: "\(Int(controller.settings.horizonPercent))%",
+                range: 0...100, valueText: "\(Int(controller.settings.horizonPercent))%",
                 low: "Smaller", high: "Larger"
             )
             adjustmentSlider(

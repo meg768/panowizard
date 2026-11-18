@@ -113,6 +113,8 @@ Rotation, Tilt and Center sliders beside the large preview. Tilt moves between
 planet and tunnel; Center chooses the horizontal direction. Clicking the full
 panorama thumbnail sets both center coordinates. Reset restores the defaults.
 The preview updates while adjusting sliders and refines on release.
+The last successful Little Planet export settings are stored with the project;
+save the `.pw` project to preserve them when reopening or copying it.
 
 Global adjustments are saved as project settings and applied after local
 retouching. They appear in the spherical preview and in JPEG, PNG, interactive

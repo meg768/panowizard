@@ -57,6 +57,7 @@ struct PanoProject: Codable, Equatable, Sendable {
     var panoramaAdjustments: PanoramaAdjustments
     var publishPath: String?
     var publishFilename: String?
+    var littlePlanetSettings: LittlePlanetSettings?
     let importedPanorama: Bool?
 
     init(
@@ -71,6 +72,7 @@ struct PanoProject: Codable, Equatable, Sendable {
         panoramaAdjustments: PanoramaAdjustments = .neutral,
         publishPath: String? = nil,
         publishFilename: String? = nil,
+        littlePlanetSettings: LittlePlanetSettings? = nil,
         importedPanorama: Bool? = nil
     ) {
         self.formatVersion = formatVersion
@@ -84,6 +86,7 @@ struct PanoProject: Codable, Equatable, Sendable {
         self.panoramaAdjustments = panoramaAdjustments
         self.publishPath = publishPath
         self.publishFilename = publishFilename
+        self.littlePlanetSettings = littlePlanetSettings
         self.importedPanorama = importedPanorama
     }
 
@@ -135,6 +138,12 @@ struct PanoProject: Codable, Equatable, Sendable {
         guard publishPath != path || publishFilename != filename else { return }
         publishPath = path
         publishFilename = filename
+        touch()
+    }
+
+    mutating func setLittlePlanetSettings(_ settings: LittlePlanetSettings) {
+        guard littlePlanetSettings != settings else { return }
+        littlePlanetSettings = settings
         touch()
     }
 

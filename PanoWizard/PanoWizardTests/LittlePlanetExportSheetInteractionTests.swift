@@ -59,4 +59,25 @@ struct LittlePlanetExportSheetInteractionTests {
         controller.reset()
         #expect(controller.settings == LittlePlanetSettings())
     }
+    @MainActor @Test("Dialog uses its project's saved export without changing it on edits or reset")
+    func restoresProjectExport() {
+        let saved = LittlePlanetSettings(
+            rotationDegrees: 163, horizonPercent: 19,
+            centerLongitudeDegrees: 111, centerLatitudeDegrees: -50
+        )
+        let controller = LittlePlanetExportController(settings: saved)
+        #expect(controller.settings == saved)
+        controller.settings.horizonPercent = 75
+        controller.reset()
+        #expect(controller.settings == LittlePlanetSettings())
+        #expect(LittlePlanetExportController(settings: saved).settings == saved)
+        #expect(LittlePlanetExportController(settings: nil).settings == LittlePlanetSettings())
+    }
+
+    @MainActor @Test("Invalid project export settings use the default planet")
+    func invalidProjectExport() {
+        var invalid = LittlePlanetSettings()
+        invalid.horizonPercent = 150
+        #expect(LittlePlanetExportController(settings: invalid).settings == LittlePlanetSettings())
+    }
 }

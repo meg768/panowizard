@@ -29,6 +29,45 @@ struct LittlePlanetRendererTests {
         }
     }
 
+    @Test("Zoom endpoints remain finite and 100 percent reaches the horizon at the image radius")
+    func zoomEndpoints() {
+        for zoom in [0.0, 100.0] {
+            for latitude in [-90.0, -27.0, 90.0] {
+                var settings = LittlePlanetSettings()
+                settings.horizonPercent = zoom
+                settings.centerLatitudeDegrees = latitude
+                settings.centerLongitudeDegrees = 98
+                let projection = LittlePlanetProjection(side: 200, settings: settings)
+                for (x, y) in [(100.0, 100.0), (0.0, 0.0), (200.0, 200.0), (100.0, 0.0)] {
+                    let point = projection.sourceDirection(outputX: x, outputY: y)
+                    #expect(point.longitude.isFinite)
+                    #expect(point.latitude.isFinite)
+                }
+            }
+        }
+        var settings = LittlePlanetSettings()
+        settings.horizonPercent = 100
+        let edge = LittlePlanetProjection(side: 200, settings: settings)
+            .sourceDirection(outputX: 198, outputY: 100)
+        #expect(abs(edge.latitude) < 1e-12)
+    }
+
+    @Test("Zooming below ten percent pulls the same subject inside the frame")
+    func zoomOutAddsRoom() {
+        var settings = LittlePlanetSettings()
+        settings.rotationDegrees = -147
+        settings.centerLatitudeDegrees = -27
+        settings.centerLongitudeDegrees = 98
+        settings.horizonPercent = 10
+        let before = LittlePlanetProjection(side: 200, settings: settings)
+            .sourceDirection(outputX: 100, outputY: 4)
+        settings.horizonPercent = 5
+        let after = LittlePlanetProjection(side: 200, settings: settings)
+            .sourceDirection(outputX: 100, outputY: 52)
+        #expect(abs(before.longitude - after.longitude) < 1e-12)
+        #expect(abs(before.latitude - after.latitude) < 1e-12)
+    }
+
     @Test("Places the source viewport center direction at twelve o'clock")
     func sourceViewportCenterIsAtTop() {
         let side = 200

@@ -12,7 +12,8 @@ Open [example A](../../examples.html#example-a), or finish your own panorama. Op
 
 The large preview shows the exported composition. All controls are visible:
 
-- **Zoom** makes the planet smaller or larger inside the square image.
+- **Zoom** ranges from **0–100%**. Lower it to fit more of the surroundings
+  inside the square image; raise it for a closer view.
 - **Rotation** turns the result without moving its center.
 - **Tilt** moves from **Planet** (0°, ground in the center), through sideways
   (90°), to **Tunnel** (180°, sky in the center).
@@ -23,6 +24,11 @@ The large preview shows the exported composition. All controls are visible:
 - **Reset** restores the default planet, size and rotation.
 
 The preview updates as you adjust a slider; releasing it refines the preview.
+After a successful export, Little Planet remembers Zoom, Rotation, Tilt and
+Center **for this project**. Save the project to keep that composition in its
+`.pw` file; reopening or copying the project restores it. Other projects keep
+their own settings. Cancel, Reset or a failed export does not replace the
+project's last exported composition.
 
 The Zoom slider changes composition, not image resolution. The PNG dimensions
 are shown beside **Export…**.

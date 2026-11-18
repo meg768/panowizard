@@ -1,9 +1,67 @@
 # PanoWizard Project and Development Context
 
-Last updated: 2026-11-18.
+Last updated: 2026-11-19.
 
 Write all PanoWizard documentation in English, including future entries in this
 file. Keep technical identifiers, filenames, and original quotations intact.
+
+## Zoom and project export memory checkpoint — 2026-11-19
+
+Magnus requested commit, Stockholm timestamp tag and push for Zoom 0–100% and
+per-project Little Planet export memory. All 31 targeted tests passed again
+before commit, including project disk round-trip/copy and format-10 compatibility.
+Git diff --check and strict deep verification of installed 1.5 (202611190028)
+passed. The local H source-access bookmark remains excluded from publication.
+Checkpoint log: work/checkin-little-planet-memory-20261119/tests.log.
+
+## Little Planet export memory belongs to the project — 2026-11-19
+
+Magnus clarified that the latest successful Little Planet export must be saved
+in the project file, independently for each panorama. This supersedes the
+short-lived app-wide UserDefaults implementation; that key is no longer read
+or written, and its unassociated values are not copied into unrelated projects.
+
+PanoProject now has optional littlePlanetSettings (Zoom, Rotation, Tilt, Center).
+Successful PNG export passes its captured settings back to ContentView, which
+updates the project and its modifiedAt timestamp. The existing dirty/save flow
+then writes the settings in project.json inside the .pw package when the user
+chooses Save. Reopening or copying a saved project restores them. Cancel, Reset
+and failed exports do not update the project; exporting reset defaults does.
+Old format-10 projects without this optional field remain readable with default
+Little Planet settings. Format version remains 10. README/help explain Save.
+
+31 tests passed across the Little Planet and PanoProject suites, including
+actual .pw disk round-trip/copy, legacy decoding, separate-project defaults,
+controller restoration and reset isolation. Code review confirmed only the
+PNG-success callback updates project metadata, and the existing dirty check
+includes it. No native export/save-panel flow was run for this revision.
+Signed Release 1.5 (202611190028) built and installed; strict deep signature and
+complete installed/build equality passed. App was closed and left closed.
+Previous build 202611190023 is preserved at:
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-project-export-memory-20261119-002827.app.
+Logs: work/little-planet-project-memory-20261119/. No commit or push.
+
+## Little Planet Zoom expanded to 0–100% — 2026-11-18
+
+Magnus requested more zoom-out room to include the streetlamp. The Zoom slider
+now spans 0–100 instead of 10–75. Existing values retain their projection scale;
+the renderer's upper clamp now permits 1.0. Zero uses the existing positive
+0.01 lower scale bound, avoiding a singular projection. Default Zoom remains 50.
+
+Nine targeted Little Planet tests passed, including finite endpoint projections,
+100% horizon placement and proof that 5% moves a subject halfway inward compared
+with 10% without changing its source direction. Real 640px PNG checks at 0, 5,
+10 and 100% completed using the saved A-review panorama (8500 × 4250), with the
+screenshot's rounded settings: Rotation −147°, Tilt 63°, Center 98°. Visual
+comparison confirms the streetlamp has substantial margin at 5%, whereas it
+is near the top edge at 10%. The original projects were not changed.
+Artifacts: /Users/magnus/Documents/Codex/2026-11-17/fo/outputs/little-planet-zoom-check/.
+
+Signed Release 1.5 (202611182357) built and installed; strict deep signature
+and complete installed/build equality passed. App was closed and left closed.
+Previous build 202611182346 is preserved at:
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-zoom-range-20261118-235812.app.
+Logs: work/little-planet-zoom-range-20261118/. No commit or push.
 
 ## Little Planet controls approved — 2026-11-18
 

@@ -59,6 +59,45 @@ struct PanoProjectTests {
         #expect(cleared.publishPath == "")
     }
 
+    @Test("Little Planet export settings travel with the project and Save As")
+    func littlePlanetExportRoundTrip() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "planet-project-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        var project = PanoProject(modifiedAt: Date(timeIntervalSince1970: 0))
+        let before = project
+        let settings = LittlePlanetSettings(
+            rotationDegrees: 163, horizonPercent: 19,
+            centerLongitudeDegrees: 111, centerLatitudeDegrees: -50
+        )
+        project.setLittlePlanetSettings(settings)
+        #expect(project != before)
+        #expect(project.modifiedAt > before.modifiedAt)
+        let original = root.appending(path: "Original.pw")
+        let copied = root.appending(path: "Copied.pw")
+        try PanoProjectDocument(project: project).writeAtomically(to: original)
+        try FileManager.default.copyItem(at: original, to: copied)
+        let restored = try PanoProjectDocument(contentsOf: copied)
+        #expect(restored.project.littlePlanetSettings == settings)
+        #expect(restored.project == project)
+        #expect(PanoProject().littlePlanetSettings == nil)
+        let json = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: copied.appending(path: "project.json"))) as? [String: Any])
+        #expect(json["littlePlanetSettings"] != nil)
+    }
+
+    @Test("Existing format-10 projects need no Little Planet field")
+    func legacyLittlePlanetSettings() throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        var json = try #require(JSONSerialization.jsonObject(with: encoder.encode(PanoProject())) as? [String: Any])
+        json.removeValue(forKey: "littlePlanetSettings")
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let restored = try decoder.decode(PanoProject.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(restored.littlePlanetSettings == nil)
+        #expect(restored.formatVersion == 10)
+    }
+
     @Test("Older projects without publishing fields remain readable")
     func legacyPublishDestination() throws {
         let encoder = JSONEncoder()

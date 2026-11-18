@@ -3,7 +3,7 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-struct LittlePlanetSettings: Equatable, Sendable {
+struct LittlePlanetSettings: Codable, Equatable, Sendable {
     var rotationDegrees = 0.0
     var horizonPercent = 50.0
     var centerLongitudeDegrees = 0.0
@@ -24,7 +24,9 @@ struct LittlePlanetProjection: Sendable {
     init(side: Int, settings: LittlePlanetSettings) {
         center = Double(side) / 2.0
         radius = max(Double(side) / 2.0 - 2.0, 1.0)
-        horizon = min(max(settings.horizonPercent / 100.0, 0.01), 0.99)
+        // Zero is the widest supported view, with a positive scale to avoid
+        // division by zero in the stereographic projection.
+        horizon = min(max(settings.horizonPercent / 100.0, 0.01), 1.0)
         rotation = settings.rotationDegrees * .pi / 180.0
         usesDefaultCenter = settings.centerLongitudeDegrees == 0.0
             && settings.centerLatitudeDegrees == -90.0
