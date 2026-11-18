@@ -5,12 +5,18 @@ Last updated: 2026-11-19.
 Write all PanoWizard documentation in English, including future entries in this
 file. Keep technical identifiers, filenames, and original quotations intact.
 
+## Regression directory renamed to panos — 2026-11-19
+
+At Magnus's request, the repository regression directory is now panos/ instead
+of test-panorama/. README references and the local bookmark ignore rule follow
+the new name. Project-relative paths and every fixture blob remain unchanged.
+
 ## Regression panoramas stored with the repository — 2026-11-19
 
 Magnus explicitly approved publishing original A/B source photographs, project
 data and image metadata to the public meg768/panowizard GitHub repository.
 The current Desktop/panorama A (night, five NEFs) and B (daylight, nine JPEGs)
-are copied to test-panorama/A and test-panorama/B. These regression fixtures are
+are copied to panos/A and panos/B. These regression fixtures are
 separate from the existing bundled examples/A–H, whose download is unchanged.
 
 The snapshot preserves all 26 supplied non-machine-specific files, totaling
@@ -19,11 +25,11 @@ image. Every copied file matches its original SHA-256; relative image paths and
 retouch references were checked. The largest file is 14,460,264 bytes, below
 GitHub's 100 MiB per-file limit, so normal Git storage is used. Original Desktop
 files were not changed or moved. source-access.json and Finder metadata are
-excluded. New source-access files under test-panorama are ignored by Git.
+excluded. New source-access files under panos are ignored by Git.
 
 Use repository fixtures as the reproducible baseline and copies for experiments.
 Desktop edits do not synchronize automatically; refresh the snapshot explicitly
-when changing an approved baseline. The committed test-panorama/SHA256SUMS
+when changing an approved baseline. The committed panos/SHA256SUMS
 records all 26 data files; the local size/hash inventory remains in
 work/test-panorama-storage-20261119/manifest.json. Data-only change: no app build
 or panorama rerender is required for publication.

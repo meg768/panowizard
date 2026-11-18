@@ -238,12 +238,12 @@ regressions remain separate from normal builds.
 - `PanoWizard/Vendor/OpenCV` — original pinned headers and dynamic libraries
 - `docs` — self-contained GitHub Pages help, illustrated guides and images
 - `examples` — editable example projects A–H with source photographs and opening instructions
-- `test-panorama` — regression snapshots A (night) and B (daylight), separate from bundled examples
+- `panos` — regression snapshots A (night) and B (daylight), separate from bundled examples
 - `CONTEXT.md` — current technical context and verification limits
 
 ### Regression panoramas
 
-The current A/B regression cases are stored in [test-panorama](test-panorama/README.md)
+The current A/B regression cases are stored in [panos](panos/README.md)
 with source photographs and project assets. Keep each case folder intact and use
 copies for experiments. They are separate from the bundled examples A–H and are
 not added to the app's example download. Machine-specific source access bookmarks

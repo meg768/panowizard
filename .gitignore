@@ -6,4 +6,4 @@ DerivedData/
 /work/
 
 # Machine-specific access grants generated when regression projects are opened.
-/test-panorama/**/source-access.json
+/panos/**/source-access.json
