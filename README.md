@@ -108,9 +108,11 @@ can be painted, erased, or cleared like any other mask. An existing AI mask is
 restored during Edit. Opaque black pixels remain ordinary image content.
 
 Little Planet export creates a stereographic PNG from the completed panorama.
-The projection always fills the square output. Pan the wrapping 2:1 panorama to
-set the planet's orientation, click it to choose the geometric center, and use
-the unlabeled slider below the two previews to resize the result.
+The projection always fills the square output. Use the always-visible Zoom,
+Rotation, Tilt and Center sliders beside the large preview. Tilt moves between
+planet and tunnel; Center chooses the horizontal direction. Clicking the full
+panorama thumbnail sets both center coordinates. Reset restores the defaults.
+The preview updates while adjusting sliders and refines on release.
 
 Global adjustments are saved as project settings and applied after local
 retouching. They appear in the spherical preview and in JPEG, PNG, interactive

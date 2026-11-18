@@ -5,6 +5,37 @@ Last updated: 2026-11-18.
 Write all PanoWizard documentation in English, including future entries in this
 file. Keep technical identifiers, filenames, and original quotations intact.
 
+## Little Planet controls approved — 2026-11-18
+
+Magnus approved the redesigned dialog and requested commit, Stockholm timestamp
+tag and push. Keep all controls visible in one flat panel: Zoom, Rotation,
+Tilt and Center. No Creative controls disclosure, separate Planet/Tunnel
+presets or Start with a look section. Use the exact short labels Zoom and Center.
+Tilt moves the center vertically from ground-centered Planet (0°) through
+sideways (90°) to sky-centered Tunnel (180°); Center moves it horizontally
+(0–360°). Rotation turns the image around the selected center. At the two
+poles, horizontal center changes and rotation can give equivalent effects.
+
+A large preview replaces the former two equal panes. The full 2:1 thumbnail
+and both center sliders are synchronized. Reset restores all defaults. During
+slider gestures the cancellable preview renders at 320 px, refining to 640 px
+on release. Export dimensions are shown separately. The stereographic renderer,
+full-resolution export and stitching engine are unchanged. README and Little
+Planet help describe the final controls; the old dialog screenshot was removed
+from the help page because it shows obsolete controls.
+
+Seven targeted Debug tests passed again before this checkpoint, covering
+projection/orientation, full-thumbnail coordinates and reset. Previous native
+A checks verified layout, marker/slider synchronization, independent rotation
+and reset. No new full-resolution native export was run for the UI redesign.
+Signed Release 1.5 (202611182346) is installed; strict deep signature and
+installed/build equality were verified. Latest verified rollback copy:
+/Users/magnus/Library/Developer/Xcode/PanoWizard-before-zoom-label-20261118-234732.app
+(previous build 202611182342). Original projects were preserved.
+Build/install logs: work/little-planet-*/. Checkpoint tests:
+work/checkin-little-planet-20261118/tests.log. The local H source-access bookmark
+remains untracked and unpublished.
+
 ## Exposure fallback checkpoint — 2026-11-18
 
 Magnus requested the normal commit, Stockholm timestamp tag and push workflow.

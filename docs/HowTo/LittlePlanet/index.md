@@ -10,15 +10,22 @@ Open [example A](../../examples.html#example-a), or finish your own panorama. Op
 
 ## Shape the planet
 
-Use the panorama on the left:
+The large preview shows the exported composition. All controls are visible:
 
-- **Drag horizontally** to rotate the planet.
-- **Click** to position the center.
-- Use the slider **below the Little Planet preview** to make the planet smaller or larger.
+- **Zoom** makes the planet smaller or larger inside the square image.
+- **Rotation** turns the result without moving its center.
+- **Tilt** moves from **Planet** (0°, ground in the center), through sideways
+  (90°), to **Tunnel** (180°, sky in the center).
+- **Center** moves the center horizontally around the panorama
+  (0–360°). Tilt chooses its height; Rotation turns the result around that center.
+- Click the panorama thumbnail to set both Tilt and Center together.
+  The marker follows both sliders. A point near the horizon tips the planet sideways.
+- **Reset** restores the default planet, size and rotation.
 
-![The current Little Planet dialog with rotation, centering, and size controls](../../Images/Examples/a-planet.jpg)
+The preview updates as you adjust a slider; releasing it refines the preview.
 
-The right preview shows the result. The slider changes composition, not image resolution.
+The Zoom slider changes composition, not image resolution. The PNG dimensions
+are shown beside **Export…**.
 
 ## Export the image
 

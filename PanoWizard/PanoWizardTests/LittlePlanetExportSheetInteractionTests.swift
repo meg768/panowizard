@@ -34,24 +34,29 @@ struct LittlePlanetExportSheetInteractionTests {
         )
     }
 
-    @Test("Clamped marker maps through the current panorama pan")
-    func mapsClampedMarkerToSource() {
-        let viewportSize = CGSize(width: 360, height: 360)
-        let panoramaWidth: CGFloat = 720
-        let panTurns = 0.125
-        let location = LittlePlanetPanoramaSelection.clampedLocation(
-            CGPoint(x: 500, y: -50),
-            in: viewportSize
-        )
-        let coordinates = LittlePlanetPanoramaSelection.sourceCoordinates(
-            at: location,
-            viewportSize: viewportSize,
-            panoramaWidth: panoramaWidth,
-            panTurns: panTurns
-        )
+    @Test("Full panorama selection maps sky, horizon and ground without hidden panning")
+    func mapsMarkerToFullPanorama() {
+        let size = CGSize(width: 280, height: 140)
+        for (point, longitude, latitude) in [
+            (CGPoint(x: 70, y: 0), 90.0, 90.0),
+            (CGPoint(x: 140, y: 70), 180.0, 0.0),
+            (CGPoint(x: 210, y: 140), 270.0, -90.0),
+            (CGPoint(x: 500, y: -50), 0.0, 90.0)
+        ] {
+            let coordinates = LittlePlanetPanoramaSelection.sourceCoordinates(at: point, viewportSize: size)
+            #expect(abs(coordinates.longitudeDegrees - longitude) < 1e-12)
+            #expect(abs(coordinates.latitudeDegrees - latitude) < 1e-12)
+        }
+    }
 
-        #expect(location == CGPoint(x: 360, y: 0))
-        #expect(abs(coordinates.longitudeDegrees - 45) < 1e-12)
-        #expect(abs(coordinates.latitudeDegrees - 90) < 1e-12)
+    @MainActor @Test("Reset recovers the default planet from a tilted custom composition")
+    func resetCustomComposition() {
+        let controller = LittlePlanetExportController()
+        controller.settings.centerLongitudeDegrees = 115
+        controller.settings.centerLatitudeDegrees = -12
+        controller.settings.rotationDegrees = 48
+        controller.settings.horizonPercent = 63
+        controller.reset()
+        #expect(controller.settings == LittlePlanetSettings())
     }
 }
