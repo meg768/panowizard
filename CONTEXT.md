@@ -5,6 +5,77 @@ Last updated: 2026-11-19.
 Write all PanoWizard documentation in English, including future entries in this
 file. Keep technical identifiers, filenames, and original quotations intact.
 
+## Night A investigation checkpoint; continue later — 2026-11-19
+
+Magnus requested check-in and defers the remaining seam correction until
+tomorrow. No motor fix has been made. Preserve the target: continuous roof
+and a smooth zenith transition, without manual masks. Start from the diagnostic
+findings below rather than repeating geometry/exposure experiments.
+
+Include Magnus's current panos/A project view changes and new saved result in
+this checkpoint. The 8484 x 4242 saved result matches the four-source,
+zenith-omitted diagnostic byte-for-byte (SHA-256
+4bb539d7c97580c30f826a9f922e281ca5dc57ba16eb109d914aed9fbf12ce92),
+but project.json currently enables all five sources with Automatic roles.
+The saved image therefore does not represent a fresh render of those settings.
+panos/README.md documents this; SHA256SUMS is refreshed for all 27 data files.
+Data/documentation-only checkpoint: no app rebuild or installation needed.
+Machine-specific source-access grants and diagnostic work files stay local.
+
+## Night A Repair Image still has a hard tonal seam — 2026-11-19
+
+Magnus accepts a mistaken Automatic role but reports the hard zenith boundary
+with Repair Image as a remaining defect; manual masking is not the desired
+solution. This is more substantial than merely noting a residual sky tone.
+
+Instrumented an isolated copy of the unchanged native engine at 4096 x 2048,
+using the existing A rasters, source 5 explicitly Repair and no source masks.
+The hard sky boundary follows the zenith ownership border. Dumping the
+contentAdaptiveBlend stages shows that centerWeightedComposite has a smooth
+tonal transition there, while the combined detail-preserving result retains
+the hard edge. It is already visible before the final structureResult mix,
+so disabling only that final structural mix is not a verified solution.
+This localizes the defect to tone/detail blending, not just role selection;
+the exact corrective algorithm has not been implemented or validated.
+
+Diagnostic source, stage dumps and logs: work/A-zenith-seam-20261119/ (ignored).
+User-facing sky comparisons in outputs/panowizard-A-repair-seam/ in the
+2026-11-17/fo chat workspace are both gamma 2 to expose the dark seam, not
+candidate fixed renders. Product code, installed app and projects unchanged.
+
+## Night A roof seam depends on zenith participation — 2026-11-19
+
+Magnus found that removing the zenith removes the roof seam. Reproduced with
+the existing exposure-fixed native engine, original oriented rasters, fresh
+alignment and no masks: four horizontal images render at 8484 x 4242 with a
+continuous roof edge (89.190163207% coverage). Keeping source 5, the zenith
+2007-09-25 22-50-36.nef, but explicitly assigning existing Repair Image role
+also produces a continuous roof edge at 8484 x 4242, with 99.999888855%
+coverage (40 uncovered pixels; UI rounding would show 100%).
+Supplemental registration accepted 365/623 matches. The earlier all-Automatic
+run classified all five sources as ring images and showed the roof step.
+
+This isolates zenith participation as the trigger; removal/Repair role changes
+both geometry participation and compositing, so these comparisons alone do not
+prove which stage introduces the displacement. Repair role fits zenith against
+the fixed ring/lens and reserves it for supplemental coverage. A sky tone
+boundary remains visible in the repair-role roof crop; do not claim the entire
+panorama is defect-free. No product, original project or source-mask changes
+were made. Native renders, logs and roof crops are under
+outputs/panowizard-A-zenith/ in the 2026-11-17/fo chat workspace.
+
+## Night A roof seam predates recent UI changes — 2026-11-19
+
+Magnus reported a displaced/doubled roof edge in current night A. The same
+roof-edge discontinuity is visible in the saved 2026-11-17 full-resolution
+exposure verification render (outputs/panowizard-exposure/A-after.png in the
+2026-11-17/fo chat workspace). That exposure fix did not repair geometry;
+the earlier visual report concerned color seams and missed this defect.
+No prior repair of this particular roof seam has been established. The saved
+Desktop and panos/A projects contain no source masks or retouch patches;
+their external patch.png depicts the ground, not the roof. No product or
+project changes were made during this historical check.
+
 ## Regression directory renamed to panos — 2026-11-19
 
 At Magnus's request, the repository regression directory is now panos/ instead
