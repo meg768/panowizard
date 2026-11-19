@@ -17,9 +17,10 @@ Desktop/panorama. The bundled `examples/` download is maintained separately.
 
 ## Night A seam investigation checkpoint — 2026-11-19
 
-A's saved 8484 × 4242 result was rendered with the zenith omitted. Its project
-metadata currently enables all five sources with Automatic roles, so creating
-the panorama again will produce a different result from the saved image.
+A enables all five sources, with source 5 explicitly set to Repair Image.
+Its saved 8484 × 4242 result matches the verified repair-role diagnostic
+byte-for-byte: the roof is continuous, but the hard tonal zenith boundary
+remains. This preserves the failing case for further investigation.
 
 Known comparisons, without manual masks:
 

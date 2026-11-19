@@ -84,7 +84,7 @@
       },
       "pixelHeight" : 2592,
       "pixelWidth" : 3872,
-      "role" : "automatic",
+      "role" : "fillOnly",
       "rotation" : 3,
       "url" : "2007-09-25%2022-50-36.nef"
     }
@@ -104,9 +104,9 @@
     "whites" : 0
   },
   "previewViewpoint" : {
-    "pitchRadians" : -0.9846240282058716,
-    "verticalFieldOfViewDegrees" : 87.75416564941406,
-    "yawRadians" : 0.704596221446991
+    "pitchRadians" : -0.6367501020431519,
+    "verticalFieldOfViewDegrees" : 126.2795639038086,
+    "yawRadians" : 0.9381695985794067
   },
   "publishFilename" : "night.html",
   "publishPath" : "2007/september",
