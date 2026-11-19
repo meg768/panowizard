@@ -413,7 +413,7 @@ struct AIRetouchSheet: View {
 
     private let viewpoint: PanoramaViewpoint
     private let replacingPatch: RetouchPatch?
-    @State private var mode: RetouchPatch.AIRetouchMode
+    private let mode: RetouchPatch.AIRetouchMode
     @State private var replacePrompt: String
     @State private var repairPrompt: String
     @State private var source: AIRetouchSource?
@@ -441,7 +441,7 @@ struct AIRetouchSheet: View {
         self.viewpoint = viewpoint
         self.replacingPatch = replacingPatch
         self.onDismiss = onDismiss
-        _mode = State(initialValue: replacingPatch?.aiRetouchMode ?? .replace)
+        mode = replacingPatch?.aiRetouchMode ?? .replace
         _replacePrompt = State(
             initialValue: replacingPatch?.replacePrompt
                 ?? replacingPatch?.prompt
@@ -549,28 +549,6 @@ struct AIRetouchSheet: View {
                     .help("Restore default instruction")
                     .accessibilityLabel("Restore default instruction")
                     .disabled(!canRestoreDefaultPrompt)
-
-                    Spacer(minLength: 12)
-
-                    HStack(spacing: 8) {
-                        Button {
-                            mode = .replace
-                        } label: {
-                            Label("Replace", systemImage: "paintbrush.pointed")
-                        }
-                        .buttonStyle(AIRetouchModeButtonStyle(isSelected: mode == .replace))
-                        .accessibilityAddTraits(mode == .replace ? .isSelected : [])
-                        .accessibilityIdentifier("ai-retouch-mode-replace")
-
-                        Button {
-                            mode = .repair
-                        } label: {
-                            Label("Repair", systemImage: "wrench.adjustable")
-                        }
-                        .buttonStyle(AIRetouchModeButtonStyle(isSelected: mode == .repair))
-                        .accessibilityAddTraits(mode == .repair ? .isSelected : [])
-                        .accessibilityIdentifier("ai-retouch-mode-repair")
-                    }
                 }
             }
 
@@ -619,7 +597,6 @@ struct AIRetouchSheet: View {
         }
         .padding(22)
         .frame(width: 780)
-        .onChange(of: mode) { invalidatePreview() }
         .onChange(of: replacePrompt) { invalidatePreview() }
         .onChange(of: repairPrompt) { invalidatePreview() }
         .task {

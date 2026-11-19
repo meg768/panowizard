@@ -20,11 +20,11 @@ Viewing and toggling the saved patch requires no API key and makes no generation
 
 ## Complete a missing nadir and zenith: example G
 
-[Example G — Autumn garden](../../examples.html#example-g) contains six JPEG photographs, converted from Nikon NEF originals, from a horizontal ring, with no separate photograph looking straight down (**nadir**) or straight up (**zenith**). Both areas are completed by saved AI patches in **Replace** mode: grass and fallen leaves below the camera, and branches and leaves above it.
+[Example G — Autumn garden](../../examples.html#example-g) contains six JPEG photographs, converted from Nikon NEF originals, from a horizontal ring, with no separate photograph looking straight down (**nadir**) or straight up (**zenith**). Both areas are completed by saved AI patches: grass and fallen leaves below the camera, and branches and leaves above it.
 
 This demonstrates how AI retouching can reconstruct missing coverage at both poles, as well as remove unwanted objects. Open **Retouch** and click each patch thumbnail to locate its view in **Preview**. Return to Retouch to switch that patch off, then click its thumbnail again to compare the same view. Repeat with the switch on. The first patch repairs the nadir; the second repairs the zenith. No API key is needed to explore the saved results. The [example guide](../../examples.html#example-g) shows both patches.
 
-The saved instructions add a short scene description to the default Replace text: grass and leaves for the nadir, and branches and leaves for the zenith. To try a similar repair, use **Replace** and describe what should continue into the missing area. Inspect the saved masks and instructions with the pencil button; choose **Cancel** to keep the example unchanged.
+The saved instructions describe grass and leaves for the nadir, and branches and leaves for the zenith. To try a similar repair, describe what should continue into the missing area in **Instruction**. Inspect the saved masks and instructions with the pencil button; choose **Cancel** to keep the example unchanged.
 
 ## Before generating a new repair
 
@@ -44,11 +44,11 @@ The dialog contains a fixed capture. Its pan/zoom controls inspect that image; c
 
 In **Before**, **Option-drag** over the problem. **Command-Option-drag** erases; **Command-Z** undoes a stroke. **Clear Mask** removes the mask. Transparent gaps are selected automatically in a new patch.
 
-Choose **Replace** to generate content for the masked area, or **Repair** to fix it while preserving as much of its visible original content as possible. New patches start in **Replace** mode. Each mode has its own editable instruction. Switching modes keeps both texts; the reset button restores the default instruction for the selected mode. Only the active instruction is sent to OpenAI.
+Edit **Instruction** to describe what AI should change in the masked area. The reset button restores the default instruction. The image, mask and instruction determine the request; there is no separate mode to choose.
 
-For example, use **Replace** when something is missing: “Fill the masked area with the same wooden floor pattern as the surrounding boards.” Use **Repair** when the original is visible but needs correction: “Remove the dark stain from the floor. Keep the existing board pattern and preserve the rest of the image.”
+For missing content, write: “Fill the masked area with the same wooden floor pattern as the surrounding boards.” For a visible defect, write: “Remove the dark stain from the floor. Keep the existing board pattern and preserve the rest of the image.”
 
-When editing an existing patch, its selected mode and both instructions are restored. Choosing **Apply** saves the selected mode and both instruction texts with that patch, so you can return to either mode later without losing edits.
+Editing an existing patch restores its saved instruction. **Apply** saves the edited instruction with the patch.
 
 Click **AI Retouch** to generate a preview. A mask and a nonempty active instruction are required; generation may take a while and can be cancelled.
 

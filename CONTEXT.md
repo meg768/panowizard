@@ -10,6 +10,11 @@ Follow the current task and applicable AGENTS.md instructions for general rules.
 Update existing sections instead of appending a narrative after each work session.
 Keep this file around 250 lines; retain evidence and uncertainty for open issues.
 
+Approval requirement (Magnus, 2026-11-19): discuss the solution first. Do not
+generate or modify code, including prototypes/diagnostic code, before Magnus
+explicitly approves implementation. Questions and feedback are not approval.
+This is also saved in the global AGENTS.md instructions.
+
 ## Project and architecture
 
 - Repository: https://github.com/meg768/panowizard; normal branch: `main`.
@@ -76,9 +81,9 @@ Generate Build Metadata phase produces local timestamp build IDs (`YYYYMMDDHHmm`
 and the About timestamp without editing tracked source files. Minute resolution
 means consecutive distribution builds need distinct build minutes.
 
-Last verified local installation (2026-11-19): **1.5 (202611190028)**.
-Rollback: `/Users/magnus/Library/Developer/Xcode/PanoWizard-before-project-export-memory-20261119-002827.app`
-(previous build 202611190023). Quit the app before restoring the complete backup
+Last verified local installation (2026-11-19): **1.5 (202611192112)**.
+Rollback: `/Users/magnus/Library/Developer/Xcode/PanoWizard-before-instruction-only-20261119-211331.app`
+(previous build 202611190028). Quit the app before restoring the complete backup
 as `/Applications/PanoWizard.app`; keep the backup itself intact.
 
 Last recorded Apple status, verified 2026-11-16, not a live status check:
@@ -146,6 +151,9 @@ Current source-mask behavior (decision 2026-11-14; checked against code):
 - Invert swaps marked/unmarked areas of the selected mask only, with Undo.
 - Repair images are registered against the fixed ring/lens; they must not alter
   ring geometry. Automatic classification can choose incorrectly (see night A).
+- Automatic gained a nadir-to-Repair heuristic on 2026-11-13 (`3d2a33f`);
+  no equivalent zenith heuristic exists. Ring classification uses overlap-graph
+  connectivity. The 2026-11-14 change moved painted masks out of registration.
 - Masks are outside the alignment-cache key. Swift key:
   `unmasked-registration-v1`; C++ cache format: `8`. Do not change cache identities
   during unrelated cleanup. README's older claim that red masks affect geometry
@@ -177,6 +185,18 @@ Little Planet (approved 2026-11-18/19):
   project (Zoom/Rotation/Tilt/Center). Normal Save persists them in `.pw`.
   Cancel, failed export and Reset alone do not overwrite the saved settings.
   No app-wide setting migration into unrelated projects. Old projects use defaults.
+
+AI retouch (2026-11-19): use one editable Instruction field with reset; remove
+Replace/Repair preset buttons. The API already takes only image, mask and active
+instruction. Retain saved legacy mode/prompt fields for compatibility and restore
+the existing patch's active instruction when editing. Default prompts are unchanged.
+Signed Release build/install verified; native UI checked on a disposable A copy,
+including editing/reset. No live AI generation was needed. Help text is updated.
+
+Pre-overlay checkpoint (2026-11-19): Overlay is discussion only; implementation
+is not approved. Proposed: a Panorama row between Retouch and Export for one
+panorama-wide AI layer with an instruction, comparison and project persistence.
+Native AI resolution versus upscaling and 360° edge continuity remain unresolved.
 
 Publishing/export:
 

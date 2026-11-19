@@ -78,7 +78,7 @@ Open **Retouch** and click the saved **AI Patch** thumbnail to locate its area i
 
 *Before (left): the red mask marks the tripod area. After (right): AI removes the tripod and reconstructs the curved boundaries between the dark and light stones, continuing the surrounding paving pattern. The reconstructed area is AI-generated content.*
 
-To make a similar repair, mask the unwanted object or artifact and choose **Replace**. Describe the surface that should take its place and the details that must continue across the repair. For example:
+To make a similar repair, mask the unwanted object or artifact and edit **Instruction**. Describe the surface that should take its place and the details that must continue across the repair. For example:
 
 > Remove the tripod and its support inside the masked area. Replace them with stone paving that continues the surrounding pattern. Follow the curved boundaries between the dark and light stones, keeping their width, direction, and perspective consistent. Match the surrounding stone size, texture, lighting, and color. Preserve the unmasked surroundings.
 
@@ -120,7 +120,7 @@ Select `2008-02-23 14-47-40.NEF` and choose **Include** to inspect that saved gr
 
 G uses full-resolution JPEG sources converted from Nikon NEF originals. Keep all six `.JPG` files beside `panorama.pw`. The saved G panorama is **12288 × 6144 pixels**; its source JPEGs retain their full **4000 × 6000** resolution.
 
-G shows how AI retouching can complete both ends of a panorama from a single horizontal ring of photographs. There is **no separate nadir photograph** looking straight down and **no separate zenith photograph** looking straight up. Two saved AI patches in **Replace** mode reconstruct those areas: grass and fallen leaves below the camera, and branches and leaves above it.
+G shows how AI retouching can complete both ends of a panorama from a single horizontal ring of photographs. There is **no separate nadir photograph** looking straight down and **no separate zenith photograph** looking straight up. Two saved AI patches reconstruct those areas: grass and fallen leaves below the camera, and branches and leaves above it.
 
 ### Nadir — looking straight down
 
@@ -138,7 +138,7 @@ G shows how AI retouching can complete both ends of a panorama from a single hor
 
 Open **Retouch** to find the two **AI Patch** entries. The first is the nadir repair; the second is the zenith repair. Click each thumbnail to locate its area in **Preview**. Return to Retouch, switch that patch off, and click its thumbnail again to inspect the same view before retouching. Repeat with the switch on. The patches can be toggled independently, and viewing the saved results requires no API key.
 
-To inspect a saved mask and instruction, click the patch’s pencil button and choose **Cancel** when finished. Both saved patches use the default **Replace** instruction. See [AI Retouch](HowTo/AIPatch/index.html) to try this on a copy of the project.
+To inspect a saved mask and instruction, click the patch’s pencil button and choose **Cancel** when finished. Both saved patches contain instructions for reconstructing the missing content. See [AI Retouch](HowTo/AIPatch/index.html) to try this on a copy of the project.
 
 G demonstrates reconstruction of missing coverage at both poles, beyond removing a small object. Stitching itself does not create that content; AI retouching adds it afterward.
 
