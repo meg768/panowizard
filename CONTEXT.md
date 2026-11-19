@@ -204,8 +204,8 @@ Publishing/export:
 - Magnus explicitly approved public GitHub publication of A/B originals,
   project data and image metadata. Keep case folders intact and use copies for
   experiments. Desktop copies do not synchronize with Git automatically.
-- `panos/README.md` explains the snapshots; `panos/SHA256SUMS` records their data.
-  Refresh checksums when intentionally updating fixtures; exclude local bookmarks.
+- `panos/README.md` explains the snapshots; exclude local bookmarks.
+  Magnus opted out of separate checksum manifests (2026-11-19).
 - A now saves source 5 as Repair Image. Its stored 8484 × 4242 result matches
   the verified repair-role diagnostic byte-for-byte, including the known hard
   sky seam and 40 uncovered pixels. It is a failing regression case, not a fix.

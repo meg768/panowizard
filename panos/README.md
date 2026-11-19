@@ -31,9 +31,3 @@ Known comparisons, without manual masks:
 
 The remaining issue is in tone/detail blending; no engine correction is included
 in this checkpoint. See the dated investigation entries in `../CONTEXT.md`.
-
-Verify the supplied data files from this directory with:
-
-```sh
-shasum -a 256 -c SHA256SUMS
-```
