@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import ImageIO
 
 enum LayeredPSDExporter {
     private static let channels: [Int16] = [0, 1, 2, -1]
@@ -9,6 +10,8 @@ enum LayeredPSDExporter {
         baseURL: URL,
         compositeURL: URL,
         patches: [(RetouchPatch, URL)],
+        overlayURL: URL? = nil,
+        overlayEnabled: Bool = true,
         adjustments: PanoramaAdjustments,
         maximumWidth: Int,
         to destination: URL
@@ -19,11 +22,21 @@ enum LayeredPSDExporter {
         defer { try? fileManager.removeItem(at: work) }
 
         var base = try RGBAImage(contentsOf: baseURL, maximumWidth: maximumWidth)
+        if let overlayURL {
+            guard let source = CGImageSourceCreateWithURL(overlayURL as CFURL, nil),
+                  let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+                  let overlayWidth = properties[kCGImagePropertyPixelWidth] as? Int else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            if overlayWidth < base.width {
+                base = try RGBAImage(contentsOf: baseURL, maximumWidth: overlayWidth)
+            }
+        }
         let width = base.width
         let height = base.height
         let canvas = CGRect(x: 0, y: 0, width: width, height: height)
         guard width <= 30_000, height <= 30_000,
-              patches.count < Int(Int16.max),
+              patches.count + (overlayURL == nil ? 0 : 1) < Int(Int16.max),
               width * height * 8 < sizeLimit else { throw tooLarge }
         let settings = adjustments.sanitized
 
@@ -77,6 +90,13 @@ enum LayeredPSDExporter {
                            name: "\(patch.kind.displayName) \(index + 1)", visible: patch.isEnabled)
         }
 
+        if let overlayURL {
+            var overlay = try RGBAImage(contentsOf: overlayURL, maximumWidth: width)
+            guard overlay.width == width, overlay.height == height else { throw CocoaError(.fileReadCorruptFile) }
+            try adjust(&overlay, in: canvas, settings: settings)
+            try writeLayer(overlay, bounds: canvas, name: "AI Overlay", visible: overlayEnabled)
+        }
+
         var header = Data("8BPS".utf8)
         header.appendBigEndian(UInt16(1))
         header.append(Data(count: 6))
@@ -107,7 +127,7 @@ enum LayeredPSDExporter {
         guard fileSize <= sizeLimit else { throw tooLarge }
         header.appendBigEndian(UInt32(8 + paddedLength))
         header.appendBigEndian(UInt32(paddedLength))
-        header.appendBigEndian(-Int16(patches.count + 1)) // Merged alpha present
+        header.appendBigEndian(-Int16(patches.count + 1 + (overlayURL == nil ? 0 : 1))) // Merged alpha present
         header.append(layerRecords)
 
         let fileURL = work.appending(path: "panorama.psd")
@@ -124,7 +144,7 @@ enum LayeredPSDExporter {
         // Layer section padding, zero-length global mask, then raw merged image.
         try output.write(contentsOf: Data(count: padding + 4 + 2))
         if compositeURL != baseURL {
-            base = try RGBAImage(contentsOf: compositeURL, maximumWidth: maximumWidth)
+            base = try RGBAImage(contentsOf: compositeURL, maximumWidth: width)
             guard base.width == width, base.height == height else {
                 throw CocoaError(.fileReadCorruptFile)
             }

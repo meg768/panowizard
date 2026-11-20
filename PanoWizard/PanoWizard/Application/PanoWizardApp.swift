@@ -705,6 +705,7 @@ private struct ProjectDocumentView: View {
                         masks: savedDocument.masks,
                         protectedMasks: savedDocument.protectedMasks,
                         panoramaData: savedDocument.panoramaData,
+                        overlayData: savedDocument.overlayData,
                         retouchPatchData: savedDocument.retouchPatchData,
                         aiRetouchMaskData: savedDocument.aiRetouchMaskData
                     )
@@ -724,6 +725,7 @@ private struct ProjectDocumentView: View {
                 masks: document.masks,
                 protectedMasks: document.protectedMasks,
                 panoramaData: document.panoramaData,
+                overlayData: document.overlayData,
                 retouchPatchData: document.retouchPatchData,
                 aiRetouchMaskData: document.aiRetouchMaskData
             )
@@ -796,6 +798,7 @@ private struct ProjectDocumentView: View {
             panoramaData: hasNewPanoramaData
                 ? model.panoramaData
                 : savedDocument.panoramaData,
+            overlayData: model.overlayData,
             retouchPatchData: hasNewPanoramaData
                 ? model.retouchPatchData
                 : savedDocument.retouchPatchData,
@@ -906,6 +909,7 @@ private struct ProjectDocumentView: View {
                 masks: document.masks,
                 protectedMasks: document.protectedMasks,
                 panoramaData: document.panoramaData,
+                overlayData: document.overlayData,
                 retouchPatchData: document.retouchPatchData,
                 aiRetouchMaskData: document.aiRetouchMaskData
             )

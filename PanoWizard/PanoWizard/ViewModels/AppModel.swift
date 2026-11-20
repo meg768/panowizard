@@ -4,6 +4,7 @@ import Observation
 enum ProjectSelection: Hashable {
     case panorama
     case retouch
+    case overlay
     case export
     case source(SourceImage.ID)
 }
@@ -58,6 +59,8 @@ final class AppModel {
     var phase: Phase = .ready
     var isImporterPresented = false
     var skippedFileCount = 0
+    var overlayData: Data?
+    var overlayURL: URL?
     var stitchedResultURL: URL?
     var retouchedPanoramaURL: URL?
     var panoramaViewpoint = PanoramaViewpoint()
@@ -87,6 +90,7 @@ final class AppModel {
         masks: [UUID: Data] = [:],
         protectedMasks: [UUID: Data] = [:],
         panoramaData: Data? = nil,
+        overlayData: Data? = nil,
         retouchPatchData: [UUID: Data] = [:],
         aiRetouchMaskData: [UUID: Data] = [:]
     ) {
@@ -95,6 +99,8 @@ final class AppModel {
             directoryHint: .isDirectory
         )
         self.workingDirectory = workingDirectory
+        self.overlayData = overlayData
+        self.overlayURL = overlayData.flatMap { Self.restoreData($0, filename: "overlay.png", in: workingDirectory) }
         self.project = project
         self.importer = importer
         self.grouper = grouper
@@ -124,7 +130,7 @@ final class AppModel {
             Task { [weak self] in
                 guard let self else { return }
                 do {
-                    try await rebuildRetouchedPanorama()
+                    try await rebuildRetouchedPanorama(invalidateOverlay: false)
                     if phase == .retouching { phase = .ready }
                 } catch {
                     phase = .failed(error.localizedDescription)
@@ -138,6 +144,7 @@ final class AppModel {
         masks: [UUID: Data] = [:],
         protectedMasks: [UUID: Data] = [:],
         panoramaData: Data? = nil,
+        overlayData: Data? = nil,
         retouchPatchData: [UUID: Data] = [:],
         aiRetouchMaskData: [UUID: Data] = [:]
     ) -> AppModel {
@@ -150,6 +157,7 @@ final class AppModel {
             masks: masks,
             protectedMasks: protectedMasks,
             panoramaData: panoramaData,
+            overlayData: overlayData,
             retouchPatchData: retouchPatchData,
             aiRetouchMaskData: aiRetouchMaskData
         )
@@ -157,7 +165,38 @@ final class AppModel {
 
     var panorama: PanoramaSet? { project.images.isEmpty ? nil : project.panorama }
     var sourceDirectoryURL: URL? { project.images.first?.url.deletingLastPathComponent() }
-    var currentPanoramaURL: URL? { retouchedPanoramaURL ?? stitchedResultURL }
+    var basePanoramaURL: URL? { retouchedPanoramaURL ?? stitchedResultURL }
+    var currentPanoramaURL: URL? {
+        if project.overlayEnabled != false, let overlayURL { return overlayURL }
+        return basePanoramaURL
+    }
+    func applyOverlay(_ data: Data, prompt: String) throws {
+        guard let url = Self.restoreData(data, filename: "overlay-\(UUID()).png", in: workingDirectory) else {
+            throw OpenAIImageEditError.invalidImageData
+        }
+        clearOverlay()
+        overlayData = data
+        overlayURL = url
+        project.overlayPrompt = prompt
+        project.overlayEnabled = true
+        project.modifiedAt = .now
+    }
+    func setOverlayEnabled(_ enabled: Bool) {
+        project.overlayEnabled = enabled
+        project.modifiedAt = .now
+    }
+    func removeOverlay() {
+        guard phase == .ready, overlayData != nil || overlayURL != nil else { return }
+        clearOverlay()
+        project.modifiedAt = .now
+    }
+    private func clearOverlay() {
+        if let overlayURL { try? FileManager.default.removeItem(at: overlayURL) }
+        overlayURL = nil
+        overlayData = nil
+        project.overlayEnabled = nil
+        project.overlayPrompt = nil
+    }
     var panoramaAdjustments: PanoramaAdjustments { project.panoramaAdjustments }
 
     var selectedPreviewURL: URL? {
@@ -165,7 +204,7 @@ final class AppModel {
         case .panorama: currentPanoramaURL
         case .source(let id):
             project.images.first { $0.id == id }?.url ?? project.images.first?.url
-        case .retouch, .export: nil
+        case .retouch, .overlay, .export: nil
         case nil: currentPanoramaURL ?? project.images.first?.url
         }
     }
@@ -346,7 +385,7 @@ final class AppModel {
 
     func stitch() {
         guard canStitch else { return }
-        if !retouchPatches.isEmpty {
+        if !retouchPatches.isEmpty || overlayData != nil {
             confirmsDiscardRetouchForStitch = true
             return
         }
@@ -497,7 +536,7 @@ final class AppModel {
                 retouchPatchURLs[patch.id].map { (patch, $0) }
             }
         } else {
-            basePanoramaURL = currentPanoramaURL ?? stitchedResultURL
+            basePanoramaURL = self.basePanoramaURL ?? stitchedResultURL
             sourcePatches = []
         }
         let directory = workingDirectory.appending(
@@ -809,7 +848,7 @@ final class AppModel {
         )
     }
 
-    private func rebuildRetouchedPanorama() async throws {
+    private func rebuildRetouchedPanorama(invalidateOverlay: Bool = true) async throws {
         let operationID = UUID()
         retouchRenderID = operationID
         guard let stitchedResultURL else {
@@ -824,6 +863,7 @@ final class AppModel {
                 try? FileManager.default.removeItem(at: retouchedPanoramaURL)
             }
             retouchedPanoramaURL = nil
+            if invalidateOverlay { clearOverlay() }
             return
         }
         try FileManager.default.createDirectory(
@@ -860,12 +900,14 @@ final class AppModel {
         }
         let oldURL = retouchedPanoramaURL
         retouchedPanoramaURL = destination
+        if invalidateOverlay { clearOverlay() }
         if let oldURL, oldURL != destination {
             try? FileManager.default.removeItem(at: oldURL)
         }
     }
 
     private func clearRetouchPatches() {
+        clearOverlay()
         retouchRenderID = UUID()
         if phase == .retouching { phase = .ready }
         let urls = Array(retouchPatchURLs.values)

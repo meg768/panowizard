@@ -94,7 +94,8 @@ struct OpenAIImageEditService: Sendable {
         imageData: Data,
         filename: String,
         prompt: String,
-        size: Int
+        size: Int,
+        height: Int? = nil
     ) async throws -> Data {
         guard !apiKey.isEmpty else { throw OpenAIImageEditError.missingAPIKey }
         let request = try Self.makeRequest(
@@ -102,7 +103,8 @@ struct OpenAIImageEditService: Sendable {
             imageData: imageData,
             filename: filename,
             prompt: prompt,
-            size: size
+            size: size,
+            height: height
         )
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -148,6 +150,7 @@ struct OpenAIImageEditService: Sendable {
         filename: String,
         prompt: String,
         size: Int,
+        height: Int? = nil,
         boundary: String = "PanoWizard-\(UUID().uuidString)"
     ) throws -> URLRequest {
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -159,7 +162,7 @@ struct OpenAIImageEditService: Sendable {
         appendField(name: "prompt", value: prompt, boundary: boundary, to: &body)
         appendField(
             name: "size",
-            value: "\(size)x\(size)",
+            value: "\(size)x\(height ?? size)",
             boundary: boundary,
             to: &body
         )

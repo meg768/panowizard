@@ -61,6 +61,7 @@ struct PanoramaSidebar: View {
                             systemImage: "paintbrush.pointed",
                             selection: .retouch
                         )
+                        navigationRow("Overlay", systemImage: "square.2.layers.3d", selection: .overlay)
                         navigationRow(
                             "Export",
                             systemImage: "square.and.arrow.up",

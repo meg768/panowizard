@@ -104,7 +104,7 @@ struct ContentView: View {
                 model.stitchDiscardingRetouch()
             }
         } message: {
-            Text("Creating a new panorama will remove all retouch patches, including disabled patches. This cannot be undone.")
+            Text("Creating a new panorama will remove all retouch patches and the AI overlay, including disabled results. This cannot be undone.")
         }
         .alert("Remove All Images?", isPresented: $confirmsRemoveAllImages) {
             Button("Cancel", role: .cancel) {}
@@ -166,6 +166,8 @@ struct ContentView: View {
                             isLittlePlanetPresented = true
                         }
                     )
+                } else if model.selection == .overlay {
+                    PanoramaOverlayView(model: model)
                 } else if model.selection == .retouch {
                     PanoramaRetouchView(
                         model: model,

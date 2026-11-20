@@ -17,6 +17,7 @@ struct PanoProjectDocument: FileDocument, Equatable {
     var project: PanoProject
     var masks: [UUID: Data]
     var protectedMasks: [UUID: Data]
+    var overlayData: Data?
     var panoramaData: Data?
     var retouchPatchData: [UUID: Data]
     var aiRetouchMaskData: [UUID: Data]
@@ -32,6 +33,7 @@ struct PanoProjectDocument: FileDocument, Equatable {
         masks: [UUID: Data] = [:],
         protectedMasks: [UUID: Data] = [:],
         panoramaData: Data? = nil,
+        overlayData: Data? = nil,
         retouchPatchData: [UUID: Data] = [:],
         aiRetouchMaskData: [UUID: Data] = [:],
         sourceAccessBookmarks: [String: Data] = [:]
@@ -39,6 +41,7 @@ struct PanoProjectDocument: FileDocument, Equatable {
         self.project = project
         self.masks = masks
         self.protectedMasks = protectedMasks
+        self.overlayData = overlayData
         self.panoramaData = panoramaData
         self.retouchPatchData = retouchPatchData
         self.aiRetouchMaskData = aiRetouchMaskData
@@ -136,6 +139,7 @@ struct PanoProjectDocument: FileDocument, Equatable {
         panoramaData = wrappers["panorama"]?
             .fileWrappers?["result.png"]?
             .regularFileContents
+        overlayData = wrappers["panorama"]?.fileWrappers?["overlay.png"]?.regularFileContents
         retouchPatchData = Self.dataByUUID(
             in: wrappers["panorama"]?.fileWrappers?["patches"]
         )
@@ -196,6 +200,9 @@ struct PanoProjectDocument: FileDocument, Equatable {
         )
 
         var panoramaChildren: [String: FileWrapper] = [:]
+        if let overlayData {
+            panoramaChildren["overlay.png"] = FileWrapper(regularFileWithContents: overlayData)
+        }
         if let panoramaData {
             panoramaChildren["result.png"] = FileWrapper(
                 regularFileWithContents: panoramaData

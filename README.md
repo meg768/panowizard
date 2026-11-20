@@ -123,6 +123,32 @@ HTML, and Little Planet exports.
 Building a new panorama removes downstream retouch results while preserving the
 source images and source masks.
 
+### AI Overlay
+
+Open **Overlay** under Panorama to edit the whole panorama with an instruction.
+The workspace shows one full panorama at a fixed 2:1 ratio. A simple toolbar
+below has **Use overlay**, **Edit…**, and trash to delete. The switch changes the displayed
+image and controls its use in Preview and exports. Deleting removes the overlay
+image and instruction; save the project to retain the deletion. Without an
+overlay, only **Create AI overlay…** is shown. **Edit…** opens the instruction and
+generation dialog, with a mutually exclusive **Before | After** selector above
+one 2:1 image and a larger instruction editor below. It opens on After when an
+overlay exists, and switches to After following successful generation.
+The comparison selection does not change which result **Apply** uses. The display loads
+the full saved image. **Generate** rounds the input size down only as needed
+so both dimensions are divisible by 16, preserving exact 2:1 proportions
+(for example, 8462 × 4231 becomes 8448 × 4224). Already aligned PNGs are sent
+unchanged. It requests that same size at high quality. PanoWizard imposes no
+additional size cap and never enlarges the returned image. Service errors are shown
+directly; a response with different dimensions is rejected without replacing
+the saved overlay.
+It uses your saved API key; usage is billed separately.
+**Apply** keeps the returned image bytes unchanged as a separate layer.
+Save the project to retain it. Existing overlays remain unchanged until replaced.
+PSD export fits all layers to their smaller common panorama dimensions.
+Source or retouch changes clear the overlay. Inspect the result in 360° Preview,
+especially where the left and right edges meet. AI may change photographed detail.
+
 ## How it works
 
 PanoWizard uses a single in-process C++17/OpenCV panorama engine behind a small

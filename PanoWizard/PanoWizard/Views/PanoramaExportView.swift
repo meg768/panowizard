@@ -283,9 +283,12 @@ extension PanoramaExportController {
                         }
                         return (patch, url)
                     }
+                    let overlayURL = model.overlayURL
+                    let overlayEnabled = model.project.overlayEnabled != false
                     try await Task.detached(priority: .userInitiated) {
                         try LayeredPSDExporter.write(
                             baseURL: baseURL, compositeURL: sourceURL, patches: patches,
+                            overlayURL: overlayURL, overlayEnabled: overlayEnabled,
                             adjustments: adjustments, maximumWidth: maximumWidth, to: destinationURL
                         )
                     }.value

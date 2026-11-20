@@ -1,6 +1,6 @@
 # PanoWizard — Current Project Context
 
-Last reviewed: 2026-11-19.
+Last reviewed: 2026-11-20.
 
 This file contains current decisions, working conventions and unresolved issues.
 Earlier investigations, build logs and superseded decisions remain in Git history.
@@ -81,9 +81,9 @@ Generate Build Metadata phase produces local timestamp build IDs (`YYYYMMDDHHmm`
 and the About timestamp without editing tracked source files. Minute resolution
 means consecutive distribution builds need distinct build minutes.
 
-Last verified local installation (2026-11-19): **1.5 (202611192112)**.
-Rollback: `/Users/magnus/Library/Developer/Xcode/PanoWizard-before-instruction-only-20261119-211331.app`
-(previous build 202611190028). Quit the app before restoring the complete backup
+Last verified local installation (2026-11-20): **1.5 (202611200348)**.
+Rollback: `/Users/magnus/Library/Developer/Xcode/PanoWizard-before-overlay-16-20261120-035050.app`
+(previous build 202611200331). Quit the app before restoring the complete backup
 as `/Applications/PanoWizard.app`; keep the backup itself intact.
 
 Last recorded Apple status, verified 2026-11-16, not a live status check:
@@ -94,6 +94,11 @@ Last recorded Apple status, verified 2026-11-16, not a live status check:
 - Later local exposure/Little Planet changes are newer than that uploaded build.
 - Eleven warnings concern missing matching OpenCV dSYMs. They were also present
   in the validated 1.4/1.5 uploads; do not rebuild OpenCV merely to suppress them.
+
+Known macOS launch issue (reproduced 2026-11-19): CoreServicesUIAgent can reach
+256 open FDs while traversing recursive Mountain Duck server /proc paths,
+causing POSIX 24 app-launch failures. Restarting that confirmed stuck agent
+restored app launch; no product/file-limit/security change was needed.
 
 ## Documents, sources and sandbox access
 
@@ -193,10 +198,61 @@ the existing patch's active instruction when editing. Default prompts are unchan
 Signed Release build/install verified; native UI checked on a disposable A copy,
 including editing/reset. No live AI generation was needed. Help text is updated.
 
-Pre-overlay checkpoint (2026-11-19): Overlay is discussion only; implementation
-is not approved. Proposed: a Panorama row between Retouch and Export for one
-panorama-wide AI layer with an instruction, comparison and project persistence.
-Native AI resolution versus upscaling and 360° edge continuity remain unresolved.
+Overlay (approved 2026-11-19): own row between Retouch and Export. One optional
+panorama/overlay.png plus overlayPrompt/overlayEnabled are saved with format 10.
+The enabled overlay feeds Preview/exports; PSD includes a separate overlay layer.
+Input is the retouched panorama before global adjustments. Base/retouch changes
+clear the overlay. Generate uses the existing gpt-image-2 service at the nearest
+lower 16-aligned 2:1 dimensions/high; Apply stores the returned bytes unchanged.
+Native UI and saved PNG/instruction/on-off state verified with a disposable fixture.
+Live AI generation, Apply after a real response, PSD and 360° seam quality remain
+unverified. This is not a fix for night A's stitching seams. Tag pre-overlay is
+available for rollback. Build log and disposable fixture: work/overlay-20261119/.
+Workspace decision (approved/verified 2026-11-20): one full panorama at 2:1, with
+a simple toolbar below: Use overlay switch, Edit… and trash. No patch-list
+styling, thumbnail or Active/Hidden text: there is only one overlay.
+The switch changes the displayed image and Preview/exports.
+Delete clears overlay data/temporary image/prompt/enabled flag and marks the
+project dirty. With no overlay, show only Create AI overlay….
+Native disposable-copy checks: toggle, edit, delete, Save/reopen; saved package
+has no overlay.png or overlay metadata, while base PNG remains byte-identical.
+Original overlay retained. Signed Release install/signature/equality verified.
+Evidence: work/overlay-delete-20261120/.
+Simplified toolbar and Create dialog checked natively with/without an overlay;
+signed Release install/signature/equality verified. Model/delete behavior is
+unchanged. Latest build log: work/overlay-toolbar-20261120/.
+Dialog decision (approved 2026-11-20): one exact 2:1 image with mutually exclusive
+Before/After segments above; no transition, fixed image position/size. Open on
+After when an overlay exists, otherwise Before; disable After without a result
+and select it after successful Generate. Instruction has about 6–8 visible lines
+plus scrolling. Apply always uses generatedData, independent of comparison.
+Compact layout (approved/verified 2026-11-20): content determines dialog height;
+remove the expanding preview container and use 8 pt spacing. Preview reserves
+editor/footer/status space on shorter screens. Native check: 1360 x 1352 screen
+pixels versus 1360 x 1626 previously, with the same 1272 x 636 image and 144 pt
+editor. Before/After and footer fit. Signed Release install/signature/equality
+verified; Apply's generatedData path is unchanged. No live Generate/Apply used.
+Build log: work/overlay-compact-20261120/.
+Signed Release install/signature/bundle equality verified. Native Tuscany check:
+on/off changes the image in place; Edit opens the retained Before/After dialog.
+No new AI request needed. Current build log: work/overlay-single-20261120/.
+Earlier build log and preserved instruction draft: work/overlay-comparison-20261120/.
+Image-size contract (Magnus, approved 2026-11-20): reduce input only to the
+nearest lower dimensions divisible by 16 with exact 2:1 preserved. Height rounds
+down to a multiple of 16; width is twice that (multiple of 32). Already aligned
+PNGs pass unchanged. Request that same size/high and store response bytes unchanged.
+No PW 50 MB cap, fixed output dimensions, output upscaling or fallback.
+Surface service errors directly. Reject wrong-size responses without applying
+them or replacing an existing overlay. This overrides earlier 2048/3840 limits.
+Display decodes native images off the main actor; old overlays stay unchanged.
+Actual Vattenskada check: 8462 x 4231 -> 8448 x 4224, original byte-identical;
+multipart matches prepared PNG. Aligned input stays unchanged; wrong output rejected.
+PSD uses the smaller common dimensions for all layers to support reduced overlays.
+Native PSD export checked with 66 x 33 base / 64 x 32 overlay, enabled and hidden:
+64 x 32 canvas, two aligned layers, correct visibility flags. Signed Release
+install/signature/bundle equality and native project opening verified.
+No live API generation; service acceptance of large aligned requests is unverified.
+Evidence: work/overlay-16-20261120/; earlier work/overlay-native-20261120/.
 
 Publishing/export:
 
@@ -219,6 +275,9 @@ Publishing/export:
 
 - `panos/A`: current night case, five Nikon D80/Sigma 8mm NEFs.
 - `panos/B`: daylight case, nine Nikon D70 JPEGs with saved masks/assets.
+- `panos/C`: locally added Tuscany case, eight Nikon D70 JPEGs, 8472 x 4236
+  saved panorama. Native opening verified 2026-11-19 after granting its C folder;
+  old bookmarks refer to the original iCloud location. C is not yet committed.
 - These differ from bundled `examples/A–H`; the old Desktop A–Z suite is gone.
   Never infer which scene is meant from the letter alone.
 - Magnus explicitly approved public GitHub publication of A/B originals,

@@ -57,6 +57,8 @@ struct PanoProject: Codable, Equatable, Sendable {
     var panoramaAdjustments: PanoramaAdjustments
     var publishPath: String?
     var publishFilename: String?
+    var overlayPrompt: String?
+    var overlayEnabled: Bool?
     var littlePlanetSettings: LittlePlanetSettings?
     let importedPanorama: Bool?
 
