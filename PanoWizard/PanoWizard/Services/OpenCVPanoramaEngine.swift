@@ -7,7 +7,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
     static let outputWidth = 0
     // These on-disk identifiers must remain stable so a source-only rename
     // does not invalidate previously verified alignment caches.
-    static let alignmentCacheFormatKey = "automatic-ring-core-v1-supplemental-weak-edges-v1"
+    static let alignmentCacheFormatKey = "strict-repair-masked-registration-v1"
 
     func stitch(
         _ panorama: PanoramaSet,

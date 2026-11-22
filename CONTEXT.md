@@ -1,6 +1,154 @@
 # PanoWizard — projekt- och utvecklingskontext
 
+## GitHub checkpoint — 2026-11-22
+
+Preserved separately on `codex/checkpoint-repair-masks-2026-11-22`. The macOS Debug build and
+all 10 OpenCVPanoramaEngineTests passed before commit. No merge into main.
+
+
 Senast uppdaterad: 2026-11-13.
+
+## Vald slutversion för reparationsmasker — 2026-11-13
+
+Signerad Release 1.5 (202611132137) byggdes direkt från arbetskopian och
+installerades i Applications. Den har strikt grön reparationsmask, smal
+feather inåt, full reparationsvikt i hål och validerad reservfaktor per
+kanal. Det rumsliga färgfältet och dess lokala validering ligger kvar i
+separata experiment. Signatur, byggkälla och installerad binär verifierades.
+
+## Sista featherprovet i M — 2026-11-13
+
+Med den installerade experimentkoden 202611132108 och låsta masker,
+registrering och färgfält jämfördes 8,33, 12,50 och 16,67 källpixlar.
+Medianen i panoramat vid 6606 × 3303 var 10,0, 14,1 och 18,7 pixlar.
+Ingen tydlig visuell förbättring i M. Alla prov gav noll ändrade pixlar
+utanför grönt och fyllde giltiga kanthål i det syntetiska provet.
+Behåll 8,33 källpixlar i M och avsluta featherjusteringen. Bilder och
+rapport finns under repair-spatial/local-validation/feather-test.
+
+## Lokal ljus- och färgkontroll, separat experiment — 2026-11-13
+
+Den andra försöksversionen bedömer median och P90 för både absolut
+ljusresidual och färgresidual utan ljuskomponenten på klippt RGB.
+Överlappande grannskap styr en gemensam mjuk vikt. Efterkontrollen mäter
+det interpolerade fältet och dämpar försämringar. Urvalet är oförändrat.
+
+I M vid 6606 × 3303 återgick nedre vänsters ljusmedian från 3,16 till
+nuvarande 1,44. Hela ljusvinsten i övre vänster och på provtagna ytor i
+övre höger fanns kvar, medan förbättringen längs nederkanten försvann.
+Träpartiet med 96 avvisade prov behöll +28,33 i blå medianavvikelse.
+Automatic och Repair Image var byteidentiska i båda storlekarna med noll
+ändrade pixlar utanför grönt. G och D matchade nuvarande motor och 19
+riktade Xcode-tester passerade. Kod och resultat förblir separata under
+work/repair-masks/repair-spatial/local-validation i huvudutcheckningen.
+
+Signerad Release 1.5 (202611132108) byggdes från den separata
+experimentkopian och installerades i Applications på Magnus begäran.
+Signatur, binär och byggnummer verifierades.
+
+## Rumsligt färgfält för reparation, separat experiment — 2026-11-13
+
+Ett begränsat Gaussfält av tillförlitliga residualer i reparationsbildens
+källkoordinater provades ovanpå nuvarande färgfaktorer. Fältet tonar ned
+där underlaget är glest och kanaler som underkänns på separata kontrollpixlar
+behåller nuvarande metod. Med M:s sparade masker blev flera delar av kanten
+mjukare, men nedre vänster fick större ljusavvikelse och övre höger hade
+fortsatt ett träparti utan giltigt mätstöd. Försökskoden ligger separat under
+work/repair-masks/repair-spatial i huvudutcheckningen.
+
+Automatic och Repair Image var byteidentiska vid 1536 × 768 och 6606 × 3303,
+med noll ändrade pixlar utanför grönt. G och D var byteidentiska med
+nuvarande motor i båda provstorlekarna. 19 riktade Xcode-tester och den
+separata kontrollen av färgfältets fallback passerade i experimentkopian.
+
+Uppföljning: I nedre vänster förbättrades grönt och blått separat, men
+deras tidigare negativa fel kompenserade för +12 i röd medianavvikelse.
+Bara fyra av 537 kontrollpixlar hade giltigt rött. Ljusfelet steg från
+1,44 till 3,16. Övre höger avvisade alla 96 par på kromaskillnad. R/G
+klarade kanalvillkoren, medan ringens blå signal var högst 10 i 93 par.
+R/G hade bara åtta undanhållna prov i två celler. Föreslaget nästa prov
+är en mjuk lokal spärr för försämrat ljusfel över det samlade fältet, med
+oförändrat urval. Diagnos och närbilder finns i repair-spatial/lokal-diagnos.
+
+## Validerat reservvärde för reparationsfärg — 2026-11-13
+
+När en lokal faktor inte godkänns jämförs global och neutral faktor per
+kanal med slutrenderingens klippning på samma kontrollpixlar. Global väljs
+om median eller P90 förbättras utan att det andra måttet försämras. Neutral
+faktor används vid likvärdigt resultat eller färre än 20 kontrollprover.
+Villkoren för lokala faktorer är oförändrade.
+
+I M med sparade masker sjönk röd faktor från 1,144 till 1,000 och andelen
+klippta röda värden vid full reparationsvikt från 92,3 till 25,0 procent.
+Automatic och Repair Image blev byteidentiska med varandra och med det
+diagnostiska provet vid 6606 × 3303. Noll ändrade pixlar utanför grönt.
+Tonskillnaden uppe till höger kvarstår. G vid 1536 och 5120 samt D vid
+1536 blev byteidentiska med föregående resultat. 19 riktade Xcode-tester
+passerade. Före/efter-bilder finns under work/repair-masks/repair-fallback
+i huvudutcheckningen.
+
+Signerad Release 1.5 (202611131831) installerades i Applications på
+Magnus begäran. Signatur, binär och byggnummer verifierades mot bygget.
+
+## Diagnos av färgkanten i M — 2026-11-13
+
+Senast sparade M med grönt på #5 och #6 och utan rött reproducerades
+byteidentiskt vid 6606 × 3303. Lokal röd faktor 0,953 underkändes på P90
+och ersattes av global 1,144. Reservvärdet ökade felet mot ringen och
+klippte rött i 92 procent av pixlarna med full reparationsvikt. Neutral
+röd faktor gav bättre kontrollprov och mindre färgstick med samma feather.
+Övre högra träytan har också en rumslig färgskillnad. Ringen har nästan
+ingen blå kanal där, redan i den dominerande råkällan. Alla 96 provpunkter
+på den ytan avvisades på kromaskillnad. Noll pixlar ändrades utanför grönt.
+Föreslagen första ändring är att jämföra det globala reservvärdet med
+neutral faktor på befintliga kontrollprov. Diagnos och bilder finns under
+work/repair-masks/repair-diagnosis i huvudutcheckningen.
+
+## Färg och mjuk kant för grönmaskad reparation — 2026-11-13
+
+Den separata reparationen passerade tidigare bara global exponering.
+Den matchas nu mot den färdiga ringens färg från jämnt, giltigt överlapp
+strax utanför grönt. Färgprovet använder originalvärden före klippning.
+Kanaljusteringar som saknar stöd i separata kontrollprover hanteras enligt
+reservregeln ovan. Feather ligger innanför den giltiga masken och mäts
+i källpixlar. Där ringen saknar täckning får giltig reparation full vikt.
+Grönt behöver marginal runt motivet som ska ersättas.
+
+M gav identiska resultat för Automatic och Repair Image vid 1536 × 768
+och 5120 × 2560, med noll ändrade pixlar utanför grönt mot enbart ringen.
+Färgskillnaden minskade. En reflex i bordet syns fortfarande. Extra grön
+marginal i provet täckte stativresten vid den tidigare maskkanten, med noll
+ändrade pixlar utanför den utökade masken. G gav byteidentiska PNG-filer mot 77e7900
+i båda storlekarna. D:s nadir klassades som reparation utan hål. 18
+riktade Xcode-tester passerade. Provbilder finns under work/repair-masks/
+repair-feather i huvudutcheckningen.
+
+Signerad Release 1.5 (202611131802) installerades i Applications på
+Magnus begäran. Signatur, binär och byggnummer verifierades mot bygget.
+
+## Strikt grön reparationsmask — 2026-11-13
+
+Isolerad arbetskopia från 77e7900. Röd Exclude styr kontrollpunktssökningen
+och slutbilden för både ring- och reparationsbilder. Automatic använder
+de maskade kontrollpunkterna för klassificeringen. Automatiska nadirbilder
+identifieras före slutlig ringoptimering och registreras mot den optimerade
+ringen. Grönmaskad reparation läggs sist med skarp kant inom giltig grön
+yta minus rött. Cacheformat 7 utesluter både äldre och experimentella
+registreringsresultat.
+
+På M-kopian klassades #6 som reparation med Automatic och Repair Image.
+En extra röd mask sänkte antalet SIFT-punkter inom den markerade ytan från
+1799 till noll och #6 kunde fortfarande placeras. Utan rött på #6 gav båda
+bildtyperna identiskt resultat, med noll ändrade pixlar utanför grönt vid
+1536 × 768 och 5120 × 2560 jämfört med enbart ringen. G gav byteidentiska
+PNG-filer mot 77e7900 i båda storlekarna. D:s automatiska nadirbild blev
+reparation och D renderades utan hål. Cache från experimentversion 6
+avvisades. Ett regressionstest täcker helröd reparation och 18 riktade
+Xcode-tester passerade.
+
+Signerad Release 1.5 (202611131738) byggdes från arbetskopian och installerades
+i Applications på Magnus begäran. Strict/deep-signatur, binär och byggnummer
+verifierades mot testbygget.
 
 ## Maskdiskussion för Panorama M och G — 2026-11-13
 
