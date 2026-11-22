@@ -1,6 +1,6 @@
 # PanoWizard — Current Project Context
 
-Last reviewed: 2026-11-19.
+Last reviewed: 2026-11-20.
 
 This file contains current decisions, working conventions and unresolved issues.
 Earlier investigations, build logs and superseded decisions remain in Git history.
@@ -81,10 +81,10 @@ Generate Build Metadata phase produces local timestamp build IDs (`YYYYMMDDHHmm`
 and the About timestamp without editing tracked source files. Minute resolution
 means consecutive distribution builds need distinct build minutes.
 
-Last verified local installation (2026-11-19): **1.5 (202611192112)**.
-Rollback: `/Users/magnus/Library/Developer/Xcode/PanoWizard-before-instruction-only-20261119-211331.app`
-(previous build 202611190028). Quit the app before restoring the complete backup
-as `/Applications/PanoWizard.app`; keep the backup itself intact.
+Last verified local installation (2026-11-20): **1.5 (202611200406)**, rebuilt
+from `pre-overlay` (`ed197fa`). Previous app and Vattenskada project package:
+`/Users/magnus/Library/Developer/Xcode/PanoWizard-pre-overlay-rollback-20261120-040709/`.
+Quit the app before restoring its complete backup as `/Applications/PanoWizard.app`.
 
 Last recorded Apple status, verified 2026-11-16, not a live status check:
 
@@ -193,10 +193,15 @@ the existing patch's active instruction when editing. Default prompts are unchan
 Signed Release build/install verified; native UI checked on a disposable A copy,
 including editing/reset. No live AI generation was needed. Help text is updated.
 
-Pre-overlay checkpoint (2026-11-19): Overlay is discussion only; implementation
-is not approved. Proposed: a Panorama row between Retouch and Export for one
-panorama-wide AI layer with an instruction, comparison and project persistence.
-Native AI resolution versus upscaling and 360° edge continuity remain unresolved.
+Overlay rollback (Magnus, 2026-11-20): restore `pre-overlay` (`ed197fa`), which
+is already HEAD/main. All Overlay code changes are preserved in Git stash
+`eb0e7be841b51bc9c6c0525c93da4a115c5d27d5` ("Overlay work before restoring
+pre-overlay 2026-11-20"). Do not resume implementation without new approval.
+OpenAI rejected the large panorama: longest edge must be <=3840, so the current
+service could not meet Magnus's original-resolution requirement. Source/README
+match the tag; only this context records the rollback. Signed Release build,
+installation/signature/bundle equality and native project opening verified;
+Overlay is absent from the sidebar. Evidence: work/pre-overlay-restore-20261120/.
 
 Publishing/export:
 
@@ -219,6 +224,8 @@ Publishing/export:
 
 - `panos/A`: current night case, five Nikon D80/Sigma 8mm NEFs.
 - `panos/B`: daylight case, nine Nikon D70 JPEGs with saved masks/assets.
+- `panos/C`: local, untracked Tuscany project and sources; retained in place
+  during the pre-overlay rollback and excluded from the Overlay-code stash.
 - These differ from bundled `examples/A–H`; the old Desktop A–Z suite is gone.
   Never infer which scene is meant from the letter alone.
 - Magnus explicitly approved public GitHub publication of A/B originals,

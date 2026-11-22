@@ -1,0 +1,170 @@
+{
+  "createdAt" : "2026-10-11T16:40:25Z",
+  "formatVersion" : 10,
+  "id" : "F7C16EBA-ADC6-4BF3-9CC9-B67F571F697F",
+  "images" : [
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2006-07-27T11:24:22Z",
+      "direction" : "horizontal",
+      "id" : "B5DB5F0E-AC3D-4E8C-9080-D64D58AB273C",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2006-07-27%2013.24.22.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2006-07-27T11:24:24Z",
+      "direction" : "horizontal",
+      "id" : "D44D2A88-B1AE-4C6D-9F8B-8424F2F18F3D",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2006-07-27%2013.24.24.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2006-07-27T11:24:27Z",
+      "direction" : "horizontal",
+      "id" : "2F6C0979-C034-4ADF-94ED-28646CED72E3",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2006-07-27%2013.24.27.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2006-07-27T11:24:29Z",
+      "direction" : "horizontal",
+      "id" : "9AF8497B-1449-4B5D-B4AF-E629F7AA290D",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2006-07-27%2013.24.29.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2006-07-27T11:24:32Z",
+      "direction" : "horizontal",
+      "id" : "9DFD3ECE-D74D-462A-9484-57304E40868B",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2006-07-27%2013.24.32.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2006-07-27T11:24:34Z",
+      "direction" : "horizontal",
+      "id" : "EB1C1259-53CF-4759-AB91-1107E5534F04",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2006-07-27%2013.24.34.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2006-07-27T11:24:38Z",
+      "direction" : "horizontal",
+      "id" : "CFA8CCFD-AB35-4384-B78E-FBA53DB7FB45",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2006-07-27%2013.24.38.jpg"
+    },
+    {
+      "cameraModel" : "NIKON D70",
+      "captureDate" : "2006-07-27T11:24:55Z",
+      "direction" : "horizontal",
+      "id" : "EF77DF85-136D-46D7-B871-FFB44F229F24",
+      "isEnabled" : true,
+      "lens" : {
+        "focalLengthIn35mm" : 10.5,
+        "kind" : "fisheye",
+        "model" : "AF DX Fisheye-Nikkor 10.5mm f/2.8G ED"
+      },
+      "pixelHeight" : 3008,
+      "pixelWidth" : 2000,
+      "role" : "automatic",
+      "rotation" : 0,
+      "url" : "2006-07-27%2013.24.55.jpg"
+    }
+  ],
+  "modifiedAt" : "2026-11-19T22:59:08Z",
+  "overlayEnabled" : true,
+  "overlayPrompt" : "Adjust the panorama while preserving its geometry, people and existing scene. Match exposure and color naturally. \n\nSärskilt i detta panorama - torget är för överexponerat. Försök bevara stenläggningen där. Kom ihåg skuggor.",
+  "panoramaAdjustments" : {
+    "blacks" : 0,
+    "brightness" : 0,
+    "contrast" : 0,
+    "exposure" : 0,
+    "highlights" : 0,
+    "saturation" : 0,
+    "shadows" : 0,
+    "temperature" : 0,
+    "tint" : 0,
+    "vibrance" : 0,
+    "whites" : 0
+  },
+  "previewViewpoint" : {
+    "pitchRadians" : -0.33254408836364746,
+    "verticalFieldOfViewDegrees" : 111.81840515136719,
+    "yawRadians" : -9.001099586486816
+  },
+  "publishFilename" : "utflykt.html",
+  "publishPath" : "2006/juli/toscana",
+  "retouchPatches" : [
+
+  ],
+  "title" : "28 Jul 2006"
+}
