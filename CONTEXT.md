@@ -197,6 +197,12 @@ Overlay rollback (Magnus, 2026-11-20): restore `pre-overlay` (`ed197fa`), which
 is already HEAD/main. All Overlay code changes are preserved in Git stash
 `eb0e7be841b51bc9c6c0525c93da4a115c5d27d5` ("Overlay work before restoring
 pre-overlay 2026-11-20"). Do not resume implementation without new approval.
+GitHub preservation (2026-11-22): the Overlay stash is also available as
+`backup/stash-overlay-2026-11-20`; the older development stash as
+`backup/stash-development-2026-10-14`. Both retain the original stash commit
+structure and untracked-file parents. Separate mask work is preserved on
+`codex/checkpoint-render-masks-2026-11-22` and
+`codex/checkpoint-repair-masks-2026-11-22`; neither was merged into main.
 OpenAI rejected the large panorama: longest edge must be <=3840, so the current
 service could not meet Magnus's original-resolution requirement. Source/README
 match the tag; only this context records the rollback. Signed Release build,
@@ -224,8 +230,8 @@ Publishing/export:
 
 - `panos/A`: current night case, five Nikon D80/Sigma 8mm NEFs.
 - `panos/B`: daylight case, nine Nikon D70 JPEGs with saved masks/assets.
-- `panos/C`: local, untracked Tuscany project and sources; retained in place
-  during the pre-overlay rollback and excluded from the Overlay-code stash.
+- `panos/C`: Tuscany project and sources, versioned and pushed on 2026-11-22;
+  retained in place during the pre-overlay rollback and excluded from the Overlay-code stash.
 - These differ from bundled `examples/A–H`; the old Desktop A–Z suite is gone.
   Never infer which scene is meant from the letter alone.
 - Magnus explicitly approved public GitHub publication of A/B originals,
