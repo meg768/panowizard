@@ -126,8 +126,8 @@ C bridge to Swift. It does not launch external stitching tools.
 
 The engine:
 
-1. Writes oriented source images as TIFF files with exclusion masks stored in
-   alpha.
+1. Writes oriented source images as TIFF files and keeps source masks separate
+   until rendering.
 2. Detects a common optical image circle.
 3. Matches SIFT features and filters them with rotation-based RANSAC.
 4. Jointly optimizes camera rotations and the fisheye lens model, then levels
@@ -146,7 +146,7 @@ The engine:
     coverage and hole statistics.
 
 The alignment cache is keyed by the engine format, source identity and
-metadata, image role, orientation, and red exclusion masks.
+metadata, image role, and orientation.
 
 ## Project files
 

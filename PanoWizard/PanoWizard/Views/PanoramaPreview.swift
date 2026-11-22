@@ -277,6 +277,7 @@ private struct SourceMaskEditor: View {
                         .background {
                             NativeImagePanMonitor(
                                 onEditPointer: lassoPointerHandler,
+                                isEditPointerActive: { maskTool == .lasso && lassoPointerStart != nil },
                                 onScrollZoom: { delta, _ in
                                     pendingZoomAnchor = nil
                                     setZoom(zoom * exp(Double(-delta * 0.006)))
@@ -618,9 +619,7 @@ private struct SourceMaskEditor: View {
                 }
             }
             if event.type == .leftMouseUp {
-                pointerGesture = nil
-                lassoPointerStart = nil
-                lassoIsDragging = false
+                endLassoPointer()
             }
         default:
             break
@@ -630,22 +629,17 @@ private struct SourceMaskEditor: View {
     @discardableResult
     private func cancelLasso() -> Bool {
         guard maskTool == .lasso, !activeStroke.isEmpty else { return false }
-        activeStroke = []
-        lassoSegmentStarts = []
-        lassoIsDragging = false
-        activeGestureErases = false
-        if pointerGesture != nil { pointerGesture = .cancelled }
+        resetLasso()
         return true
     }
 
     @discardableResult
     private func completeLasso() -> Bool {
         guard maskTool == .lasso, !activeStroke.isEmpty, let sourceImage else { return false }
-        commitLasso(sourceImage: sourceImage)
-        lassoSegmentStarts = []
-        lassoIsDragging = false
-        activeGestureErases = false
-        if pointerGesture != nil { pointerGesture = .cancelled }
+        let points = activeStroke
+        let erasing = activeGestureErases
+        resetLasso()
+        commitLasso(points: points, erasing: erasing, sourceImage: sourceImage)
         return true
     }
 
@@ -653,10 +647,26 @@ private struct SourceMaskEditor: View {
     private func removeLastLassoSegment() -> Bool {
         guard maskTool == .lasso, let start = lassoSegmentStarts.popLast() else { return false }
         activeStroke.removeSubrange(start...)
-        lassoIsDragging = false
-        if activeStroke.isEmpty { activeGestureErases = false }
-        if pointerGesture != nil { pointerGesture = .cancelled }
+        if activeStroke.isEmpty {
+            resetLasso()
+        } else {
+            endLassoPointer()
+        }
         return true
+    }
+
+    private func endLassoPointer() {
+        pointerGesture = nil
+        lassoPointerStart = nil
+        lassoIsDragging = false
+    }
+
+    private func resetLasso() {
+        endLassoPointer()
+        activeStroke = []
+        lassoSegmentStarts = []
+        activeGestureErases = false
+        clearHoverFeedback()
     }
 
     private func clearHoverFeedback() {
@@ -735,14 +745,13 @@ private struct SourceMaskEditor: View {
         activeStroke = []
     }
 
-    private func commitLasso(sourceImage: CGImage) {
-        defer { activeStroke = [] }
+    private func commitLasso(points: [MaskPoint], erasing: Bool, sourceImage: CGImage) {
         guard SourceMaskRasterizer.lassoPath(
-            points: activeStroke, width: sourceImage.width, height: sourceImage.height
+            points: points, width: sourceImage.width, height: sourceImage.height
         ) != nil else { return }
-        applyToAllMasks(erasing: activeGestureErases) { data, erase, intent in
+        applyToAllMasks(erasing: erasing) { data, erase, intent in
             SourceMaskRasterizer.applyingLasso(
-                points: activeStroke, erasing: erase,
+                points: points, erasing: erase,
                 protectedArea: intent == .protect, to: data,
                 width: sourceImage.width, height: sourceImage.height
             )
@@ -1002,6 +1011,7 @@ private struct ImageSurfaceModifierMonitor: NSViewRepresentable {
 
 private struct NativeImagePanMonitor: NSViewRepresentable {
     var onEditPointer: ((NSEvent, MaskPoint, CGSize) -> Void)?
+    var isEditPointerActive: () -> Bool = { false }
     let onScrollZoom: (CGFloat, UnitPoint) -> Void
     let onZoomIn: () -> Void
     let onZoomOut: () -> Void
@@ -1026,6 +1036,7 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         }
         context.coordinator.commandView = view
         context.coordinator.onEditPointer = onEditPointer
+        context.coordinator.isEditPointerActive = isEditPointerActive
         context.coordinator.onScrollZoom = onScrollZoom
         context.coordinator.install()
         return view
@@ -1038,6 +1049,7 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         context.coordinator.scrollView = view.enclosingScrollView
         context.coordinator.commandView = view
         context.coordinator.onEditPointer = onEditPointer
+        context.coordinator.isEditPointerActive = isEditPointerActive
         context.coordinator.onScrollZoom = onScrollZoom
     }
 
@@ -1087,7 +1099,7 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         weak var scrollView: NSScrollView?
         weak var commandView: AttachmentView?
         var onEditPointer: ((NSEvent, MaskPoint, CGSize) -> Void)?
-        private var isEditing = false
+        var isEditPointerActive: () -> Bool = { false }
         var onScrollZoom: (CGFloat, UnitPoint) -> Void = { _, _ in }
         private var monitor: Any?
         private var panOrigin: CGPoint?
@@ -1122,12 +1134,10 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
         }
 
         private func handle(_ event: NSEvent) -> NSEvent? {
-            if isEditing, event.type == .leftMouseDragged || event.type == .leftMouseUp {
-                forwardEditPointer(event)
-                if event.type == .leftMouseUp { isEditing = false }
-                return nil
-            }
-            if event.type == .leftMouseDown { isEditing = false }
+            guard let scrollView, let window = scrollView.window,
+                  event.window === window else { return event }
+            if event.type == .leftMouseDragged || event.type == .leftMouseUp,
+               isEditPointerActive(), forwardEditPointer(event) { return nil }
             if event.type == .leftMouseUp, panOrigin != nil {
                 finishPan()
                 return nil
@@ -1135,8 +1145,6 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             if event.type == .leftMouseDown, panOrigin != nil {
                 finishPan()
             }
-            guard let scrollView,
-                  let window = scrollView.window else { return event }
             let hitRect = scrollView.contentView.convert(
                 scrollView.contentView.bounds,
                 to: nil
@@ -1181,19 +1189,16 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             }
             switch event.type {
             case .leftMouseDown:
-                guard event.window === window,
-                      hitRect.contains(event.locationInWindow),
-                      onEditPointer != nil
-                        || eventIsInsideScrollView(event, window: window, scrollView: scrollView) else {
+                guard hitRect.contains(event.locationInWindow),
+                      eventIsInsideScrollView(event, window: window, scrollView: scrollView) else {
                     return event
                 }
-                window.makeFirstResponder(commandView)
                 let interaction = ImageSurfaceInteraction(modifierFlags: event.modifierFlags)
-                if interaction != .navigate, onEditPointer != nil {
-                    isEditing = true
-                    forwardEditPointer(event)
+                if interaction != .navigate, forwardEditPointer(event) {
+                    window.makeFirstResponder(commandView)
                     return nil
                 }
+                window.makeFirstResponder(commandView)
                 guard interaction == .navigate else { return event }
                 panOrigin = scrollView.contentView.bounds.origin
                 panStart = event.locationInWindow
@@ -1224,13 +1229,14 @@ private struct NativeImagePanMonitor: NSViewRepresentable {
             }
         }
 
-        private func forwardEditPointer(_ event: NSEvent) {
-            guard let commandView,
-                  commandView.bounds.width > 0, commandView.bounds.height > 0 else { return }
+        private func forwardEditPointer(_ event: NSEvent) -> Bool {
+            guard let onEditPointer, let commandView,
+                  commandView.bounds.width > 0, commandView.bounds.height > 0 else { return false }
             let point = commandView.convert(event.locationInWindow, from: nil)
             let x = (point.x - commandView.bounds.minX) / commandView.bounds.width
             let y = (point.y - commandView.bounds.minY) / commandView.bounds.height
-            onEditPointer?(event, MaskPoint(x: x, y: commandView.isFlipped ? y : 1 - y), commandView.bounds.size)
+            onEditPointer(event, MaskPoint(x: x, y: commandView.isFlipped ? y : 1 - y), commandView.bounds.size)
+            return true
         }
 
         private func eventIsInsideScrollView(

@@ -7,7 +7,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
     static let outputWidth = 0
     // These on-disk identifiers must remain stable so a source-only rename
     // does not invalidate previously verified alignment caches.
-    static let alignmentCacheFormatKey = "strict-repair-masked-registration-v1"
+    static let alignmentCacheFormatKey = "unmasked-registration-v1"
 
     func stitch(
         _ panorama: PanoramaSet,
@@ -57,6 +57,7 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
         defer { try? fileManager.removeItem(at: workDirectory) }
 
         var sourceURLs: [URL] = []
+        var excludedURLs: [URL?] = []
         var protectedURLs: [URL?] = []
         for (index, image) in images.enumerated() {
             try context.checkCancellation()
@@ -65,24 +66,14 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
                 "Preparing source images…"
             )
             let sourceURL = workDirectory.appending(path: "source-\(index).tif")
-            try MaskedSourceImageWriter.write(
-                sourceImage: image,
-                maskData: masks[image.id],
-                destinationURL: sourceURL
-            )
+            try OrientedSourceImageWriter.write(sourceImage: image, destinationURL: sourceURL)
             sourceURLs.append(sourceURL)
-
-            if let data = protectedMasks[image.id] {
-                let maskURL = workDirectory.appending(path: "protected-\(index).png")
-                try data.write(to: maskURL, options: .atomic)
-                protectedURLs.append(maskURL)
-            } else {
-                protectedURLs.append(nil)
-            }
+            excludedURLs.append(try writeMask(masks[image.id], to: workDirectory.appending(path: "excluded-\(index).png")))
+            protectedURLs.append(try writeMask(protectedMasks[image.id], to: workDirectory.appending(path: "protected-\(index).png")))
         }
 
         let outputURL = workDirectory.appending(path: "panorama.png")
-        let cacheURL = try alignmentCacheURL(images: images, masks: masks)
+        let cacheURL = try alignmentCacheURL(images: images)
         let compositionRoles = images.map { image -> UInt8 in
             if image.effectiveRole == .fillOnly { return 2 }
             if image.role == .alignment || image.automaticRole == .alignment {
@@ -95,24 +86,28 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
         let opaqueContext = Unmanaged.passUnretained(context).toOpaque()
         let succeeded = sourceURLs.map { $0.path(percentEncoded: false) }
             .withCStringArray { sourcePaths in
-                protectedURLs.map { $0?.path(percentEncoded: false) }
-                    .withOptionalCStringArray { protectedPaths in
-                        compositionRoles.withUnsafeBufferPointer { roles in
-                            PWStitchPanorama(
-                                sourcePaths,
-                                protectedPaths,
-                                roles.baseAddress,
-                                Int32(sourceURLs.count),
-                                cacheURL.path(percentEncoded: false),
-                                outputURL.path(percentEncoded: false),
-                                Int32(outputWidth),
-                                opaqueContext,
-                                progressCallback,
-                                cancellationCallback,
-                                &report,
-                                &errorPointer
-                            )
-                        }
+                excludedURLs.map { $0?.path(percentEncoded: false) }
+                    .withOptionalCStringArray { excludedPaths in
+                        protectedURLs.map { $0?.path(percentEncoded: false) }
+                            .withOptionalCStringArray { protectedPaths in
+                                compositionRoles.withUnsafeBufferPointer { roles in
+                                    PWStitchPanorama(
+                                        sourcePaths,
+                                        excludedPaths,
+                                        protectedPaths,
+                                        roles.baseAddress,
+                                        Int32(sourceURLs.count),
+                                        cacheURL.path(percentEncoded: false),
+                                        outputURL.path(percentEncoded: false),
+                                        Int32(outputWidth),
+                                        opaqueContext,
+                                        progressCallback,
+                                        cancellationCallback,
+                                        &report,
+                                        &errorPointer
+                                    )
+                                }
+                            }
                     }
             }
         defer { PWFreeString(errorPointer) }
@@ -173,10 +168,13 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
             + skipped.joined(separator: "\n")
     }
 
-    static func alignmentCacheURL(
-        images: [SourceImage],
-        masks: [UUID: Data]
-    ) throws -> URL {
+    private static func writeMask(_ data: Data?, to url: URL) throws -> URL? {
+        guard let data else { return nil }
+        try data.write(to: url, options: .atomic)
+        return url
+    }
+
+    static func alignmentCacheURL(images: [SourceImage]) throws -> URL {
         var digest = SHA256()
         digest.update(data: Data(alignmentCacheFormatKey.utf8))
         let fileManager = FileManager.default
@@ -196,9 +194,6 @@ struct OpenCVPanoramaEngine: PanoramaEngine {
             }
             if let date = attributes[.modificationDate] as? Date {
                 digest.update(data: Data(String(date.timeIntervalSince1970).utf8))
-            }
-            if let mask = masks[image.id] {
-                digest.update(data: mask)
             }
         }
         let key = digest.finalize().map { String(format: "%02x", $0) }.joined()
